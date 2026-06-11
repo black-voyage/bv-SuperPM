@@ -644,18 +644,84 @@ function addRisk(slug){ const t=prompt("Risk (one line)"); if(!t)return;
 
 /* ----- persistence (guarded): autosave, export, reset ----- */
 function snapshot(){return JSON.stringify({v:2,TEAM,LAUNCHES,CAMPAIGNS,LOG,GATES,FLOW,XROUTES});}
-function save(){try{if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot());}catch(e){}}
+function save(){try{if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot());}catch(e){} recordVersion();}
+function applySnapshot(d){
+  if(!d)return;
+  TEAM.length=0;(d.TEAM||[]).forEach(x=>TEAM.push(x));
+  LAUNCHES.length=0;(d.LAUNCHES||[]).forEach(x=>LAUNCHES.push(x));
+  CAMPAIGNS.length=0;(d.CAMPAIGNS||[]).forEach(x=>CAMPAIGNS.push(x));
+  if(d.LOG){LOG.length=0;d.LOG.forEach(x=>LOG.push(x));} // keep current activity log if a version snap omits it
+  if(d.GATES){Object.keys(GATES).forEach(k=>delete GATES[k]);Object.entries(d.GATES).forEach(([k,v])=>GATES[k]=v);}
+  if(d.FLOW){Object.keys(FLOW).forEach(k=>delete FLOW[k]);Object.entries(d.FLOW).forEach(([k,v])=>FLOW[k]=v);}
+  if(d.XROUTES){Object.keys(XROUTES).forEach(k=>delete XROUTES[k]);Object.entries(d.XROUTES).forEach(([k,v])=>XROUTES[k]=v);}
+}
 function loadSaved(){try{
   if(typeof localStorage==="undefined")return;
   const s=localStorage.getItem("bv-superpm"); if(!s)return; const d=JSON.parse(s); if(d.v!==2)return;
-  TEAM.length=0;d.TEAM.forEach(x=>TEAM.push(x));
-  LAUNCHES.length=0;d.LAUNCHES.forEach(x=>LAUNCHES.push(x));
-  CAMPAIGNS.length=0;d.CAMPAIGNS.forEach(x=>CAMPAIGNS.push(x));
-  LOG.length=0;(d.LOG||[]).forEach(x=>LOG.push(x));
-  Object.keys(GATES).forEach(k=>delete GATES[k]);Object.entries(d.GATES).forEach(([k,v])=>GATES[k]=v);
-  Object.keys(FLOW).forEach(k=>delete FLOW[k]);Object.entries(d.FLOW).forEach(([k,v])=>FLOW[k]=v);
-  if(d.XROUTES){Object.keys(XROUTES).forEach(k=>delete XROUTES[k]);Object.entries(d.XROUTES).forEach(([k,v])=>XROUTES[k]=v);}
+  applySnapshot(d);
 }catch(e){}}
+
+/* ================= VERSION HISTORY =================
+   Every change is auto-captured: timestamp, who (current role), and a summary of what changed
+   in which section. Any previous version can be restored; the restore itself is recorded. */
+let VERSIONS=[]; let _lastVerKey=null; let _verNote=null;
+function nowStamp(){try{const d=new Date(),p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());}catch(e){return (typeof today!=="undefined"?today:"")+" 00:00";}}
+function actor(){return S.role==="ceo"?"Ben (CEO)":S.role==="director"?"Director":(S.dept+" (head)");}
+function verSnap(){return JSON.stringify({v:2,TEAM,LAUNCHES,CAMPAIGNS,GATES,FLOW,XROUTES});} // no LOG → smaller, change-relevant
+function stWord(s){return ({o:"to-do",p:"in progress",b:"blocked",x:"done"})[s]||s;}
+function saveVersions(){try{if(typeof localStorage==="undefined")return;localStorage.setItem("bv-superpm-versions",JSON.stringify(VERSIONS));}catch(e){try{VERSIONS.length=Math.floor(VERSIONS.length/2);localStorage.setItem("bv-superpm-versions",JSON.stringify(VERSIONS));}catch(_){}}}
+function loadVersions(){try{if(typeof localStorage==="undefined")return;const s=localStorage.getItem("bv-superpm-versions");if(s){const a=JSON.parse(s);if(Array.isArray(a))VERSIONS=a;}}catch(e){}}
+function diffState(prev,cur){
+  const ch=[]; const secs=new Set();
+  const pl={}, cl={}; (prev.LAUNCHES||[]).forEach(l=>pl[l.slug]=l); (cur.LAUNCHES||[]).forEach(l=>cl[l.slug]=l);
+  Object.keys(cl).forEach(s=>{ if(!pl[s]){ch.push("＋ launch “"+cl[s].name+"” created");secs.add(cl[s].name);} });
+  Object.keys(pl).forEach(s=>{ if(!cl[s]){ch.push("✕ launch “"+pl[s].name+"” removed");secs.add(pl[s].name);} });
+  Object.keys(cl).forEach(s=>{ const a=pl[s], b=cl[s]; if(!a)return; const nm=b.name;
+    if(a.stage!==b.stage){ch.push(nm+": stage "+a.stage+" → "+b.stage);secs.add(nm);}
+    if(a.dri!==b.dri){ch.push(nm+": DRI "+a.dri+" → "+b.dri);secs.add(nm);}
+    if(a.target!==b.target){ch.push(nm+": target "+a.target+" → "+b.target);secs.add(nm);}
+    if((a.complete?1:0)!==(b.complete?1:0)){ch.push(nm+": "+(b.complete?"marked complete 🎉":"reopened"));secs.add(nm);}
+    const at={}, bt={}; (a.tasks||[]).forEach(t=>at[t.t]=t); (b.tasks||[]).forEach(t=>bt[t.t]=t);
+    Object.keys(bt).forEach(tt=>{ const x=at[tt], y=bt[tt]; if(!x){ch.push(nm+": ＋ task “"+tt+"”");secs.add(nm);return;}
+      if(x.st!==y.st){ch.push(nm+" / "+tt+": "+stWord(x.st)+" → "+stWord(y.st));secs.add(nm);}
+      const xl=(x.links||[]).length,yl=(y.links||[]).length; if(yl>xl){ch.push(nm+" / "+tt+": +"+(yl-xl)+" link");secs.add(nm);}
+      const xn=(x.notes||[]).length,yn=(y.notes||[]).length; if(yn>xn){ch.push(nm+" / "+tt+": +"+(yn-xn)+" note");secs.add(nm);}
+      if(x.assignee!==y.assignee&&y.assignee){ch.push(nm+" / "+tt+": assigned "+y.assignee);secs.add(nm);}
+    });
+    const ar=(a.risks||[]).length,br=(b.risks||[]).length; if(br!==ar){ch.push(nm+": "+(br>ar?"+"+(br-ar)+" risk":(br-ar)+" risk"));secs.add(nm);}
+    const ac=(a.checkins||[]).length,bc=(b.checkins||[]).length; if(bc>ac){ch.push(nm+": +"+(bc-ac)+" check-in");secs.add(nm);}
+  });
+  if(JSON.stringify(prev.TEAM)!==JSON.stringify(cur.TEAM)){ch.push("Team updated");secs.add("Team");}
+  if(JSON.stringify(prev.CAMPAIGNS)!==JSON.stringify(cur.CAMPAIGNS)){ch.push("Campaigns updated");secs.add("Campaigns");}
+  if(JSON.stringify(prev.GATES)!==JSON.stringify(cur.GATES)||JSON.stringify(prev.FLOW)!==JSON.stringify(cur.FLOW)||JSON.stringify(prev.XROUTES)!==JSON.stringify(cur.XROUTES)){ch.push("Process map updated");secs.add("Process map");}
+  const summary = ch.length? ch.slice(0,4).join("; ")+(ch.length>4?"; +"+(ch.length-4)+" more":"") : "Minor edit";
+  return {sections:[...secs], summary, detail:ch};
+}
+function recordVersion(){
+  try{
+    const snap=verSnap();
+    if(_lastVerKey===null){ _lastVerKey=snap;
+      if(!VERSIONS.length){VERSIONS.unshift({id:1,ts:nowStamp(),who:actor(),summary:"Baseline — version history started here",sections:[],changes:[],snap}); saveVersions();}
+      return; }
+    if(snap===_lastVerKey)return;
+    const d=diffState(JSON.parse(_lastVerKey),JSON.parse(snap));
+    const id=(VERSIONS[0]?VERSIONS[0].id:0)+1;
+    VERSIONS.unshift({id,ts:nowStamp(),who:actor(),summary:_verNote||d.summary,sections:d.sections,changes:_verNote?[_verNote].concat(d.detail):d.detail,snap});
+    _verNote=null; if(VERSIONS.length>80)VERSIONS.length=80; _lastVerKey=snap; saveVersions();
+  }catch(e){}
+}
+function saveCheckpoint(){const lbl=prompt("Checkpoint label — what is this version?","");if(lbl===null)return;
+  const snap=verSnap(); VERSIONS.unshift({id:(VERSIONS[0]?VERSIONS[0].id:0)+1,ts:nowStamp(),who:actor(),summary:"📌 "+(lbl||"Checkpoint"),sections:[],changes:[],snap});
+  _lastVerKey=snap; if(VERSIONS.length>80)VERSIONS.length=80; saveVersions(); render(); toast("📌 Checkpoint saved");}
+function restoreVersion(id){
+  const v=VERSIONS.find(x=>x.id===id); if(!v){toast("Version not found");return;}
+  if(typeof confirm!=="undefined"&&!confirm("Restore version from "+v.ts+" (by "+v.who+")?\n\n“"+(v.summary||"")+"”\n\nThis replaces the current state. The restore is recorded as a new version, so you can undo it."))return;
+  try{applySnapshot(JSON.parse(v.snap));}catch(e){toast("Restore failed");return;}
+  _verNote="↩ Restored to "+v.ts+" (originally by "+v.who+")";
+  log("↩ Restored version from "+v.ts);
+  S.view="versions"; render(); // render → save → recordVersion captures the restore
+  toast("↩ Restored to "+v.ts);
+}
 function resetDemo(){try{if(typeof localStorage!=="undefined")localStorage.removeItem("bv-superpm");}catch(e){} location.reload();}
 function exportJSON(){try{
   const a=document.createElement("a");
@@ -744,7 +810,7 @@ const DOD={"Form (intake)":"Intake complete: why, spec, look, material, customer
 
 /* ================= STATE ================= */
 let S={role:"ceo",view:"home",launch:null,dept:"Design",flowLaunch:"apex",open:{},progLaunch:"apex",route:null,q:"",palSel:0,hideFlow:false};
-const NAVS=[["home","Home"],["portfolio","Portfolio"],["progress","Progress"],["timeline","Timeline"],["dept","Departments"],["flow","Master flow"],["campaign","Campaigns"],["team","Team"]];
+const NAVS=[["home","Home"],["portfolio","Portfolio"],["progress","Progress"],["timeline","Timeline"],["dept","Departments"],["flow","Master flow"],["campaign","Campaigns"],["team","Team"],["versions","History"]];
 const stIcon={x:"✓",p:"…",b:"!",o:""};
 const fmt=d=>new Date(d+"T00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
 const today="2026-06-10";
@@ -1312,6 +1378,19 @@ function viewTeam(){
   <div class="sub" style="margin-top:10px">Renaming a department updates every task, gate, DRI and flow-chart lane automatically. Removal is blocked while tasks or gates still reference it. (Prototype: edits live in memory; the real app commits them to the repo.)</div></div>`;
 }
 
+function viewVersions(){
+  const head=`<h2>Version history${VERSIONS.length?` <span class="pill ok">${VERSIONS.length}</span>`:""} <button class="btn" style="margin-left:8px" onclick="saveCheckpoint()">📌 Save checkpoint</button></h2>
+  <div class="sub">Every change is auto-saved as a version — <b>when</b>, <b>who</b> (current role), and a <b>summary of what changed</b> in each section. Restore any earlier version; the restore is itself recorded so you can always go back.</div>`;
+  if(!VERSIONS.length) return head+`<div class="panel"><div class="sub">No versions yet — make a change and it'll appear here.</div></div>`;
+  return head+`<div class="panel">${VERSIONS.map((v,i)=>`
+    <div style="border:1px solid var(--line,#262b32);border-left:3px solid ${i===0?"var(--green)":"var(--line,#3a414b)"};border-radius:4px;padding:10px 12px;margin-bottom:8px">
+      <div><b>${esc(v.ts)}</b> · <span style="color:var(--accent)">${esc(v.who)}</span>${i===0?' <span class="pill ok">current</span>':""}
+        ${i===0?"":`<button class="btn" style="float:right;padding:4px 10px;font-size:12px" onclick="restoreVersion(${v.id})">↩ Restore this</button>`}</div>
+      <div style="margin:5px 0;color:var(--dim)">${esc(v.summary||"")}</div>
+      ${(v.changes&&v.changes.length)?`<details style="margin-top:3px"><summary class="ghostnote" style="cursor:pointer">what changed (${v.changes.length})</summary><ul style="margin:6px 0 2px 16px;color:var(--faint);font-size:12.5px;line-height:1.6">${v.changes.map(c=>`<li>${esc(c)}</li>`).join("")}</ul></details>`:""}
+      ${(v.sections&&v.sections.length)?`<div class="ghostnote" style="margin-top:3px">sections: ${v.sections.map(esc).join(" · ")}</div>`:""}
+    </div>`).join("")}</div>`;
+}
 function render(){
   const sel=document.getElementById("roleSel");
   const cur=S.role==="dept"?"dept:"+S.dept:S.role;
@@ -1333,12 +1412,14 @@ function render(){
   else if(S.view==="flow") html=viewFlow();
   else if(S.view==="campaign") html=viewCampaign();
   else if(S.view==="team") html=viewTeam();
+  else if(S.view==="versions") html=viewVersions();
   else html=S.role==="ceo"?homeCEO():S.role==="director"?homeDirector():homeDept();
   app.innerHTML=tx(html);
   const nb=document.getElementById("inboxN"); if(nb){const n=autopilot().length; nb.textContent=n?n:"";}
   renderDrawer(); save();
 }
 loadSaved();
+loadVersions();
 if(typeof document!=="undefined"&&document.addEventListener){
   document.addEventListener("keydown",e=>{
     if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();openPal();}
