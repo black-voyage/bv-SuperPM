@@ -44,7 +44,8 @@
   [data-theme="light"] .flowwrap{background:#FBFCFE}
   [data-theme="light"] .taskpanel{background:#F4F6FA}
   [data-theme="light"] .bar{background:#E3E8F1}
-  body[data-wide] main{max-width:97vw}
+  body[data-wide] main{max-width:none}
+  body[data-wide] footer{max-width:none!important}
   @keyframes glowPulse{0%,100%{opacity:1}50%{opacity:.2}}
   .glownode{animation:glowPulse 1.15s ease-in-out infinite}
   @keyframes dashmove{to{stroke-dashoffset:-32}}
@@ -1139,7 +1140,7 @@ function flowSVG(l){
   const here=nextUnmet(l);
   const rsteps=S.route?routeSteps(S.route.key,S.route.d,S.route.i):null;
   const rset=new Set(rsteps?rsteps.map(p=>p[0]+"|"+p[1]):[]);
-  let svg=`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit">
+  let svg=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMin meet" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit;width:100%;height:auto;max-width:100%;display:block">
   <defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="${FT.arrow}"/></marker></defs>`;
   // columns + headers
   depts.forEach((d,c)=>{const x=GAP+c*(CW+GAP);
