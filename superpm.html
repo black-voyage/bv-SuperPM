@@ -1,158 +1,194 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Black Voyage — SUPER PM (forked edition)</title>
+<title>Black Voyage — SuperPM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
+  /* ===== BLACK VOYAGE brand system (Brand Guidelines V4) =====
+     Primary: Black #111215 · Orange #EE3124 (signal — use strategically)
+     Neutrals: Silver #D0D5E1 · Aero White #F6F8FC
+     Type: Aeonik (heading/paragraph) · IBM Plex Mono (labels) · rectangles + thin lines */
   :root{
-    --bg:#0d0f12; --panel:#16191e; --panel2:#1d2127; --line:#2a2f37;
-    --text:#e8eaed; --dim:#9aa3ad; --faint:#6b7280;
-    --accent:#e8b765; --green:#4ade80; --amber:#fbbf24; --red:#f87171; --blue:#60a5fa; --purple:#c084fc;
+    --bg:#111215; --panel:#16181C; --panel2:#1D2026; --line:#2A2D34;
+    --text:#F6F8FC; --dim:#ADB6C6; --faint:#7B8494;
+    --accent:#EE3124; --green:#4ade80; --amber:#fbbf24; --red:#f87171; --blue:#60a5fa; --purple:#c084fc;
+    --btntext:#fff;
+    --font-head:"Aeonik","Inter","Helvetica Neue",-apple-system,"Segoe UI",sans-serif;
+    --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  [data-theme="light"]{
+    --bg:#F6F8FC; --panel:#FFFFFF; --panel2:#ECEFF5; --line:#D0D5E1;
+    --text:#111215; --dim:#4E5666; --faint:#8A93A3;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
-  header{display:flex;align-items:center;gap:18px;padding:12px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:10;flex-wrap:wrap}
-  .logo{font-weight:700;letter-spacing:.12em;font-size:15px}
-  .logo span{color:var(--accent)}
-  nav{display:flex;gap:4px;flex-wrap:wrap}
-  nav button{background:none;border:none;color:var(--dim);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13.5px}
-  nav button.on{background:var(--panel2);color:var(--text)}
-  .spacer{flex:1}
-  .rolewrap{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim)}
-  select,input[type=text]{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px}
-  main{padding:20px;max-width:1320px;margin:0 auto}
-  h2{font-size:17px;margin-bottom:4px}
-  .sub{color:var(--dim);font-size:13px;margin-bottom:18px}
-  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:22px}
-  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
-  .kpi .n{font-size:26px;font-weight:700}
-  .kpi .l{color:var(--dim);font-size:12.5px}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:18px}
-  .panel h3{font-size:14px;margin-bottom:10px;color:var(--accent);letter-spacing:.03em}
-  .board{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
-  .col{min-width:200px;flex:1}
-  .col h4{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;justify-content:space-between}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
-  .card:hover{border-color:var(--accent)}
-  .card .nm{font-weight:600;font-size:14.5px;margin-bottom:3px}
-  .card .meta{color:var(--dim);font-size:12px}
-  .bar{height:5px;background:var(--panel2);border-radius:3px;margin:8px 0 6px;overflow:hidden}
-  .bar i{display:block;height:100%;background:var(--accent)}
-  .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;margin-top:6px}
-  .ok{background:#14331f;color:var(--green)} .risk{background:#33260f;color:var(--amber)}
-  .bad{background:#331414;color:var(--red)} .done{background:#1a2333;color:var(--blue)} .dec{background:#2a1a33;color:var(--purple)}
-  .row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;flex-wrap:wrap}
-  .row:hover{background:var(--panel2)}
-  .st{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--faint);display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex:none;cursor:pointer}
-  .st.x{background:#14331f;border-color:var(--green);color:var(--green)}
-  .st.p{background:#33260f;border-color:var(--amber);color:var(--amber)}
-  .st.b{background:#331414;border-color:var(--red);color:var(--red)}
-  .row .o{margin-left:auto;color:var(--faint);font-size:12px;white-space:nowrap}
-  .lnk{display:inline-flex;align-items:center;gap:4px;background:#1a2333;color:var(--blue);border-radius:99px;padding:1px 9px;font-size:11.5px;text-decoration:none;margin-left:4px}
-  .addlnk{background:none;border:1px dashed var(--faint);color:var(--faint);border-radius:99px;padding:0 8px;font-size:11px;cursor:pointer;margin-left:4px}
-  .addlnk:hover{color:var(--blue);border-color:var(--blue)}
-  .gatecard{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--panel2)}
-  .btn{background:var(--accent);color:#1a1407;border:none;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
-  .btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
-  .btn.red{background:#3a1d1d;color:var(--red);border:1px solid #5a2a2a}
-  .btn:disabled{background:var(--panel2);color:var(--faint);cursor:not-allowed;border:1px solid var(--line)}
-  .stages{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 16px}
-  .stg{padding:5px 11px;border-radius:99px;font-size:12px;border:1px solid var(--line);color:var(--faint)}
-  .stg.past{background:#14331f;color:var(--green);border-color:#1f4a2e}
-  .stg.cur{background:var(--accent);color:#1a1407;font-weight:700;border-color:var(--accent)}
-  .twocol{display:grid;grid-template-columns:1.5fr 1fr;gap:18px}
-  @media(max-width:900px){.twocol{grid-template-columns:1fr}}
-  .slack{background:#1a1d21;border:1px solid var(--line);border-radius:12px;overflow:hidden}
-  .slack .hd{padding:10px 14px;border-bottom:1px solid var(--line);font-weight:700;font-size:13px}
-  .slack .msgs{padding:10px 14px;max-height:440px;overflow-y:auto}
-  .msg{display:flex;gap:10px;margin-bottom:14px}
-  .av{width:34px;height:34px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#1a1407}
-  .msg .who{font-weight:700;font-size:13px}.msg .when{color:var(--faint);font-size:11px;margin-left:6px}
-  .msg .txt{font-size:13px;color:#d1d5db;margin-top:2px}
-  .appr{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px;margin-top:8px;background:#202329}
-  .thr{color:var(--blue);font-size:12px;margin-top:5px;cursor:pointer}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th{color:var(--dim);text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;padding:8px;border-bottom:1px solid var(--line)}
-  td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
-  td input[type=text]{width:100%}
-  .cell{display:inline-block;min-width:40px;text-align:center;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600}
-  textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:10px;font:13px/1.5 inherit;resize:vertical;min-height:70px}
-  #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--accent);color:#1a1407;font-weight:600;padding:10px 18px;border-radius:10px;display:none;z-index:50;font-size:13px;max-width:90vw}
-  .back{color:var(--blue);cursor:pointer;font-size:13px;margin-bottom:12px;display:inline-block}
-  .checkin{border-left:3px solid var(--line);padding:6px 12px;margin-bottom:8px;font-size:13px}
-  .checkin .d{color:var(--faint);font-size:11.5px}
-  .flowwrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:#101216}
-  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--dim);margin:10px 0}
-  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-  .deptchip{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:99px;padding:2px 10px;font-size:11.5px;margin:2px 3px 2px 0}
-  .deptchip.rdy{background:#14331f;color:var(--green);border-color:#1f4a2e}
-  .urg{display:inline-block;padding:1px 8px;border-radius:99px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-left:4px}
-  .urg.low{background:#1a2333;color:var(--blue)} .urg.med{background:#2a2a1a;color:#d4c44a}
-  .urg.high{background:#33260f;color:#fb923c} .urg.urgent{background:#331414;color:var(--red)}
-  .asg{display:inline-block;background:#222a36;color:#aac4e8;border-radius:99px;padding:1px 9px;font-size:11px;margin-left:4px}
-  .exp{background:none;border:none;color:var(--faint);cursor:pointer;font-size:11px;margin-left:6px;padding:2px 6px;border-radius:6px}
-  .exp:hover{color:var(--text);background:var(--panel2)}
-  .taskpanel{background:#13161a;border:1px solid var(--line);border-radius:10px;padding:12px;margin:2px 0 8px 28px;font-size:13px}
-  .taskpanel .frow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
-  .taskpanel label{color:var(--dim);font-size:12px}
-  .note{border-left:3px solid #2e3640;padding:4px 10px;margin-bottom:6px}
-  .note .d{color:var(--faint);font-size:11px}
-  .tl-row{margin-bottom:22px}
-  .tl-head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
-  .tl-bar{display:flex;align-items:stretch;height:34px;border-radius:8px;overflow:hidden;background:var(--panel2);width:100%}
-  .tl-seg{position:relative;display:flex;align-items:center;justify-content:center;font-size:10.5px;white-space:nowrap;overflow:hidden;border-right:2px solid var(--bg);min-width:34px}
-  .tl-seg .ov{position:absolute;right:0;top:0;bottom:0;background:repeating-linear-gradient(45deg,rgba(248,113,113,.45) 0 6px,rgba(248,113,113,.2) 6px 12px)}
-  .tl-leg{font-size:11.5px;color:var(--dim);margin-top:4px}
-  .dbar{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-  .dbar .nm2{width:110px;font-size:12.5px;text-align:right;color:var(--dim)}
-  .dbar .tr{flex:1;background:var(--panel2);border-radius:6px;height:20px;overflow:hidden}
-  .dbar .fl{height:100%;border-radius:6px;display:flex;align-items:center;padding-left:8px;font-size:11px;font-weight:700;color:#1a0d07}
-  /* ===== SuperPM additions ===== */
-  body{background:radial-gradient(1200px 600px at 80% -10%, #1a1408 0%, var(--bg) 55%)}
-  .panel{box-shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.25)}
-  .card{box-shadow:0 6px 18px rgba(0,0,0,.3)} .card:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.45)} .card{transition:all .18s}
-  .btn{transition:transform .12s, filter .12s} .btn:not(:disabled):hover{transform:translateY(-1px);filter:brightness(1.08)}
-  .sla{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;margin-left:6px}
+  body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-head);}
+  h2{font-weight:700;letter-spacing:-.01em}
+  .panel h3,.col h4,th{font-family:var(--font-mono);font-weight:400;text-transform:uppercase;letter-spacing:.08em}
+  .stg,.o,.sla,.checkin .d,.feeditem .d{font-family:var(--font-mono)}
+  /* light-theme component overrides */
+  [data-theme="light"] .st.x{background:#E9F7EC;border-color:#3E9E5B;color:#1E7E3E}
+  [data-theme="light"] .st.p{background:#FFF3E0;border-color:#D68910;color:#A05A00}
+  [data-theme="light"] .st.b{background:#FDEAEA;border-color:#D64545;color:#B03030}
+  [data-theme="light"] .ok{background:#E9F7EC;color:#1E7E3E} [data-theme="light"] .risk{background:#FFF3E0;color:#A05A00}
+  [data-theme="light"] .bad{background:#FDEAEA;color:#B03030} [data-theme="light"] .done{background:#E8F0FE;color:#1A56B0}
+  [data-theme="light"] .dec{background:#F3E8FD;color:#7A3FB8}
+  [data-theme="light"] .urg.low{background:#E8F0FE;color:#1A56B0} [data-theme="light"] .urg.med{background:#FbF6DD;color:#8a7400}
+  [data-theme="light"] .urg.high{background:#FFF0E0;color:#B25E00} [data-theme="light"] .urg.urgent{background:#FDEAEA;color:#B03030}
+  [data-theme="light"] .lnk{background:#E8F0FE;color:#1A56B0} [data-theme="light"] .asg{background:#E8EDF6;color:#3C5A8A}
+  [data-theme="light"] .stg.past{background:#E9F7EC;color:#1E7E3E;border-color:#bfe5c8}
+  [data-theme="light"] .deptchip.rdy{background:#E9F7EC;color:#1E7E3E;border-color:#bfe5c8}
+  [data-theme="light"] .flowwrap{background:#FBFCFE}
+  [data-theme="light"] .taskpanel{background:#F4F6FA}
+  [data-theme="light"] .bar{background:#E3E8F1}
+  body[data-wide] main{max-width:97vw}
+  @keyframes glowPulse{0%,100%{opacity:1}50%{opacity:.2}}
+  .glownode{animation:glowPulse 1.15s ease-in-out infinite}
+  @keyframes dashmove{to{stroke-dashoffset:-32}}
+  .routeline{animation:dashmove 1.1s linear infinite}
+  .routebanner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--accent);background:rgba(238,49,36,.08);color:var(--text);padding:8px 12px;margin-bottom:10px;font-size:12.5px}
+  .routebanner a{color:var(--accent)}
+  /* ===== SuperPM layer ===== */
+  .sla{display:inline-block;padding:2px 9px;border-radius:2px;font-size:11px;font-weight:700;margin-left:6px;font-family:var(--font-mono)}
   .sla.ok{background:#14331f;color:var(--green)} .sla.over{background:#331414;color:var(--red);animation:pulse 1.4s infinite}
+  [data-theme="light"] .sla.ok{background:#E9F7EC;color:#1E7E3E} [data-theme="light"] .sla.over{background:#FDEAEA;color:#B03030}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
-  .iconbtn{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:6px 11px;cursor:pointer;font-size:13px}
+  .iconbtn{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:2px;padding:6px 11px;cursor:pointer;font-size:13px}
   .iconbtn:hover{color:var(--text);border-color:var(--accent)}
-  .drawer{position:fixed;top:0;right:-420px;width:400px;max-width:92vw;height:100vh;background:#121419;border-left:1px solid var(--line);z-index:40;transition:right .25s;display:flex;flex-direction:column}
+  .drawer{position:fixed;top:0;right:-420px;width:400px;max-width:92vw;height:100vh;background:var(--panel);border-left:1px solid var(--line);z-index:40;transition:right .25s;display:flex;flex-direction:column}
   .drawer.openD{right:0}
   .drawer .dh{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center}
   .drawer .db{flex:1;overflow-y:auto;padding:12px 16px}
   .feeditem{border-left:3px solid var(--line);padding:6px 10px;margin-bottom:8px;font-size:12.5px}
   .feeditem .d{color:var(--faint);font-size:11px}
   .pal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:60;display:flex;align-items:flex-start;justify-content:center;padding-top:12vh}
-  .palbox{width:560px;max-width:92vw;background:#15181d;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.6)}
-  .palbox input{width:100%;border:none;background:#1b1f25;padding:14px 16px;font-size:15px;border-radius:0}
+  .palbox{width:560px;max-width:92vw;background:var(--panel);border:1px solid var(--line);overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.5)}
+  .palbox input{width:100%;border:none;background:var(--panel2);padding:14px 16px;font-size:15px;border-radius:0}
   .palitem{padding:10px 16px;cursor:pointer;display:flex;gap:10px;align-items:center;font-size:13.5px}
-  .palitem:hover,.palitem.sel{background:#222731}
-  .risk{border:1px solid var(--line);border-left:3px solid var(--red);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:13px;background:var(--panel2)}
-  .autofix{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:center;background:var(--panel2)}
-  .autofix .sev{width:8px;height:8px;border-radius:50%;flex:none}
+  .palitem:hover,.palitem.sel{background:var(--panel2)}
+  .risk{border:1px solid var(--line);border-left:3px solid var(--red);padding:8px 12px;margin-bottom:8px;font-size:13px;background:var(--panel2)}
+  .autofix{border:1px solid var(--line);padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:center;background:var(--panel2)}
+  .autofix .sev{width:8px;height:8px;border-radius:1px;flex:none}
   .ghostnote{color:var(--faint);font-size:11.5px}
-  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-  main{animation:fadeIn .18s}
   .gauge{display:flex;align-items:center;gap:16px}
-  .digestbox{width:100%;min-height:380px;background:#101216;border:1px solid var(--line);border-radius:10px;color:#d1d5db;padding:14px;font:12.5px/1.6 ui-monospace,Menlo,monospace;white-space:pre-wrap}
+  .digestbox{width:100%;min-height:380px;background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:14px;font:12.5px/1.6 var(--font-mono);white-space:pre-wrap}
   @keyframes confetti{0%{transform:translateY(-10px) rotate(0)}100%{transform:translateY(105vh) rotate(720deg)}}
   .cf{position:fixed;top:-12px;width:9px;height:14px;z-index:80;animation:confetti 1.4s ease-in forwards;pointer-events:none}
+  header{display:flex;align-items:center;gap:18px;padding:12px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:10;flex-wrap:wrap}
+  .logo{font-weight:700;letter-spacing:.12em;font-size:15px}
+  .logo span{color:var(--accent)}
+  nav{display:flex;gap:4px;flex-wrap:wrap}
+  nav button{background:none;border:none;color:var(--dim);padding:7px 12px;border-radius:2px;cursor:pointer;font-size:13.5px}
+  nav button.on{background:var(--panel2);color:var(--text)}
+  .spacer{flex:1}
+  .rolewrap{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim)}
+  select,input[type=text]{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:2px;padding:6px 10px;font-size:13px}
+  main{padding:20px;max-width:1320px;margin:0 auto}
+  h2{font-size:17px;margin-bottom:4px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:18px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:22px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:14px 16px}
+  .kpi .n{font-size:26px;font-weight:700}
+  .kpi .l{color:var(--dim);font-size:12.5px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:16px;margin-bottom:18px}
+  .panel h3{font-size:14px;margin-bottom:10px;color:var(--accent);letter-spacing:.03em}
+  .board{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
+  .col{min-width:200px;flex:1}
+  .col h4{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;justify-content:space-between}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:12px;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
+  .card:hover{border-color:var(--accent)}
+  .card .nm{font-weight:600;font-size:14.5px;margin-bottom:3px}
+  .card .meta{color:var(--dim);font-size:12px}
+  .bar{height:5px;background:var(--panel2);border-radius:1px;margin:8px 0 6px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--accent)}
+  .pill{display:inline-block;padding:2px 9px;border-radius:2px;font-size:11px;font-weight:600;margin-top:6px}
+  .ok{background:#14331f;color:var(--green)} .risk{background:#33260f;color:var(--amber)}
+  .bad{background:#331414;color:var(--red)} .done{background:#1a2333;color:var(--blue)} .dec{background:#2a1a33;color:var(--purple)}
+  .row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:2px;flex-wrap:wrap}
+  .row:hover{background:var(--panel2)}
+  .st{width:18px;height:18px;border-radius:2px;border:1.5px solid var(--faint);display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex:none;cursor:pointer}
+  .st.x{background:#14331f;border-color:var(--green);color:var(--green)}
+  .st.p{background:#33260f;border-color:var(--amber);color:var(--amber)}
+  .st.b{background:#331414;border-color:var(--red);color:var(--red)}
+  .row .o{margin-left:auto;color:var(--faint);font-size:12px;white-space:nowrap}
+  .lnk{display:inline-flex;align-items:center;gap:4px;background:#1a2333;color:var(--blue);border-radius:2px;padding:1px 9px;font-size:11.5px;text-decoration:none;margin-left:4px}
+  .addlnk{background:none;border:1px dashed var(--faint);color:var(--faint);border-radius:2px;padding:0 8px;font-size:11px;cursor:pointer;margin-left:4px}
+  .addlnk:hover{color:var(--blue);border-color:var(--blue)}
+  .gatecard{border:1px solid var(--line);border-radius:2px;padding:12px;margin-bottom:10px;background:var(--panel2)}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:2px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
+  .btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+  .btn.red{background:#3a1d1d;color:var(--red);border:1px solid #5a2a2a}
+  .btn:disabled{background:var(--panel2);color:var(--faint);cursor:not-allowed;border:1px solid var(--line)}
+  .stages{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 16px}
+  .stg{padding:5px 11px;border-radius:2px;font-size:12px;border:1px solid var(--line);color:var(--faint)}
+  .stg.past{background:#14331f;color:var(--green);border-color:#1f4a2e}
+  .stg.cur{background:var(--accent);color:#fff;font-weight:700;border-color:var(--accent)}
+  .twocol{display:grid;grid-template-columns:1.5fr 1fr;gap:18px}
+  @media(max-width:900px){.twocol{grid-template-columns:1fr}}
+  .slack{background:#1a1d21;border:1px solid var(--line);border-radius:2px;overflow:hidden}
+  .slack .hd{padding:10px 14px;border-bottom:1px solid var(--line);font-weight:700;font-size:13px}
+  .slack .msgs{padding:10px 14px;max-height:440px;overflow-y:auto}
+  .msg{display:flex;gap:10px;margin-bottom:14px}
+  .av{width:34px;height:34px;border-radius:2px;flex:none;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff}
+  .msg .who{font-weight:700;font-size:13px}.msg .when{color:var(--faint);font-size:11px;margin-left:6px}
+  .msg .txt{font-size:13px;color:#d1d5db;margin-top:2px}
+  .appr{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:2px;padding:10px;margin-top:8px;background:#202329}
+  .thr{color:var(--blue);font-size:12px;margin-top:5px;cursor:pointer}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{color:var(--dim);text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;padding:8px;border-bottom:1px solid var(--line)}
+  td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+  td input[type=text]{width:100%}
+  .cell{display:inline-block;min-width:40px;text-align:center;padding:3px 8px;border-radius:2px;font-size:12px;font-weight:600}
+  textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--text);padding:10px;font:13px/1.5 inherit;resize:vertical;min-height:70px}
+  #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;font-weight:600;padding:10px 18px;border-radius:2px;display:none;z-index:50;font-size:13px;max-width:90vw}
+  .back{color:var(--blue);cursor:pointer;font-size:13px;margin-bottom:12px;display:inline-block}
+  .checkin{border-left:3px solid var(--line);padding:6px 12px;margin-bottom:8px;font-size:13px}
+  .checkin .d{color:var(--faint);font-size:11.5px}
+  .flowwrap{overflow:auto;border:1px solid var(--line);border-radius:2px;background:#101216}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--dim);margin:10px 0}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:1px;margin-right:5px;vertical-align:-1px}
+  .deptchip{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:2px;padding:2px 10px;font-size:11.5px;margin:2px 3px 2px 0}
+  .deptchip.rdy{background:#14331f;color:var(--green);border-color:#1f4a2e}
+  .urg{display:inline-block;padding:1px 8px;border-radius:2px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-left:4px}
+  .urg.low{background:#1a2333;color:var(--blue)} .urg.med{background:#2a2a1a;color:#d4c44a}
+  .urg.high{background:#33260f;color:#fb923c} .urg.urgent{background:#331414;color:var(--red)}
+  .asg{display:inline-block;background:#222a36;color:#aac4e8;border-radius:2px;padding:1px 9px;font-size:11px;margin-left:4px}
+  .exp{background:none;border:none;color:var(--faint);cursor:pointer;font-size:11px;margin-left:6px;padding:2px 6px;border-radius:2px}
+  .exp:hover{color:var(--text);background:var(--panel2)}
+  .taskpanel{background:#13161a;border:1px solid var(--line);border-radius:2px;padding:12px;margin:2px 0 8px 28px;font-size:13px}
+  .taskpanel .frow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .taskpanel label{color:var(--dim);font-size:12px}
+  .note{border-left:3px solid #2e3640;padding:4px 10px;margin-bottom:6px}
+  .note .d{color:var(--faint);font-size:11px}
+  .tl-row{margin-bottom:22px}
+  .tl-head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+  .tl-bar{display:flex;align-items:stretch;height:34px;border-radius:2px;overflow:hidden;background:var(--panel2);width:100%}
+  .tl-seg{position:relative;display:flex;align-items:center;justify-content:center;font-size:10.5px;white-space:nowrap;overflow:hidden;border-right:2px solid var(--bg);min-width:34px}
+  .tl-seg .ov{position:absolute;right:0;top:0;bottom:0;background:repeating-linear-gradient(45deg,rgba(248,113,113,.45) 0 6px,rgba(248,113,113,.2) 6px 12px)}
+  .tl-leg{font-size:11.5px;color:var(--dim);margin-top:4px}
+  .dbar{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .dbar .nm2{width:110px;font-size:12.5px;text-align:right;color:var(--dim)}
+  .dbar .tr{flex:1;background:var(--panel2);border-radius:2px;height:20px;overflow:hidden}
+  .dbar .fl{height:100%;border-radius:2px;display:flex;align-items:center;padding-left:8px;font-size:11px;font-weight:700;color:#fff}
 </style>
 </head>
 <body>
 <header>
-  <div class="logo">BLACK <span>VOYAGE</span> · SUPER&nbsp;PM</div>
+  <div class="logo" style="display:flex;align-items:center;gap:10px;color:var(--text)"><svg width="160" height="36" viewBox="0 0 1607 360" fill="none" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#clip0_2_2867)"><g clip-path="url(#clip1_2_2867)"><path d="M230.153 80.9255C229.8 80.0628 228.957 79.5138 228.035 79.5138L196.163 79.4746C196.163 79.4746 196.026 79.4746 195.947 79.4942H168.763C168.763 79.4942 180.668 86.5331 188.827 94.3758C194.221 100.023 205.421 109.159 216.228 133.178C241.745 189.822 277.717 281.934 277.717 281.934L295.879 239.78L230.153 80.9255Z" fill="currentColor"/><path d="M347.776 119.139C348.875 116.492 364.899 79.4551 364.899 79.4551H325.437C347.129 92.6897 347.816 114.1 347.757 119.139H347.776Z" fill="currentColor"/><path d="M319.023 131.668C316.571 125.629 308.118 116.923 291.76 124.649C300.429 119.257 310.864 112.747 310.864 112.747C310.864 112.747 301.94 90.6504 301.077 88.925C297.527 82.1999 291.505 79.0824 283.581 79.4157C283.581 79.4157 251.709 79.4746 244.727 79.4942C246.1 79.5138 247.571 79.6706 249.081 79.9255H248.904C255.965 81.1607 264.026 85.3762 268.753 94.7286C271.872 101.826 281.463 125.609 282.13 127.256C282.856 129.08 282.601 130.335 281.502 130.942C275.5 134.648 269.499 138.432 269.028 138.746C269.028 138.746 276.069 137.883 282.11 139.02C284.699 139.51 287.798 141.471 289.21 144.628C289.348 144.942 312.766 200.527 312.766 200.527L330.674 158.902L319.023 131.687V131.668Z" fill="currentColor"/><path d="M248.904 79.906C247.453 79.6511 246.041 79.5138 244.727 79.4746L248.904 79.906Z" fill="currentColor"/><path d="M719.652 153.275C728.517 153.275 737.265 156.824 745.601 163.804L747.758 165.607V144.354L747.111 143.981C738.657 139.06 729.753 136.57 720.672 136.57C704.059 136.57 690.329 142.824 679.856 155.177C671.363 165.235 667.048 176.881 667.048 189.743C667.048 204.096 672.206 216.526 682.386 226.702C692.585 236.78 705.098 241.878 719.534 241.878C729.125 241.878 738.402 239.388 747.111 234.466L747.778 234.094V212.487L745.62 214.311C743.227 216.33 740.913 218.056 738.795 219.467C736.657 220.879 734.597 221.997 732.577 222.84C729.086 224.467 724.771 225.29 719.73 225.29C709.963 225.29 701.607 221.82 694.899 214.977C688.172 208.135 684.759 199.586 684.759 189.626C684.759 179.666 688.172 170.862 694.919 163.862C701.588 156.863 709.923 153.314 719.671 153.314L719.652 153.275Z" fill="currentColor"/><path d="M842.002 138.472H818.347L781.69 176.038V138.472H764.116V240.054H781.69V198.331L783.337 196.665L818.465 240.054H841.903L795.87 184.665L842.002 138.472Z" fill="currentColor"/><path d="M1143.37 138.472L1121.42 176.685L1099.55 138.472H1079.33L1112.61 196.331V240.054H1130.17V196.331L1163.59 138.472H1143.37Z" fill="currentColor"/><path d="M1246.79 238.995L1198.68 131.884C1198.42 131.295 1197.6 131.295 1197.32 131.884L1147.45 238.995C1147.21 239.486 1147.58 240.054 1148.11 240.054H1165.45C1165.74 240.054 1166 239.878 1166.12 239.623L1171.88 227.035L1184.81 198.507L1191.3 184.155L1197.62 170.215L1198.22 171.607L1206.48 190.39L1228.25 239.956C1228.25 239.956 1228.41 240.035 1228.49 240.035H1246.08C1246.63 240.035 1246.98 239.486 1246.77 238.976L1246.79 238.995Z" fill="currentColor"/><path d="M663.027 238.995L614.915 131.884C614.66 131.295 613.836 131.295 613.561 131.884L563.174 240.054H582.16L588.122 227.035L601.048 198.507L607.54 184.155L613.856 170.215L614.464 171.607L622.721 190.39L644.512 240.035H663.458L663.007 238.976L663.027 238.995Z" fill="currentColor"/><path d="M539.324 223.389H518.572V138.472H500.999V240.054H546.816L539.324 223.389Z" fill="currentColor"/><path d="M1420.29 155.118V138.452H1363.04V240.054H1420.29V223.389H1380.61V192.939H1410.88V176.274H1380.61V155.118H1420.29Z" fill="currentColor"/><path d="M1302.12 185.901V185.979L1309.57 202.566H1326.62C1325.67 208.546 1322.6 213.801 1317.44 218.193C1311.85 222.918 1305.47 225.31 1298.47 225.31C1290.21 225.31 1282.41 222.075 1275.31 215.722C1267.72 208.88 1263.87 200.037 1263.87 189.449C1263.87 178.862 1267.32 170.509 1274.13 163.706C1280.94 156.784 1289.49 153.275 1299.55 153.275C1310.73 153.275 1320.36 158.549 1328.19 168.96L1329.07 170.137L1341.68 158.059L1340.86 157.118C1334.56 149.922 1328.07 144.648 1321.52 141.413C1314.65 138.178 1307.18 136.55 1299.29 136.55C1284.6 136.55 1271.95 141.746 1261.69 152C1251.44 162.216 1246.24 174.803 1246.24 189.469C1246.24 204.135 1251.36 216.291 1261.44 226.545C1271.52 236.761 1283.8 241.937 1297.96 241.937C1312.12 241.937 1324.62 236.564 1334.01 225.977C1338.17 221.252 1341.17 216.095 1342.93 210.625C1344.72 204.801 1345.62 198.037 1345.62 190.508V185.92H1302.08L1302.12 185.901Z" fill="currentColor"/><path d="M1063.81 152.118C1053.52 141.824 1041 136.609 1026.59 136.609C1012.17 136.609 999.362 141.785 988.986 151.981C978.552 162.196 973.276 174.587 973.276 188.802C973.276 204.978 979.082 218.251 990.516 228.251C1000.89 237.27 1012.76 241.838 1025.8 241.838C1040.53 241.838 1053.3 236.682 1063.71 226.526C1074.11 216.408 1079.37 203.899 1079.37 189.371C1079.37 174.842 1074.13 162.392 1063.79 152.098L1063.81 152.118ZM1061.69 189.253C1061.69 199.272 1058.22 207.899 1051.36 214.86C1044.51 221.741 1035.98 225.232 1026 225.232C1016.82 225.232 1008.6 221.8 1001.58 215.016C994.537 208.252 990.948 199.507 990.948 188.979C990.948 178.45 994.4 170.431 1001.21 163.627C1008.01 156.745 1016.48 153.255 1026.37 153.255C1036.26 153.255 1044.75 156.745 1051.48 163.627C1058.24 170.47 1061.67 179.097 1061.67 189.233L1061.69 189.253Z" fill="currentColor"/><path d="M479.836 194.155C477.031 190.018 473.304 186.939 468.695 184.979C473.383 180.097 475.756 174.214 475.756 167.45C475.756 163.392 474.873 159.333 473.147 155.392C471.46 151.471 469.126 148.157 466.204 145.51C463.321 142.942 459.751 141.099 455.593 140.02C452.926 139.334 449.63 138.863 445.767 138.628L407.304 138.432V240.015H447.179C454.024 240.015 459.81 239.368 464.439 238.093C468.734 236.76 472.637 234.348 476.05 230.917C481.758 225.349 484.66 218.428 484.66 210.369C484.66 204.232 483.033 198.762 479.816 194.115L479.836 194.155ZM424.898 154.804H444.766C449.454 154.804 453.043 155.902 455.416 158.078C457.809 160.254 458.967 163.411 458.967 167.725C458.967 172.038 457.79 175.45 455.495 177.646C453.181 179.842 449.375 180.979 444.178 180.979H424.878V154.823L424.898 154.804ZM462.772 219.722C459.869 222.153 455.142 223.388 448.748 223.388H424.898V196.076H447.081C454.73 196.076 460.065 197.409 462.929 200.037C465.871 202.703 467.302 205.919 467.302 209.84C467.302 213.761 465.812 217.114 462.772 219.741V219.722Z" fill="currentColor"/><path d="M903.177 136.374H884.348L928.302 243.407L937.932 221.016L903.177 136.374Z" fill="currentColor"/><path d="M974.355 136.374H956.134L933.754 188.39L942.659 210.056L974.355 136.374Z" fill="currentColor"/></g></g><defs><clipPath id="clip0_2_2867"><rect width="1607" height="360" fill="white"/></clipPath><clipPath id="clip1_2_2867"><rect width="1389" height="360" fill="white" transform="translate(109 -0.167969)"/></clipPath></defs></svg><span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.3em;color:var(--accent)">TRACKER</span></div>
   <nav id="nav"></nav>
   <div class="spacer"></div>
-  <input type="text" id="q" placeholder="search… ( / )" style="width:130px" oninput="S.q=this.value;if(S.view!=='portfolio')go('portfolio');else render();document.getElementById('q').focus()">
+  <input type="text" id="q" placeholder="search… ( / )" style="width:120px" oninput="S.q=this.value;if(S.view!=='portfolio')go('portfolio');else render();document.getElementById('q').focus()">
   <button class="iconbtn" title="command palette (Ctrl/⌘ K)" onclick="openPal()">⌘K</button>
   <button class="iconbtn" title="activity feed + inbox" onclick="toggleDrawer()">🔔 <span id="inboxN"></span></button>
-  <button class="iconbtn" title="download a JSON backup of all data" onclick="exportJSON()">⬇</button>
-  <div class="rolewrap">Viewing as <select id="roleSel" onchange="setRole(this.value)"></select></div>
+  <button class="iconbtn" title="download JSON backup" onclick="exportJSON()">⬇</button>
+  <button class="btn ghost" id="themeBtn" style="padding:6px 10px" title="light / dark" onclick="setTheme()">☀️</button><button class="btn ghost" id="wideBtn" style="padding:6px 10px" title="regular / wide screen" onclick="setWide()">⛶</button><button class="btn ghost" id="langBtn" style="padding:6px 12px" onclick="setLang()">中文</button>
+  <div class="rolewrap"><span id="vaLab">Viewing as</span> <select id="roleSel" onchange="setRole(this.value)"></select></div>
 </header>
 <main id="app"></main>
+<footer style="max-width:1320px;margin:10px auto 26px;padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between;font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;color:var(--faint)"><span>40.6892° N , 74.0445° W — DESIGNED IN NYC</span><span>TRAVEL WITHOUT LIMITS</span></footer>
 <div id="toast"></div>
 <div class="drawer" id="drawer">
   <div class="dh"><b>Activity & Inbox</b><span class="spacer"></span>
@@ -172,7 +208,7 @@ let TEAM = [
  {name:"Catalog",  role:"Competitor analysis, Amazon & Shopify SKU creation, ops sheet, product data filing, publishing listings live."},
  {name:"Content",  role:"Pre-production, hero / lifestyle shoot, post-production, content export (instruction · lifestyle · social clips)."},
  {name:"Social",   role:"Channel posts: IG / YouTube / TikTok."},
- {name:"Marketing",role:"Product marketing brief, KOL / influencer engine (MOAT · ASMR · Cinematic · Authority · Reach · Seed · UGC), evaluation loop."},
+ {name:"Marketing",role:"Product marketing brief, KOL / influencer engine (MOAT · ASMR · Cinematic · Authority · Reach · Seed · UGC · Pro), evaluation loop."},
  {name:"Ads",      role:"Ad post-production, partnerships approval, paid campaigns."},
  {name:"Email",    role:"Launch & campaign email sequences."},
  {name:"CRM",      role:"Influencer DM routing → email pipeline, relationship records."},
@@ -186,29 +222,33 @@ const STAGES = ["Concept","Build","Production","Content","Listing creation","Liv
 const GATES = {
   "Concept":[{t:"Form (intake)",d:"Product"},{t:"Market research",d:"Product"},{t:"Concept definition",d:"Product"},{t:"Ben concept sign-off ◆",d:"Product",ben:1}],
   "Build":[{t:"Prototype 1-2-3 approved",d:"Product"},{t:"Ben validation ◆",d:"Product",ben:1},{t:"Costing & profit signed off",d:"Product"},{t:"Packaging / insert / manual locked",d:"Design"},{t:"Model name set",d:"Design"}],
-  "Production":[{t:"Design freeze",d:"Product"},{t:"Pre-production sample approved + BOM",d:"Product"},{t:"Mass production complete",d:"Product"},{t:"Freight booked (sea + air samples)",d:"Logistics"}],
-  "Content":[{t:"Hero / lifestyle shoot done",d:"Content"},{t:"Post-production done",d:"Content"},{t:"Content exported (instruction / lifestyle / social clips)",d:"Content"},{t:"A+ / infographic assets ready",d:"Design"}],
-  "Listing creation":[{t:"Amazon SKU created",d:"Catalog"},{t:"Shopify SKU created",d:"Catalog"},{t:"Product data filed → marketing brief",d:"Catalog"},{t:"Brand language confirmed ◆",d:"Catalog",ben:1},{t:"Listing imagery / A+ uploaded",d:"Design"}],
-  "Live":[{t:"Listings published live (Amazon + Shopify)",d:"Catalog"},{t:"Marketing brief finalized & ready",d:"Marketing"}],
+  "Production":[{t:"Design freeze",d:"Product"},{t:"Marketing brief rough draft",d:"Marketing"},{t:"Department requirements collected",d:"Product"},{t:"Pre-production sample approved + BOM",d:"Product"},{t:"Mass production complete",d:"Product"},{t:"Dispatch details & tracking filed",d:"Logistics"},{t:"Freight booked (sea + air samples)",d:"Logistics"}],
+  "Content":[{t:"Hero / lifestyle shoot done",d:"Content"},{t:"Post-production done",d:"Content"},{t:"Content exported (instruction / lifestyle / social clips / ads)",d:"Content"},{t:"A+ / infographic assets ready",d:"Design"}],
+  "Listing creation":[{t:"Amazon SKU created",d:"Catalog"},{t:"Shopify SKU created",d:"Catalog"},{t:"Shipbob SKU created",d:"Catalog"},{t:"Next Smart Ship SKU created",d:"Catalog"},{t:"All ASINs sheet updated",d:"Catalog"},{t:"Shopify COGS sheet updated",d:"Catalog"},{t:"Shipping labels created (Amazon + Shipbob)",d:"Logistics"},{t:"Product data filed → marketing brief",d:"Catalog"},{t:"Brand language confirmed ◆",d:"Catalog",ben:1},{t:"Listing imagery / A+ uploaded",d:"Design"}],
+  "Live":[{t:"Listings published live (Amazon + Shopify)",d:"Catalog"},{t:"Inventory received (Amazon + Shipbob)",d:"Logistics"},{t:"Marketing brief finalized & ready",d:"Marketing"}],
   "Marketing":[{t:"KOL / influencer projects live",d:"Marketing"},{t:"Channel posts live (IG / YouTube / TikTok)",d:"Social"},{t:"Launch ads running",d:"Ads"},{t:"Launch email sequence sent",d:"Email"}]
 };
 
-/* ================= MASTER FLOW CHART (digitized from "BV Team Workflow.pdf") =================
+/* ================= MASTER FLOW CHART (digitized from "BV Team Workflow_v2.pdf") =================
    Each node: l=label, s=stage, t=linked tracker task (colors come from the live card), d=◆ decision */
+const FIGMA="https://www.figma.com/design/gURRPHblJh81nDLQPq8po6/%F0%9F%94%B5-Product-Catalog?node-id=1-1798&p=f&t=jwJ0jcLGw4Avb0BH-0";
 const FLOW = {
  "Product":[
   {l:"Form (intake)",s:"Concept",t:"Form (intake)"},
   {l:"Understand WHY",s:"Concept"},
-  {l:"Market research 競品分析",s:"Concept",t:"Market research"},
-  {l:"Concept definition 概念定義",s:"Concept",t:"Concept definition"},
+  {l:"Market research",s:"Concept",t:"Market research"},
+  {l:"Create concept definition document",s:"Concept",t:"Concept definition"},
+  {l:"Concept brainstorming meeting (Figma)",s:"Concept",url:FIGMA},
   {l:"Product info: spec · look · material · price",s:"Concept"},
-  {l:"Ben confirms concept 想法定稿",s:"Concept",t:"Ben concept sign-off ◆",d:1},
+  {l:"Concept definition doc FINAL",s:"Concept"},
+  {l:"Ben confirms concept",s:"Concept",t:"Ben concept sign-off ◆",d:1},
   {l:"Prototyping 1-2-3 + testing",s:"Build",t:"Prototype 1-2-3 approved"},
-  {l:"Ben validation 驗證",s:"Build",t:"Ben validation ◆",d:1},
-  {l:"Costing & profit 定價/利潤",s:"Build",t:"Costing & profit signed off"},
-  {l:"Design freeze 設計凍結",s:"Production",t:"Design freeze"},
+  {l:"Ben validation",s:"Build",t:"Ben validation ◆",d:1},
+  {l:"Costing & profit",s:"Build",t:"Costing & profit signed off"},
+  {l:"Design freeze",s:"Production",t:"Design freeze"},
   {l:"Pre-prod sample + BOM → Ben",s:"Production",t:"Pre-production sample approved + BOM"},
-  {l:"Mass production 大貨生產",s:"Production",t:"Mass production complete"},
+  {l:"Mass production",s:"Production",t:"Mass production complete"},
+  {l:"Department requirements collected",s:"Production",t:"Department requirements collected"},
   {l:"Send samples to teams",s:"Production"}],
  "Design":[
   {l:"Concept: look · color · material",s:"Concept"},
@@ -221,20 +261,26 @@ const FLOW = {
   {l:"Competitor analysis",s:"Concept",t:"Competitor analysis"},
   {l:"Amazon SKU creation",s:"Listing creation",t:"Amazon SKU created"},
   {l:"Shopify SKU creation",s:"Listing creation",t:"Shopify SKU created"},
+  {l:"Shipbob SKU creation",s:"Listing creation",t:"Shipbob SKU created"},
+  {l:"Next Smart Ship SKU",s:"Listing creation",t:"Next Smart Ship SKU created"},
+  {l:"All ASINs sheet update",s:"Listing creation",t:"All ASINs sheet updated"},
   {l:"Ops sheet update",s:"Listing creation"},
-  {l:"Product data filed → brief 建檔",s:"Listing creation",t:"Product data filed → marketing brief"},
+  {l:"Shopify COGS sheet update",s:"Listing creation",t:"Shopify COGS sheet updated"},
+  {l:"Product data filed → brief",s:"Listing creation",t:"Product data filed → marketing brief"},
   {l:"Brand language confirmed",s:"Listing creation",t:"Brand language confirmed ◆",d:1},
   {l:"Listings published LIVE",s:"Live",t:"Listings published live (Amazon + Shopify)"}],
  "Content":[
   {l:"Pre-production",s:"Content"},
   {l:"Hero / lifestyle shoot",s:"Content",t:"Hero / lifestyle shoot done"},
   {l:"Post-production",s:"Content",t:"Post-production done"},
-  {l:"Content export: instruction · lifestyle · social",s:"Content",t:"Content exported (instruction / lifestyle / social clips)"}],
+  {l:"Content export: instruction · lifestyle · social · ads",s:"Content",t:"Content exported (instruction / lifestyle / social clips / ads)"}],
  "Social":[
   {l:"IG / YouTube / TikTok posts",s:"Marketing",t:"Channel posts live (IG / YouTube / TikTok)"}],
  "Marketing":[
+  {l:"Marketing brief rough draft",s:"Production",t:"Marketing brief rough draft"},
   {l:"Marketing brief finalized",s:"Live",t:"Marketing brief finalized & ready"},
-  {l:"KOL projects: MOAT · ASMR · Cinematic · Authority · Reach · Seed · UGC",s:"Marketing",t:"KOL / influencer projects live"},
+  {l:"Marketing brief v2",s:"Marketing"},
+  {l:"KOL projects: MOAT · ASMR · Cinematic · Authority · Reach · Seed · UGC · Pro",s:"Marketing",t:"KOL / influencer projects live"},
   {l:"Ideation → Sourcing / DM received",s:"Marketing"},
   {l:"Negotiation → Shipping → Video live → Payment",s:"Marketing"},
   {l:"Evaluation (Ben + Marketing)",s:"Marketing",d:1},
@@ -248,8 +294,56 @@ const FLOW = {
  "CRM":[
   {l:"Influencer DMs → email pipeline",s:"Marketing"}],
  "Logistics":[
-  {l:"Freight: sea bulk + air samples",s:"Production",t:"Freight booked (sea + air samples)"}]
+  {l:"Update master order sheet",s:"Production"},
+  {l:"Logistics planning",s:"Production"},
+  {l:"Update logistics sheet",s:"Production"},
+  {l:"Dispatch details & tracking",s:"Production",t:"Dispatch details & tracking filed"},
+  {l:"Freight: sea bulk + air samples",s:"Production",t:"Freight booked (sea + air samples)"},
+  {l:"Shipping labels: Amazon + Shipbob",s:"Listing creation",t:"Shipping labels created (Amazon + Shipbob)"},
+  {l:"Labels → manufacturer · carriers · send to USA",s:"Listing creation"},
+  {l:"Amazon pickup / ship to Shipbob",s:"Live"},
+  {l:"Monitor inventory receiving",s:"Live",t:"Inventory received (Amazon + Shipbob)"}]
 };
+/* ===== dependency ROUTES =====
+   Every node is route-enabled. XROUTES lists the cross-department hand-offs
+   (from BV Team Workflow_v2): pressing the source node glows everyone involved,
+   so the DRI knows exactly which departments to reach out to.
+   Nodes without an entry get a vertical path down their own lane. */
+const XROUTES={
+"Product|Market research":[["Product","Market research"],["Catalog","Competitor analysis"],["Product","Create concept definition document"]],
+"Catalog|Competitor analysis":[["Catalog","Competitor analysis"],["Product","Market research"]],
+"Product|Create concept definition document":[["Product","Create concept definition document"],["Product","Concept brainstorming meeting (Figma)"],["Design","Concept: look · color · material"],["Product","Product info: spec · look · material · price"],["Product","Concept definition doc FINAL"]],
+"Product|Ben validation":[["Product","Ben validation"],["Product","Costing & profit"],["Design","Packaging · insert · manual"],["Design","Model name"]],
+"Product|Design freeze":[["Product","Design freeze"],["Marketing","Marketing brief rough draft"],["Product","Department requirements collected"]],
+"Marketing|Marketing brief rough draft":[["Marketing","Marketing brief rough draft"],["Product","Department requirements collected"],["Product","Send samples to teams"]],
+"Product|Department requirements collected":[["Product","Department requirements collected"],["Logistics","Dispatch details & tracking"],["Product","Send samples to teams"]],
+"Product|Send samples to teams":[["Product","Send samples to teams"],["Content","Pre-production"],["Content","Hero / lifestyle shoot"]],
+"Logistics|Dispatch details & tracking":[["Logistics","Dispatch details & tracking"],["Product","Send samples to teams"]],
+"Product|Mass production":[["Product","Mass production"],["Logistics","Logistics planning"],["Logistics","Freight: sea bulk + air samples"],["Logistics","Shipping labels: Amazon + Shipbob"]],
+"Design|Model name":[["Design","Model name"],["Catalog","Brand language confirmed"]],
+"Design|Listing imagery / A+ upload":[["Design","Listing imagery / A+ upload"],["Catalog","Listings published LIVE"]],
+"Content|Content export: instruction · lifestyle · social · ads":[["Content","Content export: instruction · lifestyle · social · ads"],["Social","IG / YouTube / TikTok posts"],["Design","Infographic / A+ assets"],["Ads","Post-production (if needed)"]],
+"Catalog|Shipbob SKU creation":[["Catalog","Shipbob SKU creation"],["Logistics","Shipping labels: Amazon + Shipbob"]],
+"Catalog|Next Smart Ship SKU":[["Catalog","Next Smart Ship SKU"],["Logistics","Shipping labels: Amazon + Shipbob"]],
+"Catalog|Product data filed → brief":[["Catalog","Product data filed → brief"],["Marketing","Marketing brief finalized"]],
+"Catalog|Listings published LIVE":[["Catalog","Listings published LIVE"],["Marketing","Marketing brief v2"],["Marketing","KOL projects: MOAT · ASMR · Cinematic · Authority · Reach · Seed · UGC · Pro"]],
+"Logistics|Monitor inventory receiving":[["Logistics","Monitor inventory receiving"],["Catalog","Listings published LIVE"]],
+"Marketing|Marketing brief finalized":[["Marketing","Marketing brief finalized"],["Marketing","KOL projects: MOAT · ASMR · Cinematic · Authority · Reach · Seed · UGC · Pro"],["Ads","Post-production (if needed)"],["Email","Launch email sequence"]]
+};
+function routeSteps(key,d,i){
+  if(XROUTES[key]) return XROUTES[key];
+  const lane=FLOW[d]||[]; const steps=[];
+  for(let k=i;k<lane.length;k++) steps.push([d,lane[k].l]);
+  return steps;
+}
+function toggleRouteFor(d,i){
+  const key=d+"|"+FLOW[d][i].l;
+  if(S.route&&S.route.key===key){S.route=null;render();return;}
+  S.route={key,d,i};
+  const depts=[...new Set(routeSteps(key,d,i).map(p=>p[0]))];
+  toast(depts.length>1?"🤝 Cross-department route — reach out to: "+depts.join(", "):"▼ Single-department path — steps down the lane");
+  render();
+}
 const CROSS = [ // [fromDept, fromIdx, toDept, toIdx] — key hand-offs from the PDF
  ["Product",12,"Content",0],["Product",11,"Logistics",0],["Content",3,"Social",0],
  ["Content",3,"Design",3],["Catalog",4,"Marketing",0],["Marketing",1,"Ads",0],["CRM",0,"Email",0]];
@@ -297,8 +391,7 @@ const seedT=(slug,title,f)=>{const t=LAUNCHES.find(l=>l.slug===slug).tasks.find(
 seedT("apex","Ben validation ◆",{urg:"urgent",notes:[{d:"2026-06-09",a:"Product",txt:"Sample + costing sheet on Ben's desk. Loom walk-through attached.",v:"https://www.loom.com/share/apex-proto-v3"}]});
 seedT("cyclone","A+ / infographic assets ready",{urg:"high",assignee:"Design · senior",notes:[{d:"2026-06-09",a:"Design",txt:"Blocked on brand font license — legal reviewing. ETA Friday."}]});
 seedT("cyclone","Post-production done",{assignee:"Content · editor",urg:"high"});
-// SuperPM seeds: decision SLA clocks + risk registers
-LAUNCHES.find(l=>l.slug==="apex").decisionRequested={"Ben validation ◆":"2026-06-06"}; // 4 days ago → SLA breach demo
+LAUNCHES.find(l=>l.slug==="apex").decisionRequested={"Ben validation ◆":"2026-06-06"};
 LAUNCHES.find(l=>l.slug==="apex").risks=[
  {t:"Factory holiday shutdown mid-July",owner:"Product",sc:9,trigger:"PO not placed by Jun 20"},
  {t:"Ben availability for validation slot",owner:"Product",sc:6,trigger:"No review booked within SLA"}];
@@ -500,10 +593,46 @@ function newLaunch(){
   toast("🆕 "+name+" created — fill the intake Form to unlock the pipeline"); openL(slug);
 }
 
+/* ----- Google Sheets intake form (creates a real sheet in the browser's Google account) -----
+   SETUP: paste your Google OAuth 2.0 Web Client ID below. Get one at
+   https://console.cloud.google.com/apis/credentials → Create OAuth client ID → Web application,
+   with Authorized JavaScript origin = the deployed site URL (e.g. https://bv-superpm-ihnr.onrender.com).
+   Enable the "Google Sheets API" for the same project. Until a Client ID is set, the button explains the setup. */
+const GOOGLE_CLIENT_ID="";  // <-- paste your OAuth Client ID here
+function intakeTaskOf(l){return l.tasks.find(t=>t.t==="Form (intake)");}
+function hasIntakeSheet(l){const t=intakeTaskOf(l);return !!(t&&(t.links||[]).length);}
+function createIntakeSheet(slug){
+  const l=L(slug); if(!l)return;
+  const task=intakeTaskOf(l); if(!task){toast("No intake Form task on this card");return;}
+  if(!GOOGLE_CLIENT_ID){toast("⚠️ Google not configured yet — add a Client ID in the code (see GOOGLE-SHEETS-SETUP.md)");return;}
+  if(!(window.google&&google.accounts&&google.accounts.oauth2)){toast("Google sign-in is still loading — try again in a second");return;}
+  const title=l.name; // the sheet (intake form) is named after the product
+  const client=google.accounts.oauth2.initTokenClient({
+    client_id:GOOGLE_CLIENT_ID,
+    scope:"https://www.googleapis.com/auth/drive.file",
+    callback:resp=>{
+      if(resp.error||!resp.access_token){toast("Google sign-in cancelled");return;}
+      toast("Creating Google Sheet “"+title+"”…");
+      fetch("https://sheets.googleapis.com/v4/spreadsheets",{method:"POST",
+        headers:{"Authorization":"Bearer "+resp.access_token,"Content-Type":"application/json"},
+        body:JSON.stringify({properties:{title}})})
+      .then(r=>r.json()).then(d=>{
+        if(!d.spreadsheetUrl){toast("Sheet creation failed: "+((d.error&&d.error.message)||"unknown error"));return;}
+        task.links=task.links||[]; task.links.push({n:title,u:d.spreadsheetUrl}); // saved as the intake form, named after the product
+        task.st="x";
+        l.checkins.unshift({d:today,a:"Product",txt:`Intake Google Sheet “${title}” created in your Google account — pipeline unlocked.`});
+        log("📄 Intake sheet created for "+l.name); save(); render();
+        toast("✅ Intake sheet “"+title+"” created — pipeline unlocked");
+        window.open(d.spreadsheetUrl,"_blank");
+      }).catch(()=>toast("Network error while creating the sheet"));
+    }});
+  client.requestAccessToken();
+}
+
 /* ----- confetti on push ----- */
 function boom(){try{
   for(let i=0;i<26;i++){const c=document.createElement("div"); c.className="cf";
-    c.style.left=(8+Math.random()*84)+"vw"; c.style.background=["#e8b765","#4ade80","#60a5fa","#c084fc","#f87171"][i%5];
+    c.style.left=(8+Math.random()*84)+"vw"; c.style.background=["#EE3124","#4ade80","#60a5fa","#c084fc","#F6F8FC"][i%5];
     c.style.animationDelay=(Math.random()*.3)+"s"; document.body.appendChild(c);
     setTimeout(()=>{try{c.remove();}catch(e){}},1800);}
 }catch(e){}}
@@ -514,17 +643,18 @@ function addRisk(slug){ const t=prompt("Risk (one line)"); if(!t)return;
   (L(slug).risks=L(slug).risks||[]).push({t,owner,sc,trigger}); log("⚠️ Risk added to "+L(slug).name); toast("Risk logged"); render(); }
 
 /* ----- persistence (guarded): autosave, export, reset ----- */
-function snapshot(){return JSON.stringify({v:1,TEAM,LAUNCHES,CAMPAIGNS,LOG,GATES,FLOW});}
+function snapshot(){return JSON.stringify({v:2,TEAM,LAUNCHES,CAMPAIGNS,LOG,GATES,FLOW,XROUTES});}
 function save(){try{if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot());}catch(e){}}
 function loadSaved(){try{
   if(typeof localStorage==="undefined")return;
-  const s=localStorage.getItem("bv-superpm"); if(!s)return; const d=JSON.parse(s); if(d.v!==1)return;
+  const s=localStorage.getItem("bv-superpm"); if(!s)return; const d=JSON.parse(s); if(d.v!==2)return;
   TEAM.length=0;d.TEAM.forEach(x=>TEAM.push(x));
   LAUNCHES.length=0;d.LAUNCHES.forEach(x=>LAUNCHES.push(x));
   CAMPAIGNS.length=0;d.CAMPAIGNS.forEach(x=>CAMPAIGNS.push(x));
   LOG.length=0;(d.LOG||[]).forEach(x=>LOG.push(x));
   Object.keys(GATES).forEach(k=>delete GATES[k]);Object.entries(d.GATES).forEach(([k,v])=>GATES[k]=v);
   Object.keys(FLOW).forEach(k=>delete FLOW[k]);Object.entries(d.FLOW).forEach(([k,v])=>FLOW[k]=v);
+  if(d.XROUTES){Object.keys(XROUTES).forEach(k=>delete XROUTES[k]);Object.entries(d.XROUTES).forEach(([k,v])=>XROUTES[k]=v);}
 }catch(e){}}
 function resetDemo(){try{if(typeof localStorage!=="undefined")localStorage.removeItem("bv-superpm");}catch(e){} location.reload();}
 function exportJSON(){try{
@@ -573,8 +703,8 @@ const DCOLOR=d=>{const i=TEAM.findIndex(t=>t.name===d);return DPAL[(i<0?9:i)%DPA
 
 /* ================= EVIDENCE-REQUIRED TASKS (from the Task Playbook workbook) ================= */
 const EVID=new Set(["Prototype 1-2-3 approved","Pre-production sample approved + BOM","Mass production complete",
- "Hero / lifestyle shoot done","Content exported (instruction / lifestyle / social clips)","A+ / infographic assets ready",
- "Amazon SKU created","Shopify SKU created","Listings published live (Amazon + Shopify)",
+ "Hero / lifestyle shoot done","Content exported (instruction / lifestyle / social clips / ads)","A+ / infographic assets ready",
+ "Amazon SKU created","Shopify SKU created","Shipbob SKU created","Next Smart Ship SKU created","All ASINs sheet updated","Shopify COGS sheet updated","Shipping labels created (Amazon + Shipbob)","Listings published live (Amazon + Shopify)",
  "Marketing brief finalized & ready","Launch ads running"]);
 /* short definition-of-done lines (full versions live in BV-Task-Playbook.xlsx) */
 const DOD={"Form (intake)":"Intake complete: why, spec, look, material, customer, price.",
@@ -590,13 +720,22 @@ const DOD={"Form (intake)":"Intake complete: why, spec, look, material, customer
  "A+ / infographic assets ready":"All A+ modules + infographics exported to spec.",
  "Listing imagery / A+ uploaded":"Imagery live in Amazon/Shopify backends.",
  "Competitor analysis":"Competitor listings analyzed: pricing, reviews, keywords.",
+ "Marketing brief rough draft":"Rough draft by Marketing at design freeze — guides content & listing prep.",
+ "Department requirements collected":"Each department's sample/photo/data needs gathered before dispatch.",
+ "Dispatch details & tracking filed":"Sample dispatch details + tracking numbers on the card.",
+ "Shipbob SKU created":"SKU exists in Shipbob.",
+ "Next Smart Ship SKU created":"SKU exists in Next Smart Ship.",
+ "All ASINs sheet updated":"All-ASINs sheet row added/updated.",
+ "Shopify COGS sheet updated":"COGS sheet updated with landed cost.",
+ "Shipping labels created (Amazon + Shipbob)":"Labels created and sent to manufacturer.",
+ "Inventory received (Amazon + Shipbob)":"Receiving confirmed at both warehouses.",
  "Amazon SKU created":"SKU exists in Seller Central with core attributes.",
  "Shopify SKU created":"SKU exists in Shopify with core attributes.",
  "Product data filed → marketing brief":"Product page data filed; feeds the brief.",
  "Listings published live (Amazon + Shopify)":"Both listings public and purchasable.",
  "Hero / lifestyle shoot done":"Shoot complete; selects folder shared.",
  "Post-production done":"Edits final; color/sound approved.",
- "Content exported (instruction / lifestyle / social clips)":"All formats exported & filed by type.",
+ "Content exported (instruction / lifestyle / social clips / ads)":"All formats exported & filed by type.",
  "Channel posts live (IG / YouTube / TikTok)":"Launch posts live on all three channels.",
  "Marketing brief finalized & ready":"Brief v2 final — unblocks influencer outreach.",
  "KOL / influencer projects live":"First KOL wave live.",
@@ -604,13 +743,186 @@ const DOD={"Form (intake)":"Intake complete: why, spec, look, material, customer
  "Launch email sequence sent":"Full launch sequence delivered."};
 
 /* ================= STATE ================= */
-let S={role:"ceo",view:"home",launch:null,dept:"Design",flowLaunch:"apex",open:{},progLaunch:"apex",q:"",palSel:0};
+let S={role:"ceo",view:"home",launch:null,dept:"Design",flowLaunch:"apex",open:{},progLaunch:"apex",route:null,q:"",palSel:0,hideFlow:false};
 const NAVS=[["home","Home"],["portfolio","Portfolio"],["progress","Progress"],["timeline","Timeline"],["dept","Departments"],["flow","Master flow"],["campaign","Campaigns"],["team","Team"]];
 const stIcon={x:"✓",p:"…",b:"!",o:""};
 const fmt=d=>new Date(d+"T00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
 const today="2026-06-10";
 const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
-function toast(m){const t=document.getElementById("toast");t.textContent=m;t.style.display="block";setTimeout(()=>t.style.display="none",3000);}
+
+/* ================= LANGUAGE TOGGLE (EN / 中文) =================
+   Internal data & values stay English; translation happens on the rendered text
+   only (never inside HTML tags/attributes), so all logic is unaffected.
+   繁體中文 terms below are first drafts — correct freely. */
+let LANG="en";
+const ZH={
+ // — tasks (longest first wins automatically) —
+ "Content exported (instruction / lifestyle / social clips / ads)":"內容輸出（教學／生活／社群短片／廣告）",
+ "Listings published live (Amazon + Shopify)":"上架發佈（Amazon + Shopify）",
+ "Channel posts live (IG / YouTube / TikTok)":"頻道貼文上線（IG / YouTube / TikTok）",
+ "KOL projects: MOAT · ASMR · Cinematic · Authority · Reach · Seed":"KOL 專案：MOAT・ASMR・Cinematic・Authority・Reach・Seed",
+ "Negotiation → Shipping → Video live → Payment":"議約 → 寄送 → 影片上線 → 付款",
+ "Product info: spec · look · material · price":"產品資訊：規格・外觀・面料・價格",
+ "Content export: instruction · lifestyle · social · ads":"內容輸出：教學・生活・社群・廣告",
+ "Pre-production sample approved + BOM":"產前樣承認 + 提供 BOM",
+ "Product data filed → marketing brief":"產品資料建檔 → 行銷簡報",
+ "Marketing brief finalized & ready":"行銷簡報定稿並就緒",
+ "Freight booked (sea + air samples)":"運輸預訂（海運大貨＋空運樣品）",
+ "Freight: sea bulk + air samples":"運輸：海運大貨＋空運樣品",
+ "Packaging / insert / manual locked":"包裝／插卡／說明書定稿",
+ "Packaging · insert · manual":"包裝・插卡・說明書",
+ "Usage rights → long-term / archive":"使用權 → 長期合作／歸檔",
+ "Ideation → Sourcing / DM received":"發想 → 尋找網紅／收到 DM",
+ "Influencer DMs → email pipeline":"網紅私訊 → 郵件流程",
+ "Concept: look · color · material":"概念：外觀・顏色・材料",
+ "Hero / lifestyle shoot done":"主圖／生活照拍攝完成",
+ "A+ / infographic assets ready":"A+／資訊圖素材完成",
+ "Listing imagery / A+ uploaded":"上架圖片／A+ 已上傳",
+ "Listing imagery / A+ upload":"上架圖片／A+ 上傳",
+ "Launch email sequence sent":"上市郵件序列已發送",
+ "Launch email sequence":"上市郵件序列",
+ "KOL / influencer projects live":"KOL／網紅專案上線",
+ "Evaluation (Ben + Marketing)":"評估（Ben＋行銷）",
+ "Update Amazon store / posts":"更新 Amazon 商店／貼文",
+ "Prototyping 1-2-3 + testing":"原型 1-2-3 + 測試",
+ "Prototype 1-2-3 approved":"原型 1-2-3 通過",
+ "Costing & profit signed off":"成本與利潤核定",
+ "IG / YouTube / TikTok posts":"IG / YouTube / TikTok 貼文",
+ "Pre-prod sample + BOM → Ben":"產前樣＋BOM → 寄給 Ben",
+ "Post-production (if needed)":"後製（如需要）",
+ "Marketing brief finalized":"行銷簡報定稿",
+ "Product data filed → brief":"產品資料建檔 → 簡報",
+ "Mass production complete":"大貨生產完成",
+ "Ben concept sign-off ◆":"Ben 想法定稿 ◆",
+ "Hero / lifestyle shoot":"主圖／生活照拍攝",
+ "Send samples to teams":"寄送樣品給各部門",
+ "Infographic / A+ assets":"資訊圖／A+ 素材",
+ "Brand language confirmed":"品牌語言確認",
+ "Listings published LIVE":"上架正式發佈",
+ "Partnerships approval":"合作批准",
+ "Ben confirms concept":"Ben 確認想法定稿",
+ "Launch ads running":"上市廣告投放中",
+ "Amazon SKU creation":"Amazon SKU 建立",
+ "Shopify SKU creation":"Shopify SKU 建立",
+ "Marketing brief rough draft":"行銷簡報初稿",
+ "Department requirements collected":"各部門需求彙整",
+ "Dispatch details & tracking filed":"產品發送細節與追蹤",
+ "Shipbob SKU created":"Shipbob SKU 已建立",
+ "Next Smart Ship SKU created":"Next Smart Ship SKU 已建立",
+ "All ASINs sheet updated":"All ASINs 表已更新",
+ "Shopify COGS sheet updated":"Shopify COGS 表已更新",
+ "Shipping labels created (Amazon + Shipbob)":"出貨標籤建立（Amazon + Shipbob）",
+ "Inventory received (Amazon + Shipbob)":"庫存入庫完成（Amazon + Shipbob）",
+ "Update master order sheet":"更新主訂單表","Logistics planning":"物流規劃","Update logistics sheet":"更新物流表",
+ "Labels → manufacturer · carriers · send to USA":"標籤交付工廠・安排承運・發往美國",
+ "Amazon pickup / ship to Shipbob":"Amazon 提貨／送往 Shipbob",
+ "Marketing brief v2":"行銷簡報 v2",
+ "Amazon SKU created":"Amazon SKU 已建立",
+ "Shopify SKU created":"Shopify SKU 已建立",
+ "Competitor analysis":"競品分析",
+ "Concept definition":"概念定義",
+ "Post-production done":"後製完成",
+ "Post-production":"後製",
+ "Pre-production":"前期製作",
+ "Ben validation ◆":"Ben 驗證 ◆",
+ "Ben validation":"Ben 驗證",
+ "Mass production":"大貨生產",
+ "Market research":"市場調查",
+ "Ops sheet update":"Ops 表更新",
+ "Costing & profit":"成本與利潤",
+ "Model name set":"型號名稱確定",
+ "Model name":"型號名稱",
+ "Design freeze":"設計凍結",
+ "Form (intake)":"產品需求表 (intake)",
+ "Create concept definition document":"建立概念定義文件",
+ "Concept brainstorming meeting (Figma)":"概念定義 Brainstorming Meeting（Figma）",
+ "Concept definition doc FINAL":"概念定義文件 FINAL",
+ "ROUTE":"流程路徑",
+ "Portfolio health":"產品組合健康度","Autopilot issues — click to triage":"Autopilot 問題 — 點擊處理",
+ "Generate weekly digest":"產生每週摘要","Weekly digest":"每週摘要","Copy for Slack":"複製到 Slack",
+ "FOCUS — the one task per launch that moves the date":"重點 — 每個產品最影響時程的任務",
+ "WORK IN PROGRESS vs LIMIT":"進行中工作 vs 上限","RISK REGISTER":"風險登記",
+ "float":"餘裕","forecast":"預測","velocity":"速率","New launch":"新增上市產品",
+ "Activity & Inbox":"動態與收件匣","Auto-correct all":"全部自動修正",
+ "Cross-department — DRI should reach out to:":"跨部門 — DRI 需主動聯繫：",
+ "Single department":"單一部門",
+ "path runs straight down the lane":"路徑沿本欄垂直往下",
+ "open task on card":"在卡片上開啟任務",
+ "open Figma board ↗":"開啟 Figma 看板 ↗",
+ "clear":"清除",
+ "Understand WHY":"理解 WHY",
+ "Post ad":"投放廣告",
+ // — stages —
+ "Listing creation":"上架建立","Concept":"概念","Build":"開發","Production":"生產","Live":"上線",
+ // — departments (Content/Marketing double as stages) —
+ "Product":"產品","Design":"設計","Catalog":"目錄","Content":"內容","Social":"社群","Marketing":"行銷",
+ "Ads":"廣告","Email":"電郵","CRM":"客戶關係","Logistics":"物流",
+ "PRODUCT":"產品","DESIGN":"設計","CATALOG":"目錄","CONTENT":"內容","SOCIAL":"社群","MARKETING":"行銷",
+ "ADS":"廣告","EMAIL":"電郵","LOGISTICS":"物流",
+ // — nav / views —
+ "Home":"首頁","Portfolio":"總覽看板","Progress":"進度","Timeline":"時間軸","Departments":"部門",
+ "Master flow chart":"主流程圖","Master flow":"主流程圖","Campaigns":"行銷活動","Campaign":"行銷活動","Team & departments":"團隊與部門","Team":"團隊",
+ "CEO lens":"CEO 視角","Director lens":"總監視角","Department lens":"部門視角","Department":"部門","Director":"總監","Head":"主管",
+ // — statuses / chips —
+ "Awaiting Ben ◆":"等待 Ben ◆","In progress":"進行中","To do":"待辦","Blocked":"受阻","Done":"完成","Complete":"已完成","On track":"進度正常",
+ "blocked":"受阻","locked":"已鎖定","urgent":"緊急","high":"高","med":"中","low":"低","details":"詳情","close":"收起",
+ "projected on time":"預計準時","biggest bottleneck":"最大瓶頸","held by":"卡在","On plan so far.":"目前符合計畫。",
+ "fresh":"已更新","stale — nudge DRI":"逾期 — 提醒 DRI","evidence required":"需附證明連結","evidence":"需附證明",
+ // — panel headers —
+ "MY DECISION QUEUE":"我的決策佇列","EXCEPTIONS":"異常清單","PORTFOLIO — ALL LAUNCHES BY STAGE":"總覽 — 依階段顯示所有上市產品",
+ "POSITION ON THE MASTER FLOW CHART":"在主流程圖上的位置","GATE":"關卡","CHECK-IN LOG":"進度回報紀錄",
+ "STAGE FUNNEL":"階段漏斗","GATE DEBT — what each department owes the current gates":"關卡欠項 — 各部門尚未完成的關卡條件",
+ "CHECK-IN COMPLIANCE (weekly)":"每週進度回報達成率","FEATURED PRODUCTS":"主打產品","CAMPAIGN TASKS (cross-department)":"活動任務（跨部門）",
+ "BURN-UP":"累積完成圖","DEPARTMENT PROGRESSION":"部門進度","ALL LAUNCHES — % of tasks done":"所有產品 — 任務完成率",
+ "LAUNCH TIMELINES":"上市時間軸","DELAY BY DEPARTMENT — who is costing us the most days":"各部門延誤 — 誰耗掉最多天數",
+ "OUR PLAYBOOK — how":"作業手冊 —","updates tasks":"的任務更新規則","CARDS WHERE":"擔任 DRI 的卡片 —","IS DRI":"",
+ "OWES THE CURRENT GATES":"目前尚欠的關卡條件","WHAT":"","POST A CHECK-IN":"發布進度回報","WEEKLY CHECK-IN":"每週進度回報","MY OPEN TASKS":"我的待辦任務",
+ // — buttons / actions —
+ "Approve":"批准","Reject":"駁回","Open card":"開啟卡片","mark done":"標記完成","Add note":"新增備註","Post check-in":"發布進度回報",
+ "Attach Loom / video":"附加 Loom／影片","+ link":"＋連結","+ Add department":"＋ 新增部門","Push to":"推進至","Push locked —":"推進鎖定 —",
+ "criteria left":"項條件未完成","Launch complete":"上市已完成","Ready — push reserved for DRI":"已就緒 — 推進權限：DRI",
+ "mandatory dept heads, or Ben":"必要部門主管或 Ben","ready":"就緒","open":"項未完成",
+ // — common words / sentences —
+ "Decisions and exceptions only.":"只顯示需要決策與異常的事項。","Active launches":"進行中的上市產品",
+ "◆ awaiting your decision":"◆ 等待您決策","Blocked tasks":"受阻任務","to Black Friday":"距黑色星期五",
+ "Nothing waiting on you. 🎉":"沒有等待您的事項 🎉","No blocked tasks.":"沒有受阻任務。",
+ "exit criteria are met. Approving unblocks the push to":"出口條件皆已完成。批准後即可推進至","All other":"其餘",
+ "Every launch by stage. Click a card.":"依階段顯示所有上市產品，點擊卡片查看。",
+ "Cross-department flow: where work piles up, which team blocks which gate.":"跨部門流程：工作堆積在哪裡、哪個團隊卡住哪個關卡。",
+ "gate criteria":"關卡條件","tasks overall":"項任務","exit criteria":"出口條件","Exit criteria":"出口條件",
+ "Weekly digest:":"每週摘要：","Approval needed:":"需要批准：","discuss in thread":"在討論串中討論","replies — discuss in thread":"則回覆 — 在討論串中討論",
+ "Pushed to":"已推進至","DRI:":"負責部門 (DRI)：","DRI changed":"DRI 已變更","target":"目標日期","stage":"階段","thread":"討論串",
+ "Done means:":"完成的定義：","Definition of done:":"完成定義：","Locked.":"已鎖定。",
+ "fill the intake Form first":"請先填寫產品需求表","unlocks at the":"解鎖階段：","finish":"請先完成","first":"",
+ "is here":"目前位置","decision":"決策","done":"完成","in progress":"進行中","to do (current stage)":"待辦（目前階段）","upcoming":"後續",
+ "dashed = cross-department hand-off":"虛線＝跨部門交接","decision gate":"決策關卡",
+ "days out":"天後","laggards first":"落後優先","Click a name to switch the burn-up.":"點擊名稱切換圖表。",
+ "planned vs actual":"計畫 vs 實際","plan":"計畫","late":"延遲","projected":"預計",
+ "Role / responsibility":"職責","Head (optional)":"主管（選填）","Members (optional)":"成員（選填）",
+ "Progression —":"進度 —","Timeline —":"時間軸 —","posts to the card + its Slack channel":"發布到卡片＋對應的 Slack 頻道",
+ "gates":"關卡","next":"下一階段","weekly":"每週","Viewing as":"檢視身分"
+};
+const ZHRE=Object.entries(ZH).sort((a,b)=>b[0].length-a[0].length).map(([k,v])=>{
+  const e=k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  return [new RegExp((/^\w/.test(k)?"\\b":"")+e+(/\w$/.test(k)?"\\b":""),"g"),v];
+});
+const zhText=s=>{if(!s.trim())return s;for(const [re,v] of ZHRE)s=s.replace(re,v);return s;};
+const tx=html=>LANG==="en"?html:html.split(/(<[^>]*>)/g).map(seg=>seg.startsWith("<")?seg:zhText(seg)).join("");
+let THEME="dark", WIDE=false;
+function setTheme(){THEME=THEME==="dark"?"light":"dark";
+  if(typeof document!=="undefined"&&document.documentElement&&document.documentElement.setAttribute)document.documentElement.setAttribute("data-theme",THEME);
+  const b=document.getElementById("themeBtn"); if(b)b.textContent=THEME==="dark"?"☀️":"🌙";
+  render();}
+function setWide(){WIDE=!WIDE;
+  if(typeof document!=="undefined"&&document.body&&document.body.setAttribute){if(WIDE)document.body.setAttribute("data-wide","");else document.body.removeAttribute("data-wide");}
+  const b=document.getElementById("wideBtn"); if(b)b.style.color=WIDE?"var(--accent)":"";
+  toast(WIDE?"Wide screen mode":"Regular width");}
+function setLang(){LANG=LANG==="en"?"zh":"en";
+  const b=document.getElementById("langBtn"); if(b)b.textContent=LANG==="en"?"中文":"EN";
+  const v=document.getElementById("vaLab"); if(v)v.textContent=LANG==="en"?"Viewing as":"檢視身分";
+  render();}
+
+function toast(m){const t=document.getElementById("toast");t.textContent=LANG==="zh"?zhText(m):m;t.style.display="block";setTimeout(()=>t.style.display="none",3000);}
 function setRole(v){ if(v==="ceo"||v==="director"){S.role=v;} else {S.role="dept";S.dept=v.slice(5);} S.view="home";S.launch=null;render(); }
 function go(v){S.view=v;S.launch=null;render();}
 function openL(slug){S.view="launch";S.launch=slug;render();}
@@ -622,7 +934,12 @@ function cycle(slug,i){ // checkbox click cycles status: todo → in progress �
   if(taskLocked(l,t)){toast("🔒 Locked — "+lockReason(l,t));return;}
   const nx={o:"p",p:"x",x:"b",b:"o"}[t.st];
   if(nx==="x"&&EVID.has(t.t)&&!(t.links||[]).length){toast("📎 Evidence required — attach a link before marking done (see Task Playbook)");return;}
-  t.st=nx; if(nx==="x")log("☑ "+l.name+" · "+t.t+" done"); if(nx==="b")log("⛔ "+l.name+" · "+t.t+" blocked"); render();
+  t.st=nx; if(nx==="x")log("☑ "+l.name+" · "+t.t+" done"); if(nx==="b")log("⛔ "+l.name+" · "+t.t+" blocked");
+  if(nx==="x"){const lane=FLOW[t.d]; const ii=lane?lane.findIndex(n=>n.t===t.t):-1;
+    if(ii>=0){const key=t.d+"|"+lane[ii].l; const others=[...new Set(routeSteps(key,t.d,ii).map(p=>p[0]))].filter(x=>x!==t.d);
+      if(others.length){S.route={key,d:t.d,i:ii};
+        toast("✨ Done → this hand-off involves: "+others.join(", ")+" — route highlighted on the flow chart");}}}
+  render();
 }
 function lockReason(l,t){
   const form=l.tasks.find(x=>x.t==="Form (intake)");
@@ -655,8 +972,7 @@ function push(slug){
   if(i>=STAGES.length-1){l.complete=true;}else{l.stage=STAGES[i+1];}
   const who=S.role==="ceo"?"Ben":S.dept+" (head)";
   l.checkins.unshift({d:today,a:who,txt:`Pushed to ${l.complete?"Complete":l.stage}. ${l.complete?"":"Slack: notified "+mandatory(l).join(", ")+" — their stage begins."}`});
-  log("🚀 "+l.name+" pushed to "+(l.complete?"Complete":l.stage)+" by "+who);
-  boom();
+  log("🚀 "+l.name+" pushed to "+(l.complete?"Complete":l.stage)+" by "+who); boom();
   if(!l.complete){const r=prompt(`Pre-mortem (optional): biggest risk entering ${l.stage}?`);
     if(r){(l.risks=l.risks||[]).push({t:r,owner:l.dri,sc:5,trigger:"—"}); log("⚠️ Pre-mortem risk logged on "+l.name);}}
   toast("🚀 Pushed — next-stage departments alerted in Slack"); render();
@@ -685,6 +1001,8 @@ function renameDept(o,n){ n=n.trim(); if(!n||o===n)return;
   CAMPAIGNS.forEach(c=>c.tasks.forEach(t=>{if(t.d===o)t.d=n;}));
   Object.values(GATES).forEach(cs=>cs.forEach(c=>{if(c.d===o)c.d=n;}));
   if(FLOW[o]){FLOW[n]=FLOW[o]; if(o!==n)delete FLOW[o];}
+  Object.keys(XROUTES).forEach(k=>{XROUTES[k]=XROUTES[k].map(([dd,ll])=>[dd===o?n:dd,ll]);
+    if(k.startsWith(o+"|")){XROUTES[n+k.slice(o.length)]=XROUTES[k]; delete XROUTES[k];}});
   if(S.dept===o)S.dept=n; toast(`Department renamed ${o} → ${n} everywhere`);
 }
 function addDept(){ TEAM.push({name:"New Department",role:"Describe this team's responsibility…",head:"",members:""}); render(); }
@@ -699,12 +1017,13 @@ const linkChips=(task,slug,i)=>(task.links||[]).map(k=>`<a class="lnk" href="${k
 function taskRow(l,t,extra){
   const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
   const vids=t.notes.filter(n=>n.v).length; const lk=taskLocked(l,t);
-  return `<div id="task-${l.slug}-${i}" style="border-radius:8px"><div class="row" style="${lk?"opacity:.38;filter:grayscale(.6)":""}">
+  return `<div id="task-${l.slug}-${i}" style="border-radius:2px"><div class="row" style="${lk?"opacity:.38;filter:grayscale(.6)":""}">
    <span class="st ${lk?"":t.st}" title="${lk?"locked — "+esc(lockReason(l,t)):"click to cycle status"}" onclick="cycle('${l.slug}',${i})">${lk?"🔒":stIcon[t.st]}</span>
    <span>${esc(t.t)}${t.gate?' <span style="color:var(--purple)">◆</span>':""}
     ${lk?'<span class="urg" style="background:#1d2127;color:var(--faint)">locked</span>':`<span class="urg ${t.urg}" title="urgency">${t.urg}</span>`}${t.assignee?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
     ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
     ${lk?"":linkChips(t,l.slug,i)}
+    ${(!lk&&t.t==="Form (intake)"&&!(t.links||[]).length)?`<button class="addlnk" style="background:#13262e;color:#67e8f9;border-color:#1d4250" title="Creates a new Google Sheet in your Google account, named after this product, and saves it as the intake form" onclick="event.stopPropagation();createIntakeSheet('${l.slug}')">📄 Create Google Sheet</button>`:""}
     <button class="exp" onclick="toggle('${key}')">${open?"▴ close":"▾ details"}${t.notes.length?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button></span>
    <span class="o" style="color:${DCOLOR(t.d)}">${extra||t.d}</span></div>
    ${open?(lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>Locked.</b> ${esc(lockReason(l,t)).replace(/^./,c=>c.toUpperCase())}. ${DOD[t.t]?`<div style="margin-top:6px;color:var(--faint)">Definition of done: ${esc(DOD[t.t])}</div>`:""}</div>`:taskPanel(l,t,i)):""}</div>`;
@@ -713,21 +1032,21 @@ function taskPanel(l,t,i){
   return `<div class="taskpanel">
    ${DOD[t.t]?`<div style="margin-bottom:8px;color:var(--dim)">✅ <b>Done means:</b> ${esc(DOD[t.t])}${EVID.has(t.t)?' <span style="color:#67e8f9">· evidence link required</span>':""}</div>`:""}
    <div class="frow"><label>Assign</label><input type="text" list="people" value="${esc(t.assignee)}" placeholder="person or team…" onchange="setF('${l.slug}',${i},'assignee',this.value)">
-    <label>Urgency</label><select onchange="setF('${l.slug}',${i},'urg',this.value)">${["low","med","high","urgent"].map(u=>`<option ${u===t.urg?"selected":""}>${u}</option>`).join("")}</select>
+    <label>Urgency</label><select onchange="setF('${l.slug}',${i},'urg',this.value)">${["low","med","high","urgent"].map(u=>`<option value="${u}" ${u===t.urg?"selected":""}>${u}</option>`).join("")}</select>
     <button class="btn ghost" onclick="addLoom('${l.slug}',${i})">🎥 Attach Loom / video</button></div>
    ${t.notes.map(n=>`<div class="note"><div class="d">${fmt(n.d)} — ${esc(n.a)}</div>${esc(n.txt)} ${n.v?`<a class="lnk" href="${n.v}" target="_blank">🎥 watch</a>`:""}</div>`).join("")||'<div class="sub" style="margin-bottom:8px">No notes yet.</div>'}
    <div class="frow" style="margin-bottom:0"><input type="text" id="nt-${l.slug}-${i}" placeholder="Add a note…" style="flex:1"><button class="btn" onclick="addNote('${l.slug}',${i})">Add note</button></div>
   </div>`;
 }
 const cardHTML=l=>{const g=gateState(l),[h,cls]=health(l);const si=STAGES.indexOf(l.stage);
-  const dots=STAGES.map((s,i)=>`<span title="${s}" style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;background:${l.complete||i<si?"#4ade80":i===si?"var(--accent)":"#2a2f37"};${i===si&&!l.complete?"box-shadow:0 0 6px var(--accent)":""}"></span>`).join("");
+  const dots=STAGES.map((s,i)=>`<span title="${s}" style="display:inline-block;width:9px;height:9px;border-radius:1px;margin-right:4px;background:${l.complete||i<si?"#4ade80":i===si?"var(--accent)":"#2a2f37"};${i===si&&!l.complete?"box-shadow:0 0 6px var(--accent)":""}"></span>`).join("");
   const done=l.tasks.filter(t=>t.st==="x").length;
   return `<div class="card" onclick="openL('${l.slug}')"><div class="nm">${l.name}</div><div class="meta">DRI: <b style="color:${DCOLOR(l.dri)}">${l.dri}</b> · 🎯 ${fmt(l.target)}</div>
   <div style="margin:7px 0 5px">${dots}</div>
   <div class="bar"><i style="width:${Math.round(done/l.tasks.length*100)}%"></i></div>
   <div class="meta">${g.met}/${g.total} gate criteria · ${done}/${l.tasks.length} tasks overall</div>
-  ${l.complete?"":`<div class="meta" style="margin-top:4px">→ ${(()=>{const cn=criticalNext(l);return cn?esc(cn.t):"—";})()}</div>`}
-  <span class="pill ${cls}">${h}</span>${l.complete?"":` <span class="pill ${floatDays(l)<0?"bad":"ok"}" title="days of slack before the target is at risk">float ${floatDays(l)}d</span>`}</div>`;};
+  ${l.complete?"":`<div class="meta" style="margin-top:3px">→ ${(()=>{const cn=criticalNext(l);return cn?esc(cn.t):"—";})()}</div>`}
+  <span class="pill ${cls}">${h}</span>${l.complete?"":` <span class="pill ${floatDays(l)<0?"bad":"ok"}">float ${floatDays(l)}d</span>`}</div>`;};
 
 /* ================= MASTER FLOW CHART RENDER (SVG, live-colored per launch) ================= */
 function flowSVG(l){
@@ -735,8 +1054,16 @@ function flowSVG(l){
   const CW=158,GAP=14,NH=46,VG=66,TOP=56;
   const W=depts.length*(CW+GAP)+GAP, H=TOP+Math.max(...depts.map(d=>FLOW[d].length))*VG+30;
   const pos=(d,i)=>{const c=depts.indexOf(d);return {x:GAP+c*(CW+GAP),y:TOP+i*VG};};
-  const fill={x:"#14331f",p:"#33260f",b:"#331414",o:"#1d2127",fut:"#15171b"};
-  const strk={x:"#4ade80",p:"#fbbf24",b:"#f87171",o:"#3a414b",fut:"#262b32"};
+  const FT=THEME==="light"
+    ?{colBg:"#FFFFFF",colLine:"#DDE3EE",arrow:"#9AA6BA",
+      fill:{x:"#E9F7EC",p:"#FFF3E0",b:"#FDEAEA",o:"#EEF1F7",fut:"#F7F9FC"},
+      strk:{x:"#3E9E5B",p:"#D68910",b:"#D64545",o:"#B9C2D4",fut:"#E3E8F1"},
+      txt:{x:"#1E7E3E",p:"#A05A00",b:"#B03030",o:"#3C4452",fut:"#A9B2C2"}}
+    :{colBg:"#13161A",colLine:"#22262D",arrow:"#4A5260",
+      fill:{x:"#14331f",p:"#33260f",b:"#331414",o:"#1d2127",fut:"#15171b"},
+      strk:{x:"#4ade80",p:"#fbbf24",b:"#f87171",o:"#3a414b",fut:"#262b32"},
+      txt:{x:"#4ade80",p:"#fbbf24",b:"#f87171",o:"#aab3bd",fut:"#5a626d"}};
+  const fill=FT.fill, strk=FT.strk;
   const stateOf=(n,d,i)=>{
     if(n.t){const t=l.tasks.find(x=>x.t===n.t); if(t){ if(t.st!=="o")return t.st; return nodeLocked(l,d,i)?"fut":"o"; }}
     const si=STAGES.indexOf(n.s),ci=STAGES.indexOf(l.stage);
@@ -744,35 +1071,53 @@ function flowSVG(l){
     return nodeLocked(l,d,i)?"fut":si===ci?"o":"fut";
   };
   const here=nextUnmet(l);
+  const rsteps=S.route?routeSteps(S.route.key,S.route.d,S.route.i):null;
+  const rset=new Set(rsteps?rsteps.map(p=>p[0]+"|"+p[1]):[]);
   let svg=`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit">
-  <defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#4a5260"/></marker></defs>`;
+  <defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="${FT.arrow}"/></marker></defs>`;
   // columns + headers
   depts.forEach((d,c)=>{const x=GAP+c*(CW+GAP);
-    svg+=`<rect x="${x-6}" y="10" width="${CW+12}" height="${H-20}" rx="10" fill="#13161a" stroke="#22262d"/>
+    svg+=`<rect x="${x-6}" y="10" width="${CW+12}" height="${H-20}" rx="2" fill="${FT.colBg}" stroke="${FT.colLine}"/>
     <text x="${x+CW/2}" y="34" text-anchor="middle" fill="${DCOLOR(d)}" font-size="13" font-weight="700">${esc(d)}</text>`;});
   // in-column arrows
   depts.forEach(d=>FLOW[d].forEach((n,i)=>{ if(i<FLOW[d].length-1){const a=pos(d,i),b=pos(d,i+1);
-    svg+=`<line x1="${a.x+CW/2}" y1="${a.y+NH}" x2="${b.x+CW/2}" y2="${b.y-3}" stroke="#4a5260" stroke-width="1.3" marker-end="url(#ar)"/>`;}}));
+    svg+=`<line x1="${a.x+CW/2}" y1="${a.y+NH}" x2="${b.x+CW/2}" y2="${b.y-3}" stroke="${FT.arrow}" stroke-width="1.3" marker-end="url(#ar)"/>`;}}));
   // cross links
   CROSS.forEach(([fd,fi,td,ti])=>{ if(!FLOW[fd]||!FLOW[td])return; const a=pos(fd,fi),b=pos(td,ti);
     const ax=a.x+CW, ay=a.y+NH/2, bx=b.x, by=b.y+NH/2, mx=(ax+bx)/2;
-    svg+=`<path d="M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx-4} ${by}" fill="none" stroke="#3d4654" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar)"/>`;});
+    svg+=`<path d="M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx-4} ${by}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar)"/>`;});
   // nodes
   depts.forEach(d=>FLOW[d].forEach((n,i)=>{const {x,y}=pos(d,i);const st=stateOf(n,d,i);
     const isHere=n.t&&n.t===here;
     const ti=n.t?l.tasks.findIndex(x=>x.t===n.t):-1;
-    const click=ti>=0?` style="cursor:pointer" onclick="jumpTask('${l.slug}',${ti})"`:` style="cursor:pointer" onclick="openL('${l.slug}')"`;
+    const key=d+"|"+n.l, inR=rset.has(key);
+    const click=n.url?` style="cursor:pointer" onclick="window.open('${n.url}','_blank')"`
+                     :` style="cursor:pointer" onclick="toggleRouteFor('${d}',${i})"`;
     const lines=wrap(n.l,24);
     const body=n.d
-      ?`<polygon points="${x+CW/2},${y-2} ${x+CW+4},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-4},${y+NH/2}" fill="${fill[st]}" stroke="${isHere?"#e8b765":strk[st]}" stroke-width="${isHere?2.5:1.4}"/>`
-      :`<rect x="${x}" y="${y}" width="${CW}" height="${NH}" rx="9" fill="${fill[st]}" stroke="${isHere?"#e8b765":strk[st]}" stroke-width="${isHere?2.5:1.4}"/>`;
-    const tcol=st==="fut"?"#5a626d":st==="o"?"#aab3bd":{x:"#4ade80",p:"#fbbf24",b:"#f87171"}[st]||"#e8eaed";
-    svg+=`<g${click}>${body}${lines.map((ln,k)=>`<text x="${x+CW/2}" y="${y+NH/2+(k-(lines.length-1)/2)*12+4}" text-anchor="middle" fill="${tcol}" font-size="9.5">${esc(ln)}</text>`).join("")}
-    ${n.d?`<text x="${x+CW/2}" y="${y-6}" text-anchor="middle" fill="#c084fc" font-size="9">◆ decision</text>`:""}
-    ${isHere?`<text x="${x+CW/2}" y="${y+NH+14}" text-anchor="middle" fill="#e8b765" font-size="10" font-weight="700">📍 ${l.name} is here</text>`:""}
+      ?`<polygon points="${x+CW/2},${y-2} ${x+CW+4},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-4},${y+NH/2}" fill="${fill[st]}" stroke="${isHere?"#EE3124":strk[st]}" stroke-width="${isHere?2.5:1.4}"/>`
+      :`<rect x="${x}" y="${y}" width="${CW}" height="${NH}" rx="2" fill="${fill[st]}" stroke="${isHere?"#EE3124":strk[st]}" stroke-width="${isHere?2.5:1.4}"/>`;
+    const tcol=FT.txt[st]||FT.txt.o;
+    svg+=`<g${click}${rsteps&&!inR?' opacity="0.22"':""}>${body}${inR?`<rect class="glownode" x="${x-4}" y="${y-4}" width="${CW+8}" height="${NH+8}" rx="3" fill="none" stroke="#EE3124" stroke-width="3"/>`:""}${lines.map((ln,k)=>`<text x="${x+CW/2}" y="${y+NH/2+(k-(lines.length-1)/2)*12+4}" text-anchor="middle" fill="${tcol}" font-size="9.5">${esc(ln)}</text>`).join("")}
+    ${n.d?`<text x="${x+CW/2}" y="${y-6}" text-anchor="middle" fill="#c084fc" font-size="9">◆ decision</text>`:""}${n.url?`<text x="${x+CW/2}" y="${y-6}" text-anchor="middle" fill="#60a5fa" font-size="9">🔗 Figma</text>`:""}
+    ${isHere?`<text x="${x+CW/2}" y="${y+NH+14}" text-anchor="middle" fill="#EE3124" font-size="10" font-weight="700">📍 ${l.name} is here</text>`:""}
     <title>${esc(n.l)} — stage: ${n.s}${ti>=0?" · click to open this task on the card":""}${st==="fut"&&ti>=0?" · 🔒 locked until previous step is done":""}</title></g>`;}));
+  if(rsteps){const rpts=rsteps.map(([dd,ll])=>{const ii=FLOW[dd]?FLOW[dd].findIndex(nn=>nn.l===ll):-1; if(ii<0)return null; const p=pos(dd,ii); return [p.x+CW/2,p.y+NH/2];}).filter(Boolean);
+    if(rpts.length>1) svg+=`<path d="M${rpts.map(p=>p.join(" ")).join(" L ")}" fill="none" stroke="#EE3124" stroke-width="2.5" stroke-dasharray="9 7" class="routeline" opacity="0.85"/>`;}
   svg+="</svg>";
-  return `<div class="flowwrap">${svg}</div>`;
+  let banner="";
+  if(rsteps){
+    const depts=[...new Set(rsteps.map(p=>p[0]))];
+    const src=FLOW[S.route.d][S.route.i];
+    const ti2=src.t?l.tasks.findIndex(x=>x.t===src.t):-1;
+    const hasUrl=rsteps.some(([dd,ll])=>{const nn=(FLOW[dd]||[]).find(n2=>n2.l===ll);return nn&&nn.url;});
+    banner=`<div class="routebanner">⚡ <b>ROUTE</b>&nbsp; ${rsteps.map(([dd,ll])=>esc(ll)).join(" → ")}<br>
+      ${depts.length>1?`🤝 Cross-department — DRI should reach out to: <b>${depts.join(" + ")}</b>`:`▼ Single department (${depts[0]}) — path runs straight down the lane`}
+      ${hasUrl?` · <a href="${FIGMA}" target="_blank">open Figma board ↗</a>`:""}
+      ${ti2>=0?`<button class="addlnk" onclick="jumpTask('${l.slug}',${ti2})">open task on card</button>`:""}
+      <button class="addlnk" onclick="S.route=null;render()">✕ clear</button></div>`;
+  }
+  return `${banner}<div class="flowwrap">${svg}</div>`;
 }
 function wrap(s,w){const words=s.split(" ");const out=[""];for(const wd of words){if((out[out.length-1]+" "+wd).trim().length>w)out.push(wd);else out[out.length-1]=(out[out.length-1]+" "+wd).trim();}return out.slice(0,3);}
 
@@ -783,7 +1128,7 @@ function homeCEO(){
   const issues=autopilot(); const hs=healthScore();
   return `<h2>CEO lens</h2><div class="sub">Decisions and exceptions only — Autopilot watches everything else.</div>
   <div class="panel"><div class="gauge">${gaugeSVG(hs)}<div><b style="font-size:15px">Portfolio health</b>
-    <div class="sub" style="margin:2px 0 8px">Score starts at 100; blocked tasks, SLA breaches, negative float, stale check-ins and WIP overload subtract. Fix the inbox to raise it.</div>
+    <div class="sub" style="margin:2px 0 8px">Blocked tasks, SLA breaches, negative float, stale check-ins and WIP overload subtract. Fix the inbox to raise it.</div>
     <button class="btn ghost" onclick="go('digest')">📋 Generate weekly digest</button>
     <button class="btn ghost" onclick="toggleDrawer()">🔔 Triage ${issues.length} issue(s)</button></div></div></div>
   <div class="kpis"><div class="kpi"><div class="n">${LAUNCHES.filter(l=>!l.complete).length}</div><div class="l">Active launches</div></div>
@@ -793,8 +1138,8 @@ function homeCEO(){
   <div class="kpi"><div class="n">${bf}d</div><div class="l">to Black Friday</div></div></div>
   <div class="panel"><h3>◆ MY DECISION QUEUE <span class="ghostnote">(SLA: ${SLA_DAYS} days)</span></h3>${q.length?q.map(({l,c})=>{const i=l.tasks.indexOf(c.task);const age=decisionAge(l,c.t);return `<div class="gatecard"><b>${l.name}</b> — ${esc(c.t)} <span class="sla ${age>SLA_DAYS?"over":"ok"}">${age}d ${age>SLA_DAYS?"· SLA BREACHED":"in SLA"}</span><div class="sub" style="margin:4px 0 8px">All other ${l.stage} exit criteria are met. Approving unblocks the push to ${STAGES[STAGES.indexOf(l.stage)+1]||"done"}. DRI: ${l.dri}.</div><button class="btn" onclick="approve('${l.slug}',${i})">✓ Approve</button> <button class="btn red" onclick="toast('Reject flow: Slack modal asks for a reason → lands in check-in log')">✕ Reject</button> <button class="btn ghost" onclick="openL('${l.slug}')">Open card</button></div>`;}).join(""):'<div class="sub">Nothing waiting on you. 🎉</div>'}</div>
   <div class="panel"><h3>🎯 FOCUS — the one task per launch that moves the date</h3>
-   ${LAUNCHES.filter(l=>!l.complete).map(l=>{const cn=criticalNext(l);const fl=floatDays(l);return `<div class="row" style="cursor:pointer" onclick="openL('${l.slug}')"><span style="color:${DCOLOR(l.dri)}">●</span><span><b>${l.name}</b> → ${cn?esc(cn.t)+" <span class='ghostnote'>("+cn.d+")</span>":"—"}</span><span class="o"><span class="pill ${fl<0?"bad":fl<7?"risk":"ok"}">float ${fl}d</span> <span class="ghostnote">forecast ${fmt(forecastDate(l))}</span></span></div>`;}).join("")}
-   <div class="ghostnote" style="margin-top:6px">Float = days of slack before the target date is at risk. Negative float = already late on paper.</div></div>
+   ${LAUNCHES.filter(l=>!l.complete).map(l=>{const cn=criticalNext(l);const fl=floatDays(l);return `<div class="row" style="cursor:pointer" onclick="openL('${l.slug}')"><span style="color:${DCOLOR(l.dri)}">■</span><span><b>${l.name}</b> → ${cn?esc(cn.t)+" <span class='ghostnote'>("+cn.d+")</span>":"—"}</span><span class="o"><span class="pill ${fl<0?"bad":fl<7?"risk":"ok"}">float ${fl}d</span> <span class="ghostnote">forecast ${fmt(forecastDate(l))}</span></span></div>`;}).join("")}
+   <div class="ghostnote" style="margin-top:6px">Float = days of slack before the target date is at risk. Negative = late on paper.</div></div>
   <div class="panel"><h3>EXCEPTIONS</h3>${blocked.length?blocked.map(({l,t})=>`<div class="row"><span class="st b">!</span><span><b>${l.name}</b> · ${esc(t.t)}</span><span class="o">${t.d}</span></div>`).join(""):'<div class="sub">No blocked tasks.</div>'}</div>
   ${portfolioBoard()}`;
 }
@@ -805,8 +1150,8 @@ function homeDirector(){
   <div class="panel"><h3>STAGE FUNNEL</h3><div class="board">${STAGES.map(s=>`<div class="col"><h4>${s}</h4><div class="kpi"><div class="n">${active.filter(l=>l.stage===s).length}</div></div></div>`).join("")}</div></div>
   <div class="panel"><h3>GATE DEBT — what each department owes the current gates</h3><table><tr><th>Department</th>${active.map(l=>`<th>${l.name}</th>`).join("")}</tr>${matrix.map(r=>`<tr><td>${r.d}</td>${r.cells.map(c=>`<td>${c.blk?`<span class="cell bad">${c.blk} blocked</span>`:""} ${c.owed?`<span class="cell risk">${c.owed} owed</span>`:c.blk?"":'<span class="cell ok">—</span>'}</td>`).join("")}</tr>`).join("")}</table></div>
   <div class="panel"><h3>🌊 WORK IN PROGRESS vs LIMIT (${WIP_LIMIT} per team)</h3>
-   ${DEPTS().map(d=>{const w=wip(d);if(!w)return "";return `<div class="dbar"><span class="nm2" style="color:${DCOLOR(d)}">${d}</span><div class="tr"><div class="fl" style="width:${Math.min(100,w/(WIP_LIMIT+2)*100)}%;background:${w>WIP_LIMIT?"var(--red)":DCOLOR(d)+"cc"}">${w}${w>WIP_LIMIT?" — over limit!":""}</div></div></div>`;}).join("")}
-   <div class="ghostnote">Too much parallel work halves everyone's speed. Over-limit teams should finish before starting.</div></div>
+   ${DEPTS().map(d2=>{const w=wip(d2);if(!w)return "";return `<div class="dbar"><span class="nm2" style="color:${DCOLOR(d2)}">${d2}</span><div class="tr"><div class="fl" style="width:${Math.min(100,w/(WIP_LIMIT+2)*100)}%;background:${w>WIP_LIMIT?"var(--red)":DCOLOR(d2)+"cc"}">${w}${w>WIP_LIMIT?" — over limit!":""}</div></div></div>`;}).join("")}
+   <div class="ghostnote">Too much parallel work halves everyone's speed.</div></div>
   <div class="panel"><h3>CHECK-IN COMPLIANCE (weekly)</h3>${active.map(l=>{const last=l.checkins[0],fresh=last&&(new Date(today)-new Date(last.d))/864e5<=7;return `<div class="row"><span class="st ${fresh?"x":"b"}">${fresh?"✓":"!"}</span><span><b>${l.name}</b> — last check-in ${last?fmt(last.d):"never"} (${last?last.a:"—"})</span><span class="o">${fresh?"fresh":"stale — nudge DRI"}</span></div>`;}).join("")}</div>`;
 }
 function homeDept(){
@@ -817,7 +1162,7 @@ function homeDept(){
   const UO={urgent:0,high:1,med:2,low:3};
   const grp=s=>mine.filter(x=>x.t.st===s).sort((a,b)=>(UO[a.t.urg]??2)-(UO[b.t.urg]??2));
   const pb=[...new Set(LAUNCHES[0].tasks.filter(t=>t.d===d).map(t=>t.t))];
-  return `<h2>Department lens — <select onchange="S.dept=this.value;render()">${DEPTS().map(x=>`<option ${x===d?"selected":""}>${x}</option>`).join("")}</select></h2>
+  return `<h2>Department lens — <select onchange="S.dept=this.value;render()">${DEPTS().map(x=>`<option value="${x}" ${x===d?"selected":""}>${x}</option>`).join("")}</select></h2>
   <div class="sub">${esc((TEAM.find(t=>t.name===d)||{}).role||"")}</div>
   <div class="panel"><h3>📘 OUR PLAYBOOK — how ${d} updates tasks</h3>
    ${pb.map(t=>`<div class="row"><span style="color:${DCOLOR(d)}">▸</span><span><b>${esc(t)}</b>${DOD[t]?` — <span style="color:var(--dim)">${esc(DOD[t])}</span>`:""}${EVID.has(t)?' <span class="urg" style="background:#13262e;color:#67e8f9">📎 evidence required</span>':""}</span></div>`).join("")}
@@ -828,8 +1173,8 @@ function homeDept(){
   <div class="panel"><h3>POST A CHECK-IN</h3><select id="ciL">${LAUNCHES.filter(l=>!l.complete).map(l=>`<option value="${l.slug}">${l.name}</option>`).join("")}</select><div style="margin-top:8px"><textarea id="ci" placeholder="Progress: …  Blockers: …  Asks: …"></textarea></div><div style="margin-top:8px"><button class="btn" onclick="addCheckin(document.getElementById('ciL').value)">Post check-in</button> <span class="sub" style="display:inline">posts to the card + its Slack channel</span></div></div>`;
 }
 function portfolioBoard(){
-  const f=l=>!S.q||l.name.toLowerCase().includes(S.q.toLowerCase())||l.dri.toLowerCase().includes(S.q.toLowerCase());
-  return `<div class="panel"><h3>PORTFOLIO — ALL LAUNCHES BY STAGE${S.q?` <span class="ghostnote">(filtered: “${esc(S.q)}”)</span>`:""}</h3><div class="board">${STAGES.map(s=>{const ls=LAUNCHES.filter(l=>l.stage===s&&f(l));return `<div class="col"><h4>${s} <span>${ls.length||""}</span></h4>${ls.map(cardHTML).join("")}</div>`;}).join("")}</div></div>`;
+  const fq=l=>!S.q||l.name.toLowerCase().includes(S.q.toLowerCase())||l.dri.toLowerCase().includes(S.q.toLowerCase());
+  return `<div class="panel"><h3>PORTFOLIO — ALL LAUNCHES BY STAGE${S.q?` <span class="ghostnote">(filtered: “${esc(S.q)}”)</span>`:""}</h3><div class="board">${STAGES.map(s=>{const ls=LAUNCHES.filter(l=>l.stage===s&&fq(l));return `<div class="col"><h4>${s} <span>${ls.length||""}</span></h4>${ls.map(cardHTML).join("")}</div>`;}).join("")}</div></div>`;
 }
 function viewLaunch(){
   const l=L(S.launch); const g=gateState(l); const idx=STAGES.indexOf(l.stage);
@@ -839,21 +1184,20 @@ function viewLaunch(){
   const pushable=allMet(l), allowed=canPushRole(l);
   return `<span class="back" onclick="go('portfolio')">← Portfolio</span>
   <h2>${l.name} <span class="pill ${cls}">${h}</span></h2>
-  <div class="sub">DRI: <select onchange="setDRI('${l.slug}',this.value)" title="change DRI">${DEPTS().map(d=>`<option ${d===l.dri?"selected":""}>${d}</option>`).join("")}</select>
-   · target ${fmt(l.target)} · stage <b>${l.complete?"Complete":l.stage}</b>
-   ${l.complete?"":` · float <b style="color:${floatDays(l)<0?"var(--red)":"var(--green)"}">${floatDays(l)}d</b> · velocity ${velocity(l).toFixed(1)} tasks/wk · forecast <b>${fmt(forecastDate(l))}</b>`}</div>
+  <div class="sub">DRI: <select onchange="setDRI('${l.slug}',this.value)" title="change DRI">${DEPTS().map(d=>`<option value="${d}" ${d===l.dri?"selected":""}>${d}</option>`).join("")}</select>
+   · target ${fmt(l.target)} · stage <b>${l.complete?"Complete":l.stage}</b>${l.complete?"":` · float <b style="color:${floatDays(l)<0?"var(--red)":"var(--green)"}">${floatDays(l)}d</b> · velocity ${velocity(l).toFixed(1)}/wk · forecast <b>${fmt(forecastDate(l))}</b>`}</div>
   <div class="stages">${STAGES.map((s,i)=>`<span class="stg ${i<idx||l.complete?"past":i===idx?"cur":""}">${s}</span>`).join("")}</div>
-  <div class="panel"><h3>📍 POSITION ON THE MASTER FLOW CHART <span style="color:var(--faint);font-weight:400">— the live version of the PDF, passed around with this card</span></h3>
-    ${flowSVG(l)}
-    <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>done</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>in progress</span><span><i style="background:#331414;border:1px solid #f87171"></i>blocked</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>to do (current stage)</span><span><i style="background:#15171b;border:1px solid #262b32"></i>upcoming</span><span style="color:var(--purple)">◆ decision gate</span></div></div>
+  <div class="panel"><h3>📍 POSITION ON THE MASTER FLOW CHART <span style="color:var(--faint);font-weight:400">— the live version of the PDF, passed around with this card</span><button class="iconbtn" style="float:right" onclick="S.hideFlow=!S.hideFlow;render()">${S.hideFlow?"▸ show flow chart":"▾ hide flow chart"}</button></h3>
+    ${S.hideFlow?'<div class="sub" style="margin:4px 0">Flow chart hidden.</div>':`${flowSVG(l)}
+    <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>done</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>in progress</span><span><i style="background:#331414;border:1px solid #f87171"></i>blocked</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>to do (current stage)</span><span><i style="background:#15171b;border:1px solid #262b32"></i>upcoming</span><span style="color:var(--purple)">◆ decision gate</span></div>`}</div>
   <div class="twocol"><div>
     <div class="panel"><h3>GATE — ${l.complete?"DONE":l.stage+" → "+(next||"Complete")} (${g.met}/${g.total})</h3>
       <div style="margin-bottom:10px">${mand.map(d=>`<span class="deptchip ${deptReady(l,d)?"rdy":""}">${deptReady(l,d)?"✓ ":""}${d}${deptReady(l,d)?" ready":" — "+g.cs.filter(c=>c.d===d&&c.task.st!=="x").length+" open"}</span>`).join("")}</div>
       ${g.cs.map(c=>taskRow(l,c.task)).join("")}
       <div style="margin-top:10px"><button class="btn" ${pushable&&allowed?"":"disabled"} onclick="push('${l.slug}')">${l.complete?"Launch complete":pushable?(allowed?"🚀 Push to "+(next||"Complete"):"🔒 Ready — push reserved for DRI ("+l.dri+"), mandatory dept heads, or Ben"):"🔒 Push locked — "+(g.total-g.met)+" criteria left"}</button>
-      <div class="sub" style="margin-top:6px">Every department ticks its own items; when all are ✓, the DRI (<b>${l.dri}</b>) or a mandatory department head pushes the card. ◆ items need Ben.</div></div></div>
+      <div class="sub" style="margin-top:6px">Every department ticks its own items; when all are ✓, the DRI (<b>${l.dri}</b>) or a mandatory department head pushes the card. ◆ items need Ben.</div></div>
     <div class="panel"><h3>⚠️ RISK REGISTER (${(l.risks||[]).length}) <button class="iconbtn" style="float:right" onclick="addRisk('${l.slug}')">+ add risk</button></h3>
-      ${(l.risks||[]).sort((a,b)=>b.sc-a.sc).map(r=>`<div class="risk"><b>${esc(r.t)}</b><span style="float:right;color:${r.sc>=8?"var(--red)":"var(--amber)"};font-weight:700">score ${r.sc}</span><div class="ghostnote">owner: <span style="color:${DCOLOR(r.owner)}">${esc(r.owner)}</span> · trigger: ${esc(r.trigger)}</div></div>`).join("")||'<div class="sub">No risks logged. Add the top 3 at every stage push (pre-mortem).</div>'}</div>
+      ${(l.risks||[]).sort((a,b)=>b.sc-a.sc).map(r=>`<div class="risk"><b>${esc(r.t)}</b><span style="float:right;color:${r.sc>=8?"var(--red)":"var(--amber)"};font-weight:700">score ${r.sc}</span><div class="ghostnote">owner: <span style="color:${DCOLOR(r.owner)}">${esc(r.owner)}</span> · trigger: ${esc(r.trigger)}</div></div>`).join("")||'<div class="sub">No risks logged. Add the top 3 at every stage push (pre-mortem).</div>'}</div></div>
     ${DEPTS().map(d=>{const ts=l.tasks.filter(t=>t.d===d);return ts.length?`<div class="panel"><h3>${d.toUpperCase()}</h3>${ts.map(t=>taskRow(l,t,t.stage)).join("")}</div>`:"";}).join("")}
   </div><div>
     <div class="slack"><div class="hd"># launch-${l.slug}</div><div class="msgs">
@@ -867,19 +1211,20 @@ function viewLaunch(){
 function viewDept(){
   const d=S.dept;
   const rows=LAUNCHES.flatMap(l=>l.tasks.filter(t=>t.d===d).map(t=>({l,t})));
-  return `<h2>Department — <select onchange="S.dept=this.value;render()">${DEPTS().map(x=>`<option ${x===d?"selected":""}>${x}</option>`).join("")}</select></h2><div class="sub">All ${d} tasks across every launch.</div>
+  return `<h2>Department — <select onchange="S.dept=this.value;render()">${DEPTS().map(x=>`<option value="${x}" ${x===d?"selected":""}>${x}</option>`).join("")}</select></h2><div class="sub">All ${d} tasks across every launch.</div>
   <div class="board">${[["b","Blocked"],["p","In progress"],["o","To do"],["x","Done"]].map(([s,lbl])=>`<div class="col"><h4>${lbl} <span>${rows.filter(r=>r.t.st===s).length}</span></h4>${rows.filter(r=>r.t.st===s).map(({l,t})=>`<div class="card" onclick="openL('${l.slug}')"><div class="nm" style="font-size:13px">${esc(t.t)}</div><div class="meta">${l.name} · ${t.stage}</div></div>`).join("")}</div>`).join("")}</div>`;
 }
 function viewFlow(){
   const l=L(S.flowLaunch);
   return `<h2>Master flow chart — <select onchange="S.flowLaunch=this.value;render()">${LAUNCHES.map(x=>`<option value="${x.slug}" ${x.slug===S.flowLaunch?"selected":""}>${x.name}</option>`).join("")}</select></h2>
-  <div class="sub">The company process map from <b>BV Team Workflow.pdf</b>, made live: every department's lane, decision diamonds (◆ = Ben), and hand-offs — colored by <b>${l.name}</b>'s real progress. This is the card "passed around" exactly like the master PDF.</div>
+  <div class="sub">The company process map from <b>BV Team Workflow_v2.pdf</b>, made live: every department's lane, decision diamonds (◆ = Ben), and hand-offs — colored by <b>${l.name}</b>'s real progress. This is the card "passed around" exactly like the master PDF.</div>
   ${flowSVG(l)}
   <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>done</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>in progress</span><span><i style="background:#331414;border:1px solid #f87171"></i>blocked</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>to do (current stage)</span><span><i style="background:#15171b;border:1px solid #262b32"></i>upcoming</span><span style="color:var(--purple)">◆ decision gate</span><span>⇢ dashed = cross-department hand-off</span></div>
   <div class="sub" style="margin-top:8px">Solid arrows follow each lane top-to-bottom (the v1 web app renders the full node-graph with the exact PDF edges, including the KOL evaluation loop and NO-loops back to concept).</div>`;
 }
 function viewProgress(){
   const l=L(S.progLaunch); const N=l.tasks.length;
+  const PC=THEME==="light"?{grid:"#DDE3EE",grid2:"#EEF1F7",txt:"#8A93A3",ideal:"#B6BFD0"}:{grid:"#2a2f37",grid2:"#1d2127",txt:"#6b7280",ideal:"#4a5260"};
   // burn-up points: cumulative done tasks at each stage boundary (synthesised from the stage log)
   let cum=0; const pts=[[D(l.history[0].start).getTime(),0]];
   l.history.forEach((h,i)=>{const end=h.end||(l.history[i+1]?l.history[i+1].start:today);
@@ -891,33 +1236,31 @@ function viewProgress(){
   const line=pts.map(p=>`${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(" ");
   const idealEnd=D(l.target).getTime();
   const chart=`<svg width="${W2}" height="${H2}" style="max-width:100%">
-    <line x1="${PL}" y1="${Y(0)}" x2="${W2-PR}" y2="${Y(0)}" stroke="#2a2f37"/>
-    <line x1="${PL}" y1="${Y(0)}" x2="${PL}" y2="${PT}" stroke="#2a2f37"/>
-    ${[0,.25,.5,.75,1].map(f=>`<text x="${PL-6}" y="${Y(N*f)+4}" text-anchor="end" fill="#6b7280" font-size="10">${Math.round(N*f)}</text><line x1="${PL}" y1="${Y(N*f)}" x2="${W2-PR}" y2="${Y(N*f)}" stroke="#1d2127"/>`).join("")}
-    <line x1="${X(t0)}" y1="${Y(0)}" x2="${X(idealEnd)}" y2="${Y(N)}" stroke="#4a5260" stroke-dasharray="5 4" stroke-width="1.5"/>
-    <text x="${Math.min(X(idealEnd),W2-PR-10)}" y="${Y(N)-5}" text-anchor="end" fill="#6b7280" font-size="10">ideal pace → target</text>
-    <line x1="${X(D(today).getTime())}" y1="${PT}" x2="${X(D(today).getTime())}" y2="${Y(0)}" stroke="#e8b765" stroke-dasharray="3 3" opacity=".6"/>
-    <text x="${X(D(today).getTime())}" y="${PT-4}" text-anchor="middle" fill="#e8b765" font-size="10">today</text>
-    <polyline points="${line}" fill="none" stroke="#e8b765" stroke-width="2.5"/>
-    ${pts.map(p=>`<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="3.5" fill="#e8b765"/>`).join("")}
-    <text x="${PL}" y="${H2-12}" fill="#6b7280" font-size="10">${fmt(l.history[0].start)}</text>
-    <text x="${W2-PR}" y="${H2-12}" text-anchor="end" fill="#6b7280" font-size="10">target ${fmt(l.target)}</text>
-    <text x="${PL-32}" y="${PT+8}" fill="#6b7280" font-size="10">tasks</text></svg>`;
+    <line x1="${PL}" y1="${Y(0)}" x2="${W2-PR}" y2="${Y(0)}" stroke="${PC.grid}"/>
+    <line x1="${PL}" y1="${Y(0)}" x2="${PL}" y2="${PT}" stroke="${PC.grid}"/>
+    ${[0,.25,.5,.75,1].map(f=>`<text x="${PL-6}" y="${Y(N*f)+4}" text-anchor="end" fill="${PC.txt}" font-size="10">${Math.round(N*f)}</text><line x1="${PL}" y1="${Y(N*f)}" x2="${W2-PR}" y2="${Y(N*f)}" stroke="${PC.grid2}"/>`).join("")}
+    <line x1="${X(t0)}" y1="${Y(0)}" x2="${X(idealEnd)}" y2="${Y(N)}" stroke="${PC.ideal}" stroke-dasharray="5 4" stroke-width="1.5"/>
+    <text x="${Math.min(X(idealEnd),W2-PR-10)}" y="${Y(N)-5}" text-anchor="end" fill="${PC.txt}" font-size="10">ideal pace → target</text>
+    <line x1="${X(D(today).getTime())}" y1="${PT}" x2="${X(D(today).getTime())}" y2="${Y(0)}" stroke="#EE3124" stroke-dasharray="3 3" opacity=".6"/>
+    <text x="${X(D(today).getTime())}" y="${PT-4}" text-anchor="middle" fill="#EE3124" font-size="10">today</text>
+    <polyline points="${line}" fill="none" stroke="#EE3124" stroke-width="2.5"/>
+    ${pts.map(p=>`<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="3.5" fill="#EE3124"/>`).join("")}
+    <text x="${PL}" y="${H2-12}" fill="${PC.txt}" font-size="10">${fmt(l.history[0].start)}</text>
+    <text x="${W2-PR}" y="${H2-12}" text-anchor="end" fill="${PC.txt}" font-size="10">target ${fmt(l.target)}</text>
+    <text x="${PL-32}" y="${PT+8}" fill="${PC.txt}" font-size="10">tasks</text></svg>`;
   // department progression for this launch (laggards first)
   const dp=DEPTS().map(d=>{const ts=l.tasks.filter(t=>t.d===d);if(!ts.length)return null;
     const dn=ts.filter(t=>t.st==="x").length;return {d,dn,n:ts.length,pct:dn/ts.length};}).filter(Boolean).sort((a,b)=>a.pct-b.pct);
   // cross-launch strips
   const strips=LAUNCHES.map(x=>{const dn=x.tasks.filter(t=>t.st==="x").length;const pct=Math.round(dn/x.tasks.length*100);
-    return `<div class="dbar"><span class="nm2" style="cursor:pointer" onclick="S.progLaunch='${x.slug}';render()">${x.name}</span><div class="tr"><div class="fl" style="width:${Math.max(4,pct)}%;background:${x.slug===S.progLaunch?"var(--accent)":"#e8b76555"};color:#1a0d07">${pct}%</div></div></div>`;}).join("");
+    return `<div class="dbar"><span class="nm2" style="cursor:pointer" onclick="S.progLaunch='${x.slug}';render()">${x.name}</span><div class="tr"><div class="fl" style="width:${Math.max(4,pct)}%;background:${x.slug===S.progLaunch?"var(--accent)":"#EE312455"};color:#fff">${pct}%</div></div></div>`;}).join("");
   return `<h2>Progression — <select onchange="S.progLaunch=this.value;render()">${LAUNCHES.map(x=>`<option value="${x.slug}" ${x.slug===S.progLaunch?"selected":""}>${x.name}</option>`).join("")}</select></h2>
   <div class="sub">Burn-up: cumulative tasks completed (gold) vs the pace needed to hit the target date (dashed). Gold line below dashed = behind pace.</div>
-  ${(()=>{ // weekly velocity bars derived from the burn-up curve
-    const wkMs=6.048e8, tNow=D(today).getTime();
-    const interp=t=>{if(t<=pts[0][0])return 0;for(let i=1;i<pts.length;i++){if(t<=pts[i][0]){const a=pts[i-1],b=pts[i];return a[1]+(b[1]-a[1])*(t-a[0])/Math.max(1,b[0]-a[0]);}}return pts[pts.length-1][1];};
-    const bars=[]; for(let t=t0+wkMs;t-wkMs<tNow;t+=wkMs) bars.push(Math.max(0,interp(Math.min(t,tNow))-interp(t-wkMs)));
+  ${(()=>{const wkMs=6.048e8,tNow=D(today).getTime();
+    const interp=t=>{if(t<=pts[0][0])return 0;for(let i=1;i<pts.length;i++){if(t<=pts[i][0]){const a2=pts[i-1],b2=pts[i];return a2[1]+(b2[1]-a2[1])*(t-a2[0])/Math.max(1,b2[0]-a2[0]);}}return pts[pts.length-1][1];};
+    const bars=[];for(let t=t0+wkMs;t-wkMs<tNow;t+=wkMs)bars.push(Math.max(0,interp(Math.min(t,tNow))-interp(t-wkMs)));
     const bmax=Math.max(1,...bars);
-    S.__vb=`<div style="display:flex;align-items:flex-end;gap:3px;height:56px;margin-top:10px">${bars.map(b=>`<div title="${b.toFixed(1)} tasks done" style="flex:1;max-width:26px;height:${Math.max(5,b/bmax*100)}%;background:#e8b76588;border-radius:3px 3px 0 0"></div>`).join("")}</div><div class="ghostnote">Weekly velocity since kickoff — a flat or falling tail with lots of work left is the earliest warning sign.</div>`;
-    return "";})()}
+    S.__vb=`<div style="display:flex;align-items:flex-end;gap:3px;height:56px;margin-top:10px">${bars.map(b=>`<div title="${b.toFixed(1)} tasks done" style="flex:1;max-width:26px;height:${Math.max(5,b/bmax*100)}%;background:#EE312488"></div>`).join("")}</div><div class="ghostnote">Weekly velocity — a flat tail with work remaining is the earliest warning.</div>`;return "";})()}
   <div class="panel"><h3>📈 BURN-UP — ${l.name}</h3>${chart}${S.__vb||""}</div>
   <div class="twocol">
     <div class="panel"><h3>DEPARTMENT PROGRESSION — ${l.name} (laggards first)</h3>
@@ -946,7 +1289,7 @@ function viewTimeline(){
   return `<h2>Timeline — planned vs actual</h2>
   <div class="sub">Each bar = one launch; segment width = real days in that stage (outlined = current stage). Striped red = days over the plan (${STAGES.map(s=>s+" "+PLAN[s]+"d").join(" · ")}).</div>
   <div class="panel"><h3>⏱ DELAY BY DEPARTMENT — who is costing us the most days</h3>
-    ${ranks.length?ranks.map((r,i)=>`<div class="dbar"><span class="nm2">${r.d}</span><div class="tr"><div class="fl" style="width:${Math.max(8,r.v/max*100)}%;background:${i===0?"linear-gradient(90deg,#fbbf24,#f87171)":"#e8b76588"};color:${i===0?"#1a0d07":"#e8eaed"}">${r.v}d${i===0?" — biggest bottleneck":""}</div></div></div>`).join(""):'<div class="sub">No overruns recorded.</div>'}
+    ${ranks.length?ranks.map((r,i)=>`<div class="dbar"><span class="nm2">${r.d}</span><div class="tr"><div class="fl" style="width:${Math.max(8,r.v/max*100)}%;background:${i===0?"linear-gradient(90deg,#fbbf24,#f87171)":"#EE312488"};color:${i===0?"#fff":"#e8eaed"}">${r.v}d${i===0?" — biggest bottleneck":""}</div></div></div>`).join(""):'<div class="sub">No overruns recorded.</div>'}
     <div class="sub" style="margin-top:8px">Overrun days are attributed to the departments holding that stage (unmet gate criteria + blocked tasks; past stages from the stage log). Fix the top bar first.</div></div>
   <div class="panel"><h3>LAUNCH TIMELINES</h3>${rows}</div>`;
 }
@@ -972,25 +1315,27 @@ function viewTeam(){
 function render(){
   const sel=document.getElementById("roleSel");
   const cur=S.role==="dept"?"dept:"+S.dept:S.role;
-  sel.innerHTML=`<option value="ceo">Ben — CEO</option><option value="director">Director</option>`+DEPTS().map(d=>`<option value="dept:${d}">Head — ${d}</option>`).join("");
+  sel.innerHTML=tx(`<option value="ceo">Ben — CEO</option><option value="director">Director</option>`+DEPTS().map(d=>`<option value="dept:${d}">Head — ${d}</option>`).join(""));
   sel.value=[...sel.options].some(o=>o.value===cur)?cur:"ceo";
-  document.getElementById("nav").innerHTML=NAVS.map(([v,l])=>`<button class="${S.view===v?"on":""}" onclick="go('${v}')">${l}</button>`).join("");
+  document.getElementById("nav").innerHTML=tx(NAVS.map(([v,l])=>`<button class="${S.view===v?"on":""}" onclick="go('${v}')">${l}</button>`).join(""));
   const app=document.getElementById("app");
   // datalist for assignee suggestions (from Team tab heads/members + departments)
   let dl=document.getElementById("people");
   if(!dl){dl=document.createElement("datalist");dl.id="people";document.body.appendChild(dl);}
   dl.innerHTML=[...new Set(TEAM.flatMap(t=>[t.name,t.head,...(t.members||"").split(",")]).map(s=>(s||"").trim()).filter(Boolean))].map(p=>`<option value="${esc(p)}">`).join("");
-  if(S.view==="launch") app.innerHTML=viewLaunch();
-  else if(S.view==="digest") app.innerHTML=viewDigest();
-  else if(S.view==="portfolio") app.innerHTML=`<h2>Portfolio <button class="btn" style="margin-left:8px" onclick="newLaunch()">+ New launch</button></h2><div class="sub">Every launch by stage. Click a card. New cards start fully locked except the intake Form.</div>${portfolioBoard()}`;
-  else if(S.view==="progress") app.innerHTML=viewProgress();
-  else if(S.view==="timeline") app.innerHTML=viewTimeline();
-  else if(S.view==="dept") app.innerHTML=viewDept();
-  else if(S.view==="flow") app.innerHTML=viewFlow();
-  else if(S.view==="campaign") app.innerHTML=viewCampaign();
-  else if(S.view==="team") app.innerHTML=viewTeam();
-  else app.innerHTML=S.role==="ceo"?homeCEO():S.role==="director"?homeDirector():homeDept();
-  const nb=document.getElementById("inboxN"); if(nb){const n=autopilot().length; nb.textContent=n?n:""; }
+  let html;
+  if(S.view==="launch") html=viewLaunch();
+  else if(S.view==="digest") html=viewDigest();
+  else if(S.view==="portfolio") html=`<h2>Portfolio <button class="btn" style="margin-left:8px" onclick="newLaunch()">+ New launch</button></h2><div class="sub">Every launch by stage. New cards start fully locked except the intake Form.</div>${portfolioBoard()}`;
+  else if(S.view==="progress") html=viewProgress();
+  else if(S.view==="timeline") html=viewTimeline();
+  else if(S.view==="dept") html=viewDept();
+  else if(S.view==="flow") html=viewFlow();
+  else if(S.view==="campaign") html=viewCampaign();
+  else if(S.view==="team") html=viewTeam();
+  else html=S.role==="ceo"?homeCEO():S.role==="director"?homeDirector():homeDept();
+  app.innerHTML=tx(html);
+  const nb=document.getElementById("inboxN"); if(nb){const n=autopilot().length; nb.textContent=n?n:"";}
   renderDrawer(); save();
 }
 loadSaved();

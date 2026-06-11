@@ -6,6 +6,7 @@
 <title>Black Voyage — SuperPM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   /* ===== BLACK VOYAGE brand system (Brand Guidelines V4) =====
      Primary: Black #111215 · Orange #EE3124 (signal — use strategically)
@@ -592,6 +593,42 @@ function newLaunch(){
   toast("🆕 "+name+" created — fill the intake Form to unlock the pipeline"); openL(slug);
 }
 
+/* ----- Google Sheets intake form (creates a real sheet in the browser's Google account) -----
+   SETUP: paste your Google OAuth 2.0 Web Client ID below. Get one at
+   https://console.cloud.google.com/apis/credentials → Create OAuth client ID → Web application,
+   with Authorized JavaScript origin = the deployed site URL (e.g. https://bv-superpm-ihnr.onrender.com).
+   Enable the "Google Sheets API" for the same project. Until a Client ID is set, the button explains the setup. */
+const GOOGLE_CLIENT_ID="";  // <-- paste your OAuth Client ID here
+function intakeTaskOf(l){return l.tasks.find(t=>t.t==="Form (intake)");}
+function hasIntakeSheet(l){const t=intakeTaskOf(l);return !!(t&&(t.links||[]).length);}
+function createIntakeSheet(slug){
+  const l=L(slug); if(!l)return;
+  const task=intakeTaskOf(l); if(!task){toast("No intake Form task on this card");return;}
+  if(!GOOGLE_CLIENT_ID){toast("⚠️ Google not configured yet — add a Client ID in the code (see GOOGLE-SHEETS-SETUP.md)");return;}
+  if(!(window.google&&google.accounts&&google.accounts.oauth2)){toast("Google sign-in is still loading — try again in a second");return;}
+  const title=l.name; // the sheet (intake form) is named after the product
+  const client=google.accounts.oauth2.initTokenClient({
+    client_id:GOOGLE_CLIENT_ID,
+    scope:"https://www.googleapis.com/auth/drive.file",
+    callback:resp=>{
+      if(resp.error||!resp.access_token){toast("Google sign-in cancelled");return;}
+      toast("Creating Google Sheet “"+title+"”…");
+      fetch("https://sheets.googleapis.com/v4/spreadsheets",{method:"POST",
+        headers:{"Authorization":"Bearer "+resp.access_token,"Content-Type":"application/json"},
+        body:JSON.stringify({properties:{title}})})
+      .then(r=>r.json()).then(d=>{
+        if(!d.spreadsheetUrl){toast("Sheet creation failed: "+((d.error&&d.error.message)||"unknown error"));return;}
+        task.links=task.links||[]; task.links.push({n:title,u:d.spreadsheetUrl}); // saved as the intake form, named after the product
+        task.st="x";
+        l.checkins.unshift({d:today,a:"Product",txt:`Intake Google Sheet “${title}” created in your Google account — pipeline unlocked.`});
+        log("📄 Intake sheet created for "+l.name); save(); render();
+        toast("✅ Intake sheet “"+title+"” created — pipeline unlocked");
+        window.open(d.spreadsheetUrl,"_blank");
+      }).catch(()=>toast("Network error while creating the sheet"));
+    }});
+  client.requestAccessToken();
+}
+
 /* ----- confetti on push ----- */
 function boom(){try{
   for(let i=0;i<26;i++){const c=document.createElement("div"); c.className="cf";
@@ -706,7 +743,7 @@ const DOD={"Form (intake)":"Intake complete: why, spec, look, material, customer
  "Launch email sequence sent":"Full launch sequence delivered."};
 
 /* ================= STATE ================= */
-let S={role:"ceo",view:"home",launch:null,dept:"Design",flowLaunch:"apex",open:{},progLaunch:"apex",route:null,q:"",palSel:0};
+let S={role:"ceo",view:"home",launch:null,dept:"Design",flowLaunch:"apex",open:{},progLaunch:"apex",route:null,q:"",palSel:0,hideFlow:false};
 const NAVS=[["home","Home"],["portfolio","Portfolio"],["progress","Progress"],["timeline","Timeline"],["dept","Departments"],["flow","Master flow"],["campaign","Campaigns"],["team","Team"]];
 const stIcon={x:"✓",p:"…",b:"!",o:""};
 const fmt=d=>new Date(d+"T00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
@@ -986,6 +1023,7 @@ function taskRow(l,t,extra){
     ${lk?'<span class="urg" style="background:#1d2127;color:var(--faint)">locked</span>':`<span class="urg ${t.urg}" title="urgency">${t.urg}</span>`}${t.assignee?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
     ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
     ${lk?"":linkChips(t,l.slug,i)}
+    ${(!lk&&t.t==="Form (intake)"&&!(t.links||[]).length)?`<button class="addlnk" style="background:#13262e;color:#67e8f9;border-color:#1d4250" title="Creates a new Google Sheet in your Google account, named after this product, and saves it as the intake form" onclick="event.stopPropagation();createIntakeSheet('${l.slug}')">📄 Create Google Sheet</button>`:""}
     <button class="exp" onclick="toggle('${key}')">${open?"▴ close":"▾ details"}${t.notes.length?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button></span>
    <span class="o" style="color:${DCOLOR(t.d)}">${extra||t.d}</span></div>
    ${open?(lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>Locked.</b> ${esc(lockReason(l,t)).replace(/^./,c=>c.toUpperCase())}. ${DOD[t.t]?`<div style="margin-top:6px;color:var(--faint)">Definition of done: ${esc(DOD[t.t])}</div>`:""}</div>`:taskPanel(l,t,i)):""}</div>`;
@@ -1149,9 +1187,9 @@ function viewLaunch(){
   <div class="sub">DRI: <select onchange="setDRI('${l.slug}',this.value)" title="change DRI">${DEPTS().map(d=>`<option value="${d}" ${d===l.dri?"selected":""}>${d}</option>`).join("")}</select>
    · target ${fmt(l.target)} · stage <b>${l.complete?"Complete":l.stage}</b>${l.complete?"":` · float <b style="color:${floatDays(l)<0?"var(--red)":"var(--green)"}">${floatDays(l)}d</b> · velocity ${velocity(l).toFixed(1)}/wk · forecast <b>${fmt(forecastDate(l))}</b>`}</div>
   <div class="stages">${STAGES.map((s,i)=>`<span class="stg ${i<idx||l.complete?"past":i===idx?"cur":""}">${s}</span>`).join("")}</div>
-  <div class="panel"><h3>📍 POSITION ON THE MASTER FLOW CHART <span style="color:var(--faint);font-weight:400">— the live version of the PDF, passed around with this card</span></h3>
-    ${flowSVG(l)}
-    <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>done</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>in progress</span><span><i style="background:#331414;border:1px solid #f87171"></i>blocked</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>to do (current stage)</span><span><i style="background:#15171b;border:1px solid #262b32"></i>upcoming</span><span style="color:var(--purple)">◆ decision gate</span></div></div>
+  <div class="panel"><h3>📍 POSITION ON THE MASTER FLOW CHART <span style="color:var(--faint);font-weight:400">— the live version of the PDF, passed around with this card</span><button class="iconbtn" style="float:right" onclick="S.hideFlow=!S.hideFlow;render()">${S.hideFlow?"▸ show flow chart":"▾ hide flow chart"}</button></h3>
+    ${S.hideFlow?'<div class="sub" style="margin:4px 0">Flow chart hidden.</div>':`${flowSVG(l)}
+    <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>done</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>in progress</span><span><i style="background:#331414;border:1px solid #f87171"></i>blocked</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>to do (current stage)</span><span><i style="background:#15171b;border:1px solid #262b32"></i>upcoming</span><span style="color:var(--purple)">◆ decision gate</span></div>`}</div>
   <div class="twocol"><div>
     <div class="panel"><h3>GATE — ${l.complete?"DONE":l.stage+" → "+(next||"Complete")} (${g.met}/${g.total})</h3>
       <div style="margin-bottom:10px">${mand.map(d=>`<span class="deptchip ${deptReady(l,d)?"rdy":""}">${deptReady(l,d)?"✓ ":""}${d}${deptReady(l,d)?" ready":" — "+g.cs.filter(c=>c.d===d&&c.task.st!=="x").length+" open"}</span>`).join("")}</div>
