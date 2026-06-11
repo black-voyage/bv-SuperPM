@@ -191,6 +191,7 @@
   <button class="iconbtn" title="download JSON backup" onclick="exportJSON()">⬇</button>
   <button class="btn ghost" id="themeBtn" style="padding:6px 10px" title="light / dark" onclick="setTheme()">☀️</button><button class="btn ghost" id="wideBtn" style="padding:6px 10px" title="regular / wide screen" onclick="setWide()">⛶</button><button class="btn ghost" id="langBtn" style="padding:6px 12px" onclick="setLang()">中文</button>
   <div class="rolewrap"><span id="vaLab">Viewing as</span> <select id="roleSel" onchange="setRole(this.value)"></select></div>
+  <span id="gauth" style="display:inline-flex;align-items:center;gap:6px;margin-left:10px"></span>
 </header>
 <main id="app"></main>
 <footer style="max-width:1320px;margin:10px auto 26px;padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between;font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;color:var(--faint)"><span>40.6892° N , 74.0445° W — DESIGNED IN NYC</span><span>TRAVEL WITHOUT LIMITS</span></footer>
@@ -597,40 +598,78 @@ function newLaunch(){
   toast("🆕 "+name+" created — fill the intake Form to unlock the pipeline"); openL(slug);
 }
 
-/* ----- Google Sheets intake form (creates a real sheet in the browser's Google account) -----
+/* ----- Google: per-user sign-in + create Sheet/Doc as the signed-in user, auto-shared -----
    SETUP: paste your Google OAuth 2.0 Web Client ID below. Get one at
    https://console.cloud.google.com/apis/credentials → Create OAuth client ID → Web application,
    with Authorized JavaScript origin = the deployed site URL (e.g. https://bv-superpm-ihnr.onrender.com).
-   Enable the "Google Sheets API" for the same project. Until a Client ID is set, the button explains the setup. */
+   Enable the "Google Drive API" for the same project. Until a Client ID is set, sign-in explains the setup. */
 const GOOGLE_CLIENT_ID="";  // <-- paste your OAuth Client ID here
+const GMIME={sheet:"application/vnd.google-apps.spreadsheet",doc:"application/vnd.google-apps.document"};
+let GAUTH={token:null,exp:0,email:"",name:"",client:null};
 function intakeTaskOf(l){return l.tasks.find(t=>t.t==="Form (intake)");}
-function hasIntakeSheet(l){const t=intakeTaskOf(l);return !!(t&&(t.links||[]).length);}
-function createIntakeSheet(slug){
-  const l=L(slug); if(!l)return;
-  const task=intakeTaskOf(l); if(!task){toast("No intake Form task on this card");return;}
-  if(!GOOGLE_CLIENT_ID){toast("⚠️ Google not configured yet — add a Client ID in the code (see GOOGLE-SHEETS-SETUP.md)");return;}
-  if(!(window.google&&google.accounts&&google.accounts.oauth2)){toast("Google sign-in is still loading — try again in a second");return;}
-  const title=l.name; // the sheet (intake form) is named after the product
-  const client=google.accounts.oauth2.initTokenClient({
-    client_id:GOOGLE_CLIENT_ID,
-    scope:"https://www.googleapis.com/auth/drive.file",
-    callback:resp=>{
-      if(resp.error||!resp.access_token){toast("Google sign-in cancelled");return;}
-      toast("Creating Google Sheet “"+title+"”…");
-      fetch("https://sheets.googleapis.com/v4/spreadsheets",{method:"POST",
-        headers:{"Authorization":"Bearer "+resp.access_token,"Content-Type":"application/json"},
-        body:JSON.stringify({properties:{title}})})
-      .then(r=>r.json()).then(d=>{
-        if(!d.spreadsheetUrl){toast("Sheet creation failed: "+((d.error&&d.error.message)||"unknown error"));return;}
-        task.links=task.links||[]; task.links.push({n:title,u:d.spreadsheetUrl}); // saved as the intake form, named after the product
-        task.st="x";
-        l.checkins.unshift({d:today,a:"Product",txt:`Intake Google Sheet “${title}” created in your Google account — pipeline unlocked.`});
-        log("📄 Intake sheet created for "+l.name); save(); render();
-        toast("✅ Intake sheet “"+title+"” created — pipeline unlocked");
-        window.open(d.spreadsheetUrl,"_blank");
-      }).catch(()=>toast("Network error while creating the sheet"));
-    }});
-  client.requestAccessToken();
+function gReady(){return !!(GOOGLE_CLIENT_ID && window.google && google.accounts && google.accounts.oauth2);}
+function gClient(){ if(!gReady())return null;
+  if(!GAUTH.client){GAUTH.client=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:"https://www.googleapis.com/auth/drive.file openid email profile",callback:()=>{}});}
+  return GAUTH.client; }
+function gGetToken(interactive){
+  return new Promise((resolve,reject)=>{
+    if(!gReady()){reject({kind:"unconfigured"});return;}
+    if(GAUTH.token && Date.now()<GAUTH.exp-60000){resolve(GAUTH.token);return;}
+    const c=gClient(); if(!c){reject({kind:"unconfigured"});return;}
+    c.callback=(resp)=>{ if(resp&&resp.access_token){GAUTH.token=resp.access_token;GAUTH.exp=Date.now()+((resp.expires_in||3600)*1000);resolve(GAUTH.token);} else reject(resp||{kind:"denied"}); };
+    try{ c.requestAccessToken(interactive?{}:{prompt:""}); }catch(e){ try{c.requestAccessToken();}catch(_){reject({kind:"denied"});} }
+  });
+}
+function signInGoogle(){
+  if(!GOOGLE_CLIENT_ID){toast("⚠️ Add a Google Client ID in the code first (see GOOGLE-SHEETS-SETUP.md)");return;}
+  if(!gReady()){toast("Google sign-in still loading — try again in a second");return;}
+  gGetToken(true).then(tok=>{
+    fetch("https://www.googleapis.com/oauth2/v3/userinfo",{headers:{Authorization:"Bearer "+tok}}).then(r=>r.json()).then(u=>{
+      GAUTH.email=u.email||""; GAUTH.name=u.name||u.email||"Google user";
+      try{localStorage.setItem("bv-gsignedin","1");}catch(e){}
+      renderGAuth(); toast("✅ Signed in as "+(GAUTH.email||GAUTH.name));
+    }).catch(()=>{renderGAuth();toast("✅ Signed in to Google");});
+  }).catch(err=>{ toast(err&&err.kind==="unconfigured"?"⚠️ Add a Google Client ID first":"Google sign-in cancelled"); });
+}
+function signOutGoogle(){
+  try{ if(GAUTH.token&&google.accounts.oauth2.revoke)google.accounts.oauth2.revoke(GAUTH.token,()=>{}); }catch(e){}
+  GAUTH.token=null;GAUTH.exp=0;GAUTH.email="";GAUTH.name="";
+  try{localStorage.removeItem("bv-gsignedin");}catch(e){}
+  renderGAuth(); toast("Signed out of Google");
+}
+function renderGAuth(){
+  const el=document.getElementById("gauth"); if(!el)return;
+  if(GAUTH.email||GAUTH.token){
+    el.innerHTML=`<span style="font-size:12px;color:var(--green)" title="${esc(GAUTH.email||"")}">🟢 ${esc(GAUTH.name||GAUTH.email||"Signed in")}</span> <button class="iconbtn" title="sign out of Google" onclick="signOutGoogle()">Sign out</button>`;
+  } else {
+    el.innerHTML=`<button class="btn ghost" style="padding:6px 12px" title="Sign in with Google to create your own docs/sheets" onclick="signInGoogle()">Sign in with Google</button>`;
+  }
+}
+function createDriveDoc(slug,i,kind){
+  if(!GOOGLE_CLIENT_ID){toast("⚠️ Add a Google Client ID in the code first (see GOOGLE-SHEETS-SETUP.md)");return;}
+  if(!gReady()){toast("Google still loading — try again in a second");return;}
+  const t=_linkTask(slug,i); if(!t){toast("Task not found");return;}
+  const isCamp=slug==="__camp"; const l=isCamp?null:L(slug);
+  const isIntake=!isCamp&&t.t==="Form (intake)";
+  const name=isCamp?(CAMPAIGNS[0].name+" · "+t.t):(isIntake?l.name:(l.name+" · "+t.t)); // intake = product name
+  const kindLabel=kind==="doc"?"Doc":"Sheet";
+  toast("Creating Google "+kindLabel+" “"+name+"”…");
+  gGetToken(true).then(tok=>
+    fetch("https://www.googleapis.com/drive/v3/files?fields=id,webViewLink,name",{method:"POST",
+      headers:{"Authorization":"Bearer "+tok,"Content-Type":"application/json"},
+      body:JSON.stringify({name,mimeType:GMIME[kind]})})
+    .then(r=>r.json()).then(d=>{ if(!d.id)throw ((d.error&&d.error.message)||"create failed");
+      // auto-share: anyone with the link can EDIT (so the team can always open/edit without manual sharing)
+      return fetch("https://www.googleapis.com/drive/v3/files/"+d.id+"/permissions",{method:"POST",
+        headers:{"Authorization":"Bearer "+tok,"Content-Type":"application/json"},
+        body:JSON.stringify({role:"writer",type:"anyone"})}).then(()=>d).catch(()=>d); })
+  ).then(d=>{
+    const url=d.webViewLink||("https://drive.google.com/open?id="+d.id);
+    t.links=t.links||[]; t.links.push({n:d.name||name,u:url});
+    if(isIntake){ t.st="x"; l.checkins.unshift({d:today,a:actor(),txt:`Intake ${kindLabel} “${d.name||name}” created (anyone-with-link can edit) — pipeline unlocked.`}); }
+    log("📄 "+kindLabel+" created: "+(d.name||name)+(GAUTH.email?(" · by "+GAUTH.email):"")); save(); render();
+    toast("✅ "+kindLabel+" created (anyone-with-link can edit)"+(isIntake?" · pipeline unlocked":"")); window.open(url,"_blank");
+  }).catch(err=>{ toast(err&&err.kind==="unconfigured"?"⚠️ Add a Google Client ID first":"Couldn't create: "+(typeof err==="string"?err:"sign-in needed or sharing blocked by your org")); });
 }
 
 /* ----- confetti on push ----- */
@@ -1096,7 +1135,7 @@ function delDept(i){ const d=TEAM[i].name;
 }
 
 /* ================= RENDER HELPERS ================= */
-const linkChips=(task,slug,i)=>(task.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank" title="${esc(k.u)}">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('${slug}',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('${slug}',${i},${li})">✕</button></span>`).join("")+`<button class="addlnk" onclick="event.stopPropagation();addLink('${slug}',${i})">+ link</button>`;
+const linkChips=(task,slug,i)=>(task.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank" title="${esc(k.u)}">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('${slug}',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('${slug}',${i},${li})">✕</button></span>`).join("")+`<button class="addlnk" onclick="event.stopPropagation();addLink('${slug}',${i})">+ link</button><button class="addlnk" title="Create a Google Sheet under your account (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'sheet')">📊 Sheet</button><button class="addlnk" title="Create a Google Doc under your account (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'doc')">📝 Doc</button>`;
 function taskRow(l,t,extra){
   const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
   const vids=t.notes.filter(n=>n.v).length; const lk=taskLocked(l,t);
@@ -1106,7 +1145,6 @@ function taskRow(l,t,extra){
     ${lk?'<span class="urg" style="background:#1d2127;color:var(--faint)">locked</span>':`<span class="urg ${t.urg}" title="urgency">${t.urg}</span>`}${t.assignee?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
     ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
     ${lk?"":linkChips(t,l.slug,i)}
-    ${(!lk&&t.t==="Form (intake)"&&!(t.links||[]).some(k=>/spreadsheets/.test(k.u)))?`<button class="addlnk" style="background:#13262e;color:#67e8f9;border-color:#1d4250" title="Creates a new Google Sheet in your Google account, named after this product, and saves it as the intake form" onclick="event.stopPropagation();createIntakeSheet('${l.slug}')">📄 Create Google Sheet</button>`:""}
     <button class="exp" onclick="toggle('${key}')">${open?"▴ close":"▾ details"}${t.notes.length?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button></span>
    <span class="o" style="color:${DCOLOR(t.d)}">${extra||t.d}</span></div>
    ${open?(lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>Locked.</b> ${esc(lockReason(l,t)).replace(/^./,c=>c.toUpperCase())}. ${DOD[t.t]?`<div style="margin-top:6px;color:var(--faint)">Definition of done: ${esc(DOD[t.t])}</div>`:""}</div>`:taskPanel(l,t,i)):""}</div>`;
@@ -1380,7 +1418,7 @@ function viewCampaign(){
   const c=CAMPAIGNS[0]; const days=Math.ceil((new Date(c.date)-new Date(today))/864e5);
   return `<h2>Campaign — ${c.name}</h2><div class="sub">🎯 ${fmt(c.date)} · <b>${days} days out</b>.</div>
   <div class="panel"><h3>FEATURED PRODUCTS</h3><div class="board">${c.products.map(s=>`<div class="col">${cardHTML(L(s))}</div>`).join("")}</div></div>
-  <div class="panel"><h3>CAMPAIGN TASKS (cross-department)</h3>${c.tasks.map((t,i)=>`<div class="row"><span class="st ${t.st}">${stIcon[t.st]}</span><span>${esc(t.t)} ${(t.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('__camp',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('__camp',${i},${li})">✕</button></span>`).join("")}<button class="addlnk" onclick="addLink('__camp',${i})">+ link</button></span><span class="o">${t.d}</span></div>`).join("")}</div>`;
+  <div class="panel"><h3>CAMPAIGN TASKS (cross-department)</h3>${c.tasks.map((t,i)=>`<div class="row"><span class="st ${t.st}">${stIcon[t.st]}</span><span>${esc(t.t)} ${(t.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('__camp',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('__camp',${i},${li})">✕</button></span>`).join("")}<button class="addlnk" onclick="addLink('__camp',${i})">+ link</button><button class="addlnk" title="Create a Google Sheet (anyone-with-link can edit)" onclick="createDriveDoc('__camp',${i},'sheet')">📊 Sheet</button><button class="addlnk" title="Create a Google Doc (anyone-with-link can edit)" onclick="createDriveDoc('__camp',${i},'doc')">📝 Doc</button></span><span class="o">${t.d}</span></div>`).join("")}</div>`;
 }
 function viewTeam(){
   return `<h2>Team & departments</h2><div class="sub">This is the tracker's <b>people config</b> (the future <code>config/people.yaml</code>). Edit roles, heads and members here — DRI pickers, task owners, gate logic and lenses all read from this list. No personal names required; departments are the unit of ownership.</div>
@@ -1433,7 +1471,7 @@ function render(){
   else html=S.role==="ceo"?homeCEO():S.role==="director"?homeDirector():homeDept();
   app.innerHTML=tx(html);
   const nb=document.getElementById("inboxN"); if(nb){const n=autopilot().length; nb.textContent=n?n:"";}
-  renderDrawer(); save();
+  renderGAuth(); renderDrawer(); save();
 }
 loadSaved();
 loadVersions();
