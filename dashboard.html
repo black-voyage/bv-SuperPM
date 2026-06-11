@@ -117,6 +117,10 @@
   .row .o{margin-left:auto;color:var(--faint);font-size:12px;white-space:nowrap}
   .lnk{display:inline-flex;align-items:center;gap:4px;background:#1a2333;color:var(--blue);border-radius:2px;padding:1px 9px;font-size:11.5px;text-decoration:none;margin-left:4px}
   .addlnk{background:none;border:1px dashed var(--faint);color:var(--faint);border-radius:2px;padding:0 8px;font-size:11px;cursor:pointer;margin-left:4px}
+  .lnkg{display:inline-flex;align-items:center;margin-left:4px}
+  .lnkg .lnk{margin-left:0}
+  .lnkb{background:none;border:none;color:var(--faint);cursor:pointer;font-size:11px;padding:0 3px;opacity:.65}
+  .lnkb:hover{opacity:1;color:var(--accent)}
   .addlnk:hover{color:var(--blue);border-color:var(--blue)}
   .gatecard{border:1px solid var(--line);border-radius:2px;padding:12px;margin-bottom:10px;background:var(--panel2)}
   .btn{background:var(--accent);color:#fff;border:none;border-radius:2px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
@@ -383,7 +387,6 @@ const LAUNCHES = [
 ];
 // seed some document links (tracker links out to Drive — never duplicates)
 const seed=(slug,title,n,u)=>{const t=LAUNCHES.find(l=>l.slug===slug).tasks.find(t=>t.t===title); if(t)t.links.push({n,u});};
-seed("vesper","Form (intake)","Intake form","https://docs.google.com/document/d/intake-vesper");
 seed("apex","Prototype 1-2-3 approved","QC report v3","https://drive.google.com/drive/folders/apex-qc");
 seed("apex","Packaging / insert / manual locked","Dieline v3","https://drive.google.com/drive/folders/apex-packaging");
 seed("cyclone","Hero / lifestyle shoot done","Shot list + selects","https://drive.google.com/drive/folders/cyclone-shoot");
@@ -1031,6 +1034,19 @@ function addLink(slug,i){
   (slug==="__camp"?CAMPAIGNS[0].tasks[i]:L(slug).tasks[i]).links.push({n,u});
   toast("🔗 Link attached to task"); render();
 }
+function _linkTask(slug,i){return slug==="__camp"?CAMPAIGNS[0].tasks[i]:L(slug).tasks[i];}
+function editLink(slug,i,li){
+  const t=_linkTask(slug,i); const k=(t.links||[])[li]; if(!k)return;
+  const u=prompt("Edit link URL (blank = keep current)",k.u); if(u===null)return;
+  const n=prompt("Edit link label (blank = keep current)",k.n); if(n===null)return;
+  if(u.trim())k.u=u.trim(); if(n.trim())k.n=n.trim();
+  toast("✏️ Link updated"); render();
+}
+function removeLink(slug,i,li){
+  const t=_linkTask(slug,i); if(!t.links||!t.links[li])return;
+  if(typeof confirm!=="undefined"&&!confirm("Remove “"+(t.links[li].n||"this link")+"”?"))return;
+  t.links.splice(li,1); toast("🗑 Link removed"); render();
+}
 function push(slug){
   const l=L(slug);
   if(!allMet(l)){toast("🔒 Locked — not all exit criteria are met");return;}
@@ -1080,7 +1096,7 @@ function delDept(i){ const d=TEAM[i].name;
 }
 
 /* ================= RENDER HELPERS ================= */
-const linkChips=(task,slug,i)=>(task.links||[]).map(k=>`<a class="lnk" href="${k.u}" target="_blank" title="${esc(k.u)}">🔗 ${esc(k.n)}</a>`).join("")+`<button class="addlnk" onclick="event.stopPropagation();addLink('${slug}',${i})">+ link</button>`;
+const linkChips=(task,slug,i)=>(task.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank" title="${esc(k.u)}">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('${slug}',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('${slug}',${i},${li})">✕</button></span>`).join("")+`<button class="addlnk" onclick="event.stopPropagation();addLink('${slug}',${i})">+ link</button>`;
 function taskRow(l,t,extra){
   const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
   const vids=t.notes.filter(n=>n.v).length; const lk=taskLocked(l,t);
@@ -1364,7 +1380,7 @@ function viewCampaign(){
   const c=CAMPAIGNS[0]; const days=Math.ceil((new Date(c.date)-new Date(today))/864e5);
   return `<h2>Campaign — ${c.name}</h2><div class="sub">🎯 ${fmt(c.date)} · <b>${days} days out</b>.</div>
   <div class="panel"><h3>FEATURED PRODUCTS</h3><div class="board">${c.products.map(s=>`<div class="col">${cardHTML(L(s))}</div>`).join("")}</div></div>
-  <div class="panel"><h3>CAMPAIGN TASKS (cross-department)</h3>${c.tasks.map((t,i)=>`<div class="row"><span class="st ${t.st}">${stIcon[t.st]}</span><span>${esc(t.t)} ${(t.links||[]).map(k=>`<a class="lnk" href="${k.u}" target="_blank">🔗 ${esc(k.n)}</a>`).join("")}<button class="addlnk" onclick="addLink('__camp',${i})">+ link</button></span><span class="o">${t.d}</span></div>`).join("")}</div>`;
+  <div class="panel"><h3>CAMPAIGN TASKS (cross-department)</h3>${c.tasks.map((t,i)=>`<div class="row"><span class="st ${t.st}">${stIcon[t.st]}</span><span>${esc(t.t)} ${(t.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('__camp',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('__camp',${i},${li})">✕</button></span>`).join("")}<button class="addlnk" onclick="addLink('__camp',${i})">+ link</button></span><span class="o">${t.d}</span></div>`).join("")}</div>`;
 }
 function viewTeam(){
   return `<h2>Team & departments</h2><div class="sub">This is the tracker's <b>people config</b> (the future <code>config/people.yaml</code>). Edit roles, heads and members here — DRI pickers, task owners, gate logic and lenses all read from this list. No personal names required; departments are the unit of ownership.</div>
