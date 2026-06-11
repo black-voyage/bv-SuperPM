@@ -1,0 +1,15 @@
+# Render Blueprint — Black Voyage Product Tracker (SuperPM Fork)
+# Static site. The SuperPM Fork (superpm.html) is served as the homepage ("/").
+# The main dashboard remains available at /index.html.
+services:
+  - type: web
+    name: bv-superpm
+    runtime: static
+    buildCommand: ""
+    staticPublishPath: .
+    pullRequestPreviewsEnabled: false
+    routes:
+      # SuperPM Fork is the live homepage
+      - type: rewrite
+        source: /
+        destination: /superpm.html
