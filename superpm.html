@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Black Voyage — SUPER PM (forked edition)</title>
+<style>
+  :root{
+    --bg:#0d0f12; --panel:#16191e; --panel2:#1d2127; --line:#2a2f37;
+    --text:#e8eaed; --dim:#9aa3ad; --faint:#6b7280;
+    --accent:#e8b765; --green:#4ade80; --amber:#fbbf24; --red:#f87171; --blue:#60a5fa; --purple:#c084fc;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  header{display:flex;align-items:center;gap:18px;padding:12px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:10;flex-wrap:wrap}
+  .logo{font-weight:700;letter-spacing:.12em;font-size:15px}
+  .logo span{color:var(--accent)}
+  nav{display:flex;gap:4px;flex-wrap:wrap}
+  nav button{background:none;border:none;color:var(--dim);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:13.5px}
+  nav button.on{background:var(--panel2);color:var(--text)}
+  .spacer{flex:1}
+  .rolewrap{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim)}
+  select,input[type=text]{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px}
+  main{padding:20px;max-width:1320px;margin:0 auto}
+  h2{font-size:17px;margin-bottom:4px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:18px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:22px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .kpi .n{font-size:26px;font-weight:700}
+  .kpi .l{color:var(--dim);font-size:12.5px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:18px}
+  .panel h3{font-size:14px;margin-bottom:10px;color:var(--accent);letter-spacing:.03em}
+  .board{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
+  .col{min-width:200px;flex:1}
+  .col h4{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;justify-content:space-between}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
+  .card:hover{border-color:var(--accent)}
+  .card .nm{font-weight:600;font-size:14.5px;margin-bottom:3px}
+  .card .meta{color:var(--dim);font-size:12px}
+  .bar{height:5px;background:var(--panel2);border-radius:3px;margin:8px 0 6px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--accent)}
+  .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;margin-top:6px}
+  .ok{background:#14331f;color:var(--green)} .risk{background:#33260f;color:var(--amber)}
+  .bad{background:#331414;color:var(--red)} .done{background:#1a2333;color:var(--blue)} .dec{background:#2a1a33;color:var(--purple)}
+  .row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;flex-wrap:wrap}
+  .row:hover{background:var(--panel2)}
+  .st{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--faint);display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex:none;cursor:pointer}
+  .st.x{background:#14331f;border-color:var(--green);color:var(--green)}
+  .st.p{background:#33260f;border-color:var(--amber);color:var(--amber)}
+  .st.b{background:#331414;border-color:var(--red);color:var(--red)}
+  .row .o{margin-left:auto;color:var(--faint);font-size:12px;white-space:nowrap}
+  .lnk{display:inline-flex;align-items:center;gap:4px;background:#1a2333;color:var(--blue);border-radius:99px;padding:1px 9px;font-size:11.5px;text-decoration:none;margin-left:4px}
+  .addlnk{background:none;border:1px dashed var(--faint);color:var(--faint);border-radius:99px;padding:0 8px;font-size:11px;cursor:pointer;margin-left:4px}
+  .addlnk:hover{color:var(--blue);border-color:var(--blue)}
+  .gatecard{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--panel2)}
+  .btn{background:var(--accent);color:#1a1407;border:none;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
+  .btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+  .btn.red{background:#3a1d1d;color:var(--red);border:1px solid #5a2a2a}
+  .btn:disabled{background:var(--panel2);color:var(--faint);cursor:not-allowed;border:1px solid var(--line)}
+  .stages{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 16px}
+  .stg{padding:5px 11px;border-radius:99px;font-size:12px;border:1px solid var(--line);color:var(--faint)}
+  .stg.past{background:#14331f;color:var(--green);border-color:#1f4a2e}
+  .stg.cur{background:var(--accent);color:#1a1407;font-weight:700;border-color:var(--accent)}
+  .twocol{display:grid;grid-template-columns:1.5fr 1fr;gap:18px}
+  @media(max-width:900px){.twocol{grid-template-columns:1fr}}
+  .slack{background:#1a1d21;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .slack .hd{padding:10px 14px;border-bottom:1px solid var(--line);font-weight:700;font-size:13px}
+  .slack .msgs{padding:10px 14px;max-height:440px;overflow-y:auto}
+  .msg{display:flex;gap:10px;margin-bottom:14px}
+  .av{width:34px;height:34px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#1a1407}
+  .msg .who{font-weight:700;font-size:13px}.msg .when{color:var(--faint);font-size:11px;margin-left:6px}
+  .msg .txt{font-size:13px;color:#d1d5db;margin-top:2px}
+  .appr{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px;margin-top:8px;background:#202329}
+  .thr{color:var(--blue);font-size:12px;margin-top:5px;cursor:pointer}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{color:var(--dim);text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;padding:8px;border-bottom:1px solid var(--line)}
+  td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+  td input[type=text]{width:100%}
+  .cell{display:inline-block;min-width:40px;text-align:center;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600}
+  textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:10px;font:13px/1.5 inherit;resize:vertical;min-height:70px}
+  #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--accent);color:#1a1407;font-weight:600;padding:10px 18px;border-radius:10px;display:none;z-index:50;font-size:13px;max-width:90vw}
+  .back{color:var(--blue);cursor:pointer;font-size:13px;margin-bottom:12px;display:inline-block}
+  .checkin{border-left:3px solid var(--line);padding:6px 12px;margin-bottom:8px;font-size:13px}
+  .checkin .d{color:var(--faint);font-size:11.5px}
+  .flowwrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:#101216}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--dim);margin:10px 0}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .deptchip{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:99px;padding:2px 10px;font-size:11.5px;margin:2px 3px 2px 0}
+  .deptchip.rdy{background:#14331f;color:var(--green);border-color:#1f4a2e}
+  .urg{display:inline-block;padding:1px 8px;border-radius:99px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-left:4px}
+  .urg.low{background:#1a2333;color:var(--blue)} .urg.med{background:#2a2a1a;color:#d4c44a}
+  .urg.high{background:#33260f;color:#fb923c} .urg.urgent{background:#331414;color:var(--red)}
+  .asg{display:inline-block;background:#222a36;color:#aac4e8;border-radius:99px;padding:1px 9px;font-size:11px;margin-left:4px}
+  .exp{background:none;border:none;color:var(--faint);cursor:pointer;font-size:11px;margin-left:6px;padding:2px 6px;border-radius:6px}
+  .exp:hover{color:var(--text);background:var(--panel2)}
+  .taskpanel{background:#13161a;border:1px solid var(--line);border-radius:10px;padding:12px;margin:2px 0 8px 28px;font-size:13px}
+  .taskpanel .frow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .taskpanel label{color:var(--dim);font-size:12px}
+  .note{border-left:3px solid #2e3640;padding:4px 10px;margin-bottom:6px}
+  .note .d{color:var(--faint);font-size:11px}
+  .tl-row{margin-bottom:22px}
+  .tl-head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+  .tl-bar{display:flex;align-items:stretch;height:34px;border-radius:8px;overflow:hidden;background:var(--panel2);width:100%}
+  .tl-seg{position:relative;display:flex;align-items:center;justify-content:center;font-size:10.5px;white-space:nowrap;overflow:hidden;border-right:2px solid var(--bg);min-width:34px}
+  .tl-seg .ov{position:absolute;right:0;top:0;bottom:0;background:repeating-linear-gradient(45deg,rgba(248,113,113,.45) 0 6px,rgba(248,113,113,.2) 6px 12px)}
+  .tl-leg{font-size:11.5px;color:var(--dim);margin-top:4px}
+  .dbar{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .dbar .nm2{width:110px;font-size:12.5px;text-align:right;color:var(--dim)}
+  .dbar .tr{flex:1;background:var(--panel2);border-radius:6px;height:20px;overflow:hidden}
+  .dbar .fl{height:100%;border-radius:6px;display:flex;align-items:center;padding-left:8px;font-size:11px;font-weight:700;color:#1a0d07}
+  /* ===== SuperPM additions ===== */
+  body{background:radial-gradient(1200px 600px at 80% -10%, #1a1408 0%, var(--bg) 55%)}
+  .panel{box-shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.25)}
+  .card{box-shadow:0 6px 18px rgba(0,0,0,.3)} .card:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.45)} .card{transition:all .18s}
+  .btn{transition:transform .12s, filter .12s} .btn:not(:disabled):hover{transform:translateY(-1px);filter:brightness(1.08)}
+  .sla{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;margin-left:6px}
+  .sla.ok{background:#14331f;color:var(--green)} .sla.over{background:#331414;color:var(--red);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+  .iconbtn{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:6px 11px;cursor:pointer;font-size:13px}
+  .iconbtn:hover{color:var(--text);border-color:var(--accent)}
+  .drawer{position:fixed;top:0;right:-420px;width:400px;max-width:92vw;height:100vh;background:#121419;border-left:1px solid var(--line);z-index:40;transition:right .25s;display:flex;flex-direction:column}
+  .drawer.openD{right:0}
+  .drawer .dh{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center}
+  .drawer .db{flex:1;overflow-y:auto;padding:12px 16px}
+  .feeditem{border-left:3px solid var(--line);padding:6px 10px;margin-bottom:8px;font-size:12.5px}
+  .feeditem .d{color:var(--faint);font-size:11px}
+  .pal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:60;display:flex;align-items:flex-start;justify-content:center;padding-top:12vh}
+  .palbox{width:560px;max-width:92vw;background:#15181d;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.6)}
+  .palbox input{width:100%;border:none;background:#1b1f25;padding:14px 16px;font-size:15px;border-radius:0}
+  .palitem{padding:10px 16px;cursor:pointer;display:flex;gap:10px;align-items:center;font-size:13.5px}
+  .palitem:hover,.palitem.sel{background:#222731}
+  .risk{border:1px solid var(--line);border-left:3px solid var(--red);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:13px;background:var(--panel2)}
+  .autofix{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:center;background:var(--panel2)}
+  .autofix .sev{width:8px;height:8px;border-radius:50%;flex:none}
+  .ghostnote{color:var(--faint);font-size:11.5px}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  main{animation:fadeIn .18s}
+  .gauge{display:flex;align-items:center;gap:16px}
+  .digestbox{width:100%;min-height:380px;background:#101216;border:1px solid var(--line);border-radius:10px;color:#d1d5db;padding:14px;font:12.5px/1.6 ui-monospace,Menlo,monospace;white-space:pre-wrap}
+  @keyframes confetti{0%{transform:translateY(-10px) rotate(0)}100%{transform:translateY(105vh) rotate(720deg)}}
+  .cf{position:fixed;top:-12px;width:9px;height:14px;z-index:80;animation:confetti 1.4s ease-in forwards;pointer-events:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">BLACK <span>VOYAGE</span> · SUPER&nbsp;PM</div>
+  <nav id="nav"></nav>
+  <div class="spacer"></div>
+  <input type="text" id="q" placeholder="search… ( / )" style="width:130px" oninput="S.q=this.value;if(S.view!=='portfolio')go('portfolio');else render();document.getElementById('q').focus()">
+  <button class="iconbtn" title="command palette (Ctrl/⌘ K)" onclick="openPal()">⌘K</button>
+  <button class="iconbtn" title="activity feed + inbox" onclick="toggleDrawer()">🔔 <span id="inboxN"></span></button>
+  <button class="iconbtn" title="download a JSON backup of all data" onclick="exportJSON()">⬇</button>
+  <div class="rolewrap">Viewing as <select id="roleSel" onchange="setRole(this.value)"></select></div>
+</header>
+<main id="app"></main>
+<div id="toast"></div>
+<div class="drawer" id="drawer">
+  <div class="dh"><b>Activity & Inbox</b><span class="spacer"></span>
+    <button class="iconbtn" onclick="autoFixAll()">⚡ Auto-correct all</button>
+    <button class="iconbtn" onclick="toggleDrawer()">✕</button></div>
+  <div class="db" id="drawerBody"></div>
+</div>
+<div class="pal" id="pal" style="display:none" onclick="if(event.target===this)closePal()">
+  <div class="palbox"><input id="palQ" placeholder="Jump to a launch, view, or task…" oninput="renderPal()" onkeydown="palKey(event)"><div id="palList"></div></div>
+</div>
+
+<script>
+/* ================= TEAM CONFIG (editable in Team tab — no names, departments only) ================= */
+let TEAM = [
+ {name:"Product",  role:"Owns the product: intake form, market research, concept, prototyping, costing, design freeze, pre-production sample + BOM, mass production."},
+ {name:"Design",   role:"Packaging / insert / manual, model name, infographic & A+ assets, listing imagery, Amazon store visuals."},
+ {name:"Catalog",  role:"Competitor analysis, Amazon & Shopify SKU creation, ops sheet, product data filing, publishing listings live."},
+ {name:"Content",  role:"Pre-production, hero / lifestyle shoot, post-production, content export (instruction · lifestyle · social clips)."},
+ {name:"Social",   role:"Channel posts: IG / YouTube / TikTok."},
+ {name:"Marketing",role:"Product marketing brief, KOL / influencer engine (MOAT · ASMR · Cinematic · Authority · Reach · Seed · UGC), evaluation loop."},
+ {name:"Ads",      role:"Ad post-production, partnerships approval, paid campaigns."},
+ {name:"Email",    role:"Launch & campaign email sequences."},
+ {name:"CRM",      role:"Influencer DM routing → email pipeline, relationship records."},
+ {name:"Logistics",role:"Freight: sea bulk + air samples; warehouse readiness."},
+];
+TEAM.forEach(t=>{t.head=t.head||"";t.members=t.members||"";});
+const DEPTS = () => TEAM.map(t=>t.name);
+
+/* ================= STAGES & GATE MAP (from gate-map v1) ================= */
+const STAGES = ["Concept","Build","Production","Content","Listing creation","Live","Marketing"];
+const GATES = {
+  "Concept":[{t:"Form (intake)",d:"Product"},{t:"Market research",d:"Product"},{t:"Concept definition",d:"Product"},{t:"Ben concept sign-off ◆",d:"Product",ben:1}],
+  "Build":[{t:"Prototype 1-2-3 approved",d:"Product"},{t:"Ben validation ◆",d:"Product",ben:1},{t:"Costing & profit signed off",d:"Product"},{t:"Packaging / insert / manual locked",d:"Design"},{t:"Model name set",d:"Design"}],
+  "Production":[{t:"Design freeze",d:"Product"},{t:"Pre-production sample approved + BOM",d:"Product"},{t:"Mass production complete",d:"Product"},{t:"Freight booked (sea + air samples)",d:"Logistics"}],
+  "Content":[{t:"Hero / lifestyle shoot done",d:"Content"},{t:"Post-production done",d:"Content"},{t:"Content exported (instruction / lifestyle / social clips)",d:"Content"},{t:"A+ / infographic assets ready",d:"Design"}],
+  "Listing creation":[{t:"Amazon SKU created",d:"Catalog"},{t:"Shopify SKU created",d:"Catalog"},{t:"Product data filed → marketing brief",d:"Catalog"},{t:"Brand language confirmed ◆",d:"Catalog",ben:1},{t:"Listing imagery / A+ uploaded",d:"Design"}],
+  "Live":[{t:"Listings published live (Amazon + Shopify)",d:"Catalog"},{t:"Marketing brief finalized & ready",d:"Marketing"}],
+  "Marketing":[{t:"KOL / influencer projects live",d:"Marketing"},{t:"Channel posts live (IG / YouTube / TikTok)",d:"Social"},{t:"Launch ads running",d:"Ads"},{t:"Launch email sequence sent",d:"Email"}]
+};
+
+/* ================= MASTER FLOW CHART (digitized from "BV Team Workflow.pdf") =================
+   Each node: l=label, s=stage, t=linked tracker task (colors come from the live card), d=◆ decision */
+const FLOW = {
+ "Product":[
+  {l:"Form (intake)",s:"Concept",t:"Form (intake)"},
+  {l:"Understand WHY",s:"Concept"},
+  {l:"Market research 競品分析",s:"Concept",t:"Market research"},
+  {l:"Concept definition 概念定義",s:"Concept",t:"Concept definition"},
+  {l:"Product info: spec · look · material · price",s:"Concept"},
+  {l:"Ben confirms concept 想法定稿",s:"Concept",t:"Ben concept sign-off ◆",d:1},
+  {l:"Prototyping 1-2-3 + testing",s:"Build",t:"Prototype 1-2-3 approved"},
+  {l:"Ben validation 驗證",s:"Build",t:"Ben validation ◆",d:1},
+  {l:"Costing & profit 定價/利潤",s:"Build",t:"Costing & profit signed off"},
+  {l:"Design freeze 設計凍結",s:"Production",t:"Design freeze"},
+  {l:"Pre-prod sample + BOM → Ben",s:"Production",t:"Pre-production sample approved + BOM"},
+  {l:"Mass production 大貨生產",s:"Production",t:"Mass production complete"},
+  {l:"Send samples to teams",s:"Production"}],
+ "Design":[
+  {l:"Concept: look · color · material",s:"Concept"},
+  {l:"Packaging · insert · manual",s:"Build",t:"Packaging / insert / manual locked"},
+  {l:"Model name",s:"Build",t:"Model name set"},
+  {l:"Infographic / A+ assets",s:"Content",t:"A+ / infographic assets ready"},
+  {l:"Listing imagery / A+ upload",s:"Listing creation",t:"Listing imagery / A+ uploaded"},
+  {l:"Update Amazon store / posts",s:"Live"}],
+ "Catalog":[
+  {l:"Competitor analysis",s:"Concept",t:"Competitor analysis"},
+  {l:"Amazon SKU creation",s:"Listing creation",t:"Amazon SKU created"},
+  {l:"Shopify SKU creation",s:"Listing creation",t:"Shopify SKU created"},
+  {l:"Ops sheet update",s:"Listing creation"},
+  {l:"Product data filed → brief 建檔",s:"Listing creation",t:"Product data filed → marketing brief"},
+  {l:"Brand language confirmed",s:"Listing creation",t:"Brand language confirmed ◆",d:1},
+  {l:"Listings published LIVE",s:"Live",t:"Listings published live (Amazon + Shopify)"}],
+ "Content":[
+  {l:"Pre-production",s:"Content"},
+  {l:"Hero / lifestyle shoot",s:"Content",t:"Hero / lifestyle shoot done"},
+  {l:"Post-production",s:"Content",t:"Post-production done"},
+  {l:"Content export: instruction · lifestyle · social",s:"Content",t:"Content exported (instruction / lifestyle / social clips)"}],
+ "Social":[
+  {l:"IG / YouTube / TikTok posts",s:"Marketing",t:"Channel posts live (IG / YouTube / TikTok)"}],
+ "Marketing":[
+  {l:"Marketing brief finalized",s:"Live",t:"Marketing brief finalized & ready"},
+  {l:"KOL projects: MOAT · ASMR · Cinematic · Authority · Reach · Seed · UGC",s:"Marketing",t:"KOL / influencer projects live"},
+  {l:"Ideation → Sourcing / DM received",s:"Marketing"},
+  {l:"Negotiation → Shipping → Video live → Payment",s:"Marketing"},
+  {l:"Evaluation (Ben + Marketing)",s:"Marketing",d:1},
+  {l:"Usage rights → long-term / archive",s:"Marketing"}],
+ "Ads":[
+  {l:"Post-production (if needed)",s:"Marketing"},
+  {l:"Partnerships approval",s:"Marketing"},
+  {l:"Post ad",s:"Marketing",t:"Launch ads running"}],
+ "Email":[
+  {l:"Launch email sequence",s:"Marketing",t:"Launch email sequence sent"}],
+ "CRM":[
+  {l:"Influencer DMs → email pipeline",s:"Marketing"}],
+ "Logistics":[
+  {l:"Freight: sea bulk + air samples",s:"Production",t:"Freight booked (sea + air samples)"}]
+};
+const CROSS = [ // [fromDept, fromIdx, toDept, toIdx] — key hand-offs from the PDF
+ ["Product",12,"Content",0],["Product",11,"Logistics",0],["Content",3,"Social",0],
+ ["Content",3,"Design",3],["Catalog",4,"Marketing",0],["Marketing",1,"Ads",0],["CRM",0,"Email",0]];
+
+/* ================= PLANNED STAGE DURATIONS (days) — drives the Timeline view ================= */
+const PLAN={"Concept":21,"Build":35,"Production":45,"Content":21,"Listing creation":14,"Live":10,"Marketing":30};
+
+/* ================= LAUNCH DATA (DRI = a department, not a person) ================= */
+function allTasks(overrides){
+  const list=[];
+  for(const s of STAGES) for(const c of GATES[s]) list.push({t:c.t,d:c.d,st:"o",gate:!!c.ben,stage:s,links:[],assignee:"",urg:"med",notes:[]});
+  list.push({t:"Competitor analysis",d:"Catalog",st:"o",stage:"Concept",links:[],assignee:"",urg:"med",notes:[]});
+  for(const [title,st] of Object.entries(overrides||{})){const x=list.find(k=>k.t===title); if(x)x.st=st;}
+  return list;
+}
+const doneThrough = stage => { const o={}; STAGES.slice(0,STAGES.indexOf(stage)).forEach(s=>GATES[s].forEach(c=>o[c.t]="x")); return o; };
+
+const LAUNCHES = [
+ {name:"Vesper",slug:"vesper",dri:"Product",stage:"Concept",target:"2026-12-04",
+  history:[{stage:"Concept",start:"2026-06-08"}],
+  tasks:allTasks({}), // brand-new card: zero info — everything locked until the intake Form is done
+  checkins:[{d:"2026-06-08",a:"Product",txt:"Card created from template. Next: fill the intake form — everything else unlocks after it."}]},
+ {name:"Apex",slug:"apex",dri:"Product",stage:"Build",target:"2026-08-12",
+  history:[{stage:"Concept",start:"2026-03-02",delayBy:["Product"]},{stage:"Build",start:"2026-04-06"}],
+  tasks:allTasks({...doneThrough("Build"),"Competitor analysis":"x","Prototype 1-2-3 approved":"x","Costing & profit signed off":"x","Packaging / insert / manual locked":"x","Model name set":"x"}),
+  checkins:[{d:"2026-06-09",a:"Product",txt:"Prototype v3 approved, costing signed. Waiting only on Ben validation ◆. Ask: 15-min review."},
+            {d:"2026-06-02",a:"Design",txt:"Factory sample QC passed. Packaging dieline locked."}]},
+ {name:"Cyclone",slug:"cyclone",dri:"Content",stage:"Content",target:"2026-09-30",
+  history:[{stage:"Concept",start:"2026-02-02",delayBy:["Catalog"]},{stage:"Build",start:"2026-02-25",delayBy:["Design"]},{stage:"Production",start:"2026-04-10"},{stage:"Content",start:"2026-05-18"}],
+  tasks:allTasks({...doneThrough("Content"),"Competitor analysis":"x","Hero / lifestyle shoot done":"x","Post-production done":"p","A+ / infographic assets ready":"b"}),
+  checkins:[{d:"2026-06-09",a:"Content",txt:"Shoot wrapped, edit 70%. Blocker: A+ assets stuck — waiting on final brand fonts. Ask: Design to confirm font license."}]},
+ {name:"Zephyr",slug:"zephyr",dri:"Marketing",stage:"Marketing",target:"2026-04-15",complete:true,
+  history:[{stage:"Concept",start:"2025-11-03"},{stage:"Build",start:"2025-11-24"},{stage:"Production",start:"2025-12-29"},{stage:"Content",start:"2026-02-09"},{stage:"Listing creation",start:"2026-03-02"},{stage:"Live",start:"2026-03-16"},{stage:"Marketing",start:"2026-03-26",end:"2026-04-20"}],
+  tasks:allTasks(Object.fromEntries([].concat(...STAGES.map(s=>GATES[s].map(c=>[c.t,"x"]))).concat([["Competitor analysis","x"]]))),
+  checkins:[{d:"2026-04-20",a:"Marketing",txt:"Launch complete — ads live, KOL wave 1 posted, email sequence done. Reference card."}]},
+];
+// seed some document links (tracker links out to Drive — never duplicates)
+const seed=(slug,title,n,u)=>{const t=LAUNCHES.find(l=>l.slug===slug).tasks.find(t=>t.t===title); if(t)t.links.push({n,u});};
+seed("vesper","Form (intake)","Intake form","https://docs.google.com/document/d/intake-vesper");
+seed("apex","Prototype 1-2-3 approved","QC report v3","https://drive.google.com/drive/folders/apex-qc");
+seed("apex","Packaging / insert / manual locked","Dieline v3","https://drive.google.com/drive/folders/apex-packaging");
+seed("cyclone","Hero / lifestyle shoot done","Shot list + selects","https://drive.google.com/drive/folders/cyclone-shoot");
+// seed urgency / assignee / notes examples
+const seedT=(slug,title,f)=>{const t=LAUNCHES.find(l=>l.slug===slug).tasks.find(t=>t.t===title); if(t)Object.assign(t,f);};
+seedT("apex","Ben validation ◆",{urg:"urgent",notes:[{d:"2026-06-09",a:"Product",txt:"Sample + costing sheet on Ben's desk. Loom walk-through attached.",v:"https://www.loom.com/share/apex-proto-v3"}]});
+seedT("cyclone","A+ / infographic assets ready",{urg:"high",assignee:"Design · senior",notes:[{d:"2026-06-09",a:"Design",txt:"Blocked on brand font license — legal reviewing. ETA Friday."}]});
+seedT("cyclone","Post-production done",{assignee:"Content · editor",urg:"high"});
+// SuperPM seeds: decision SLA clocks + risk registers
+LAUNCHES.find(l=>l.slug==="apex").decisionRequested={"Ben validation ◆":"2026-06-06"}; // 4 days ago → SLA breach demo
+LAUNCHES.find(l=>l.slug==="apex").risks=[
+ {t:"Factory holiday shutdown mid-July",owner:"Product",sc:9,trigger:"PO not placed by Jun 20"},
+ {t:"Ben availability for validation slot",owner:"Product",sc:6,trigger:"No review booked within SLA"}];
+LAUNCHES.find(l=>l.slug==="cyclone").risks=[
+ {t:"Font license rejected → A+ redesign",owner:"Design",sc:6,trigger:"Legal verdict due Friday"}];
+
+const CAMPAIGNS=[{name:"Black Friday 2026",slug:"bf-2026",date:"2026-11-27",products:["apex","cyclone","zephyr"],
+ tasks:[{t:"BF landing page",d:"Design",st:"p",links:[]},{t:"BF deals & pricing locked",d:"Marketing",st:"p",links:[]},
+        {t:"BF email sequence drafted",d:"Email",st:"o",links:[]},{t:"BF ad creatives",d:"Ads",st:"o",links:[]},
+        {t:"Warehouse promo stock check",d:"Logistics",st:"o",links:[]}]}];
+
+/* ================= GATE ENGINE (single implementation) ================= */
+const criteria = l => (GATES[l.stage]||[]).map(c=>({...c, task:l.tasks.find(t=>t.t===c.t)}));
+const gateState = l => { const cs=criteria(l); return {cs, met:cs.filter(c=>c.task&&c.task.st==="x").length, total:cs.length}; };
+const mandatory = l => [...new Set((GATES[l.stage]||[]).map(c=>c.d))];
+const deptReady = (l,d) => gateState(l).cs.filter(c=>c.d===d).every(c=>c.task.st==="x");
+const allMet = l => { const g=gateState(l); return g.met===g.total && !l.complete; };
+const canPushRole = l => S.role==="ceo" || (S.role==="dept" && (S.dept===l.dri || mandatory(l).includes(S.dept)));
+const health = l => {
+  if(l.complete) return ["Complete","done"];
+  if(l.tasks.some(t=>t.st==="b")) return ["Blocked","bad"];
+  const g=gateState(l);
+  if(g.total-g.met===1 && g.cs.some(c=>c.ben&&c.task.st!=="x")) return ["Awaiting Ben ◆","dec"];
+  if(g.met/g.total>=.5) return ["On track","ok"];
+  return ["In progress","risk"];
+};
+const benQueue = () => LAUNCHES.filter(l=>!l.complete).flatMap(l=>{const g=gateState(l);return g.cs.filter(c=>c.ben&&c.task.st!=="x"&&g.cs.filter(o=>!o.ben).every(o=>o.task.st==="x")).map(c=>({l,c}));});
+const nextUnmet = l => { const g=gateState(l); const c=g.cs.find(c=>c.task.st!=="x"); return c?c.t:null; };
+
+/* ================= SEQUENTIAL UNLOCK ENGINE =================
+   Rule: the intake Form is the root — until it's done, everything else is locked.
+   Then nodes unlock lane-by-lane (a step opens only when the previous step in its
+   department lane is done) and never ahead of the card's current stage. */
+function nodeLocked(l,d,i){
+  const n=FLOW[d][i];
+  if(n.t==="Form (intake)") return false;
+  const form=l.tasks.find(t=>t.t==="Form (intake)");
+  if(form&&form.st!=="x") return true;
+  if(STAGES.indexOf(n.s)>STAGES.indexOf(l.stage)&&!l.complete) return true;
+  for(let k=0;k<i;k++){const p=FLOW[d][k]; if(p.t){const pt=l.tasks.find(x=>x.t===p.t); if(pt&&pt.st!=="x") return true;}}
+  return false;
+}
+function taskLocked(l,task){
+  if(task.t==="Form (intake)") return false;
+  const form=l.tasks.find(t=>t.t==="Form (intake)");
+  if(form&&form.st!=="x") return true;
+  const lane=FLOW[task.d];
+  if(lane){const i=lane.findIndex(n=>n.t===task.t); if(i>=0) return nodeLocked(l,task.d,i);}
+  return STAGES.indexOf(task.stage)>STAGES.indexOf(l.stage)&&!l.complete;
+}
+/* flow-node click → jump to the matching task card below */
+function jumpTask(slug,i){
+  S.view="launch"; S.launch=slug; S.open[slug+":"+i]=true; render();
+  setTimeout(()=>{const el=document.getElementById("task-"+slug+"-"+i);
+    if(el&&el.scrollIntoView){el.scrollIntoView({behavior:"smooth",block:"center"});
+      el.style.outline="2px solid var(--accent)"; el.style.outlineOffset="2px";
+      setTimeout(()=>{el.style.outline="";},1800);}},60);
+}
+
+/* ================= TIMELINE / DELAY ENGINE ================= */
+const D=s=>new Date(s+"T00:00");
+const dayDiff=(a,b)=>Math.round((D(b)-D(a))/864e5);
+function curBlame(l){ // who is holding the current stage: unmet criteria owners + blocked-task owners
+  const set=new Set();
+  gateState(l).cs.filter(c=>c.task.st!=="x").forEach(c=>set.add(c.d));
+  l.tasks.filter(t=>t.st==="b"&&t.stage===l.stage).forEach(t=>set.add(t.d));
+  return [...set];
+}
+function segments(l){
+  return (l.history||[]).map((h,i)=>{
+    const end=h.end||(l.history[i+1]?l.history[i+1].start:today);
+    const days=Math.max(1,dayDiff(h.start,end));
+    const plan=PLAN[h.stage]||21;
+    const over=Math.max(0,days-plan);
+    const cur=!h.end&&!l.history[i+1]&&!l.complete;
+    const blame=over?(h.delayBy||(cur?curBlame(l):[])):[];
+    return {stage:h.stage,days,plan,over,cur,blame};
+  });
+}
+function delayByDept(){
+  const m={};
+  LAUNCHES.forEach(l=>segments(l).forEach(s=>{ if(s.over&&s.blame.length){const share=s.over/s.blame.length; s.blame.forEach(d=>m[d]=(m[d]||0)+share);} }));
+  return Object.entries(m).map(([d,v])=>({d,v:Math.round(v)})).sort((a,b)=>b.v-a.v);
+}
+function projectedSlip(l){ // projected finish vs target
+  if(l.complete) return 0;
+  const cur=segments(l).find(s=>s.cur); if(!cur) return 0;
+  const remainCur=Math.max(0,cur.plan-cur.days); // optimistic: rest of plan
+  const future=STAGES.slice(STAGES.indexOf(l.stage)+1).reduce((a,s)=>a+(PLAN[s]||21),0);
+  const finish=new Date(D(today).getTime()+(remainCur+future)*864e5);
+  return Math.round((finish-D(l.target))/864e5);
+}
+
+/* ================= SUPER PM ENGINE ================= */
+const SLA_DAYS=2, WIP_LIMIT=4;
+const LOG=[{d:"2026-06-10 08:00",m:"SuperPM fork initialized from Tracker v2"}];
+function log(m){LOG.unshift({d:today+" "+String(8+LOG.length%9).padStart(2,"0")+":"+String(LOG.length*7%60).padStart(2,"0"),m}); if(LOG.length>250)LOG.pop(); save();}
+function floatDays(l){ if(l.complete) return 0;
+  const cur=segments(l).find(s=>s.cur); const remainCur=cur?Math.max(0,cur.plan-cur.days):0;
+  const future=STAGES.slice(STAGES.indexOf(l.stage)+1).reduce((a,s)=>a+(PLAN[s]||21),0);
+  return dayDiff(today,l.target)-(remainCur+future);
+}
+function velocity(l){ const weeks=Math.max(1,dayDiff(l.history[0].start,today)/7);
+  return l.tasks.filter(t=>t.st==="x").length/weeks; }
+function forecastDate(l){ if(l.complete) return l.target;
+  const rem=l.tasks.filter(t=>t.st!=="x").length; const vpd=Math.max(velocity(l)/7,0.05);
+  return new Date(D(today).getTime()+Math.ceil(rem/vpd)*864e5).toISOString().slice(0,10); }
+function criticalNext(l){ const g=gateState(l); const c=g.cs.find(c=>c.task.st!=="x"); return c?{t:c.t,d:c.d}:null; }
+const wip=d=>LAUNCHES.filter(l=>!l.complete).reduce((a,l)=>a+l.tasks.filter(t=>t.d===d&&t.st==="p").length,0);
+const decisionAge=(l,t)=>{const d=(l.decisionRequested||{})[t]; return d?dayDiff(d,today):0;};
+
+function autopilot(){ // the auto-correct brain: detect → propose → one-click (or bulk) fix
+  const issues=[];
+  benQueue().forEach(({l,c})=>{const age=decisionAge(l,c.t); const br=age>SLA_DAYS;
+    issues.push({sev:br?"red":"amber",msg:`◆ ${l.name} — “${c.t}” waiting ${age}d${br?" (SLA "+SLA_DAYS+"d breached)":""}`,
+      fixLabel:"Escalate",fix:br?()=>{const t=l.tasks.find(x=>x.t===c.t); t.urg="urgent";
+        l.checkins.unshift({d:today,a:"Autopilot",txt:`Escalated “${c.t}” — decision SLA breached (${age}d). Slack: re-pinged Ben + #bv-portfolio.`});
+        log("⚡ Escalated "+l.name+" ◆ gate (SLA breach)");}:null});});
+  LAUNCHES.filter(l=>!l.complete).forEach(l=>{
+    const last=l.checkins[0], staleD=last?dayDiff(last.d,today):99;
+    if(staleD>7) issues.push({sev:"amber",msg:`📝 ${l.name}: check-in ${staleD}d old`,fixLabel:"Nudge DRI",
+      fix:()=>{l.checkins.unshift({d:today,a:"Autopilot",txt:`Auto-nudge sent to DRI (${l.dri}) — weekly check-in overdue.`});log("⚡ Nudged "+l.name+" DRI");}});
+    l.tasks.filter(t=>t.st==="b").forEach(t=>issues.push({sev:"red",msg:`⛔ ${l.name}: “${t.t}” blocked (${t.d})`,fixLabel:"Escalate",
+      fix:t.urg!=="urgent"?()=>{t.urg="urgent";l.checkins.unshift({d:today,a:"Autopilot",txt:`Escalated blocked “${t.t}” to urgent; Director alerted.`});log("⚡ Escalated blocked task on "+l.name);}:null}));
+    l.tasks.filter(t=>t.st==="x"&&EVID.has(t.t)&&!(t.links||[]).length).forEach(t=>issues.push({sev:"amber",
+      msg:`📎 ${l.name}: “${t.t}” marked done without evidence`,fixLabel:"Reopen",
+      fix:()=>{t.st="p";l.checkins.unshift({d:today,a:"Autopilot",txt:`Reopened “${t.t}” — evidence link missing (playbook rule).`});log("⚡ Reopened "+l.name+" / "+t.t);}}));
+    const fl=floatDays(l);
+    if(fl<0) issues.push({sev:"red",msg:`📉 ${l.name}: float ${fl}d — forecast ${fmt(forecastDate(l))} vs target ${fmt(l.target)}`,fixLabel:null,fix:null});
+  });
+  DEPTS().forEach(d=>{const w=wip(d); if(w>WIP_LIMIT) issues.push({sev:"amber",msg:`🌊 ${d}: WIP ${w} over limit ${WIP_LIMIT}`,fix:null});});
+  return issues;
+}
+function autoFixAll(){ let n=0; autopilot().forEach(i=>{if(i.fix){i.fix();n++;}});
+  toast(n?`⚡ Auto-corrected ${n} issue(s) — all logged`:"✨ Nothing to fix"); render(); }
+
+/* ----- portfolio health score (0–100) ----- */
+function healthScore(){
+  let s=100; const act=LAUNCHES.filter(l=>!l.complete);
+  act.forEach(l=>{
+    s-=l.tasks.filter(t=>t.st==="b").length*8;
+    if(floatDays(l)<0)s-=15;
+    const last=l.checkins[0]; if(!last||dayDiff(last.d,today)>7)s-=5;
+  });
+  benQueue().forEach(({l,c})=>{if(decisionAge(l,c.t)>SLA_DAYS)s-=12;});
+  DEPTS().forEach(d=>{if(wip(d)>WIP_LIMIT)s-=5;});
+  return Math.max(10,Math.min(100,s));
+}
+const grade=s=>s>=90?"A":s>=80?"B":s>=70?"C":s>=55?"D":"F";
+function gaugeSVG(s){const R=42,C=2*Math.PI*R,f=s/100;
+  const col=s>=80?"#4ade80":s>=60?"#fbbf24":"#f87171";
+  return `<svg width="110" height="110" viewBox="0 0 110 110"><circle cx="55" cy="55" r="${R}" fill="none" stroke="#1d2127" stroke-width="11"/>
+  <circle cx="55" cy="55" r="${R}" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round"
+    stroke-dasharray="${(C*f).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 55 55)"/>
+  <text x="55" y="52" text-anchor="middle" fill="${col}" font-size="24" font-weight="700">${s}</text>
+  <text x="55" y="70" text-anchor="middle" fill="#9aa3ad" font-size="11">grade ${grade(s)}</text></svg>`;}
+
+/* ----- weekly digest (paste into Slack) ----- */
+function buildDigest(){
+  const lines=[`*BV PORTFOLIO DIGEST — week of ${fmt(today)}*`,""];
+  LAUNCHES.filter(l=>!l.complete).forEach(l=>{
+    const g=gateState(l),[h]=health(l),cn=criticalNext(l);
+    lines.push(`*${l.name}* — ${l.stage} (${g.met}/${g.total} gate criteria) · ${h}`);
+    lines.push(`  DRI ${l.dri} · target ${fmt(l.target)} · float ${floatDays(l)}d · forecast ${fmt(forecastDate(l))}`);
+    if(cn) lines.push(`  → critical next: ${cn.t} (${cn.d})`);
+    l.tasks.filter(t=>t.st==="b").forEach(t=>lines.push(`  ⛔ blocked: ${t.t} (${t.d})`));
+    lines.push("");
+  });
+  const q=benQueue();
+  if(q.length){lines.push(`*◆ DECISIONS WAITING ON BEN (SLA ${SLA_DAYS}d)*`);
+    q.forEach(({l,c})=>lines.push(`  • ${l.name} — ${c.t} (${decisionAge(l,c.t)}d)`)); lines.push("");}
+  const iss=autopilot();
+  lines.push(`*AUTOPILOT* — ${iss.length} open issue(s), health score ${healthScore()}/100 (${grade(healthScore())})`);
+  const z=LAUNCHES.filter(l=>l.complete);
+  if(z.length)lines.push(`\n_Complete: ${z.map(l=>l.name).join(", ")}_`);
+  return lines.join("\n");
+}
+function copyDigest(){const ta=document.getElementById("digestTA");
+  try{navigator.clipboard.writeText(ta?ta.value:buildDigest()); toast("📋 Digest copied — paste into Slack");}
+  catch(e){ if(ta&&ta.select){ta.select(); toast("Select-all done — press Ctrl/⌘C");} }}
+function viewDigest(){
+  return `<span class="back" onclick="go('home')">← Home</span>
+  <h2>📋 Weekly digest <button class="btn" style="margin-left:10px" onclick="copyDigest()">Copy for Slack</button></h2>
+  <div class="sub">Generated live from the tracker — this is what the Phase-2 Slack bot posts to #bv-portfolio every Monday.</div>
+  <textarea id="digestTA" class="digestbox" readonly>${esc(buildDigest())}</textarea>`;
+}
+
+/* ----- new launch intake ----- */
+function newLaunch(){
+  const name=prompt("Product name?"); if(!name)return;
+  const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+  if(!slug||L(slug)){toast("A launch with that name already exists");return;}
+  const dri=prompt("DRI department?","Product")||"Product";
+  const target=prompt("Target launch date (YYYY-MM-DD)?",new Date(D(today).getTime()+180*864e5).toISOString().slice(0,10));
+  LAUNCHES.push({name,slug,dri:DEPTS().includes(dri)?dri:"Product",stage:"Concept",target:target||"2026-12-31",
+    history:[{stage:"Concept",start:today}],tasks:allTasks({}),risks:[],
+    checkins:[{d:today,a:"system",txt:"Card created from template. Everything is locked until the intake Form is done."}]});
+  log("🆕 New launch created: "+name);
+  toast("🆕 "+name+" created — fill the intake Form to unlock the pipeline"); openL(slug);
+}
+
+/* ----- confetti on push ----- */
+function boom(){try{
+  for(let i=0;i<26;i++){const c=document.createElement("div"); c.className="cf";
+    c.style.left=(8+Math.random()*84)+"vw"; c.style.background=["#e8b765","#4ade80","#60a5fa","#c084fc","#f87171"][i%5];
+    c.style.animationDelay=(Math.random()*.3)+"s"; document.body.appendChild(c);
+    setTimeout(()=>{try{c.remove();}catch(e){}},1800);}
+}catch(e){}}
+function runFix(idx){ const i=autopilot()[idx]; if(i&&i.fix){i.fix(); toast("⚡ Fixed: "+i.msg.slice(0,60)); render();} }
+function addRisk(slug){ const t=prompt("Risk (one line)"); if(!t)return;
+  const owner=prompt("Owning department","Product")||"—"; const sc=parseInt(prompt("Score 1-9 (likelihood × impact)","6"))||5;
+  const trigger=prompt("Trigger / early warning","")||"—";
+  (L(slug).risks=L(slug).risks||[]).push({t,owner,sc,trigger}); log("⚠️ Risk added to "+L(slug).name); toast("Risk logged"); render(); }
+
+/* ----- persistence (guarded): autosave, export, reset ----- */
+function snapshot(){return JSON.stringify({v:1,TEAM,LAUNCHES,CAMPAIGNS,LOG,GATES,FLOW});}
+function save(){try{if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot());}catch(e){}}
+function loadSaved(){try{
+  if(typeof localStorage==="undefined")return;
+  const s=localStorage.getItem("bv-superpm"); if(!s)return; const d=JSON.parse(s); if(d.v!==1)return;
+  TEAM.length=0;d.TEAM.forEach(x=>TEAM.push(x));
+  LAUNCHES.length=0;d.LAUNCHES.forEach(x=>LAUNCHES.push(x));
+  CAMPAIGNS.length=0;d.CAMPAIGNS.forEach(x=>CAMPAIGNS.push(x));
+  LOG.length=0;(d.LOG||[]).forEach(x=>LOG.push(x));
+  Object.keys(GATES).forEach(k=>delete GATES[k]);Object.entries(d.GATES).forEach(([k,v])=>GATES[k]=v);
+  Object.keys(FLOW).forEach(k=>delete FLOW[k]);Object.entries(d.FLOW).forEach(([k,v])=>FLOW[k]=v);
+}catch(e){}}
+function resetDemo(){try{if(typeof localStorage!=="undefined")localStorage.removeItem("bv-superpm");}catch(e){} location.reload();}
+function exportJSON(){try{
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([snapshot()],{type:"application/json"}));
+  a.download="bv-superpm-backup.json"; a.click(); toast("⬇ Backup downloaded");
+}catch(e){toast("Export unavailable here");}}
+
+/* ----- drawer (activity + inbox) ----- */
+function toggleDrawer(){const d=document.getElementById("drawer"); if(d&&d.classList)d.classList.toggle("openD"); renderDrawer();}
+function renderDrawer(){const b=document.getElementById("drawerBody"); if(!b)return;
+  const issues=autopilot();
+  b.innerHTML=`<h3 style="color:var(--accent);font-size:13px;margin-bottom:8px">📥 INBOX — ${issues.length} open issue(s)</h3>
+  ${issues.map((i,k)=>`<div class="autofix"><span class="sev" style="background:${i.sev==="red"?"var(--red)":"var(--amber)"}"></span>
+    <span style="flex:1;font-size:12.5px">${esc(i.msg)}</span>
+    ${i.fix?`<button class="btn" style="padding:4px 10px;font-size:12px" onclick="runFix(${k})">${i.fixLabel||"Fix"}</button>`:""}</div>`).join("")||'<div class="sub">All clear ✨</div>'}
+  <h3 style="color:var(--accent);font-size:13px;margin:16px 0 8px">📜 ACTIVITY</h3>
+  ${LOG.slice(0,40).map(e=>`<div class="feeditem"><div class="d">${e.d}</div>${esc(e.m)}</div>`).join("")}
+  <div style="margin-top:14px"><button class="iconbtn" onclick="resetDemo()">↺ Reset demo data</button></div>`;}
+
+/* ----- command palette ----- */
+function palItems(q){ const items=[];
+  LAUNCHES.forEach(l=>items.push({k:"🚀 Open "+l.name,f:()=>openL(l.slug)}));
+  NAVS.forEach(([v,lab])=>items.push({k:"📍 Go to "+lab,f:()=>go(v)}));
+  items.push({k:"⚡ Run auto-correct all",f:autoFixAll});
+  items.push({k:"🆕 New launch…",f:newLaunch});
+  items.push({k:"📋 Weekly digest (copy for Slack)",f:()=>go("digest")});
+  items.push({k:"⬇ Export JSON backup",f:exportJSON});
+  LAUNCHES.forEach(l=>l.tasks.forEach((t,i)=>items.push({k:"☑ "+l.name+" · "+t.t,f:()=>jumpTask(l.slug,i)})));
+  return items.filter(it=>it.k.toLowerCase().includes((q||"").toLowerCase())).slice(0,9);
+}
+function openPal(){S.palSel=0;const p=document.getElementById("pal");if(p)p.style.display="flex";const q=document.getElementById("palQ");if(q){q.value="";q.focus();}renderPal();}
+function closePal(){const p=document.getElementById("pal");if(p)p.style.display="none";}
+function renderPal(){const q=document.getElementById("palQ"),list=document.getElementById("palList");if(!list)return;
+  const items=palItems(q?q.value:"");
+  list.innerHTML=items.map((it,i)=>`<div class="palitem ${i===S.palSel?"sel":""}" onclick="palItems(document.getElementById('palQ').value)[${i}].f();closePal();">${esc(it.k)}</div>`).join("");}
+function palKey(e){const q=document.getElementById("palQ");const items=palItems(q?q.value:"");
+  if(e.key==="ArrowDown"){S.palSel=Math.min(S.palSel+1,items.length-1);renderPal();e.preventDefault();}
+  else if(e.key==="ArrowUp"){S.palSel=Math.max(S.palSel-1,0);renderPal();e.preventDefault();}
+  else if(e.key==="Enter"){const it=items[S.palSel];if(it){it.f();closePal();}}
+  else if(e.key==="Escape"){closePal();}else{S.palSel=0;}}
+
+/* ================= DEPARTMENT COLORS (consistent everywhere) ================= */
+const DPAL=["#60a5fa","#c084fc","#34d399","#f472b6","#fbbf24","#f87171","#e879f9","#38bdf8","#a3e635","#fb923c"];
+const DCOLOR=d=>{const i=TEAM.findIndex(t=>t.name===d);return DPAL[(i<0?9:i)%DPAL.length];};
+
+/* ================= EVIDENCE-REQUIRED TASKS (from the Task Playbook workbook) ================= */
+const EVID=new Set(["Prototype 1-2-3 approved","Pre-production sample approved + BOM","Mass production complete",
+ "Hero / lifestyle shoot done","Content exported (instruction / lifestyle / social clips)","A+ / infographic assets ready",
+ "Amazon SKU created","Shopify SKU created","Listings published live (Amazon + Shopify)",
+ "Marketing brief finalized & ready","Launch ads running"]);
+/* short definition-of-done lines (full versions live in BV-Task-Playbook.xlsx) */
+const DOD={"Form (intake)":"Intake complete: why, spec, look, material, customer, price.",
+ "Market research":"Competitor set + product strengths documented.",
+ "Concept definition":"Definition written, brainstorm held, Figma updated.",
+ "Prototype 1-2-3 approved":"Final iteration accepted; QC notes attached.",
+ "Costing & profit signed off":"Costing sheet + margin target approved.",
+ "Design freeze":"No further changes; freeze announced to all departments.",
+ "Pre-production sample approved + BOM":"Two samples (factory + US); BOM filed.",
+ "Mass production complete":"Factory confirms completion; QC report attached.",
+ "Packaging / insert / manual locked":"Dielines final; print-ready files in Drive.",
+ "Model name set":"Name confirmed with Ben; brand check done.",
+ "A+ / infographic assets ready":"All A+ modules + infographics exported to spec.",
+ "Listing imagery / A+ uploaded":"Imagery live in Amazon/Shopify backends.",
+ "Competitor analysis":"Competitor listings analyzed: pricing, reviews, keywords.",
+ "Amazon SKU created":"SKU exists in Seller Central with core attributes.",
+ "Shopify SKU created":"SKU exists in Shopify with core attributes.",
+ "Product data filed → marketing brief":"Product page data filed; feeds the brief.",
+ "Listings published live (Amazon + Shopify)":"Both listings public and purchasable.",
+ "Hero / lifestyle shoot done":"Shoot complete; selects folder shared.",
+ "Post-production done":"Edits final; color/sound approved.",
+ "Content exported (instruction / lifestyle / social clips)":"All formats exported & filed by type.",
+ "Channel posts live (IG / YouTube / TikTok)":"Launch posts live on all three channels.",
+ "Marketing brief finalized & ready":"Brief v2 final — unblocks influencer outreach.",
+ "KOL / influencer projects live":"First KOL wave live.",
+ "Launch ads running":"Launch campaigns active.",
+ "Launch email sequence sent":"Full launch sequence delivered."};
+
+/* ================= STATE ================= */
+let S={role:"ceo",view:"home",launch:null,dept:"Design",flowLaunch:"apex",open:{},progLaunch:"apex",q:"",palSel:0};
+const NAVS=[["home","Home"],["portfolio","Portfolio"],["progress","Progress"],["timeline","Timeline"],["dept","Departments"],["flow","Master flow"],["campaign","Campaigns"],["team","Team"]];
+const stIcon={x:"✓",p:"…",b:"!",o:""};
+const fmt=d=>new Date(d+"T00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+const today="2026-06-10";
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.style.display="block";setTimeout(()=>t.style.display="none",3000);}
+function setRole(v){ if(v==="ceo"||v==="director"){S.role=v;} else {S.role="dept";S.dept=v.slice(5);} S.view="home";S.launch=null;render(); }
+function go(v){S.view=v;S.launch=null;render();}
+function openL(slug){S.view="launch";S.launch=slug;render();}
+const L=slug=>LAUNCHES.find(x=>x.slug===slug);
+
+/* ================= ACTIONS (all by task index — mock commits) ================= */
+function cycle(slug,i){ // checkbox click cycles status: todo → in progress → done → blocked → todo
+  const l=L(slug), t=l.tasks[i];
+  if(taskLocked(l,t)){toast("🔒 Locked — "+lockReason(l,t));return;}
+  const nx={o:"p",p:"x",x:"b",b:"o"}[t.st];
+  if(nx==="x"&&EVID.has(t.t)&&!(t.links||[]).length){toast("📎 Evidence required — attach a link before marking done (see Task Playbook)");return;}
+  t.st=nx; if(nx==="x")log("☑ "+l.name+" · "+t.t+" done"); if(nx==="b")log("⛔ "+l.name+" · "+t.t+" blocked"); render();
+}
+function lockReason(l,t){
+  const form=l.tasks.find(x=>x.t==="Form (intake)");
+  if(form&&form.st!=="x"&&t.t!=="Form (intake)") return "fill the intake Form first";
+  const lane=FLOW[t.d];
+  if(lane){const i=lane.findIndex(n=>n.t===t.t);
+    for(let k=0;k<i;k++){const p=lane[k]; if(p.t){const pt=l.tasks.find(x=>x.t===p.t); if(pt&&pt.st!=="x") return `finish “${p.t}” first`;}}}
+  if(STAGES.indexOf(t.stage)>STAGES.indexOf(l.stage)) return `unlocks at the ${t.stage} stage`;
+  return "complete the previous step first";
+}
+function approve(slug,i){
+  const l=L(slug), t=l.tasks[i];
+  if(S.role!=="ceo"){toast("◆ gates can only be approved by Ben (CEO)");return;}
+  t.st="x"; l.checkins.unshift({d:today,a:"Ben",txt:`Approved “${t.t}” via Slack. (Mock: committed as [x] + audit line.)`});
+  if(l.decisionRequested) delete l.decisionRequested[t.t];
+  log("✓ Ben approved ◆ on "+l.name);
+  toast("✓ Approved — committed to repo, Slack message updated"); render();
+}
+function addLink(slug,i){
+  const u=prompt("Paste link URL (Drive doc, Figma, listing…)"); if(!u)return;
+  const n=prompt("Short label for this link","Document")||"Link";
+  (slug==="__camp"?CAMPAIGNS[0].tasks[i]:L(slug).tasks[i]).links.push({n,u});
+  toast("🔗 Link attached to task"); render();
+}
+function push(slug){
+  const l=L(slug);
+  if(!allMet(l)){toast("🔒 Locked — not all exit criteria are met");return;}
+  if(!canPushRole(l)){toast(`Only the DRI (${l.dri}), a mandatory department head, or Ben can push`);return;}
+  const i=STAGES.indexOf(l.stage);
+  if(i>=STAGES.length-1){l.complete=true;}else{l.stage=STAGES[i+1];}
+  const who=S.role==="ceo"?"Ben":S.dept+" (head)";
+  l.checkins.unshift({d:today,a:who,txt:`Pushed to ${l.complete?"Complete":l.stage}. ${l.complete?"":"Slack: notified "+mandatory(l).join(", ")+" — their stage begins."}`});
+  log("🚀 "+l.name+" pushed to "+(l.complete?"Complete":l.stage)+" by "+who);
+  boom();
+  if(!l.complete){const r=prompt(`Pre-mortem (optional): biggest risk entering ${l.stage}?`);
+    if(r){(l.risks=l.risks||[]).push({t:r,owner:l.dri,sc:5,trigger:"—"}); log("⚠️ Pre-mortem risk logged on "+l.name);}}
+  toast("🚀 Pushed — next-stage departments alerted in Slack"); render();
+}
+function setDRI(slug,d){ const l=L(slug); l.checkins.unshift({d:today,a:"system",txt:`DRI changed ${l.dri} → ${d}.`}); l.dri=d; toast("DRI updated"); render(); }
+function addCheckin(slug){
+  const v=document.getElementById("ci").value.trim(); if(!v)return;
+  L(slug).checkins.unshift({d:today,a:S.role==="dept"?S.dept:"Ben",txt:v}); toast("Check-in posted"); render();
+}
+/* in-card task editing */
+function toggle(key){S.open[key]=!S.open[key];render();}
+function setF(slug,i,f,v){ L(slug).tasks[i][f]=v; toast(f==="urg"?"Urgency set to "+v:"Assignee updated"); render(); }
+function addNote(slug,i){
+  const el=document.getElementById(`nt-${slug}-${i}`); const v=(el&&el.value||"").trim(); if(!v)return;
+  L(slug).tasks[i].notes.push({d:today,a:S.role==="dept"?S.dept:"Ben",txt:v}); toast("Note added"); render();
+}
+function addLoom(slug,i){
+  const u=prompt("Paste Loom / video URL"); if(!u)return;
+  L(slug).tasks[i].notes.push({d:today,a:S.role==="dept"?S.dept:"Ben",txt:"Video walkthrough",v:u}); toast("🎥 Video attached"); render();
+}
+/* team editing */
+function teamEdit(i,f,v){ if(f==="name"){renameDept(TEAM[i].name,v);} else TEAM[i][f]=v; render(); }
+function renameDept(o,n){ n=n.trim(); if(!n||o===n)return;
+  TEAM.find(t=>t.name===o).name=n;
+  LAUNCHES.forEach(l=>{l.tasks.forEach(t=>{if(t.d===o)t.d=n;}); if(l.dri===o)l.dri=n;});
+  CAMPAIGNS.forEach(c=>c.tasks.forEach(t=>{if(t.d===o)t.d=n;}));
+  Object.values(GATES).forEach(cs=>cs.forEach(c=>{if(c.d===o)c.d=n;}));
+  if(FLOW[o]){FLOW[n]=FLOW[o]; if(o!==n)delete FLOW[o];}
+  if(S.dept===o)S.dept=n; toast(`Department renamed ${o} → ${n} everywhere`);
+}
+function addDept(){ TEAM.push({name:"New Department",role:"Describe this team's responsibility…",head:"",members:""}); render(); }
+function delDept(i){ const d=TEAM[i].name;
+  const used=LAUNCHES.some(l=>l.dri===d||l.tasks.some(t=>t.d===d))||Object.values(GATES).some(cs=>cs.some(c=>c.d===d));
+  if(used){toast(`Cannot remove ${d} — tasks or gates still reference it`);return;}
+  TEAM.splice(i,1); render();
+}
+
+/* ================= RENDER HELPERS ================= */
+const linkChips=(task,slug,i)=>(task.links||[]).map(k=>`<a class="lnk" href="${k.u}" target="_blank" title="${esc(k.u)}">🔗 ${esc(k.n)}</a>`).join("")+`<button class="addlnk" onclick="event.stopPropagation();addLink('${slug}',${i})">+ link</button>`;
+function taskRow(l,t,extra){
+  const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
+  const vids=t.notes.filter(n=>n.v).length; const lk=taskLocked(l,t);
+  return `<div id="task-${l.slug}-${i}" style="border-radius:8px"><div class="row" style="${lk?"opacity:.38;filter:grayscale(.6)":""}">
+   <span class="st ${lk?"":t.st}" title="${lk?"locked — "+esc(lockReason(l,t)):"click to cycle status"}" onclick="cycle('${l.slug}',${i})">${lk?"🔒":stIcon[t.st]}</span>
+   <span>${esc(t.t)}${t.gate?' <span style="color:var(--purple)">◆</span>':""}
+    ${lk?'<span class="urg" style="background:#1d2127;color:var(--faint)">locked</span>':`<span class="urg ${t.urg}" title="urgency">${t.urg}</span>`}${t.assignee?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
+    ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
+    ${lk?"":linkChips(t,l.slug,i)}
+    <button class="exp" onclick="toggle('${key}')">${open?"▴ close":"▾ details"}${t.notes.length?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button></span>
+   <span class="o" style="color:${DCOLOR(t.d)}">${extra||t.d}</span></div>
+   ${open?(lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>Locked.</b> ${esc(lockReason(l,t)).replace(/^./,c=>c.toUpperCase())}. ${DOD[t.t]?`<div style="margin-top:6px;color:var(--faint)">Definition of done: ${esc(DOD[t.t])}</div>`:""}</div>`:taskPanel(l,t,i)):""}</div>`;
+}
+function taskPanel(l,t,i){
+  return `<div class="taskpanel">
+   ${DOD[t.t]?`<div style="margin-bottom:8px;color:var(--dim)">✅ <b>Done means:</b> ${esc(DOD[t.t])}${EVID.has(t.t)?' <span style="color:#67e8f9">· evidence link required</span>':""}</div>`:""}
+   <div class="frow"><label>Assign</label><input type="text" list="people" value="${esc(t.assignee)}" placeholder="person or team…" onchange="setF('${l.slug}',${i},'assignee',this.value)">
+    <label>Urgency</label><select onchange="setF('${l.slug}',${i},'urg',this.value)">${["low","med","high","urgent"].map(u=>`<option ${u===t.urg?"selected":""}>${u}</option>`).join("")}</select>
+    <button class="btn ghost" onclick="addLoom('${l.slug}',${i})">🎥 Attach Loom / video</button></div>
+   ${t.notes.map(n=>`<div class="note"><div class="d">${fmt(n.d)} — ${esc(n.a)}</div>${esc(n.txt)} ${n.v?`<a class="lnk" href="${n.v}" target="_blank">🎥 watch</a>`:""}</div>`).join("")||'<div class="sub" style="margin-bottom:8px">No notes yet.</div>'}
+   <div class="frow" style="margin-bottom:0"><input type="text" id="nt-${l.slug}-${i}" placeholder="Add a note…" style="flex:1"><button class="btn" onclick="addNote('${l.slug}',${i})">Add note</button></div>
+  </div>`;
+}
+const cardHTML=l=>{const g=gateState(l),[h,cls]=health(l);const si=STAGES.indexOf(l.stage);
+  const dots=STAGES.map((s,i)=>`<span title="${s}" style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;background:${l.complete||i<si?"#4ade80":i===si?"var(--accent)":"#2a2f37"};${i===si&&!l.complete?"box-shadow:0 0 6px var(--accent)":""}"></span>`).join("");
+  const done=l.tasks.filter(t=>t.st==="x").length;
+  return `<div class="card" onclick="openL('${l.slug}')"><div class="nm">${l.name}</div><div class="meta">DRI: <b style="color:${DCOLOR(l.dri)}">${l.dri}</b> · 🎯 ${fmt(l.target)}</div>
+  <div style="margin:7px 0 5px">${dots}</div>
+  <div class="bar"><i style="width:${Math.round(done/l.tasks.length*100)}%"></i></div>
+  <div class="meta">${g.met}/${g.total} gate criteria · ${done}/${l.tasks.length} tasks overall</div>
+  ${l.complete?"":`<div class="meta" style="margin-top:4px">→ ${(()=>{const cn=criticalNext(l);return cn?esc(cn.t):"—";})()}</div>`}
+  <span class="pill ${cls}">${h}</span>${l.complete?"":` <span class="pill ${floatDays(l)<0?"bad":"ok"}" title="days of slack before the target is at risk">float ${floatDays(l)}d</span>`}</div>`;};
+
+/* ================= MASTER FLOW CHART RENDER (SVG, live-colored per launch) ================= */
+function flowSVG(l){
+  const depts=Object.keys(FLOW).filter(d=>DEPTS().includes(d)||FLOW[d]);
+  const CW=158,GAP=14,NH=46,VG=66,TOP=56;
+  const W=depts.length*(CW+GAP)+GAP, H=TOP+Math.max(...depts.map(d=>FLOW[d].length))*VG+30;
+  const pos=(d,i)=>{const c=depts.indexOf(d);return {x:GAP+c*(CW+GAP),y:TOP+i*VG};};
+  const fill={x:"#14331f",p:"#33260f",b:"#331414",o:"#1d2127",fut:"#15171b"};
+  const strk={x:"#4ade80",p:"#fbbf24",b:"#f87171",o:"#3a414b",fut:"#262b32"};
+  const stateOf=(n,d,i)=>{
+    if(n.t){const t=l.tasks.find(x=>x.t===n.t); if(t){ if(t.st!=="o")return t.st; return nodeLocked(l,d,i)?"fut":"o"; }}
+    const si=STAGES.indexOf(n.s),ci=STAGES.indexOf(l.stage);
+    if(l.complete||si<ci) return "x";
+    return nodeLocked(l,d,i)?"fut":si===ci?"o":"fut";
+  };
+  const here=nextUnmet(l);
+  let svg=`<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit">
+  <defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#4a5260"/></marker></defs>`;
+  // columns + headers
+  depts.forEach((d,c)=>{const x=GAP+c*(CW+GAP);
+    svg+=`<rect x="${x-6}" y="10" width="${CW+12}" height="${H-20}" rx="10" fill="#13161a" stroke="#22262d"/>
+    <text x="${x+CW/2}" y="34" text-anchor="middle" fill="${DCOLOR(d)}" font-size="13" font-weight="700">${esc(d)}</text>`;});
+  // in-column arrows
+  depts.forEach(d=>FLOW[d].forEach((n,i)=>{ if(i<FLOW[d].length-1){const a=pos(d,i),b=pos(d,i+1);
+    svg+=`<line x1="${a.x+CW/2}" y1="${a.y+NH}" x2="${b.x+CW/2}" y2="${b.y-3}" stroke="#4a5260" stroke-width="1.3" marker-end="url(#ar)"/>`;}}));
+  // cross links
+  CROSS.forEach(([fd,fi,td,ti])=>{ if(!FLOW[fd]||!FLOW[td])return; const a=pos(fd,fi),b=pos(td,ti);
+    const ax=a.x+CW, ay=a.y+NH/2, bx=b.x, by=b.y+NH/2, mx=(ax+bx)/2;
+    svg+=`<path d="M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx-4} ${by}" fill="none" stroke="#3d4654" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar)"/>`;});
+  // nodes
+  depts.forEach(d=>FLOW[d].forEach((n,i)=>{const {x,y}=pos(d,i);const st=stateOf(n,d,i);
+    const isHere=n.t&&n.t===here;
+    const ti=n.t?l.tasks.findIndex(x=>x.t===n.t):-1;
+    const click=ti>=0?` style="cursor:pointer" onclick="jumpTask('${l.slug}',${ti})"`:` style="cursor:pointer" onclick="openL('${l.slug}')"`;
+    const lines=wrap(n.l,24);
+    const body=n.d
+      ?`<polygon points="${x+CW/2},${y-2} ${x+CW+4},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-4},${y+NH/2}" fill="${fill[st]}" stroke="${isHere?"#e8b765":strk[st]}" stroke-width="${isHere?2.5:1.4}"/>`
+      :`<rect x="${x}" y="${y}" width="${CW}" height="${NH}" rx="9" fill="${fill[st]}" stroke="${isHere?"#e8b765":strk[st]}" stroke-width="${isHere?2.5:1.4}"/>`;
+    const tcol=st==="fut"?"#5a626d":st==="o"?"#aab3bd":{x:"#4ade80",p:"#fbbf24",b:"#f87171"}[st]||"#e8eaed";
+    svg+=`<g${click}>${body}${lines.map((ln,k)=>`<text x="${x+CW/2}" y="${y+NH/2+(k-(lines.length-1)/2)*12+4}" text-anchor="middle" fill="${tcol}" font-size="9.5">${esc(ln)}</text>`).join("")}
+    ${n.d?`<text x="${x+CW/2}" y="${y-6}" text-anchor="middle" fill="#c084fc" font-size="9">◆ decision</text>`:""}
+    ${isHere?`<text x="${x+CW/2}" y="${y+NH+14}" text-anchor="middle" fill="#e8b765" font-size="10" font-weight="700">📍 ${l.name} is here</text>`:""}
+    <title>${esc(n.l)} — stage: ${n.s}${ti>=0?" · click to open this task on the card":""}${st==="fut"&&ti>=0?" · 🔒 locked until previous step is done":""}</title></g>`;}));
+  svg+="</svg>";
+  return `<div class="flowwrap">${svg}</div>`;
+}
+function wrap(s,w){const words=s.split(" ");const out=[""];for(const wd of words){if((out[out.length-1]+" "+wd).trim().length>w)out.push(wd);else out[out.length-1]=(out[out.length-1]+" "+wd).trim();}return out.slice(0,3);}
+
+/* ================= VIEWS ================= */
+function homeCEO(){
+  const q=benQueue(), blocked=LAUNCHES.flatMap(l=>l.tasks.filter(t=>t.st==="b").map(t=>({l,t})));
+  const bf=Math.ceil((new Date("2026-11-27")-new Date(today))/864e5);
+  const issues=autopilot(); const hs=healthScore();
+  return `<h2>CEO lens</h2><div class="sub">Decisions and exceptions only — Autopilot watches everything else.</div>
+  <div class="panel"><div class="gauge">${gaugeSVG(hs)}<div><b style="font-size:15px">Portfolio health</b>
+    <div class="sub" style="margin:2px 0 8px">Score starts at 100; blocked tasks, SLA breaches, negative float, stale check-ins and WIP overload subtract. Fix the inbox to raise it.</div>
+    <button class="btn ghost" onclick="go('digest')">📋 Generate weekly digest</button>
+    <button class="btn ghost" onclick="toggleDrawer()">🔔 Triage ${issues.length} issue(s)</button></div></div></div>
+  <div class="kpis"><div class="kpi"><div class="n">${LAUNCHES.filter(l=>!l.complete).length}</div><div class="l">Active launches</div></div>
+  <div class="kpi"><div class="n" style="color:var(--purple)">${q.length}</div><div class="l">◆ awaiting your decision</div></div>
+  <div class="kpi"><div class="n" style="color:var(--red)">${blocked.length}</div><div class="l">Blocked tasks</div></div>
+  <div class="kpi" style="cursor:pointer" onclick="toggleDrawer()"><div class="n" style="color:var(--amber)">${issues.length}</div><div class="l">Autopilot issues — click to triage</div></div>
+  <div class="kpi"><div class="n">${bf}d</div><div class="l">to Black Friday</div></div></div>
+  <div class="panel"><h3>◆ MY DECISION QUEUE <span class="ghostnote">(SLA: ${SLA_DAYS} days)</span></h3>${q.length?q.map(({l,c})=>{const i=l.tasks.indexOf(c.task);const age=decisionAge(l,c.t);return `<div class="gatecard"><b>${l.name}</b> — ${esc(c.t)} <span class="sla ${age>SLA_DAYS?"over":"ok"}">${age}d ${age>SLA_DAYS?"· SLA BREACHED":"in SLA"}</span><div class="sub" style="margin:4px 0 8px">All other ${l.stage} exit criteria are met. Approving unblocks the push to ${STAGES[STAGES.indexOf(l.stage)+1]||"done"}. DRI: ${l.dri}.</div><button class="btn" onclick="approve('${l.slug}',${i})">✓ Approve</button> <button class="btn red" onclick="toast('Reject flow: Slack modal asks for a reason → lands in check-in log')">✕ Reject</button> <button class="btn ghost" onclick="openL('${l.slug}')">Open card</button></div>`;}).join(""):'<div class="sub">Nothing waiting on you. 🎉</div>'}</div>
+  <div class="panel"><h3>🎯 FOCUS — the one task per launch that moves the date</h3>
+   ${LAUNCHES.filter(l=>!l.complete).map(l=>{const cn=criticalNext(l);const fl=floatDays(l);return `<div class="row" style="cursor:pointer" onclick="openL('${l.slug}')"><span style="color:${DCOLOR(l.dri)}">●</span><span><b>${l.name}</b> → ${cn?esc(cn.t)+" <span class='ghostnote'>("+cn.d+")</span>":"—"}</span><span class="o"><span class="pill ${fl<0?"bad":fl<7?"risk":"ok"}">float ${fl}d</span> <span class="ghostnote">forecast ${fmt(forecastDate(l))}</span></span></div>`;}).join("")}
+   <div class="ghostnote" style="margin-top:6px">Float = days of slack before the target date is at risk. Negative float = already late on paper.</div></div>
+  <div class="panel"><h3>EXCEPTIONS</h3>${blocked.length?blocked.map(({l,t})=>`<div class="row"><span class="st b">!</span><span><b>${l.name}</b> · ${esc(t.t)}</span><span class="o">${t.d}</span></div>`).join(""):'<div class="sub">No blocked tasks.</div>'}</div>
+  ${portfolioBoard()}`;
+}
+function homeDirector(){
+  const active=LAUNCHES.filter(l=>!l.complete);
+  const matrix=DEPTS().map(d=>({d,cells:active.map(l=>({owed:gateState(l).cs.filter(c=>c.d===d&&c.task.st!=="x").length,blk:l.tasks.filter(t=>t.d===d&&t.st==="b").length}))})).filter(r=>r.cells.some(c=>c.owed||c.blk));
+  return `<h2>Director lens</h2><div class="sub">Cross-department flow: where work piles up, which team blocks which gate.</div>
+  <div class="panel"><h3>STAGE FUNNEL</h3><div class="board">${STAGES.map(s=>`<div class="col"><h4>${s}</h4><div class="kpi"><div class="n">${active.filter(l=>l.stage===s).length}</div></div></div>`).join("")}</div></div>
+  <div class="panel"><h3>GATE DEBT — what each department owes the current gates</h3><table><tr><th>Department</th>${active.map(l=>`<th>${l.name}</th>`).join("")}</tr>${matrix.map(r=>`<tr><td>${r.d}</td>${r.cells.map(c=>`<td>${c.blk?`<span class="cell bad">${c.blk} blocked</span>`:""} ${c.owed?`<span class="cell risk">${c.owed} owed</span>`:c.blk?"":'<span class="cell ok">—</span>'}</td>`).join("")}</tr>`).join("")}</table></div>
+  <div class="panel"><h3>🌊 WORK IN PROGRESS vs LIMIT (${WIP_LIMIT} per team)</h3>
+   ${DEPTS().map(d=>{const w=wip(d);if(!w)return "";return `<div class="dbar"><span class="nm2" style="color:${DCOLOR(d)}">${d}</span><div class="tr"><div class="fl" style="width:${Math.min(100,w/(WIP_LIMIT+2)*100)}%;background:${w>WIP_LIMIT?"var(--red)":DCOLOR(d)+"cc"}">${w}${w>WIP_LIMIT?" — over limit!":""}</div></div></div>`;}).join("")}
+   <div class="ghostnote">Too much parallel work halves everyone's speed. Over-limit teams should finish before starting.</div></div>
+  <div class="panel"><h3>CHECK-IN COMPLIANCE (weekly)</h3>${active.map(l=>{const last=l.checkins[0],fresh=last&&(new Date(today)-new Date(last.d))/864e5<=7;return `<div class="row"><span class="st ${fresh?"x":"b"}">${fresh?"✓":"!"}</span><span><b>${l.name}</b> — last check-in ${last?fmt(last.d):"never"} (${last?last.a:"—"})</span><span class="o">${fresh?"fresh":"stale — nudge DRI"}</span></div>`;}).join("")}</div>`;
+}
+function homeDept(){
+  const d=S.dept;
+  const mine=LAUNCHES.filter(l=>!l.complete).flatMap(l=>l.tasks.filter(t=>t.d===d).map(t=>({l,t})));
+  const owed=LAUNCHES.filter(l=>!l.complete).flatMap(l=>gateState(l).cs.filter(c=>c.d===d&&c.task.st!=="x").map(c=>({l,c})));
+  const driOf=LAUNCHES.filter(l=>!l.complete&&l.dri===d);
+  const UO={urgent:0,high:1,med:2,low:3};
+  const grp=s=>mine.filter(x=>x.t.st===s).sort((a,b)=>(UO[a.t.urg]??2)-(UO[b.t.urg]??2));
+  const pb=[...new Set(LAUNCHES[0].tasks.filter(t=>t.d===d).map(t=>t.t))];
+  return `<h2>Department lens — <select onchange="S.dept=this.value;render()">${DEPTS().map(x=>`<option ${x===d?"selected":""}>${x}</option>`).join("")}</select></h2>
+  <div class="sub">${esc((TEAM.find(t=>t.name===d)||{}).role||"")}</div>
+  <div class="panel"><h3>📘 OUR PLAYBOOK — how ${d} updates tasks</h3>
+   ${pb.map(t=>`<div class="row"><span style="color:${DCOLOR(d)}">▸</span><span><b>${esc(t)}</b>${DOD[t]?` — <span style="color:var(--dim)">${esc(DOD[t])}</span>`:""}${EVID.has(t)?' <span class="urg" style="background:#13262e;color:#67e8f9">📎 evidence required</span>':""}</span></div>`).join("")}
+   <div class="sub" style="margin-top:8px">Full version (definitions, evidence types, estimates, dependencies) lives in <b>BV-Task-Playbook.xlsx</b> — your team edits the ${d} tab and the tracker adopts your rules.</div></div>
+  ${driOf.length?`<div class="panel"><h3>CARDS WHERE ${d.toUpperCase()} IS DRI</h3><div class="board">${driOf.map(l=>`<div class="col">${cardHTML(l)}</div>`).join("")}</div></div>`:""}
+  <div class="panel"><h3>WHAT ${d.toUpperCase()} OWES THE CURRENT GATES</h3>${owed.length?owed.map(({l,c})=>`<div class="row"><span class="st ${c.task.st}" onclick="cycle('${l.slug}',${l.tasks.indexOf(c.task)})">${stIcon[c.task.st]}</span><span><b>${l.name}</b> · ${esc(c.t)}</span><span class="o">gates ${l.stage} → next</span></div>`).join(""):'<div class="sub">Nothing owed — no gate is waiting on this team.</div>'}</div>
+  <div class="twocol">${[["b","Blocked"],["p","In progress"],["o","To do"]].map(([s,lbl])=>`<div class="panel"><h3>${lbl.toUpperCase()} (${grp(s).length})</h3>${grp(s).map(({l,t})=>taskRow(l,t,l.name)).join("")||'<div class="sub">None.</div>'}</div>`).join("")}</div>
+  <div class="panel"><h3>POST A CHECK-IN</h3><select id="ciL">${LAUNCHES.filter(l=>!l.complete).map(l=>`<option value="${l.slug}">${l.name}</option>`).join("")}</select><div style="margin-top:8px"><textarea id="ci" placeholder="Progress: …  Blockers: …  Asks: …"></textarea></div><div style="margin-top:8px"><button class="btn" onclick="addCheckin(document.getElementById('ciL').value)">Post check-in</button> <span class="sub" style="display:inline">posts to the card + its Slack channel</span></div></div>`;
+}
+function portfolioBoard(){
+  const f=l=>!S.q||l.name.toLowerCase().includes(S.q.toLowerCase())||l.dri.toLowerCase().includes(S.q.toLowerCase());
+  return `<div class="panel"><h3>PORTFOLIO — ALL LAUNCHES BY STAGE${S.q?` <span class="ghostnote">(filtered: “${esc(S.q)}”)</span>`:""}</h3><div class="board">${STAGES.map(s=>{const ls=LAUNCHES.filter(l=>l.stage===s&&f(l));return `<div class="col"><h4>${s} <span>${ls.length||""}</span></h4>${ls.map(cardHTML).join("")}</div>`;}).join("")}</div></div>`;
+}
+function viewLaunch(){
+  const l=L(S.launch); const g=gateState(l); const idx=STAGES.indexOf(l.stage);
+  const next=STAGES[idx+1]; const [h,cls]=health(l);
+  const pend=g.cs.find(c=>c.ben&&c.task.st!=="x"&&g.cs.filter(o=>!o.ben).every(o=>o.task.st==="x"));
+  const mand=mandatory(l);
+  const pushable=allMet(l), allowed=canPushRole(l);
+  return `<span class="back" onclick="go('portfolio')">← Portfolio</span>
+  <h2>${l.name} <span class="pill ${cls}">${h}</span></h2>
+  <div class="sub">DRI: <select onchange="setDRI('${l.slug}',this.value)" title="change DRI">${DEPTS().map(d=>`<option ${d===l.dri?"selected":""}>${d}</option>`).join("")}</select>
+   · target ${fmt(l.target)} · stage <b>${l.complete?"Complete":l.stage}</b>
+   ${l.complete?"":` · float <b style="color:${floatDays(l)<0?"var(--red)":"var(--green)"}">${floatDays(l)}d</b> · velocity ${velocity(l).toFixed(1)} tasks/wk · forecast <b>${fmt(forecastDate(l))}</b>`}</div>
+  <div class="stages">${STAGES.map((s,i)=>`<span class="stg ${i<idx||l.complete?"past":i===idx?"cur":""}">${s}</span>`).join("")}</div>
+  <div class="panel"><h3>📍 POSITION ON THE MASTER FLOW CHART <span style="color:var(--faint);font-weight:400">— the live version of the PDF, passed around with this card</span></h3>
+    ${flowSVG(l)}
+    <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>done</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>in progress</span><span><i style="background:#331414;border:1px solid #f87171"></i>blocked</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>to do (current stage)</span><span><i style="background:#15171b;border:1px solid #262b32"></i>upcoming</span><span style="color:var(--purple)">◆ decision gate</span></div></div>
+  <div class="twocol"><div>
+    <div class="panel"><h3>GATE — ${l.complete?"DONE":l.stage+" → "+(next||"Complete")} (${g.met}/${g.total})</h3>
+      <div style="margin-bottom:10px">${mand.map(d=>`<span class="deptchip ${deptReady(l,d)?"rdy":""}">${deptReady(l,d)?"✓ ":""}${d}${deptReady(l,d)?" ready":" — "+g.cs.filter(c=>c.d===d&&c.task.st!=="x").length+" open"}</span>`).join("")}</div>
+      ${g.cs.map(c=>taskRow(l,c.task)).join("")}
+      <div style="margin-top:10px"><button class="btn" ${pushable&&allowed?"":"disabled"} onclick="push('${l.slug}')">${l.complete?"Launch complete":pushable?(allowed?"🚀 Push to "+(next||"Complete"):"🔒 Ready — push reserved for DRI ("+l.dri+"), mandatory dept heads, or Ben"):"🔒 Push locked — "+(g.total-g.met)+" criteria left"}</button>
+      <div class="sub" style="margin-top:6px">Every department ticks its own items; when all are ✓, the DRI (<b>${l.dri}</b>) or a mandatory department head pushes the card. ◆ items need Ben.</div></div></div>
+    <div class="panel"><h3>⚠️ RISK REGISTER (${(l.risks||[]).length}) <button class="iconbtn" style="float:right" onclick="addRisk('${l.slug}')">+ add risk</button></h3>
+      ${(l.risks||[]).sort((a,b)=>b.sc-a.sc).map(r=>`<div class="risk"><b>${esc(r.t)}</b><span style="float:right;color:${r.sc>=8?"var(--red)":"var(--amber)"};font-weight:700">score ${r.sc}</span><div class="ghostnote">owner: <span style="color:${DCOLOR(r.owner)}">${esc(r.owner)}</span> · trigger: ${esc(r.trigger)}</div></div>`).join("")||'<div class="sub">No risks logged. Add the top 3 at every stage push (pre-mortem).</div>'}</div>
+    ${DEPTS().map(d=>{const ts=l.tasks.filter(t=>t.d===d);return ts.length?`<div class="panel"><h3>${d.toUpperCase()}</h3>${ts.map(t=>taskRow(l,t,t.stage)).join("")}</div>`:"";}).join("")}
+  </div><div>
+    <div class="slack"><div class="hd"># launch-${l.slug}</div><div class="msgs">
+      <div class="msg"><div class="av" style="background:var(--accent)">BV</div><div><span class="who">BV Tracker</span><span class="when">APP · Mon</span><div class="txt">📊 Weekly digest: ${g.met}/${g.total} exit criteria met for <b>${l.stage}</b>. ${l.tasks.filter(t=>t.st==="b").length?"⚠️ "+l.tasks.filter(t=>t.st==="b").length+" blocked task(s).":"No blockers."}</div><div class="thr">↳ 3 replies — discuss in thread</div></div></div>
+      ${pend?`<div class="msg"><div class="av" style="background:var(--accent)">BV</div><div><span class="who">BV Tracker</span><span class="when">APP · today</span><div class="txt">◆ <b>Approval needed:</b> ${esc(pend.t)} — all other ${l.stage} criteria are done. Requested by ${l.dri} (DRI).</div><div class="appr"><div style="margin-bottom:8px">Approving unblocks the push to <b>${next}</b>.</div><button class="btn" onclick="approve('${l.slug}',${l.tasks.indexOf(pend.task)})">✓ Approve</button> <button class="btn red" onclick="toast('Reject opens a reason modal → logged to the card')">✕ Reject</button></div><div class="thr">↳ discuss in thread</div></div></div>`:""}
+      ${l.checkins.slice(0,3).map(c=>`<div class="msg"><div class="av" style="background:#3a4a5a;color:#fff">${c.a[0]}</div><div><span class="who">${esc(c.a)}</span><span class="when">${fmt(c.d)}</span><div class="txt">${esc(c.txt)}</div><div class="thr">↳ thread</div></div></div>`).join("")}
+    </div></div>
+    <div class="panel" style="margin-top:18px"><h3>CHECK-IN LOG</h3>${l.checkins.map(c=>`<div class="checkin"><div class="d">${fmt(c.d)} — ${esc(c.a)}</div>${esc(c.txt)}</div>`).join("")}</div>
+  </div></div>`;
+}
+function viewDept(){
+  const d=S.dept;
+  const rows=LAUNCHES.flatMap(l=>l.tasks.filter(t=>t.d===d).map(t=>({l,t})));
+  return `<h2>Department — <select onchange="S.dept=this.value;render()">${DEPTS().map(x=>`<option ${x===d?"selected":""}>${x}</option>`).join("")}</select></h2><div class="sub">All ${d} tasks across every launch.</div>
+  <div class="board">${[["b","Blocked"],["p","In progress"],["o","To do"],["x","Done"]].map(([s,lbl])=>`<div class="col"><h4>${lbl} <span>${rows.filter(r=>r.t.st===s).length}</span></h4>${rows.filter(r=>r.t.st===s).map(({l,t})=>`<div class="card" onclick="openL('${l.slug}')"><div class="nm" style="font-size:13px">${esc(t.t)}</div><div class="meta">${l.name} · ${t.stage}</div></div>`).join("")}</div>`).join("")}</div>`;
+}
+function viewFlow(){
+  const l=L(S.flowLaunch);
+  return `<h2>Master flow chart — <select onchange="S.flowLaunch=this.value;render()">${LAUNCHES.map(x=>`<option value="${x.slug}" ${x.slug===S.flowLaunch?"selected":""}>${x.name}</option>`).join("")}</select></h2>
+  <div class="sub">The company process map from <b>BV Team Workflow.pdf</b>, made live: every department's lane, decision diamonds (◆ = Ben), and hand-offs — colored by <b>${l.name}</b>'s real progress. This is the card "passed around" exactly like the master PDF.</div>
+  ${flowSVG(l)}
+  <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>done</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>in progress</span><span><i style="background:#331414;border:1px solid #f87171"></i>blocked</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>to do (current stage)</span><span><i style="background:#15171b;border:1px solid #262b32"></i>upcoming</span><span style="color:var(--purple)">◆ decision gate</span><span>⇢ dashed = cross-department hand-off</span></div>
+  <div class="sub" style="margin-top:8px">Solid arrows follow each lane top-to-bottom (the v1 web app renders the full node-graph with the exact PDF edges, including the KOL evaluation loop and NO-loops back to concept).</div>`;
+}
+function viewProgress(){
+  const l=L(S.progLaunch); const N=l.tasks.length;
+  // burn-up points: cumulative done tasks at each stage boundary (synthesised from the stage log)
+  let cum=0; const pts=[[D(l.history[0].start).getTime(),0]];
+  l.history.forEach((h,i)=>{const end=h.end||(l.history[i+1]?l.history[i+1].start:today);
+    cum+=l.tasks.filter(t=>t.stage===h.stage&&t.st==="x").length;
+    pts.push([D(end).getTime(),cum]);});
+  const t0=pts[0][0], tEnd=Math.max(D(l.target).getTime(),D(today).getTime(),pts[pts.length-1][0]);
+  const W2=780,H2=250,PL=46,PR=16,PT=18,PB=34;
+  const X=t=>PL+(t-t0)/(tEnd-t0)*(W2-PL-PR), Y=v=>H2-PB-(v/N)*(H2-PT-PB);
+  const line=pts.map(p=>`${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(" ");
+  const idealEnd=D(l.target).getTime();
+  const chart=`<svg width="${W2}" height="${H2}" style="max-width:100%">
+    <line x1="${PL}" y1="${Y(0)}" x2="${W2-PR}" y2="${Y(0)}" stroke="#2a2f37"/>
+    <line x1="${PL}" y1="${Y(0)}" x2="${PL}" y2="${PT}" stroke="#2a2f37"/>
+    ${[0,.25,.5,.75,1].map(f=>`<text x="${PL-6}" y="${Y(N*f)+4}" text-anchor="end" fill="#6b7280" font-size="10">${Math.round(N*f)}</text><line x1="${PL}" y1="${Y(N*f)}" x2="${W2-PR}" y2="${Y(N*f)}" stroke="#1d2127"/>`).join("")}
+    <line x1="${X(t0)}" y1="${Y(0)}" x2="${X(idealEnd)}" y2="${Y(N)}" stroke="#4a5260" stroke-dasharray="5 4" stroke-width="1.5"/>
+    <text x="${Math.min(X(idealEnd),W2-PR-10)}" y="${Y(N)-5}" text-anchor="end" fill="#6b7280" font-size="10">ideal pace → target</text>
+    <line x1="${X(D(today).getTime())}" y1="${PT}" x2="${X(D(today).getTime())}" y2="${Y(0)}" stroke="#e8b765" stroke-dasharray="3 3" opacity=".6"/>
+    <text x="${X(D(today).getTime())}" y="${PT-4}" text-anchor="middle" fill="#e8b765" font-size="10">today</text>
+    <polyline points="${line}" fill="none" stroke="#e8b765" stroke-width="2.5"/>
+    ${pts.map(p=>`<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="3.5" fill="#e8b765"/>`).join("")}
+    <text x="${PL}" y="${H2-12}" fill="#6b7280" font-size="10">${fmt(l.history[0].start)}</text>
+    <text x="${W2-PR}" y="${H2-12}" text-anchor="end" fill="#6b7280" font-size="10">target ${fmt(l.target)}</text>
+    <text x="${PL-32}" y="${PT+8}" fill="#6b7280" font-size="10">tasks</text></svg>`;
+  // department progression for this launch (laggards first)
+  const dp=DEPTS().map(d=>{const ts=l.tasks.filter(t=>t.d===d);if(!ts.length)return null;
+    const dn=ts.filter(t=>t.st==="x").length;return {d,dn,n:ts.length,pct:dn/ts.length};}).filter(Boolean).sort((a,b)=>a.pct-b.pct);
+  // cross-launch strips
+  const strips=LAUNCHES.map(x=>{const dn=x.tasks.filter(t=>t.st==="x").length;const pct=Math.round(dn/x.tasks.length*100);
+    return `<div class="dbar"><span class="nm2" style="cursor:pointer" onclick="S.progLaunch='${x.slug}';render()">${x.name}</span><div class="tr"><div class="fl" style="width:${Math.max(4,pct)}%;background:${x.slug===S.progLaunch?"var(--accent)":"#e8b76555"};color:#1a0d07">${pct}%</div></div></div>`;}).join("");
+  return `<h2>Progression — <select onchange="S.progLaunch=this.value;render()">${LAUNCHES.map(x=>`<option value="${x.slug}" ${x.slug===S.progLaunch?"selected":""}>${x.name}</option>`).join("")}</select></h2>
+  <div class="sub">Burn-up: cumulative tasks completed (gold) vs the pace needed to hit the target date (dashed). Gold line below dashed = behind pace.</div>
+  ${(()=>{ // weekly velocity bars derived from the burn-up curve
+    const wkMs=6.048e8, tNow=D(today).getTime();
+    const interp=t=>{if(t<=pts[0][0])return 0;for(let i=1;i<pts.length;i++){if(t<=pts[i][0]){const a=pts[i-1],b=pts[i];return a[1]+(b[1]-a[1])*(t-a[0])/Math.max(1,b[0]-a[0]);}}return pts[pts.length-1][1];};
+    const bars=[]; for(let t=t0+wkMs;t-wkMs<tNow;t+=wkMs) bars.push(Math.max(0,interp(Math.min(t,tNow))-interp(t-wkMs)));
+    const bmax=Math.max(1,...bars);
+    S.__vb=`<div style="display:flex;align-items:flex-end;gap:3px;height:56px;margin-top:10px">${bars.map(b=>`<div title="${b.toFixed(1)} tasks done" style="flex:1;max-width:26px;height:${Math.max(5,b/bmax*100)}%;background:#e8b76588;border-radius:3px 3px 0 0"></div>`).join("")}</div><div class="ghostnote">Weekly velocity since kickoff — a flat or falling tail with lots of work left is the earliest warning sign.</div>`;
+    return "";})()}
+  <div class="panel"><h3>📈 BURN-UP — ${l.name}</h3>${chart}${S.__vb||""}</div>
+  <div class="twocol">
+    <div class="panel"><h3>DEPARTMENT PROGRESSION — ${l.name} (laggards first)</h3>
+      ${dp.map(r=>`<div class="dbar"><span class="nm2" style="color:${DCOLOR(r.d)}">${r.d}</span><div class="tr"><div class="fl" style="width:${Math.max(6,r.pct*100)}%;background:${DCOLOR(r.d)}cc">${r.dn}/${r.n}</div></div></div>`).join("")}</div>
+    <div class="panel"><h3>ALL LAUNCHES — % of tasks done</h3>${strips}<div class="sub" style="margin-top:6px">Click a name to switch the burn-up.</div></div>
+  </div>`;
+}
+function viewTimeline(){
+  const PXD=2.6; // pixels per day
+  const segCol=["#1d4ed8","#0e7490","#15803d","#a16207","#7c3aed","#be185d","#b45309"];
+  const ranks=delayByDept(); const max=ranks.length?ranks[0].v:1;
+  const rows=LAUNCHES.map(l=>{
+    const segs=segments(l); const slip=projectedSlip(l);
+    return `<div class="tl-row">
+      <div class="tl-head"><b style="font-size:14.5px;cursor:pointer" onclick="openL('${l.slug}')">${l.name}</b>
+        <span class="sub" style="margin:0">DRI ${l.dri} · target ${fmt(l.target)}</span>
+        ${l.complete?'<span class="pill done">Complete</span>':slip>0?`<span class="pill bad">projected +${slip}d late</span>`:`<span class="pill ok">projected on time</span>`}</div>
+      <div class="tl-bar" style="width:${Math.max(220,segs.reduce((a,s)=>a+s.days,0)*PXD+10)}px;max-width:100%">
+        ${segs.map(s=>{const si=STAGES.indexOf(s.stage);
+          return `<div class="tl-seg" style="width:${s.days*PXD}px;background:${segCol[si]}${s.cur?"cc":"66"};${s.cur?"outline:2px solid var(--accent);outline-offset:-2px;":""}" title="${s.stage}: ${s.days}d (plan ${s.plan}d)${s.over?" — +"+s.over+"d over · "+s.blame.join(", "):""}">
+            ${s.over?`<span class="ov" style="width:${Math.min(s.over*PXD,s.days*PXD)}px"></span>`:""}
+            <span style="position:relative;z-index:1">${s.stage} ${s.days}d${s.over?` <b style="color:#fecaca">+${s.over}</b>`:""}</span></div>`;}).join("")}
+      </div>
+      <div class="tl-leg">${segs.filter(s=>s.over).map(s=>`<span style="color:var(--red)">▲ ${s.stage} +${s.over}d</span> — held by <b>${s.blame.join(", ")||"—"}</b>`).join(" · ")||"On plan so far."}</div>
+    </div>`;}).join("");
+  return `<h2>Timeline — planned vs actual</h2>
+  <div class="sub">Each bar = one launch; segment width = real days in that stage (outlined = current stage). Striped red = days over the plan (${STAGES.map(s=>s+" "+PLAN[s]+"d").join(" · ")}).</div>
+  <div class="panel"><h3>⏱ DELAY BY DEPARTMENT — who is costing us the most days</h3>
+    ${ranks.length?ranks.map((r,i)=>`<div class="dbar"><span class="nm2">${r.d}</span><div class="tr"><div class="fl" style="width:${Math.max(8,r.v/max*100)}%;background:${i===0?"linear-gradient(90deg,#fbbf24,#f87171)":"#e8b76588"};color:${i===0?"#1a0d07":"#e8eaed"}">${r.v}d${i===0?" — biggest bottleneck":""}</div></div></div>`).join(""):'<div class="sub">No overruns recorded.</div>'}
+    <div class="sub" style="margin-top:8px">Overrun days are attributed to the departments holding that stage (unmet gate criteria + blocked tasks; past stages from the stage log). Fix the top bar first.</div></div>
+  <div class="panel"><h3>LAUNCH TIMELINES</h3>${rows}</div>`;
+}
+function viewCampaign(){
+  const c=CAMPAIGNS[0]; const days=Math.ceil((new Date(c.date)-new Date(today))/864e5);
+  return `<h2>Campaign — ${c.name}</h2><div class="sub">🎯 ${fmt(c.date)} · <b>${days} days out</b>.</div>
+  <div class="panel"><h3>FEATURED PRODUCTS</h3><div class="board">${c.products.map(s=>`<div class="col">${cardHTML(L(s))}</div>`).join("")}</div></div>
+  <div class="panel"><h3>CAMPAIGN TASKS (cross-department)</h3>${c.tasks.map((t,i)=>`<div class="row"><span class="st ${t.st}">${stIcon[t.st]}</span><span>${esc(t.t)} ${(t.links||[]).map(k=>`<a class="lnk" href="${k.u}" target="_blank">🔗 ${esc(k.n)}</a>`).join("")}<button class="addlnk" onclick="addLink('__camp',${i})">+ link</button></span><span class="o">${t.d}</span></div>`).join("")}</div>`;
+}
+function viewTeam(){
+  return `<h2>Team & departments</h2><div class="sub">This is the tracker's <b>people config</b> (the future <code>config/people.yaml</code>). Edit roles, heads and members here — DRI pickers, task owners, gate logic and lenses all read from this list. No personal names required; departments are the unit of ownership.</div>
+  <div class="panel"><table><tr><th style="width:140px">Department</th><th>Role / responsibility</th><th style="width:150px">Head (optional)</th><th style="width:170px">Members (optional)</th><th style="width:40px"></th></tr>
+  ${TEAM.map((t,i)=>`<tr>
+    <td><input type="text" value="${esc(t.name)}" onchange="teamEdit(${i},'name',this.value)"></td>
+    <td><input type="text" value="${esc(t.role)}" onchange="teamEdit(${i},'role',this.value)"></td>
+    <td><input type="text" placeholder="—" value="${esc(t.head)}" onchange="teamEdit(${i},'head',this.value)"></td>
+    <td><input type="text" placeholder="—" value="${esc(t.members)}" onchange="teamEdit(${i},'members',this.value)"></td>
+    <td><button class="btn red" style="padding:4px 9px" title="remove" onclick="delDept(${i})">✕</button></td></tr>`).join("")}
+  </table><div style="margin-top:10px"><button class="btn ghost" onclick="addDept()">+ Add department</button></div>
+  <div class="sub" style="margin-top:10px">Renaming a department updates every task, gate, DRI and flow-chart lane automatically. Removal is blocked while tasks or gates still reference it. (Prototype: edits live in memory; the real app commits them to the repo.)</div></div>`;
+}
+
+function render(){
+  const sel=document.getElementById("roleSel");
+  const cur=S.role==="dept"?"dept:"+S.dept:S.role;
+  sel.innerHTML=`<option value="ceo">Ben — CEO</option><option value="director">Director</option>`+DEPTS().map(d=>`<option value="dept:${d}">Head — ${d}</option>`).join("");
+  sel.value=[...sel.options].some(o=>o.value===cur)?cur:"ceo";
+  document.getElementById("nav").innerHTML=NAVS.map(([v,l])=>`<button class="${S.view===v?"on":""}" onclick="go('${v}')">${l}</button>`).join("");
+  const app=document.getElementById("app");
+  // datalist for assignee suggestions (from Team tab heads/members + departments)
+  let dl=document.getElementById("people");
+  if(!dl){dl=document.createElement("datalist");dl.id="people";document.body.appendChild(dl);}
+  dl.innerHTML=[...new Set(TEAM.flatMap(t=>[t.name,t.head,...(t.members||"").split(",")]).map(s=>(s||"").trim()).filter(Boolean))].map(p=>`<option value="${esc(p)}">`).join("");
+  if(S.view==="launch") app.innerHTML=viewLaunch();
+  else if(S.view==="digest") app.innerHTML=viewDigest();
+  else if(S.view==="portfolio") app.innerHTML=`<h2>Portfolio <button class="btn" style="margin-left:8px" onclick="newLaunch()">+ New launch</button></h2><div class="sub">Every launch by stage. Click a card. New cards start fully locked except the intake Form.</div>${portfolioBoard()}`;
+  else if(S.view==="progress") app.innerHTML=viewProgress();
+  else if(S.view==="timeline") app.innerHTML=viewTimeline();
+  else if(S.view==="dept") app.innerHTML=viewDept();
+  else if(S.view==="flow") app.innerHTML=viewFlow();
+  else if(S.view==="campaign") app.innerHTML=viewCampaign();
+  else if(S.view==="team") app.innerHTML=viewTeam();
+  else app.innerHTML=S.role==="ceo"?homeCEO():S.role==="director"?homeDirector():homeDept();
+  const nb=document.getElementById("inboxN"); if(nb){const n=autopilot().length; nb.textContent=n?n:""; }
+  renderDrawer(); save();
+}
+loadSaved();
+if(typeof document!=="undefined"&&document.addEventListener){
+  document.addEventListener("keydown",e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();openPal();}
+    else if(e.key==="/"&&document.activeElement&&document.activeElement.tagName!=="INPUT"&&document.activeElement.tagName!=="TEXTAREA"){e.preventDefault();const q=document.getElementById("q");if(q)q.focus();}
+    else if(e.key==="Escape"){closePal();}
+  });
+}
+render();
+</script>
+</body>
+</html>
