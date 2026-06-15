@@ -789,7 +789,12 @@ function restoreVersion(id){
    SETUP: create a Firebase project + Firestore, paste the web config below. See FIRESTORE-SETUP.md.
    Until a projectId is set, the app stays local-only (per-browser) exactly as before. */
 const FIREBASE_CONFIG={
-  // paste your Firebase web config here, e.g.: apiKey:"…", authDomain:"…", projectId:"…", appId:"…"
+  apiKey:"AIzaSyACM71vycT4OeKxxoT6vL5MCK7H6g592vQ",
+  authDomain:"bv-superpm.firebaseapp.com",
+  projectId:"bv-superpm",
+  storageBucket:"bv-superpm.firebasestorage.app",
+  messagingSenderId:"864428735438",
+  appId:"1:864428735438:web:d353709e716410fecf899f"
 };
 let FB={ready:false,synced:false,applying:false,timer:null,lastWritten:null,docRef:null};
 function fbConfigured(){return !!(FIREBASE_CONFIG&&FIREBASE_CONFIG.projectId);}
