@@ -130,6 +130,19 @@
   .lnkb{background:none;border:none;color:var(--faint);cursor:pointer;font-size:11px;padding:0 3px;opacity:.65}
   .lnkb:hover{opacity:1;color:var(--accent)}
   .addlnk:hover{color:var(--blue);border-color:var(--blue)}
+  .codechip{display:inline-flex;align-items:center;gap:4px;background:#1d2033;color:#c4b5fd;border:1px solid #3a3560;border-radius:2px;padding:1px 8px;font-size:11.5px;cursor:pointer;margin-left:0;font-family:ui-monospace,Menlo,monospace}
+  .codechip:hover{background:#262147;color:#ddd6fe}
+  .cmodal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:70;display:flex;align-items:center;justify-content:center;padding:5vh 4vw}
+  .cmbox{background:var(--panel);border:1px solid var(--line);border-radius:4px;width:min(880px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+  .cmhead{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .cmhead b{flex:1;font-size:14px}
+  .cmbody{padding:14px 16px;overflow:auto}
+  .cmbody textarea{width:100%;min-height:300px;background:#0d0f13;color:#e5e7eb;border:1px solid var(--line);border-radius:3px;padding:10px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;line-height:1.5;resize:vertical}
+  .cmbody iframe{width:100%;height:55vh;border:1px solid var(--line);border-radius:3px;background:#fff}
+  .cmbody pre{background:#0d0f13;color:#e5e7eb;border:1px solid var(--line);border-radius:3px;padding:12px;overflow:auto;font-size:12.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word;margin:0}
+  .cmfoot{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line)}
+  .cmtab{background:none;border:1px solid var(--faint);color:var(--faint);border-radius:2px;padding:3px 12px;font-size:12px;cursor:pointer}
+  .cmtab.on{border-color:var(--blue);color:var(--blue)}
   .gatecard{border:1px solid var(--line);border-radius:2px;padding:12px;margin-bottom:10px;background:var(--panel2)}
   .btn{background:var(--accent);color:#fff;border:none;border-radius:2px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
   .btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
@@ -369,8 +382,8 @@ const PLAN={"Concept":21,"Build":35,"Production":45,"Content":21,"Listing creati
 /* ================= LAUNCH DATA (DRI = a department, not a person) ================= */
 function allTasks(overrides){
   const list=[];
-  for(const s of STAGES) for(const c of GATES[s]) list.push({t:c.t,d:c.d,st:"o",gate:!!c.ben,stage:s,links:[],assignee:"",urg:"med",notes:[]});
-  list.push({t:"Competitor analysis",d:"Catalog",st:"o",stage:"Concept",links:[],assignee:"",urg:"med",notes:[]});
+  for(const s of STAGES) for(const c of GATES[s]) list.push({t:c.t,d:c.d,st:"o",gate:!!c.ben,stage:s,links:[],codes:[],assignee:"",urg:"med",notes:[]});
+  list.push({t:"Competitor analysis",d:"Catalog",st:"o",stage:"Concept",links:[],codes:[],assignee:"",urg:"med",notes:[]});
   for(const [title,st] of Object.entries(overrides||{})){const x=list.find(k=>k.t===title); if(x)x.st=st;}
   return list;
 }
@@ -775,6 +788,15 @@ function recordVersion(){
     _verNote=null; _lastVerKey=snap;
   }catch(e){}
 }
+function recordRemoteVersion(who,newSnapStr){
+  try{
+    if(_lastVerKey===null||_lastVerKey===newSnapStr) return; // no baseline yet, or no change
+    const d=diffState(JSON.parse(_lastVerKey),JSON.parse(newSnapStr));
+    const id=(VERSIONS[0]?VERSIONS[0].id:0)+1;
+    VERSIONS.unshift({id,ts:nowStamp(),who:(who||"someone")+" · remote",summary:d.summary,sections:d.sections,changes:d.detail,snap:newSnapStr});
+    if(VERSIONS.length>80)VERSIONS.length=80; saveVersions();
+  }catch(e){}
+}
 function saveCheckpoint(){const lbl=prompt("Checkpoint label — what is this version?","");if(lbl===null)return;
   const snap=verSnap(); pushVersion({ts:nowStamp(),who:actor(),summary:"📌 "+(lbl||"Checkpoint"),sections:[],changes:[],snap});
   _lastVerKey=snap; if(!fbConfigured())render(); toast("📌 Checkpoint saved");}
@@ -817,8 +839,9 @@ function fbInit(){
       const data=snap.data(); if(!data||typeof data.state!=="string") return;
       if(data.state===verSnap()){ FB.lastWritten=data.state; return; } // already identical
       FB.applying=true;
+      recordRemoteVersion(data.updatedBy,data.state);        // log who changed what, before applying
       try{ applySnapshot(JSON.parse(data.state)); }catch(e){}
-      FB.lastWritten=data.state; _lastVerKey=verSnap();      // don't log a local version for a remote change
+      FB.lastWritten=data.state; _lastVerKey=verSnap();      // already captured above as a remote version
       try{ if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot()); }catch(e){}
       render(); FB.applying=false;
       if(data.updatedBy&&data.updatedBy!==actor()) toast("🔄 "+data.updatedBy+" updated the board");
@@ -1161,6 +1184,53 @@ function removeLink(slug,i,li){
   if(typeof confirm!=="undefined"&&!confirm("Remove “"+(t.links[li].n||"this link")+"”?"))return;
   t.links.splice(li,1); toast("🗑 Link removed"); render();
 }
+/* ----- HTML code attachments: paste code, preview rendered output or view source ----- */
+function codeModal({title,label,html,onSave,readOnly}){
+  const old=document.getElementById("codeModal"); if(old)old.remove();
+  const ov=document.createElement("div"); ov.className="cmodal"; ov.id="codeModal";
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML=readOnly
+   ?`<div class="cmbox"><div class="cmhead"><b>&lt;/&gt; ${esc(label||"HTML")}</b>
+       <button class="cmtab on" id="cmTabP">Preview</button><button class="cmtab" id="cmTabS">Source</button>
+       <button class="lnkb" style="font-size:16px" onclick="document.getElementById('codeModal').remove()">✕</button></div>
+      <div class="cmbody" id="cmView"></div></div>`
+   :`<div class="cmbox"><div class="cmhead"><b>${esc(title)}</b>
+       <button class="lnkb" style="font-size:16px" onclick="document.getElementById('codeModal').remove()">✕</button></div>
+      <div class="cmbody">
+        <div class="frow" style="margin-bottom:8px"><label>Label</label><input type="text" id="cmLabel" value="${esc(label||"")}" placeholder="e.g. Email template, Landing block…" style="flex:1"></div>
+        <textarea id="cmCode" placeholder="Paste HTML code here — it will render as a live preview for anyone on the board.">${esc(html||"")}</textarea>
+      </div>
+      <div class="cmfoot"><button class="btn ghost" onclick="document.getElementById('codeModal').remove()">Cancel</button>
+        <button class="btn" id="cmSave">Save</button></div></div>`;
+  document.body.appendChild(ov);
+  if(readOnly){
+    const view=ov.querySelector("#cmView"), tp=ov.querySelector("#cmTabP"), ts=ov.querySelector("#cmTabS");
+    const showP=()=>{tp.classList.add("on");ts.classList.remove("on");const f=document.createElement("iframe");f.setAttribute("sandbox","allow-scripts allow-forms allow-popups");f.srcdoc=html||"";view.innerHTML="";view.appendChild(f);};
+    const showS=()=>{ts.classList.add("on");tp.classList.remove("on");view.innerHTML=`<pre>${esc(html||"")}</pre>`;};
+    tp.onclick=showP; ts.onclick=showS; showP();
+  }else{
+    ov.querySelector("#cmSave").onclick=()=>{const v=ov.querySelector("#cmCode").value;
+      if(!v.trim()){toast("Nothing to save — paste some HTML first");return;}
+      onSave(ov.querySelector("#cmLabel").value.trim()||"HTML",v); ov.remove();};
+  }
+}
+function addCode(slug,i){
+  const t=_linkTask(slug,i);
+  codeModal({title:"Attach HTML code",onSave:(n,h)=>{(t.codes=t.codes||[]).push({n,h}); toast("</> HTML code attached"); render();}});
+}
+function viewCode(slug,i,ci){
+  const c=(_linkTask(slug,i).codes||[])[ci]; if(!c)return;
+  codeModal({readOnly:true,label:c.n,html:c.h});
+}
+function editCode(slug,i,ci){
+  const t=_linkTask(slug,i), c=(t.codes||[])[ci]; if(!c)return;
+  codeModal({title:"Edit HTML code",label:c.n,html:c.h,onSave:(n,h)=>{c.n=n;c.h=h; toast("✏️ Code updated"); render();}});
+}
+function removeCode(slug,i,ci){
+  const t=_linkTask(slug,i); if(!t.codes||!t.codes[ci])return;
+  if(typeof confirm!=="undefined"&&!confirm("Remove “"+(t.codes[ci].n||"this code")+"”?"))return;
+  t.codes.splice(ci,1); toast("🗑 Code removed"); render();
+}
 function push(slug){
   const l=L(slug);
   if(!allMet(l)){toast("🔒 Locked — not all exit criteria are met");return;}
@@ -1210,7 +1280,8 @@ function delDept(i){ const d=TEAM[i].name;
 }
 
 /* ================= RENDER HELPERS ================= */
-const linkChips=(task,slug,i)=>(task.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank" title="${esc(k.u)}">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('${slug}',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('${slug}',${i},${li})">✕</button></span>`).join("")+`<button class="addlnk" onclick="event.stopPropagation();addLink('${slug}',${i})">+ link</button><button class="addlnk" title="Create a Google Sheet under hello@blackvoyage.com (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'sheet')">📊 Sheet</button><button class="addlnk" title="Create a Google Doc under hello@blackvoyage.com (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'doc')">📝 Doc</button>`;
+const codeChips=(task,slug,i)=>(task.codes||[]).map((c,ci)=>`<span class="lnkg"><span class="codechip" title="View / preview HTML" onclick="event.stopPropagation();viewCode('${slug}',${i},${ci})">&lt;/&gt; ${esc(c.n)}</span><button class="lnkb" title="edit code" onclick="event.stopPropagation();editCode('${slug}',${i},${ci})">✎</button><button class="lnkb" title="remove code" onclick="event.stopPropagation();removeCode('${slug}',${i},${ci})">✕</button></span>`).join("");
+const linkChips=(task,slug,i)=>(task.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank" title="${esc(k.u)}">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('${slug}',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('${slug}',${i},${li})">✕</button></span>`).join("")+codeChips(task,slug,i)+`<button class="addlnk" onclick="event.stopPropagation();addLink('${slug}',${i})">+ link</button><button class="addlnk" title="Create a Google Sheet under hello@blackvoyage.com (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'sheet')">📊 Sheet</button><button class="addlnk" title="Create a Google Doc under hello@blackvoyage.com (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'doc')">📝 Doc</button><button class="addlnk" title="Paste HTML code — communicate directly through code (preview rendered output or view source)" onclick="event.stopPropagation();addCode('${slug}',${i})">&lt;/&gt; HTML</button>`;
 function taskRow(l,t,extra){
   const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
   const vids=t.notes.filter(n=>n.v).length; const lk=taskLocked(l,t);
