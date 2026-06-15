@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
   /* ===== BLACK VOYAGE brand system (Brand Guidelines V4) =====
      Primary: Black #111215 · Orange #EE3124 (signal — use strategically)
@@ -191,6 +193,7 @@
   <button class="iconbtn" title="download JSON backup" onclick="exportJSON()">⬇</button>
   <button class="btn ghost" id="themeBtn" style="padding:6px 10px" title="light / dark" onclick="setTheme()">☀️</button><button class="btn ghost" id="wideBtn" style="padding:6px 10px" title="regular / wide screen" onclick="setWide()">⛶</button><button class="btn ghost" id="langBtn" style="padding:6px 12px" onclick="setLang()">中文</button>
   <div class="rolewrap"><span id="vaLab">Viewing as</span> <select id="roleSel" onchange="setRole(this.value)"></select></div>
+  <span id="fbsync" style="font-size:11px;margin-left:10px;font-family:var(--font-mono)" title="real-time shared-board status"></span>
   <span id="gauth" style="display:inline-flex;align-items:center;gap:6px;margin-left:10px"></span>
 </header>
 <main id="app"></main>
@@ -697,7 +700,7 @@ function addRisk(slug){ const t=prompt("Risk (one line)"); if(!t)return;
 
 /* ----- persistence (guarded): autosave, export, reset ----- */
 function snapshot(){return JSON.stringify({v:2,TEAM,LAUNCHES,CAMPAIGNS,LOG,GATES,FLOW,XROUTES});}
-function save(){try{if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot());}catch(e){} recordVersion();}
+function save(){try{if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot());}catch(e){} recordVersion(); fbSchedule();}
 function applySnapshot(d){
   if(!d)return;
   TEAM.length=0;(d.TEAM||[]).forEach(x=>TEAM.push(x));
@@ -774,6 +777,45 @@ function restoreVersion(id){
   log("↩ Restored version from "+v.ts);
   S.view="versions"; render(); // render → save → recordVersion captures the restore
   toast("↩ Restored to "+v.ts);
+}
+/* ================= SHARED STATE — Firebase Firestore (real-time master board) =================
+   Every browser reads/writes ONE shared document, so all users see all updates live.
+   SETUP: create a Firebase project + Firestore, paste the web config below. See FIRESTORE-SETUP.md.
+   Until a projectId is set, the app stays local-only (per-browser) exactly as before. */
+const FIREBASE_CONFIG={
+  // paste your Firebase web config here, e.g.: apiKey:"…", authDomain:"…", projectId:"…", appId:"…"
+};
+let FB={ready:false,synced:false,applying:false,timer:null,lastWritten:null,docRef:null};
+function fbConfigured(){return !!(FIREBASE_CONFIG&&FIREBASE_CONFIG.projectId);}
+function fbStatus(txt,color){const el=document.getElementById("fbsync"); if(el){el.textContent=txt; el.style.color=color||"var(--faint)";}}
+function fbInit(){
+  if(!fbConfigured()){fbStatus("",""); return;}
+  if(!(window.firebase&&firebase.initializeApp&&firebase.firestore)){ setTimeout(fbInit,400); return; }
+  try{
+    if(!firebase.apps||!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    FB.docRef=firebase.firestore().collection("bv").doc("superpm");
+    FB.ready=true; fbStatus("◍ connecting…","var(--amber)");
+    FB.docRef.onSnapshot(snap=>{
+      FB.synced=true; fbStatus("● live (shared)","var(--green)");
+      if(snap.metadata.hasPendingWrites) return;            // our own optimistic write — ignore
+      if(!snap.exists){ fbWriteNow(true); return; }          // first ever run → seed the cloud from this state
+      const data=snap.data(); if(!data||typeof data.state!=="string") return;
+      if(data.state===verSnap()){ FB.lastWritten=data.state; return; } // already identical
+      FB.applying=true;
+      try{ applySnapshot(JSON.parse(data.state)); }catch(e){}
+      FB.lastWritten=data.state; _lastVerKey=verSnap();      // don't log a local version for a remote change
+      try{ if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot()); }catch(e){}
+      render(); FB.applying=false;
+      if(data.updatedBy&&data.updatedBy!==actor()) toast("🔄 "+data.updatedBy+" updated the board");
+    }, err=>{ fbStatus("● offline","var(--red)"); });
+  }catch(e){ fbStatus("● error","var(--red)"); }
+}
+function fbSchedule(){ if(!FB.ready||FB.applying) return; clearTimeout(FB.timer); FB.timer=setTimeout(()=>fbWriteNow(false),700); }
+function fbWriteNow(force){
+  if(!FB.ready||!FB.synced) return;
+  const s=verSnap(); if(!force && s===FB.lastWritten) return;
+  FB.lastWritten=s;
+  try{ FB.docRef.set({state:s,updatedBy:actor(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()}); }catch(e){}
 }
 function resetDemo(){try{if(typeof localStorage!=="undefined")localStorage.removeItem("bv-superpm");}catch(e){} location.reload();}
 function exportJSON(){try{
@@ -1485,6 +1527,7 @@ function render(){
 }
 loadSaved();
 loadVersions();
+fbInit();
 if(typeof document!=="undefined"&&document.addEventListener){
   document.addEventListener("keydown",e=>{
     if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();openPal();}
