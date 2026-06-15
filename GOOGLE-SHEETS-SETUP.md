@@ -17,7 +17,7 @@ free Google OAuth Client ID (one-time, ~5 min).
 4. **Create the credential:** APIs & Services → **Credentials** → **Create Credentials** →
    **OAuth client ID** → Application type **Web application**.
    - **Authorized JavaScript origins** — add the exact site URLs (no trailing slash):
-     - `https://bv-superpm-ihnr.onrender.com`
+     - `https://bv-superpm-ey4i.onrender.com`
      - (optional, for local testing on a server) `http://localhost:8000`
        *(Note: Google sign-in does NOT work from a `file://` page — use the live site.)*
    - Create. **Copy the Client ID** (looks like `1234567890-abc...apps.googleusercontent.com`).
