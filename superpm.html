@@ -605,20 +605,22 @@ function newLaunch(){
    Enable the "Google Drive API" for the same project. Until a Client ID is set, sign-in explains the setup. */
 const GOOGLE_CLIENT_ID="864428735438-704etq9hsq1lrse1s2i6fs2ctg6m7vu2.apps.googleusercontent.com";  // BV SuperPM web (black-voyage Workspace, Internal)
 const GOOGLE_ACCOUNT="hello@blackvoyage.com";  // every Sheet/Doc is created under this account (sign-in defaults to it)
+const GOOGLE_FOLDER_ID="16b_sYyvOGNxemgdDhADHpd_-z6lu1GgA";  // all generated Sheets/Docs are saved into this Drive folder ("" = My Drive root)
 const GMIME={sheet:"application/vnd.google-apps.spreadsheet",doc:"application/vnd.google-apps.document"};
-let GAUTH={token:null,exp:0,email:"",name:"",client:null};
+let GAUTH={token:null,exp:0,email:"",name:"",client:null,scope:""};
 function intakeTaskOf(l){return l.tasks.find(t=>t.t==="Form (intake)");}
 function gReady(){return !!(GOOGLE_CLIENT_ID && window.google && google.accounts && google.accounts.oauth2);}
 function gClient(){ if(!gReady())return null;
-  if(!GAUTH.client){GAUTH.client=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:"https://www.googleapis.com/auth/drive.file openid email profile",hint:GOOGLE_ACCOUNT,callback:()=>{}});}
+  if(!GAUTH.client){GAUTH.client=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:"https://www.googleapis.com/auth/drive email profile",hint:GOOGLE_ACCOUNT,callback:()=>{}});}
   return GAUTH.client; }
+function gHasDrive(){return (GAUTH.scope||"").indexOf("auth/drive")>=0;}
 function gGetToken(interactive){
   return new Promise((resolve,reject)=>{
     if(!gReady()){reject({kind:"unconfigured"});return;}
     if(GAUTH.token && Date.now()<GAUTH.exp-60000){resolve(GAUTH.token);return;}
     const c=gClient(); if(!c){reject({kind:"unconfigured"});return;}
-    c.callback=(resp)=>{ if(resp&&resp.access_token){GAUTH.token=resp.access_token;GAUTH.exp=Date.now()+((resp.expires_in||3600)*1000);resolve(GAUTH.token);} else reject(resp||{kind:"denied"}); };
-    try{ c.requestAccessToken(interactive?{}:{prompt:""}); }catch(e){ try{c.requestAccessToken();}catch(_){reject({kind:"denied"});} }
+    c.callback=(resp)=>{ if(resp&&resp.access_token){GAUTH.token=resp.access_token;GAUTH.exp=Date.now()+((resp.expires_in||3600)*1000);GAUTH.scope=resp.scope||"";resolve(GAUTH.token);} else reject(resp||{kind:"denied"}); };
+    try{ c.requestAccessToken(interactive?{prompt:"consent"}:{prompt:""}); }catch(e){ try{c.requestAccessToken();}catch(_){reject({kind:"denied"});} }
   });
 }
 function signInGoogle(){
@@ -654,23 +656,30 @@ function createDriveDoc(slug,i,kind){
   const isIntake=!isCamp&&t.t==="Form (intake)";
   const name=isCamp?("BV-SuperPM-"+CAMPAIGNS[0].name+"-"+t.t):(isIntake?("BV-SuperPM-"+l.name):("BV-SuperPM-"+l.name+"-"+t.t)); // BV-SuperPM-<product / use-case>
   const kindLabel=kind==="doc"?"Doc":"Sheet";
+  if(GAUTH.token&&!gHasDrive())GAUTH.token=null; // drop a stale token that lacks Drive access so we re-consent
   toast("Creating Google "+kindLabel+" “"+name+"”…");
-  gGetToken(true).then(tok=>
-    fetch("https://www.googleapis.com/drive/v3/files?fields=id,webViewLink,name",{method:"POST",
+  gGetToken(true).then(tok=>{
+    if(!gHasDrive())throw {kind:"noscope"};
+    const body={name,mimeType:GMIME[kind]}; if(GOOGLE_FOLDER_ID)body.parents=[GOOGLE_FOLDER_ID]; // save into the shared folder
+    return fetch("https://www.googleapis.com/drive/v3/files?fields=id,webViewLink,name",{method:"POST",
       headers:{"Authorization":"Bearer "+tok,"Content-Type":"application/json"},
-      body:JSON.stringify({name,mimeType:GMIME[kind]})})
+      body:JSON.stringify(body)})
     .then(r=>r.json()).then(d=>{ if(!d.id)throw ((d.error&&d.error.message)||"create failed");
       // auto-share: anyone with the link can EDIT (so the team can always open/edit without manual sharing)
       return fetch("https://www.googleapis.com/drive/v3/files/"+d.id+"/permissions",{method:"POST",
         headers:{"Authorization":"Bearer "+tok,"Content-Type":"application/json"},
-        body:JSON.stringify({role:"writer",type:"anyone"})}).then(()=>d).catch(()=>d); })
-  ).then(d=>{
+        body:JSON.stringify({role:"writer",type:"anyone"})}).then(()=>d).catch(()=>d); });
+  }).then(d=>{
     const url=d.webViewLink||("https://drive.google.com/open?id="+d.id);
     t.links=t.links||[]; t.links.push({n:d.name||name,u:url});
     if(isIntake){ t.st="x"; l.checkins.unshift({d:today,a:actor(),txt:`Intake ${kindLabel} “${d.name||name}” created (anyone-with-link can edit) — pipeline unlocked.`}); }
     log("📄 "+kindLabel+" created: "+(d.name||name)+(GAUTH.email?(" · by "+GAUTH.email):"")); save(); render();
     toast("✅ "+kindLabel+" created (anyone-with-link can edit)"+(isIntake?" · pipeline unlocked":"")); window.open(url,"_blank");
-  }).catch(err=>{ toast(err&&err.kind==="unconfigured"?"⚠️ Add a Google Client ID first":"Couldn't create: "+(typeof err==="string"?err:"sign-in needed or sharing blocked by your org")); });
+  }).catch(err=>{
+    if(err&&err.kind==="unconfigured"){toast("⚠️ Add a Google Client ID first");}
+    else if(err&&err.kind==="noscope"){toast("Re-connect Google and CHECK the “Google Drive” permission box so files can be created.");}
+    else{toast("Couldn't create: "+(typeof err==="string"?err:"sign-in needed, folder not accessible, or sharing blocked by your org"));}
+  });
 }
 
 /* ----- confetti on push ----- */
