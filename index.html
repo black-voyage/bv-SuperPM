@@ -759,24 +759,27 @@ function diffState(prev,cur){
   const summary = ch.length? ch.slice(0,4).join("; ")+(ch.length>4?"; +"+(ch.length-4)+" more":"") : "Minor edit";
   return {sections:[...secs], summary, detail:ch};
 }
+function pushVersion(entry){ // shared → Firestore (everyone sees it); local → localStorage
+  if(fbConfigured()){ if(FB.ready)fbAddVersion(entry); /* if not ready yet, this early change is skipped */ }
+  else { entry.id=(VERSIONS[0]?VERSIONS[0].id:0)+1; VERSIONS.unshift(entry); if(VERSIONS.length>80)VERSIONS.length=80; saveVersions(); }
+}
 function recordVersion(){
   try{
     const snap=verSnap();
     if(_lastVerKey===null){ _lastVerKey=snap;
-      if(!VERSIONS.length){VERSIONS.unshift({id:1,ts:nowStamp(),who:actor(),summary:"Baseline — version history started here",sections:[],changes:[],snap}); saveVersions();}
+      if(!VERSIONS.length && !fbConfigured()){VERSIONS.unshift({id:1,ts:nowStamp(),who:actor(),summary:"Baseline — version history started here",sections:[],changes:[],snap}); saveVersions();}
       return; }
     if(snap===_lastVerKey)return;
     const d=diffState(JSON.parse(_lastVerKey),JSON.parse(snap));
-    const id=(VERSIONS[0]?VERSIONS[0].id:0)+1;
-    VERSIONS.unshift({id,ts:nowStamp(),who:actor(),summary:_verNote||d.summary,sections:d.sections,changes:_verNote?[_verNote].concat(d.detail):d.detail,snap});
-    _verNote=null; if(VERSIONS.length>80)VERSIONS.length=80; _lastVerKey=snap; saveVersions();
+    pushVersion({ts:nowStamp(),who:actor(),summary:_verNote||d.summary,sections:d.sections,changes:_verNote?[_verNote].concat(d.detail):d.detail,snap});
+    _verNote=null; _lastVerKey=snap;
   }catch(e){}
 }
 function saveCheckpoint(){const lbl=prompt("Checkpoint label — what is this version?","");if(lbl===null)return;
-  const snap=verSnap(); VERSIONS.unshift({id:(VERSIONS[0]?VERSIONS[0].id:0)+1,ts:nowStamp(),who:actor(),summary:"📌 "+(lbl||"Checkpoint"),sections:[],changes:[],snap});
-  _lastVerKey=snap; if(VERSIONS.length>80)VERSIONS.length=80; saveVersions(); render(); toast("📌 Checkpoint saved");}
+  const snap=verSnap(); pushVersion({ts:nowStamp(),who:actor(),summary:"📌 "+(lbl||"Checkpoint"),sections:[],changes:[],snap});
+  _lastVerKey=snap; if(!fbConfigured())render(); toast("📌 Checkpoint saved");}
 function restoreVersion(id){
-  const v=VERSIONS.find(x=>x.id===id); if(!v){toast("Version not found");return;}
+  const v=VERSIONS.find(x=>String(x.id)===String(id)); if(!v){toast("Version not found");return;}
   if(typeof confirm!=="undefined"&&!confirm("Restore version from "+v.ts+" (by "+v.who+")?\n\n“"+(v.summary||"")+"”\n\nThis replaces the current state. The restore is recorded as a new version, so you can undo it."))return;
   try{applySnapshot(JSON.parse(v.snap));}catch(e){toast("Restore failed");return;}
   _verNote="↩ Restored to "+v.ts+" (originally by "+v.who+")";
@@ -796,7 +799,7 @@ const FIREBASE_CONFIG={
   messagingSenderId:"864428735438",
   appId:"1:864428735438:web:d353709e716410fecf899f"
 };
-let FB={ready:false,synced:false,applying:false,timer:null,lastWritten:null,docRef:null};
+let FB={ready:false,synced:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null};
 function fbConfigured(){return !!(FIREBASE_CONFIG&&FIREBASE_CONFIG.projectId);}
 function fbStatus(txt,color){const el=document.getElementById("fbsync"); if(el){el.textContent=txt; el.style.color=color||"var(--faint)";}}
 function fbInit(){
@@ -805,6 +808,7 @@ function fbInit(){
   try{
     if(!firebase.apps||!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     FB.docRef=firebase.firestore().collection("bv").doc("superpm");
+    FB.versRef=FB.docRef.collection("versions");
     FB.ready=true; fbStatus("◍ connecting…","var(--amber)");
     FB.docRef.onSnapshot(snap=>{
       FB.synced=true; fbStatus("● live (shared)","var(--green)");
@@ -819,8 +823,14 @@ function fbInit(){
       render(); FB.applying=false;
       if(data.updatedBy&&data.updatedBy!==actor()) toast("🔄 "+data.updatedBy+" updated the board");
     }, err=>{ fbStatus("● offline","var(--red)"); });
+    // shared version history — everyone sees every user's changes in the History tab
+    FB.versRef.orderBy("createdAt","desc").limit(120).onSnapshot(qs=>{
+      const arr=[]; qs.forEach(doc=>{ const x=doc.data(); x.id=doc.id; arr.push(x); });
+      VERSIONS=arr; if(S.view==="versions") render();
+    }, e=>{});
   }catch(e){ fbStatus("● error","var(--red)"); }
 }
+function fbAddVersion(entry){ try{ FB.versRef.add(Object.assign({},entry,{createdAt:firebase.firestore.FieldValue.serverTimestamp()})); }catch(e){} }
 function fbSchedule(){ if(!FB.ready||FB.applying) return; clearTimeout(FB.timer); FB.timer=setTimeout(()=>fbWriteNow(false),700); }
 function fbWriteNow(force){
   if(!FB.ready||!FB.synced) return;
@@ -1500,12 +1510,12 @@ function viewTeam(){
 
 function viewVersions(){
   const head=`<h2>Version history${VERSIONS.length?` <span class="pill ok">${VERSIONS.length}</span>`:""} <button class="btn" style="margin-left:8px" onclick="saveCheckpoint()">📌 Save checkpoint</button></h2>
-  <div class="sub">Every change is auto-saved as a version — <b>when</b>, <b>who</b> (current role), and a <b>summary of what changed</b> in each section. Restore any earlier version; the restore is itself recorded so you can always go back.</div>`;
+  <div class="sub">Every change from <b>every user</b> is auto-saved here — <b>when</b>, <b>who</b>, and a <b>summary of what changed</b>${fbConfigured()?' <span style="color:var(--green)">· shared live across the team</span>':""}. Restore any earlier version; the restore is itself recorded so you can always go back.</div>`;
   if(!VERSIONS.length) return head+`<div class="panel"><div class="sub">No versions yet — make a change and it'll appear here.</div></div>`;
   return head+`<div class="panel">${VERSIONS.map((v,i)=>`
     <div style="border:1px solid var(--line,#262b32);border-left:3px solid ${i===0?"var(--green)":"var(--line,#3a414b)"};border-radius:4px;padding:10px 12px;margin-bottom:8px">
       <div><b>${esc(v.ts)}</b> · <span style="color:var(--accent)">${esc(v.who)}</span>${i===0?' <span class="pill ok">current</span>':""}
-        ${i===0?"":`<button class="btn" style="float:right;padding:4px 10px;font-size:12px" onclick="restoreVersion(${v.id})">↩ Restore this</button>`}</div>
+        ${i===0?"":`<button class="btn" style="float:right;padding:4px 10px;font-size:12px" onclick="restoreVersion('${v.id}')">↩ Restore this</button>`}</div>
       <div style="margin:5px 0;color:var(--dim)">${esc(v.summary||"")}</div>
       ${(v.changes&&v.changes.length)?`<details style="margin-top:3px"><summary class="ghostnote" style="cursor:pointer">what changed (${v.changes.length})</summary><ul style="margin:6px 0 2px 16px;color:var(--faint);font-size:12.5px;line-height:1.6">${v.changes.map(c=>`<li>${esc(c)}</li>`).join("")}</ul></details>`:""}
       ${(v.sections&&v.sections.length)?`<div class="ghostnote" style="margin-top:3px">sections: ${v.sections.map(esc).join(" · ")}</div>`:""}
