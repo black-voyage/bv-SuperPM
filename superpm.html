@@ -24,6 +24,12 @@
     --bg:#F6F8FC; --panel:#FFFFFF; --panel2:#ECEFF5; --line:#D0D5E1;
     --text:#111215; --dim:#4E5666; --faint:#8A93A3;
   }
+  /* warm dark-orange theme — dark base with orange glow */
+  [data-theme="orange"]{
+    --bg:#1A120D; --panel:#241812; --panel2:#2E1F16; --line:#3D2A1E;
+    --text:#FBEEE3; --dim:#C7A892; --faint:#8C7461;
+    --accent:#FF6A3D;
+  }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-head);}
   h2{font-weight:700;letter-spacing:-.01em}
@@ -1028,9 +1034,11 @@ const ZHRE=Object.entries(ZH).sort((a,b)=>b[0].length-a[0].length).map(([k,v])=>
 const zhText=s=>{if(!s.trim())return s;for(const [re,v] of ZHRE)s=s.replace(re,v);return s;};
 const tx=html=>LANG==="en"?html:html.split(/(<[^>]*>)/g).map(seg=>seg.startsWith("<")?seg:zhText(seg)).join("");
 let THEME="dark", WIDE=false;
-function setTheme(){THEME=THEME==="dark"?"light":"dark";
+const THEME_CYCLE=["dark","light","orange"];
+const THEME_ICON={dark:"☀️",light:"🟠",orange:"🌙"};
+function setTheme(){THEME=THEME_CYCLE[(THEME_CYCLE.indexOf(THEME)+1)%THEME_CYCLE.length];
   if(typeof document!=="undefined"&&document.documentElement&&document.documentElement.setAttribute)document.documentElement.setAttribute("data-theme",THEME);
-  const b=document.getElementById("themeBtn"); if(b)b.textContent=THEME==="dark"?"☀️":"🌙";
+  const b=document.getElementById("themeBtn"); if(b)b.textContent=THEME_ICON[THEME];
   render();}
 function setWide(){WIDE=!WIDE;
   if(typeof document!=="undefined"&&document.body&&document.body.setAttribute){if(WIDE)document.body.setAttribute("data-wide","");else document.body.removeAttribute("data-wide");}
