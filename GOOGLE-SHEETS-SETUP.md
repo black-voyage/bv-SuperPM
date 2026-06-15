@@ -1,6 +1,6 @@
 # Google Sign-In + create Sheets/Docs — one-time setup
 
-Each teammate can **sign in with their own Google account** (button at the top-right) and then
+Sign in (button at the top-right) with **hello@blackvoyage.com** and then
 create real **Google Sheets or Docs** straight from any task. New files are **auto-shared so anyone
 with the link can edit** — so the team can always open/edit them without manual sharing. This needs a
 free Google OAuth Client ID (one-time, ~5 min).

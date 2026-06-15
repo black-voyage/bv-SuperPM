@@ -604,12 +604,13 @@ function newLaunch(){
    with Authorized JavaScript origin = the deployed site URL (e.g. https://bv-superpm-ey4i.onrender.com).
    Enable the "Google Drive API" for the same project. Until a Client ID is set, sign-in explains the setup. */
 const GOOGLE_CLIENT_ID="";  // <-- paste your OAuth Client ID here
+const GOOGLE_ACCOUNT="hello@blackvoyage.com";  // every Sheet/Doc is created under this account (sign-in defaults to it)
 const GMIME={sheet:"application/vnd.google-apps.spreadsheet",doc:"application/vnd.google-apps.document"};
 let GAUTH={token:null,exp:0,email:"",name:"",client:null};
 function intakeTaskOf(l){return l.tasks.find(t=>t.t==="Form (intake)");}
 function gReady(){return !!(GOOGLE_CLIENT_ID && window.google && google.accounts && google.accounts.oauth2);}
 function gClient(){ if(!gReady())return null;
-  if(!GAUTH.client){GAUTH.client=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:"https://www.googleapis.com/auth/drive.file openid email profile",callback:()=>{}});}
+  if(!GAUTH.client){GAUTH.client=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:"https://www.googleapis.com/auth/drive.file openid email profile",hint:GOOGLE_ACCOUNT,callback:()=>{}});}
   return GAUTH.client; }
 function gGetToken(interactive){
   return new Promise((resolve,reject)=>{
@@ -642,7 +643,7 @@ function renderGAuth(){
   if(GAUTH.email||GAUTH.token){
     el.innerHTML=`<span style="font-size:12px;color:var(--green)" title="${esc(GAUTH.email||"")}">🟢 ${esc(GAUTH.name||GAUTH.email||"Signed in")}</span> <button class="iconbtn" title="sign out of Google" onclick="signOutGoogle()">Sign out</button>`;
   } else {
-    el.innerHTML=`<button class="btn ghost" style="padding:6px 12px" title="Sign in with Google to create your own docs/sheets" onclick="signInGoogle()">Sign in with Google</button>`;
+    el.innerHTML=`<button class="btn ghost" style="padding:6px 12px" title="Connect the ${esc(GOOGLE_ACCOUNT)} Google account — all Sheets/Docs are created there" onclick="signInGoogle()">Connect Google</button>`;
   }
 }
 function createDriveDoc(slug,i,kind){
@@ -651,7 +652,7 @@ function createDriveDoc(slug,i,kind){
   const t=_linkTask(slug,i); if(!t){toast("Task not found");return;}
   const isCamp=slug==="__camp"; const l=isCamp?null:L(slug);
   const isIntake=!isCamp&&t.t==="Form (intake)";
-  const name=isCamp?(CAMPAIGNS[0].name+" · "+t.t):(isIntake?l.name:(l.name+" · "+t.t)); // intake = product name
+  const name=isCamp?("BV-SuperPM-"+CAMPAIGNS[0].name+"-"+t.t):(isIntake?("BV-SuperPM-"+l.name):("BV-SuperPM-"+l.name+"-"+t.t)); // BV-SuperPM-<product / use-case>
   const kindLabel=kind==="doc"?"Doc":"Sheet";
   toast("Creating Google "+kindLabel+" “"+name+"”…");
   gGetToken(true).then(tok=>
@@ -1135,7 +1136,7 @@ function delDept(i){ const d=TEAM[i].name;
 }
 
 /* ================= RENDER HELPERS ================= */
-const linkChips=(task,slug,i)=>(task.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank" title="${esc(k.u)}">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('${slug}',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('${slug}',${i},${li})">✕</button></span>`).join("")+`<button class="addlnk" onclick="event.stopPropagation();addLink('${slug}',${i})">+ link</button><button class="addlnk" title="Create a Google Sheet under your account (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'sheet')">📊 Sheet</button><button class="addlnk" title="Create a Google Doc under your account (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'doc')">📝 Doc</button>`;
+const linkChips=(task,slug,i)=>(task.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank" title="${esc(k.u)}">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('${slug}',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('${slug}',${i},${li})">✕</button></span>`).join("")+`<button class="addlnk" onclick="event.stopPropagation();addLink('${slug}',${i})">+ link</button><button class="addlnk" title="Create a Google Sheet under hello@blackvoyage.com (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'sheet')">📊 Sheet</button><button class="addlnk" title="Create a Google Doc under hello@blackvoyage.com (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'doc')">📝 Doc</button>`;
 function taskRow(l,t,extra){
   const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
   const vids=t.notes.filter(n=>n.v).length; const lk=taskLocked(l,t);
