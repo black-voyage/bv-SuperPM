@@ -111,6 +111,7 @@ appId:             "1:864428735438:web:d353709e716410fecf899f"
 ---
 
 ## 8. Security status & TODO
+- [ ] **(planned) Gemini LLM feature** — an AI feature is planned for this app, to be added later. It will use the **Gemini API key held under Ben@blackvoyage.com** (§1/§9). The key must be called from a backend / secret store (e.g. a small server or Cloud Function) — it can **not** go in `index.html`, which is fully public.
 - [ ] **Lock down Firestore** — rules are open (anyone with the config could read/write). Add Firebase Auth (Google, restricted to blackvoyage.com) + `allow read, write: if request.auth != null`. ← do soon.
 - [ ] **Delete the dead old Render service** `bv-superpm-ihnr` (under `tennisandcode`).
 - [ ] *(optional)* Remove `tennisandcode` as a GitHub collaborator once black-voyage handles all pushes.
