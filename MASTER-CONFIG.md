@@ -22,6 +22,7 @@ _Last updated: 2026-06-15_
 |---|---|---|
 | **Primary owner** | **hello@blackvoyage.com** | GitHub `black-voyage`, Render, Google Cloud, Firebase, Drive |
 | GitHub collaborator | `tennisandcode` (Benjamin Chung) | Push access (guest). Commit identity `154731536+tennisandcode@users.noreply.github.com` |
+| **Gemini / AI key holder** | **Ben@blackvoyage.com** | Holds the **Gemini API key** (for AI features). The key itself is a secret — see §9. |
 | Workspace domain | `blackvoyage.com` | OAuth "Internal" audience — any blackvoyage.com user can sign in |
 
 ---
@@ -118,6 +119,8 @@ appId:             "1:864428735438:web:d353709e716410fecf899f"
 ## 9. Secrets — NOT stored in this file
 - **GitHub push token** (`ghp_…`): lives only on the developer's machine; never commit it. Rotate at
   https://github.com/settings/tokens if exposed.
+- **Gemini API key**: held under the **Ben@blackvoyage.com** Google account (Google AI Studio /
+  Google Cloud). Not stored in this repo — keep it in an env var / secret manager, not in client code.
 - The OAuth Client ID and Firebase `apiKey` above are **not secrets** — they're public client identifiers
   by design (already visible in page source). Security comes from OAuth origins + Firestore rules, not from
   hiding them.
