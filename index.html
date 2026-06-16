@@ -213,6 +213,7 @@
   <button class="btn ghost" id="themeBtn" style="padding:6px 10px" title="light / dark" onclick="setTheme()">☀️</button><button class="btn ghost" id="wideBtn" style="padding:6px 10px" title="regular / wide screen" onclick="setWide()">⛶</button><button class="btn ghost" id="langBtn" style="padding:6px 12px" onclick="setLang()">中文</button>
   <div class="rolewrap"><span id="vaLab">Viewing as</span> <select id="roleSel" onchange="setRole(this.value)"></select></div>
   <span id="fbsync" style="font-size:11px;margin-left:10px;font-family:var(--font-mono)" title="real-time shared-board status"></span>
+  <span id="whoami" style="margin-left:10px"></span>
   <span id="gauth" style="display:inline-flex;align-items:center;gap:6px;margin-left:10px"></span>
 </header>
 <main id="app"></main>
@@ -741,7 +742,12 @@ function loadSaved(){try{
    in which section. Any previous version can be restored; the restore itself is recorded. */
 let VERSIONS=[]; let _lastVerKey=null; let _verNote=null;
 function nowStamp(){try{const d=new Date(),p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());}catch(e){return (typeof today!=="undefined"?today:"")+" 00:00";}}
-function actor(){return S.role==="ceo"?"Ben (CEO)":S.role==="director"?"Director":(S.dept+" (head)");}
+let USERNAME=(typeof localStorage!=="undefined"&&localStorage.getItem("bv-username"))||"";
+function roleLabel(){return S.role==="ceo"?"Ben (CEO)":S.role==="director"?"Director":(S.dept+" (head)");}
+function actor(){return USERNAME?USERNAME:roleLabel();}  // version-history "who" = the real person (falls back to role)
+function setUsername(){const n=prompt("Your name — used to label YOUR changes in the shared History so the team can see who did what:",USERNAME||"");if(n===null)return;USERNAME=(n||"").trim();try{localStorage.setItem("bv-username",USERNAME);}catch(e){} renderWhoami(); toast(USERNAME?("👤 You are "+USERNAME):"Name cleared");}
+function renderWhoami(){const el=document.getElementById("whoami");if(!el)return;
+  el.innerHTML=USERNAME?`<span style="cursor:pointer;color:var(--accent);font-size:12px" title="this is how your edits are labelled in History — click to change" onclick="setUsername()">👤 ${esc(USERNAME)}</span>`:`<button class="btn ghost" style="padding:6px 10px" title="Set your name so your edits show as YOU in the shared History" onclick="setUsername()">👤 Set your name</button>`;}
 function verSnap(){return JSON.stringify({v:2,TEAM,LAUNCHES,CAMPAIGNS,GATES,FLOW,XROUTES});} // no LOG → smaller, change-relevant
 function stWord(s){return ({o:"to-do",p:"in progress",b:"blocked",x:"done"})[s]||s;}
 function saveVersions(){try{if(typeof localStorage==="undefined")return;localStorage.setItem("bv-superpm-versions",JSON.stringify(VERSIONS));}catch(e){try{VERSIONS.length=Math.floor(VERSIONS.length/2);localStorage.setItem("bv-superpm-versions",JSON.stringify(VERSIONS));}catch(_){}}}
@@ -761,6 +767,7 @@ function diffState(prev,cur){
       if(x.st!==y.st){ch.push(nm+" / "+tt+": "+stWord(x.st)+" → "+stWord(y.st));secs.add(nm);}
       const xl=(x.links||[]).length,yl=(y.links||[]).length; if(yl>xl){ch.push(nm+" / "+tt+": +"+(yl-xl)+" link");secs.add(nm);}
       const xn=(x.notes||[]).length,yn=(y.notes||[]).length; if(yn>xn){ch.push(nm+" / "+tt+": +"+(yn-xn)+" note");secs.add(nm);}
+      const xc=(x.codes||[]).length,yc=(y.codes||[]).length; if(yc!==xc){ch.push(nm+" / "+tt+": "+(yc>xc?"+"+(yc-xc):(yc-xc))+" code/link");secs.add(nm);}
       if(x.assignee!==y.assignee&&y.assignee){ch.push(nm+" / "+tt+": assigned "+y.assignee);secs.add(nm);}
     });
     const ar=(a.risks||[]).length,br=(b.risks||[]).length; if(br!==ar){ch.push(nm+": "+(br>ar?"+"+(br-ar)+" risk":(br-ar)+" risk"));secs.add(nm);}
@@ -1185,46 +1192,59 @@ function removeLink(slug,i,li){
   t.links.splice(li,1); toast("🗑 Link removed"); render();
 }
 /* ----- HTML code attachments: paste code, preview rendered output or view source ----- */
-function codeModal({title,label,html,onSave,readOnly}){
+function openCodeFull(html,url){
+  if(url){window.open(url,"_blank");return;}
+  try{const b=new Blob([html||""],{type:"text/html"}); window.open(URL.createObjectURL(b),"_blank");}
+  catch(e){const w=window.open("","_blank"); if(w){w.document.open();w.document.write(html||"");w.document.close();}}
+}
+function codeModal({title,label,html,url,onSave,readOnly}){
   const old=document.getElementById("codeModal"); if(old)old.remove();
   const ov=document.createElement("div"); ov.className="cmodal"; ov.id="codeModal";
   ov.onclick=e=>{if(e.target===ov)ov.remove();};
   ov.innerHTML=readOnly
-   ?`<div class="cmbox"><div class="cmhead"><b>&lt;/&gt; ${esc(label||"HTML")}</b>
+   ?`<div class="cmbox"><div class="cmhead"><b>${url?"🔗":"&lt;/&gt;"} ${esc(label||"Attachment")}</b>
        <button class="cmtab on" id="cmTabP">Preview</button><button class="cmtab" id="cmTabS">Source</button>
+       <button class="btn ghost" id="cmFull" style="padding:4px 10px" title="open the full page in a new browser tab">⛶ Full page</button>
        <button class="lnkb" style="font-size:16px" onclick="document.getElementById('codeModal').remove()">✕</button></div>
       <div class="cmbody" id="cmView"></div></div>`
    :`<div class="cmbox"><div class="cmhead"><b>${esc(title)}</b>
        <button class="lnkb" style="font-size:16px" onclick="document.getElementById('codeModal').remove()">✕</button></div>
       <div class="cmbody">
-        <div class="frow" style="margin-bottom:8px"><label>Label</label><input type="text" id="cmLabel" value="${esc(label||"")}" placeholder="e.g. Email template, Landing block…" style="flex:1"></div>
-        <textarea id="cmCode" placeholder="Paste HTML code here — it will render as a live preview for anyone on the board.">${esc(html||"")}</textarea>
+        <div class="frow" style="margin-bottom:8px"><label>Label</label><input type="text" id="cmLabel" value="${esc(label||"")}" placeholder="e.g. Email template, Claude page…" style="flex:1"></div>
+        <textarea id="cmCode" placeholder="Paste HTML code here — it renders as a live preview for everyone on the board.">${esc(html||"")}</textarea>
+        <div class="frow" style="margin-top:8px"><label>or Link</label><input type="text" id="cmUrl" value="${esc(url||"")}" placeholder="…or paste a link (Claude Code / hosted page URL) to embed instead of code" style="flex:1"></div>
       </div>
       <div class="cmfoot"><button class="btn ghost" onclick="document.getElementById('codeModal').remove()">Cancel</button>
         <button class="btn" id="cmSave">Save</button></div></div>`;
   document.body.appendChild(ov);
   if(readOnly){
     const view=ov.querySelector("#cmView"), tp=ov.querySelector("#cmTabP"), ts=ov.querySelector("#cmTabS");
-    const showP=()=>{tp.classList.add("on");ts.classList.remove("on");const f=document.createElement("iframe");f.setAttribute("sandbox","allow-scripts allow-forms allow-popups");f.srcdoc=html||"";view.innerHTML="";view.appendChild(f);};
-    const showS=()=>{ts.classList.add("on");tp.classList.remove("on");view.innerHTML=`<pre>${esc(html||"")}</pre>`;};
+    const showP=()=>{tp.classList.add("on");ts.classList.remove("on");const f=document.createElement("iframe");
+      f.setAttribute("sandbox",url?"allow-scripts allow-forms allow-popups allow-same-origin":"allow-scripts allow-forms allow-popups");
+      if(url)f.src=url; else f.srcdoc=html||""; view.innerHTML=""; view.appendChild(f);};
+    const showS=()=>{ts.classList.add("on");tp.classList.remove("on");view.innerHTML=url?`<pre><a class="lnk" href="${esc(url)}" target="_blank">🔗 ${esc(url)}</a></pre>`:`<pre>${esc(html||"")}</pre>`;};
+    ov.querySelector("#cmFull").onclick=()=>openCodeFull(html,url);
     tp.onclick=showP; ts.onclick=showS; showP();
   }else{
-    ov.querySelector("#cmSave").onclick=()=>{const v=ov.querySelector("#cmCode").value;
-      if(!v.trim()){toast("Nothing to save — paste some HTML first");return;}
-      onSave(ov.querySelector("#cmLabel").value.trim()||"HTML",v); ov.remove();};
+    ov.querySelector("#cmSave").onclick=()=>{const code=ov.querySelector("#cmCode").value, u=ov.querySelector("#cmUrl").value.trim();
+      const nm=ov.querySelector("#cmLabel").value.trim()||(u&&!code.trim()?"Link":"HTML");
+      if(code.trim()){onSave(nm,{h:code});}
+      else if(u){onSave(nm,{u});}
+      else {toast("Paste HTML code or a link first");return;}
+      ov.remove();};
   }
 }
 function addCode(slug,i){
   const t=_linkTask(slug,i);
-  codeModal({title:"Attach HTML code",onSave:(n,h)=>{(t.codes=t.codes||[]).push({n,h}); toast("</> HTML code attached"); render();}});
+  codeModal({title:"Attach HTML code or link",onSave:(n,obj)=>{(t.codes=t.codes||[]).push(Object.assign({n},obj)); toast("📎 Attached"); render();}});
 }
 function viewCode(slug,i,ci){
   const c=(_linkTask(slug,i).codes||[])[ci]; if(!c)return;
-  codeModal({readOnly:true,label:c.n,html:c.h});
+  codeModal({readOnly:true,label:c.n,html:c.h,url:c.u});
 }
 function editCode(slug,i,ci){
   const t=_linkTask(slug,i), c=(t.codes||[])[ci]; if(!c)return;
-  codeModal({title:"Edit HTML code",label:c.n,html:c.h,onSave:(n,h)=>{c.n=n;c.h=h; toast("✏️ Code updated"); render();}});
+  codeModal({title:"Edit attachment",label:c.n,html:c.h,url:c.u,onSave:(n,obj)=>{c.n=n; delete c.h; delete c.u; Object.assign(c,obj); toast("✏️ Updated"); render();}});
 }
 function removeCode(slug,i,ci){
   const t=_linkTask(slug,i); if(!t.codes||!t.codes[ci])return;
@@ -1280,8 +1300,8 @@ function delDept(i){ const d=TEAM[i].name;
 }
 
 /* ================= RENDER HELPERS ================= */
-const codeChips=(task,slug,i)=>(task.codes||[]).map((c,ci)=>`<span class="lnkg"><span class="codechip" title="View / preview HTML" onclick="event.stopPropagation();viewCode('${slug}',${i},${ci})">&lt;/&gt; ${esc(c.n)}</span><button class="lnkb" title="edit code" onclick="event.stopPropagation();editCode('${slug}',${i},${ci})">✎</button><button class="lnkb" title="remove code" onclick="event.stopPropagation();removeCode('${slug}',${i},${ci})">✕</button></span>`).join("");
-const linkChips=(task,slug,i)=>(task.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank" title="${esc(k.u)}">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('${slug}',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('${slug}',${i},${li})">✕</button></span>`).join("")+codeChips(task,slug,i)+`<button class="addlnk" onclick="event.stopPropagation();addLink('${slug}',${i})">+ link</button><button class="addlnk" title="Create a Google Sheet under hello@blackvoyage.com (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'sheet')">📊 Sheet</button><button class="addlnk" title="Create a Google Doc under hello@blackvoyage.com (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'doc')">📝 Doc</button><button class="addlnk" title="Paste HTML code — communicate directly through code (preview rendered output or view source)" onclick="event.stopPropagation();addCode('${slug}',${i})">&lt;/&gt; HTML</button>`;
+const codeChips=(task,slug,i)=>(task.codes||[]).map((c,ci)=>`<span class="lnkg"><span class="codechip" title="${c.u?"View / open the linked page":"View / preview HTML"}" onclick="event.stopPropagation();viewCode('${slug}',${i},${ci})">${c.u?"🔗":"&lt;/&gt;"} ${esc(c.n)}</span><button class="lnkb" title="edit code" onclick="event.stopPropagation();editCode('${slug}',${i},${ci})">✎</button><button class="lnkb" title="remove code" onclick="event.stopPropagation();removeCode('${slug}',${i},${ci})">✕</button></span>`).join("");
+const linkChips=(task,slug,i)=>(task.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank" title="${esc(k.u)}">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('${slug}',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('${slug}',${i},${li})">✕</button></span>`).join("")+codeChips(task,slug,i)+`<button class="addlnk" onclick="event.stopPropagation();addLink('${slug}',${i})">+ link</button><button class="addlnk" title="Create a Google Sheet under hello@blackvoyage.com (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'sheet')">📊 Sheet</button><button class="addlnk" title="Create a Google Doc under hello@blackvoyage.com (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'doc')">📝 Doc</button><button class="addlnk" title="Paste HTML code OR a link (Claude Code / hosted page) — preview, view source, or open the full page" onclick="event.stopPropagation();addCode('${slug}',${i})">&lt;/&gt; Code/Link</button>`;
 function taskRow(l,t,extra){
   const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
   const vids=t.notes.filter(n=>n.v).length; const lk=taskLocked(l,t);
@@ -1617,7 +1637,7 @@ function render(){
   else html=S.role==="ceo"?homeCEO():S.role==="director"?homeDirector():homeDept();
   app.innerHTML=tx(html);
   const nb=document.getElementById("inboxN"); if(nb){const n=autopilot().length; nb.textContent=n?n:"";}
-  renderGAuth(); renderDrawer(); save();
+  renderWhoami(); renderGAuth(); renderDrawer(); save();
 }
 loadSaved();
 loadVersions();
