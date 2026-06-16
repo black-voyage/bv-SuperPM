@@ -1,9 +1,18 @@
 # BV SuperPM — Master Config & Connections
 
 Single source of truth for every account, connection, and config value behind the SuperPM dashboard.
-Keep this updated when anything changes. **No real secrets live here** (see "Secrets" at the bottom).
+Keep this updated when anything changes. **No real secrets live here** (see §9).
 
 _Last updated: 2026-06-15_
+
+---
+
+## 0. TL;DR — the live stack
+- **App (live):** https://bv-superpm-ey4i.onrender.com  — homepage `/` = SuperPM, dashboard at `/dashboard.html`
+- **Code:** https://github.com/black-voyage/bv-SuperPM (private)  — branch `main`, auto-deploys to Render
+- **Data:** Firebase Firestore `bv-superpm` — real-time shared board (everyone sees everyone's edits)
+- **Docs/Sheets:** created under hello@blackvoyage.com into one Drive folder
+- **Everything is owned by hello@blackvoyage.com** (one GCP project `#864428735438` powers OAuth + Firebase)
 
 ---
 
@@ -11,73 +20,64 @@ _Last updated: 2026-06-15_
 
 | Role | Email / handle | Used for |
 |---|---|---|
-| **Primary owner** | **hello@blackvoyage.com** | GitHub org-account, Render hosting, Google Cloud, Firebase, Drive — owns everything |
-| GitHub collaborator | `tennisandcode` (Benjamin Chung) | Push access to the repo (guest). Commit identity: `154731536+tennisandcode@users.noreply.github.com` |
-| Google Workspace domain | `blackvoyage.com` | OAuth "Internal" audience — any blackvoyage.com user can sign in |
+| **Primary owner** | **hello@blackvoyage.com** | GitHub `black-voyage`, Render, Google Cloud, Firebase, Drive |
+| GitHub collaborator | `tennisandcode` (Benjamin Chung) | Push access (guest). Commit identity `154731536+tennisandcode@users.noreply.github.com` |
+| Workspace domain | `blackvoyage.com` | OAuth "Internal" audience — any blackvoyage.com user can sign in |
 
 ---
 
 ## 2. GitHub — source code
-
 | Item | Value |
 |---|---|
-| Repository | **`black-voyage/bv-SuperPM`** (private) |
-| URL | https://github.com/black-voyage/bv-SuperPM |
-| Default branch | `main` |
-| Owner | `black-voyage` (hello@blackvoyage.com) |
-| Collaborators | `tennisandcode` (write) |
-| Key files | `index.html` (the app), `dashboard.html` + `superpm.html` (synced copies), `render.yaml` (deploy blueprint) |
-| Workflow | Pull/rebase before push so commits stack; see `CONTRIBUTING.md` |
+| Repo | **`black-voyage/bv-SuperPM`** (private) · https://github.com/black-voyage/bv-SuperPM |
+| Branch | `main` (auto-deploys to Render on push) |
+| App file | `index.html` — the whole app. `dashboard.html` + `superpm.html` are byte-identical copies. |
+| Other files | `render.yaml` (deploy), `CONTRIBUTING.md` (git workflow), `*-SETUP.md` (Google/Firestore setup), this file |
+| Workflow | **Pull/rebase before every push** so commits stack — never force-push. Multiple devs push here. |
 
 ---
 
 ## 3. Render — hosting (static site)
-
 | Item | Value |
 |---|---|
 | Account | hello@blackvoyage.com |
-| Service name | `bv-superpm` (static site) |
+| Service | `bv-superpm` (static site, free tier) |
 | **Live URL** | **https://bv-superpm-ey4i.onrender.com** |
-| Deploys from | `black-voyage/bv-SuperPM`, branch `main` (auto-deploy on push, ~1 min) |
-| Config | `render.yaml` blueprint (no build step; publish path = repo root) |
-| ⚠️ Dead/old | `https://bv-superpm-ihnr.onrender.com` (old `tennisandcode` Render account, now 503) — safe to delete |
+| Deploys from | `black-voyage/bv-SuperPM` `main` (~1 min after push) |
+| ⚠️ Dead/old | `bv-superpm-ihnr.onrender.com` (old `tennisandcode` Render acct, 503) — **delete it** |
 
 ---
 
 ## 4. Google Cloud / OAuth — sign-in + Drive file creation
-
 | Item | Value |
 |---|---|
-| GCP project | **BV SuperPM** (project # `864428735438`) |
+| GCP project | **BV SuperPM** (project # `864428735438`) — same project as Firebase |
 | OAuth Client ID | `864428735438-704etq9hsq1lrse1s2i6fs2ctg6m7vu2.apps.googleusercontent.com` |
-| Client type | Web application ("BV SuperPM web") |
-| Consent screen | **Internal** (blackvoyage.com Workspace) — no test-user list needed |
+| Client type / consent | Web app "BV SuperPM web" · **Internal** (blackvoyage.com) |
 | Authorized JS origin | `https://bv-superpm-ey4i.onrender.com` |
-| API enabled | **Google Drive API** (creates Sheets/Docs + sets sharing) |
-| Scopes requested | `https://www.googleapis.com/auth/drive` + `email profile` |
+| API enabled | **Google Drive API** |
+| Scopes | `…/auth/drive` + `email profile` |
 | Files created under | **hello@blackvoyage.com** (login hint) |
-| Saved into Drive folder | `16b_sYyvOGNxemgdDhADHpd_-z6lu1GgA` |
-| Folder URL | https://drive.google.com/drive/folders/16b_sYyvOGNxemgdDhADHpd_-z6lu1GgA |
-| File naming | `BV-SuperPM-<Product>` (intake) / `BV-SuperPM-<Product>-<Task>` (other) |
-| New files shared as | Anyone-with-link → **Editor** |
+| Saved into folder | `16b_sYyvOGNxemgdDhADHpd_-z6lu1GgA` → https://drive.google.com/drive/folders/16b_sYyvOGNxemgdDhADHpd_-z6lu1GgA |
+| File naming | `BV-SuperPM-<Product>` (intake) / `BV-SuperPM-<Product>-<Task>` |
+| Shared as | Anyone-with-link → **Editor** |
 
-> If the live URL ever changes, add the new domain to **Authorized JavaScript origins** or sign-in breaks.
+> If the live URL changes, add the new domain to **Authorized JavaScript origins** or sign-in breaks.
 
 ---
 
-## 5. Firebase / Firestore — real-time shared board
-
-Same Google Cloud project as the OAuth client (project # `864428735438`).
-
+## 5. Firebase / Firestore — real-time shared board ✅ LIVE
+Same GCP project as §4.
 | Item | Value |
 |---|---|
-| Firebase project ID | **`bv-superpm`** |
-| Firestore | Standard edition, location **nam5 (US)**, Production mode, **Blaze plan** (billing enabled) |
-| Shared document | collection `bv` → doc `superpm` (the whole board state) |
-| Live status badge | top-right of app: ● live (shared) |
-| Security rules | **OPEN** (`allow read, write: if true`) — ⚠️ see Security below |
+| Project ID | **`bv-superpm`** |
+| Firestore | Standard, location **nam5 (US)**, Production mode, **Blaze plan** (billing on) |
+| Board doc | `bv/superpm` — full board state (real-time across all users) |
+| Version history | `bv/superpm/versions/*` — shared who-changed-what audit |
+| Rules | **OPEN** (`allow read, write: if true`) — ⚠️ see §8 |
+| Console | https://console.firebase.google.com/project/bv-superpm |
 
-**Web config (also embedded in `index.html` → `FIREBASE_CONFIG`):**
+**Web config (also in `index.html` → `FIREBASE_CONFIG`):**
 ```js
 apiKey:            "AIzaSyACM71vycT4OeKxxoT6vL5MCK7H6g592vQ"
 authDomain:        "bv-superpm.firebaseapp.com"
@@ -89,40 +89,35 @@ appId:             "1:864428735438:web:d353709e716410fecf899f"
 
 ---
 
-## 6. In-code config (edit these in `index.html`, then push)
-
-| Constant | Current value | Purpose |
+## 6. In-code config (edit in `index.html`, copy to `dashboard.html`+`superpm.html`, push)
+| Constant | Value | Purpose |
 |---|---|---|
 | `GOOGLE_CLIENT_ID` | `864428735438-704…apps.googleusercontent.com` | OAuth sign-in |
 | `GOOGLE_ACCOUNT` | `hello@blackvoyage.com` | account that creates Sheets/Docs |
 | `GOOGLE_FOLDER_ID` | `16b_sYyvOGNxemgdDhADHpd_-z6lu1GgA` | Drive folder for generated files |
-| `FIREBASE_CONFIG` | (object above) | shared Firestore board |
-
-> `index.html`, `dashboard.html`, and `superpm.html` are kept byte-identical — change `index.html`, copy to the other two, then push.
+| `FIREBASE_CONFIG` | (object in §5) | shared Firestore board |
 
 ---
 
-## 7. Live URLs (quick links)
-
-- **App (live):** https://bv-superpm-ey4i.onrender.com
-- App / SuperPM homepage = `/` · main tracker dashboard = `/dashboard.html`
-- **Code:** https://github.com/black-voyage/bv-SuperPM
-- **Generated-files folder:** https://drive.google.com/drive/folders/16b_sYyvOGNxemgdDhADHpd_-z6lu1GgA
-- **Firebase console:** https://console.firebase.google.com/project/bv-superpm
-- **Render dashboard:** https://dashboard.render.com (hello@blackvoyage.com)
+## 7. Features (so the team knows what's wired up)
+- **Real-time shared board** (Firestore) — top-right shows `● live (shared)`.
+- **Shared version history** (History tab) — every user's changes, with restore. Click **👤 Set your name** so your edits are attributed to you (not just your role).
+- **Google sign-in** (Connect Google) → create **Sheet/Doc** on any task (`📊 Sheet` / `📝 Doc`), auto-shared.
+- **Attachments per task:** `+ link` (URL), **`</> Code/Link`** (paste HTML *or* a link → preview / view source / **⛶ full page**).
+- **Edit/remove (✎/✕)** on every link & attachment.
+- **Wide view** (⛶) full-width; **flow-chart hide** toggle; EN/中文; light/dark/blue theme.
 
 ---
 
 ## 8. Security status & TODO
+- [ ] **Lock down Firestore** — rules are open (anyone with the config could read/write). Add Firebase Auth (Google, restricted to blackvoyage.com) + `allow read, write: if request.auth != null`. ← do soon.
+- [ ] **Delete the dead old Render service** `bv-superpm-ihnr` (under `tennisandcode`).
+- [ ] *(optional)* Remove `tennisandcode` as a GitHub collaborator once black-voyage handles all pushes.
+- [ ] *(optional)* Clean mock data out of the code `LAUNCHES` seed (live board already cleaned in Firestore).
 
-- [ ] **Lock down Firestore** — rules are currently open (anyone with the config could read/write). Recommend Firebase Auth (Google, restricted to blackvoyage.com) + `allow read, write: if request.auth != null`.
-- [ ] **Delete the dead old Render service** `bv-superpm-ihnr` (under the `tennisandcode` Render account).
-- [ ] **(Optional)** Move version-history audit into Firestore so it's shared across all users.
-- [ ] **(Optional)** Remove `tennisandcode` as a GitHub collaborator once black-voyage handles all pushes.
-
-## Secrets — NOT stored in this file
+## 9. Secrets — NOT stored in this file
 - **GitHub push token** (`ghp_…`): lives only on the developer's machine; never commit it. Rotate at
   https://github.com/settings/tokens if exposed.
-- The OAuth Client ID and Firebase `apiKey` above are **not secrets** — they are public client
-  identifiers by design (already visible in the page source); security is enforced by OAuth origins +
-  Firestore rules, not by hiding them.
+- The OAuth Client ID and Firebase `apiKey` above are **not secrets** — they're public client identifiers
+  by design (already visible in page source). Security comes from OAuth origins + Firestore rules, not from
+  hiding them.
