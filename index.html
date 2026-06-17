@@ -1691,7 +1691,13 @@ function viewVersions(){
 }
 /* ================= CLAUDE CHAT — per-card, shared, tool-using ================= */
 const CHAT_API_URL="https://bv-superpm-chat.onrender.com/chat";  // deployed chat-proxy (holds ANTHROPIC_API_KEY). See CHAT-SETUP.md
-const CHAT_MODEL="claude-sonnet-4-6";
+const CHAT_MODELS=[
+  {id:"claude-opus-4-8",label:"Opus 4.8 · deepest"},
+  {id:"claude-sonnet-4-6",label:"Sonnet 4.6 · balanced"},
+  {id:"claude-haiku-4-5-20251001",label:"Haiku 4.5 · fast"}
+];
+function chatModel(){const m=(typeof localStorage!=="undefined"&&localStorage.getItem("bv-chat-model"))||"claude-opus-4-8"; return CHAT_MODELS.some(x=>x.id===m)?m:"claude-opus-4-8";}
+function setChatModel(id){try{localStorage.setItem("bv-chat-model",id);}catch(e){} toast("🧠 Chat model → "+((CHAT_MODELS.find(x=>x.id===id)||{}).label||id));}
 const CHAT_TOOLS=[
   {name:"add_link",description:"Attach a link/URL (Google Doc, Sheet, Figma, listing, or any resource) to this product card so the whole team sees it.",input_schema:{type:"object",properties:{label:{type:"string"},url:{type:"string"}},required:["label","url"]}},
   {name:"add_html",description:"Attach an HTML snippet/code block to this product card (renders as a live preview for everyone).",input_schema:{type:"object",properties:{label:{type:"string"},html:{type:"string"}},required:["label","html"]}},
@@ -1726,7 +1732,10 @@ function chatResChips(l){return (l.resources||[]).map((r,ri)=>r.type==="code"
   ?`<span class="codechip" style="cursor:pointer" title="view HTML" onclick="viewRes('${l.slug}',${ri})">&lt;/&gt; ${esc(r.n)}</span>`
   :`<a class="lnk" href="${esc(r.u)}" target="_blank">🔗 ${esc(r.n)}</a>`).join("")||'<span class="ghostnote">No files yet — ask Claude to attach links, docs, or HTML.</span>';}
 function renderChatPanel(l){
-  return `<div class="panel chatpanel${CHAT.full?" full":""}" id="chatPanel"><h3>💬 Claude — ${esc(l.name)} <span class="ghostnote" style="font-weight:400">· shared</span><button class="iconbtn" style="float:right" title="full screen" onclick="toggleChatFull()">${CHAT.full?"✕ close":"⛶ full"}</button></h3>
+  return `<div class="panel chatpanel${CHAT.full?" full":""}" id="chatPanel"><h3>💬 Claude — ${esc(l.name)} <span class="ghostnote" style="font-weight:400">· shared</span>
+      <span style="float:right;display:inline-flex;gap:6px;align-items:center">
+        <select title="model — Opus is deepest, Haiku is fastest" onchange="setChatModel(this.value)" style="font-size:11px;padding:3px 6px">${CHAT_MODELS.map(m=>`<option value="${m.id}" ${m.id===chatModel()?"selected":""}>${m.label}</option>`).join("")}</select>
+        <button class="iconbtn" title="full screen" onclick="toggleChatFull()">${CHAT.full?"✕ close":"⛶ full"}</button></span></h3>
     <div class="chatmsgs" id="chatMsgs"></div>
     <div class="chatres" id="chatRes"></div>
     <div class="chatinput"><textarea id="chatInput" placeholder="Ask Claude to attach a link/doc/HTML, add a note, or update a task… (Enter to send)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${l.slug}')}"></textarea><button class="btn" onclick="chatSend('${l.slug}')">Send</button></div></div>`;
@@ -1763,7 +1772,7 @@ async function chatSend(slug){
   const actions=[];
   try{
     for(let hop=0;hop<6;hop++){
-      const resp=await fetch(CHAT_API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:CHAT_MODEL,system:chatSystemPrompt(l),messages,tools:CHAT_TOOLS})}).then(r=>r.json());
+      const resp=await fetch(CHAT_API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:chatModel(),system:chatSystemPrompt(l),messages,tools:CHAT_TOOLS})}).then(r=>r.json());
       if(resp.error){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ "+((resp.error&&resp.error.message)||"backend error"),ts:nowStamp()}); break; }
       messages.push({role:"assistant",content:resp.content||[]});
       const tus=(resp.content||[]).filter(b=>b.type==="tool_use");
