@@ -199,6 +199,19 @@
   .dbar .nm2{width:110px;font-size:12.5px;text-align:right;color:var(--dim)}
   .dbar .tr{flex:1;background:var(--panel2);border-radius:2px;height:20px;overflow:hidden}
   .dbar .fl{height:100%;border-radius:2px;display:flex;align-items:center;padding-left:8px;font-size:11px;font-weight:700;color:#fff}
+  /* ---- Claude chat panel ---- */
+  .chatpanel{display:flex;flex-direction:column;height:560px}
+  .chatpanel.full{position:fixed;inset:0;z-index:65;height:100vh;border-radius:0;margin:0;max-width:none}
+  .chatmsgs{flex:1;overflow-y:auto;padding:6px 2px;display:flex;flex-direction:column;gap:10px}
+  .cmsg{display:flex;gap:8px;align-items:flex-start}
+  .cmsg .av{width:24px;height:24px;border-radius:3px;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+  .cmsg.user .av{background:#3a4a5a} .cmsg.assistant .av{background:var(--accent)}
+  .cmsg .bub{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:7px 10px;font-size:13px;line-height:1.5;white-space:pre-wrap;max-width:88%}
+  .cmsg .who{font-size:11px;color:var(--faint);margin-bottom:2px}
+  .cmsg .acts{margin-top:5px;font-size:11px;color:var(--green)}
+  .chatres{border-top:1px solid var(--line);padding:6px 2px;display:flex;flex-wrap:wrap;gap:5px}
+  .chatinput{display:flex;gap:6px;padding-top:8px;border-top:1px solid var(--line)}
+  .chatinput textarea{flex:1;height:46px;resize:vertical;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:7px 9px;font-family:inherit;font-size:13px}
 </style>
 </head>
 <body>
@@ -1555,12 +1568,8 @@ function viewLaunch(){
       ${(l.risks||[]).sort((a,b)=>b.sc-a.sc).map(r=>`<div class="risk"><b>${esc(r.t)}</b><span style="float:right;color:${r.sc>=8?"var(--red)":"var(--amber)"};font-weight:700">score ${r.sc}</span><div class="ghostnote">owner: <span style="color:${DCOLOR(r.owner)}">${esc(r.owner)}</span> · trigger: ${esc(r.trigger)}</div></div>`).join("")||'<div class="sub">No risks logged. Add the top 3 at every stage push (pre-mortem).</div>'}</div></div>
     ${DEPTS().map(d=>{const ts=l.tasks.filter(t=>t.d===d);return ts.length?`<div class="panel"><h3>${d.toUpperCase()}</h3>${ts.map(t=>taskRow(l,t,t.stage)).join("")}</div>`:"";}).join("")}
   </div><div>
-    <div class="slack"><div class="hd"># launch-${l.slug}</div><div class="msgs">
-      <div class="msg"><div class="av" style="background:var(--accent)">BV</div><div><span class="who">BV Tracker</span><span class="when">APP · Mon</span><div class="txt">📊 Weekly digest: ${g.met}/${g.total} exit criteria met for <b>${l.stage}</b>. ${l.tasks.filter(t=>t.st==="b").length?"⚠️ "+l.tasks.filter(t=>t.st==="b").length+" blocked task(s).":"No blockers."}</div><div class="thr">↳ 3 replies — discuss in thread</div></div></div>
-      ${pend?`<div class="msg"><div class="av" style="background:var(--accent)">BV</div><div><span class="who">BV Tracker</span><span class="when">APP · today</span><div class="txt">◆ <b>Approval needed:</b> ${esc(pend.t)} — all other ${l.stage} criteria are done. Requested by ${l.dri} (DRI).</div><div class="appr"><div style="margin-bottom:8px">Approving unblocks the push to <b>${next}</b>.</div><button class="btn" onclick="approve('${l.slug}',${l.tasks.indexOf(pend.task)})">✓ Approve</button> <button class="btn red" onclick="toast('Reject opens a reason modal → logged to the card')">✕ Reject</button></div><div class="thr">↳ discuss in thread</div></div></div>`:""}
-      ${l.checkins.slice(0,3).map(c=>`<div class="msg"><div class="av" style="background:#3a4a5a;color:#fff">${c.a[0]}</div><div><span class="who">${esc(c.a)}</span><span class="when">${fmt(c.d)}</span><div class="txt">${esc(c.txt)}</div><div class="thr">↳ thread</div></div></div>`).join("")}
-    </div></div>
-    <div class="panel" style="margin-top:18px"><h3>CHECK-IN LOG</h3>${l.checkins.map(c=>`<div class="checkin"><div class="d">${fmt(c.d)} — ${esc(c.a)}</div>${esc(c.txt)}</div>`).join("")}</div>
+    ${pend?`<div class="panel" style="border-color:var(--accent);margin-bottom:14px"><h3>◆ Approval needed</h3><div class="sub" style="margin-bottom:8px">${esc(pend.t)} — all other ${l.stage} criteria are done. Approving unblocks the push to <b>${next||"Complete"}</b>.</div><button class="btn" onclick="approve('${l.slug}',${l.tasks.indexOf(pend.task)})">✓ Approve</button></div>`:""}
+    ${renderChatPanel(l)}
   </div></div>`;
 }
 function viewDept(){
@@ -1680,6 +1689,93 @@ function viewVersions(){
       ${(v.sections&&v.sections.length)?`<div class="ghostnote" style="margin-top:3px">sections: ${v.sections.map(esc).join(" · ")}</div>`:""}
     </div>`).join("")}</div>`;
 }
+/* ================= CLAUDE CHAT — per-card, shared, tool-using ================= */
+const CHAT_API_URL="";  // <-- paste your deployed chat-proxy URL, e.g. https://bv-superpm-chat.onrender.com/chat  (see CHAT-SETUP.md)
+const CHAT_MODEL="claude-sonnet-4-6";
+const CHAT_TOOLS=[
+  {name:"add_link",description:"Attach a link/URL (Google Doc, Sheet, Figma, listing, or any resource) to this product card so the whole team sees it.",input_schema:{type:"object",properties:{label:{type:"string"},url:{type:"string"}},required:["label","url"]}},
+  {name:"add_html",description:"Attach an HTML snippet/code block to this product card (renders as a live preview for everyone).",input_schema:{type:"object",properties:{label:{type:"string"},html:{type:"string"}},required:["label","html"]}},
+  {name:"add_note",description:"Add a note / check-in to this product card's log.",input_schema:{type:"object",properties:{text:{type:"string"}},required:["text"]}},
+  {name:"set_task_status",description:"Update a task's status on this card.",input_schema:{type:"object",properties:{task:{type:"string"},status:{type:"string",enum:["todo","in_progress","done","blocked"]}},required:["task","status"]}}
+];
+let CHAT={slug:null,unsub:null,msgs:[],busy:false,full:false};
+function chatRef(slug){return firebase.firestore().collection("bv").doc("superpm").collection("chats").doc(slug);}
+function chatSub(slug){
+  if(CHAT.slug===slug&&CHAT.unsub)return;
+  if(CHAT.unsub){try{CHAT.unsub();}catch(e){} CHAT.unsub=null;}
+  CHAT.slug=slug; CHAT.msgs=[];
+  if(!FB.ready){renderChatBody();return;}
+  CHAT.unsub=chatRef(slug).onSnapshot(snap=>{const d=snap.data(); CHAT.msgs=(d&&d.messages)||[]; renderChatBody();},e=>{});
+}
+function chatPush(slug,msg){
+  if(FB.ready){ try{ chatRef(slug).set({messages:firebase.firestore.FieldValue.arrayUnion(msg),updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); }catch(e){} }
+  else { CHAT.msgs.push(msg); renderChatBody(); }
+}
+function chatSystemPrompt(l){
+  const tasks=(l.tasks||[]).map(t=>"- "+t.t+" ["+stWord(t.st)+"]").join("\n");
+  const res=(l.resources||[]).map(r=>"- "+(r.type||"link")+": "+r.n).join("\n")||"(none yet)";
+  return "You are Claude, embedded in the Black Voyage \"SuperPM\" product dashboard. You help the team manage the product card \""+l.name+"\" (stage: "+l.stage+", DRI: "+l.dri+"). This chat is SHARED — everyone on the team sees it and your actions, for this product only.\nWhen the user asks to upload/attach a link, doc, or HTML, add a note, or change a task status, USE the tools to actually do it on the board (don't just describe it). Keep replies short.\nTasks on this card:\n"+tasks+"\nAttached resources:\n"+res;
+}
+function chatMsgHTML(m){
+  const cls=m.role==="assistant"?"assistant":"user";
+  const av=m.role==="assistant"?"AI":esc(((m.who||"?")[0]||"?").toUpperCase());
+  return `<div class="cmsg ${cls}"><div class="av">${av}</div><div><div class="who">${esc(m.who||(m.role==="assistant"?"Claude":"User"))}${m.ts?" · "+esc(m.ts):""}</div><div class="bub">${esc(m.text||"")}</div>${(m.actions&&m.actions.length)?`<div class="acts">⚡ ${m.actions.map(esc).join(" · ")}</div>`:""}</div></div>`;
+}
+function viewRes(slug,ri){const r=((L(slug)||{}).resources||[])[ri]; if(!r)return; if(r.type==="code")codeModal({readOnly:true,label:r.n,html:r.h}); else window.open(r.u,"_blank");}
+function chatResChips(l){return (l.resources||[]).map((r,ri)=>r.type==="code"
+  ?`<span class="codechip" style="cursor:pointer" title="view HTML" onclick="viewRes('${l.slug}',${ri})">&lt;/&gt; ${esc(r.n)}</span>`
+  :`<a class="lnk" href="${esc(r.u)}" target="_blank">🔗 ${esc(r.n)}</a>`).join("")||'<span class="ghostnote">No files yet — ask Claude to attach links, docs, or HTML.</span>';}
+function renderChatPanel(l){
+  return `<div class="panel chatpanel${CHAT.full?" full":""}" id="chatPanel"><h3>💬 Claude — ${esc(l.name)} <span class="ghostnote" style="font-weight:400">· shared</span><button class="iconbtn" style="float:right" title="full screen" onclick="toggleChatFull()">${CHAT.full?"✕ close":"⛶ full"}</button></h3>
+    <div class="chatmsgs" id="chatMsgs"></div>
+    <div class="chatres" id="chatRes"></div>
+    <div class="chatinput"><textarea id="chatInput" placeholder="Ask Claude to attach a link/doc/HTML, add a note, or update a task… (Enter to send)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${l.slug}')}"></textarea><button class="btn" onclick="chatSend('${l.slug}')">Send</button></div></div>`;
+}
+function renderChatBody(){
+  const m=document.getElementById("chatMsgs"); if(m){m.innerHTML=(CHAT.msgs||[]).map(chatMsgHTML).join("")+(CHAT.busy?`<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub">…thinking</div></div></div>`:""); m.scrollTop=m.scrollHeight;}
+  const r=document.getElementById("chatRes"); if(r&&CHAT.slug){const l=L(CHAT.slug); if(l)r.innerHTML=chatResChips(l);}
+}
+function toggleChatFull(){CHAT.full=!CHAT.full; const p=document.getElementById("chatPanel"); if(p){p.classList.toggle("full",CHAT.full); const b=p.querySelector("h3 .iconbtn"); if(b)b.textContent=CHAT.full?"✕ close":"⛶ full";}}
+function runChatTool(slug,name,input){
+  const l=L(slug); if(!l)return {summary:"",text:"card not found"};
+  try{
+    if(name==="add_link"){ (l.resources=l.resources||[]).push({type:"link",n:input.label||"Link",u:input.url||""}); save(); return {summary:"🔗 "+(input.label||"link"),text:"Added link “"+(input.label||"")+"”."}; }
+    if(name==="add_html"){ (l.resources=l.resources||[]).push({type:"code",n:input.label||"HTML",h:input.html||""}); save(); return {summary:"</> "+(input.label||"HTML"),text:"Attached HTML “"+(input.label||"")+"”."}; }
+    if(name==="add_note"){ (l.checkins=l.checkins||[]).unshift({d:today,a:actor(),txt:input.text||""}); save(); return {summary:"📝 note",text:"Note added to the log."}; }
+    if(name==="set_task_status"){ const map={todo:"o",in_progress:"p",done:"x",blocked:"b"}; const st=map[input.status]; if(!st)return {summary:"",text:"Unknown status."};
+      const q=(input.task||"").toLowerCase(); const t=(l.tasks||[]).find(t=>t.t.toLowerCase().includes(q)); if(!t)return {summary:"",text:"No task matching “"+(input.task||"")+"”."};
+      t.st=st; save(); return {summary:"✓ "+t.t+"→"+input.status,text:"Set “"+t.t+"” to "+input.status+"."}; }
+    return {summary:"",text:"Unknown tool "+name};
+  }catch(e){ return {summary:"",text:"Tool error: "+e}; }
+}
+async function chatSend(slug){
+  const input=document.getElementById("chatInput"); if(!input)return;
+  const text=(input.value||"").trim(); if(!text)return;
+  if(!CHAT_API_URL){toast("⚠️ Chat backend not set yet — deploy the proxy & set CHAT_API_URL (see CHAT-SETUP.md)");return;}
+  if(CHAT.busy){toast("Claude is still working…");return;}
+  input.value=""; const who=actor(), l=L(slug);
+  const prior=(CHAT.msgs||[]).slice();
+  chatPush(slug,{role:"user",who,text,ts:nowStamp()});
+  CHAT.busy=true; renderChatBody();
+  let messages=[];
+  for(const mm of prior.concat([{role:"user",who,text}])){ const role=mm.role==="assistant"?"assistant":"user"; const content=mm.role==="user"?((mm.who||"User")+": "+mm.text):mm.text;
+    if(messages.length&&messages[messages.length-1].role===role&&typeof messages[messages.length-1].content==="string"){messages[messages.length-1].content+="\n"+content;} else {messages.push({role,content});} }
+  const actions=[];
+  try{
+    for(let hop=0;hop<6;hop++){
+      const resp=await fetch(CHAT_API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:CHAT_MODEL,system:chatSystemPrompt(l),messages,tools:CHAT_TOOLS})}).then(r=>r.json());
+      if(resp.error){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ "+((resp.error&&resp.error.message)||"backend error"),ts:nowStamp()}); break; }
+      messages.push({role:"assistant",content:resp.content||[]});
+      const tus=(resp.content||[]).filter(b=>b.type==="tool_use");
+      const txt=(resp.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim();
+      if(tus.length){ const results=[];
+        for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out.summary)actions.push(out.summary); results.push({type:"tool_result",tool_use_id:tu.id,content:out.text}); }
+        messages.push({role:"user",content:results}); renderChatBody(); continue;
+      } else { chatPush(slug,{role:"assistant",who:"Claude",text:txt||"(done)",actions:actions.slice(),ts:nowStamp()}); break; }
+    }
+  }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Couldn't reach the chat backend.",ts:nowStamp()}); }
+  CHAT.busy=false; renderChatBody();
+}
 function render(){
   const sel=document.getElementById("roleSel");
   const cur=S.role==="dept"?"dept:"+S.dept:S.role;
@@ -1705,6 +1801,7 @@ function render(){
   else html=S.role==="ceo"?homeCEO():S.role==="director"?homeDirector():homeDept();
   app.innerHTML=tx(html);
   const nb=document.getElementById("inboxN"); if(nb){const n=autopilot().length; nb.textContent=n?n:"";}
+  if(S.view==="launch"&&S.launch){chatSub(S.launch);renderChatBody();}
   renderWhoami(); renderGAuth(); renderDrawer(); save();
 }
 loadSaved();
