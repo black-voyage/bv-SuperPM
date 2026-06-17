@@ -97,6 +97,10 @@ appId:             "1:864428735438:web:d353709e716410fecf899f"
 | `GOOGLE_ACCOUNT` | `hello@blackvoyage.com` | account that creates Sheets/Docs |
 | `GOOGLE_FOLDER_ID` | `16b_sYyvOGNxemgdDhADHpd_-z6lu1GgA` | Drive folder for generated files |
 | `FIREBASE_CONFIG` | (object in §5) | shared Firestore board |
+| `CHAT_API_URL` | _(set after deploying chat-proxy)_ | the Claude chat backend URL (`…/chat`) |
+| `CHAT_MODEL` | `claude-sonnet-4-6` | model for the in-app Claude chat |
+
+**Claude chat backend** (`chat-proxy/`, deploy as a Render **Web Service**): holds `ANTHROPIC_API_KEY` (Claude key, tested ✅, value in the local secrets file — Ben@/hello@blackvoyage.com). See `CHAT-SETUP.md`.
 
 ---
 
@@ -105,6 +109,7 @@ appId:             "1:864428735438:web:d353709e716410fecf899f"
 - **Shared version history** (History tab) — every user's changes, with restore. Click **👤 Set your name** so your edits are attributed to you (not just your role).
 - **Google sign-in** (Connect Google) → create **Sheet/Doc** on any task (`📊 Sheet` / `📝 Doc`), auto-shared.
 - **Attachments per task:** `+ link` (URL), **`</> Code/Link`** (paste HTML *or* a link → preview / view source / **⛶ full page**).
+- **Claude chat per card** (in the product card, replacing the old Slack/check-in panel) — shared across all users, ⛶ full-screen, and can attach links/HTML, add notes, and update task status via tools. Needs the **chat-proxy** backend (`CHAT_API_URL`); see `CHAT-SETUP.md`. Key (`ANTHROPIC_API_KEY`) lives on the proxy, never in the app.
 - **Edit/remove (✎/✕)** on every link & attachment.
 - **Wide view** (⛶) full-width; **flow-chart hide** toggle; EN/中文; light/dark/blue theme.
 
