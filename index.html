@@ -1040,7 +1040,7 @@ const DOD={"Form (intake)":"Intake complete: why, spec, look, material, customer
 
 /* ================= STATE ================= */
 let S={role:"ceo",view:"home",launch:null,dept:"Design",flowLaunch:"apex",open:{},progLaunch:"apex",route:null,q:"",palSel:0,hideFlow:false};
-const NAVS=[["home","Home"],["portfolio","Portfolio"],["progress","Progress"],["timeline","Timeline"],["dept","Departments"],["flow","Master flow"],["campaign","Campaigns"],["team","Team"],["versions","History"]];
+const NAVS=[["home","Home"],["portfolio","Portfolio"],["progress","Progress"],["timeline","Timeline"],["dept","Departments"],["campaign","Campaigns"],["settings","Settings"]];
 const stIcon={x:"✓",p:"…",b:"!",o:""};
 const fmt=d=>new Date(d+"T00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
 const today="2026-06-10";
@@ -1158,6 +1158,7 @@ const ZH={
  // — nav / views —
  "Home":"首頁","Portfolio":"總覽看板","Progress":"進度","Timeline":"時間軸","Departments":"部門",
  "Master flow chart":"主流程圖","Master flow":"主流程圖","Campaigns":"行銷活動","Campaign":"行銷活動","Team & departments":"團隊與部門","Team":"團隊",
+ "Settings":"設定","People config and the shared change history, in one place.":"人員設定與共享的變更歷史，整合於一處。",
  "CEO lens":"CEO 視角","Director lens":"總監視角","Department lens":"部門視角","Department":"部門","Director":"總監","Head":"主管",
  // — statuses / chips —
  "Awaiting Ben ◆":"等待 Ben ◆","In progress":"進行中","To do":"待辦","Blocked":"受阻","Done":"完成","Complete":"已完成","On track":"進度正常",
@@ -1666,6 +1667,14 @@ function viewCampaign(){
   <div class="panel"><h3>FEATURED PRODUCTS</h3><div class="board">${c.products.map(s=>`<div class="col">${cardHTML(L(s))}</div>`).join("")}</div></div>
   <div class="panel"><h3>CAMPAIGN TASKS (cross-department)</h3>${c.tasks.map((t,i)=>`<div class="row"><span class="st ${t.st}">${stIcon[t.st]}</span><span>${esc(t.t)} ${(t.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('__camp',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('__camp',${i},${li})">✕</button></span>`).join("")}<button class="addlnk" onclick="addLink('__camp',${i})">+ link</button><button class="addlnk" title="Create a Google Sheet (anyone-with-link can edit)" onclick="createDriveDoc('__camp',${i},'sheet')">📊 Sheet</button><button class="addlnk" title="Create a Google Doc (anyone-with-link can edit)" onclick="createDriveDoc('__camp',${i},'doc')">📝 Doc</button></span><span class="o">${t.d}</span></div>`).join("")}</div>`;
 }
+function viewSettings(){
+  const tab=S.settingsTab||(S.view==="versions"?"history":"team"); // honour old /team /versions deep-links
+  const tabs=`<div style="margin:10px 0 16px">
+    <button class="btn ${tab==="team"?"":"ghost"}" onclick="S.settingsTab='team';render()">👥 Team &amp; departments</button>
+    <button class="btn ${tab==="history"?"":"ghost"}" style="margin-left:6px" onclick="S.settingsTab='history';render()">🕘 History</button>
+  </div>`;
+  return `<h2>Settings</h2><div class="sub">People config and the shared change history, in one place.</div>${tabs}${tab==="history"?viewVersions():viewTeam()}`;
+}
 function viewTeam(){
   return `<h2>Team & departments</h2><div class="sub">This is the tracker's <b>people config</b> (the future <code>config/people.yaml</code>). Edit roles, heads and members here — DRI pickers, task owners, gate logic and lenses all read from this list. No personal names required; departments are the unit of ownership.</div>
   <div class="panel"><table><tr><th style="width:140px">Department</th><th>Role / responsibility</th><th style="width:150px">Head (optional)</th><th style="width:170px">Members (optional)</th><th style="width:40px"></th></tr>
@@ -1806,10 +1815,8 @@ function render(){
   else if(S.view==="progress") html=viewProgress();
   else if(S.view==="timeline") html=viewTimeline();
   else if(S.view==="dept") html=viewDept();
-  else if(S.view==="flow") html=viewFlow();
   else if(S.view==="campaign") html=viewCampaign();
-  else if(S.view==="team") html=viewTeam();
-  else if(S.view==="versions") html=viewVersions();
+  else if(S.view==="settings"||S.view==="team"||S.view==="versions") html=viewSettings();
   else html=S.role==="ceo"?homeCEO():S.role==="director"?homeDirector():homeDept();
   app.innerHTML=tx(html);
   const nb=document.getElementById("inboxN"); if(nb){const n=autopilot().length; nb.textContent=n?n:"";}
