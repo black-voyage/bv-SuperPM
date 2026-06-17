@@ -742,6 +742,37 @@ function createLaunchFolder(slug){
   });
 }
 
+/* ----- delete a launch (and optionally its Drive folder) ----- */
+function deleteLaunch(slug){
+  const l=L(slug); if(!l)return;
+  if(!confirm("Delete launch “"+l.name+"”?\n\nThis removes the card and all its tasks for everyone on the shared board. This can be undone from History.")) return;
+  let delFolder=false;
+  if(l.driveFolderId){ delFolder=confirm("Also move its Google Drive folder “BV-SuperPM-"+l.name+"” (and everything inside it) to the Drive Trash?\n\nOK = delete the Drive folder too\nCancel = keep the Drive folder"); }
+  const fid=l.driveFolderId, nm=l.name;
+  const idx=LAUNCHES.findIndex(x=>x.slug===slug); if(idx<0)return;
+  LAUNCHES.splice(idx,1);
+  log("🗑️ Launch deleted: "+nm+(GAUTH.email?(" · by "+GAUTH.email):""));
+  if(S.view==="launch"&&S.launch===slug){S.view="portfolio";S.launch=null;}
+  save(); render(); toast("🗑️ “"+nm+"” deleted");
+  if(delFolder&&fid) trashDriveFolder(fid,nm);
+}
+function trashDriveFolder(fid,name){
+  if(!GOOGLE_CLIENT_ID||!gReady()){toast("Card deleted — sign in to Google to also remove the Drive folder.");return;}
+  if(GAUTH.token&&!gHasDrive())GAUTH.token=null; // re-consent if the token lacks Drive access
+  gGetToken(true).then(tok=>{
+    if(!gHasDrive())throw {kind:"noscope"};
+    return fetch("https://www.googleapis.com/drive/v3/files/"+fid+"?fields=id",{method:"PATCH",
+      headers:{"Authorization":"Bearer "+tok,"Content-Type":"application/json"},
+      body:JSON.stringify({trashed:true})})
+      .then(r=>{ if(!r.ok) return r.json().then(d=>{throw ((d.error&&d.error.message)||"trash failed");}); });
+  }).then(()=>{ log("🗑️ Drive folder moved to Trash: BV-SuperPM-"+name); toast("🗑️ Drive folder “BV-SuperPM-"+name+"” moved to Trash"); })
+  .catch(err=>{
+    if(err&&err.kind==="noscope"){toast("Folder kept — re-connect Google and CHECK the “Google Drive” box to delete it.");}
+    else if(err&&(err.kind==="denied"||err.kind==="unconfigured")){/* sign-in cancelled — card already deleted */}
+    else{toast("Card deleted, but couldn't trash the Drive folder: "+(typeof err==="string"?err:"sign-in/permission needed"));}
+  });
+}
+
 /* ----- confetti on push ----- */
 function boom(){try{
   for(let i=0;i<26;i++){const c=document.createElement("div"); c.className="cf";
@@ -1365,7 +1396,7 @@ function taskPanel(l,t,i){
 const cardHTML=l=>{const g=gateState(l),[h,cls]=health(l);const si=STAGES.indexOf(l.stage);
   const dots=STAGES.map((s,i)=>`<span title="${s}" style="display:inline-block;width:9px;height:9px;border-radius:1px;margin-right:4px;background:${l.complete||i<si?"#4ade80":i===si?"var(--accent)":"#2a2f37"};${i===si&&!l.complete?"box-shadow:0 0 6px var(--accent)":""}"></span>`).join("");
   const done=l.tasks.filter(t=>t.st==="x").length;
-  return `<div class="card" onclick="openL('${l.slug}')"><div class="nm">${l.name}</div><div class="meta">DRI: <b style="color:${DCOLOR(l.dri)}">${l.dri}</b> · 🎯 ${fmt(l.target)}</div>
+  return `<div class="card" style="position:relative" onclick="openL('${l.slug}')"><button class="lnkb" title="Delete this launch" style="position:absolute;top:8px;right:8px;color:var(--red);font-size:14px;line-height:1" onclick="event.stopPropagation();deleteLaunch('${l.slug}')">✕</button><div class="nm">${l.name}</div><div class="meta">DRI: <b style="color:${DCOLOR(l.dri)}">${l.dri}</b> · 🎯 ${fmt(l.target)}</div>
   <div style="margin:7px 0 5px">${dots}</div>
   <div class="bar"><i style="width:${Math.round(done/l.tasks.length*100)}%"></i></div>
   <div class="meta">${g.met}/${g.total} gate criteria · ${done}/${l.tasks.length} tasks overall</div>
@@ -1507,7 +1538,7 @@ function viewLaunch(){
   const mand=mandatory(l);
   const pushable=allMet(l), allowed=canPushRole(l);
   return `<span class="back" onclick="go('portfolio')">← Portfolio</span>
-  <h2>${l.name} <span class="pill ${cls}">${h}</span>${l.driveFolderUrl?`<a class="btn ghost" style="margin-left:10px;padding:6px 12px" href="${l.driveFolderUrl}" target="_blank" title="Open this launch's folder in the shared BV SuperPM Drive folder">📁 Open folder</a>`:`<button class="btn ghost" style="margin-left:10px;padding:6px 12px" title="Create a folder for this launch inside the shared BV SuperPM Drive folder (existing files stay where they are; new ones go here)" onclick="createLaunchFolder('${l.slug}')">📁 Create folder</button>`}</h2>
+  <h2>${l.name} <span class="pill ${cls}">${h}</span>${l.driveFolderUrl?`<a class="btn ghost" style="margin-left:10px;padding:6px 12px" href="${l.driveFolderUrl}" target="_blank" title="Open this launch's folder in the shared BV SuperPM Drive folder">📁 Open folder</a>`:`<button class="btn ghost" style="margin-left:10px;padding:6px 12px" title="Create a folder for this launch inside the shared BV SuperPM Drive folder (existing files stay where they are; new ones go here)" onclick="createLaunchFolder('${l.slug}')">📁 Create folder</button>`}<button class="btn ghost" style="margin-left:8px;padding:6px 12px;color:var(--red)" title="Delete this launch (and optionally its Drive folder)" onclick="deleteLaunch('${l.slug}')">🗑️ Delete</button></h2>
   <div class="sub">DRI: <select onchange="setDRI('${l.slug}',this.value)" title="change DRI">${DEPTS().map(d=>`<option value="${d}" ${d===l.dri?"selected":""}>${d}</option>`).join("")}</select>
    · target ${fmt(l.target)} · stage <b>${l.complete?"Complete":l.stage}</b>${l.complete?"":` · float <b style="color:${floatDays(l)<0?"var(--red)":"var(--green)"}">${floatDays(l)}d</b> · velocity ${velocity(l).toFixed(1)}/wk · forecast <b>${fmt(forecastDate(l))}</b>`}</div>
   <div class="stages">${STAGES.map((s,i)=>`<span class="stg ${i<idx||l.complete?"past":i===idx?"cur":""}">${s}</span>`).join("")}</div>
