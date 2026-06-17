@@ -1765,8 +1765,20 @@ function chatPush(slug,msg){
 }
 function chatSystemPrompt(l){
   const tasks=(l.tasks||[]).map(t=>"- "+t.t+" ["+stWord(t.st)+"]").join("\n");
-  const res=(l.resources||[]).map(r=>"- "+(r.type||"link")+": "+r.n).join("\n")||"(none yet)";
-  return "You are Claude, embedded in the Black Voyage \"SuperPM\" product dashboard. You help the team manage the product card \""+l.name+"\" (stage: "+l.stage+", DRI: "+l.dri+"). This chat is SHARED — everyone on the team sees it and your actions, for this product only.\nWhen the user asks to upload/attach a link, doc, or HTML, add a note, or change a task status, USE the tools to actually do it on the board (don't just describe it). Keep replies short.\nIMPORTANT — keep ONE final version of each document: attach only the finished version, not drafts. If you revise something you already attached, call add_html again with the EXACT SAME label so it replaces the old file in place. Never create 'v1', 'v2', 'clean', 'draft', or 'final' label variants of the same document.\nTasks on this card:\n"+tasks+"\nAttached resources:\n"+res;
+  // full inventory of everything attached to this card — links/files humans pasted (on tasks), card resources, and chat-generated files
+  const inv=[];
+  (l.tasks||[]).forEach(t=>{
+    (t.links||[]).forEach(k=>inv.push("- [link] "+(k.n||"link")+" — "+(k.u||"")+"   (on task: "+t.t+")"));
+    (t.codes||[]).forEach(c=>inv.push("- ["+(c.u?"link":"html")+"] "+(c.n||"HTML")+(c.u?(" — "+c.u):"")+"   (on task: "+t.t+")"));
+  });
+  (l.resources||[]).forEach(r=>inv.push("- ["+(r.type==="code"?"html":"link")+"] "+(r.n||"")+(r.u?(" — "+r.u):"")+"   (card-level)"));
+  (CHAT.msgs||[]).forEach(m=>(m.attachments||[]).forEach(a=>inv.push("- ["+(a.type==="code"?"html":"link")+"] "+(a.n||"")+(a.u?(" — "+a.u):"")+"   (generated earlier in this chat)")));
+  const res=inv.join("\n")||"(nothing attached to this card yet)";
+  return "You are Claude, embedded in the Black Voyage \"SuperPM\" product dashboard. You help the team manage the product card \""+l.name+"\" (stage: "+l.stage+", DRI: "+l.dri+"). This chat is SHARED — everyone on the team sees it and your actions, for this product only.\n"
+   +"You CAN see everything already attached to this card: the full inventory of links and files the team has uploaded (including ones pasted on individual tasks) is listed below under ATTACHMENTS. When asked what's attached, or to pull/list/collect the links, read them straight from that inventory and give the actual URLs — never say you can't see them.\n"
+   +"When asked to upload/attach a link, doc, or HTML, add a note, or change a task status, USE the tools to actually do it on the board (don't just describe it). Think carefully and be thorough and accurate — don't be terse when depth is useful.\n"
+   +"Keep ONE final version of each document: attach only the finished version, not drafts. To revise, call add_html with the EXACT SAME label so it replaces the old file. Never create 'v1', 'v2', 'clean', 'draft', or 'final' label variants.\n"
+   +"TASKS on this card:\n"+tasks+"\nATTACHMENTS already on this card:\n"+res;
 }
 function chatMsgHTML(m,mi){
   const cls=m.role==="assistant"?"assistant":"user";
