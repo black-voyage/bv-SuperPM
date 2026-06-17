@@ -31,7 +31,7 @@ app.post("/chat", async (req, res) => {
       },
       body: JSON.stringify({
         model: model || "claude-sonnet-4-6",
-        max_tokens: 1500,
+        max_tokens: Number(process.env.MAX_TOKENS) || 8000, // enough to generate full HTML/docs without truncation
         system,
         messages,
         tools,

@@ -1748,8 +1748,8 @@ function toggleChatFull(){CHAT.full=!CHAT.full; const p=document.getElementById(
 function runChatTool(slug,name,input){
   const l=L(slug); if(!l)return {summary:"",text:"card not found"};
   try{
-    if(name==="add_link"){ (l.resources=l.resources||[]).push({type:"link",n:input.label||"Link",u:input.url||""}); save(); return {summary:"🔗 "+(input.label||"link"),text:"Added link “"+(input.label||"")+"”."}; }
-    if(name==="add_html"){ (l.resources=l.resources||[]).push({type:"code",n:input.label||"HTML",h:input.html||""}); save(); return {summary:"</> "+(input.label||"HTML"),text:"Attached HTML “"+(input.label||"")+"”."}; }
+    if(name==="add_link"){ if(!(input.url||"").trim())return {summary:"",text:"No url provided — include the full url."}; (l.resources=l.resources||[]).push({type:"link",n:input.label||"Link",u:input.url}); save(); return {summary:"🔗 "+(input.label||"link"),text:"Added link “"+(input.label||"")+"”."}; }
+    if(name==="add_html"){ if(!(input.html||"").trim())return {summary:"",text:"No HTML content was provided — put the FULL html document in the html argument and try once."}; (l.resources=l.resources||[]).push({type:"code",n:input.label||"HTML",h:input.html}); save(); return {summary:"</> "+(input.label||"HTML"),text:"Attached HTML “"+(input.label||"")+"” ("+input.html.length+" chars)."}; }
     if(name==="add_note"){ (l.checkins=l.checkins||[]).unshift({d:today,a:actor(),txt:input.text||""}); save(); return {summary:"📝 note",text:"Note added to the log."}; }
     if(name==="set_task_status"){ const map={todo:"o",in_progress:"p",done:"x",blocked:"b"}; const st=map[input.status]; if(!st)return {summary:"",text:"Unknown status."};
       const q=(input.task||"").toLowerCase(); const t=(l.tasks||[]).find(t=>t.t.toLowerCase().includes(q)); if(!t)return {summary:"",text:"No task matching “"+(input.task||"")+"”."};
