@@ -619,6 +619,7 @@ function newLaunch(){
     checkins:[{d:today,a:"system",txt:"Card created from template. Everything is locked until the intake Form is done."}]});
   log("🆕 New launch created: "+name);
   toast("🆕 "+name+" created — fill the intake Form to unlock the pipeline"); openL(slug);
+  createLaunchFolder(slug); // also create a matching folder inside the shared "BV SuperPM" Drive folder
 }
 
 /* ----- Google: per-user sign-in + create Sheet/Doc as the signed-in user, auto-shared -----
@@ -683,7 +684,8 @@ function createDriveDoc(slug,i,kind){
   toast("Creating Google "+kindLabel+" “"+name+"”…");
   gGetToken(true).then(tok=>{
     if(!gHasDrive())throw {kind:"noscope"};
-    const body={name,mimeType:GMIME[kind]}; if(GOOGLE_FOLDER_ID)body.parents=[GOOGLE_FOLDER_ID]; // save into the shared folder
+    const parentFolder=(l&&l.driveFolderId)?l.driveFolderId:GOOGLE_FOLDER_ID; // prefer this launch's own folder, else the shared root
+    const body={name,mimeType:GMIME[kind]}; if(parentFolder)body.parents=[parentFolder];
     return fetch("https://www.googleapis.com/drive/v3/files?fields=id,webViewLink,name",{method:"POST",
       headers:{"Authorization":"Bearer "+tok,"Content-Type":"application/json"},
       body:JSON.stringify(body)})
@@ -702,6 +704,41 @@ function createDriveDoc(slug,i,kind){
     if(err&&err.kind==="unconfigured"){toast("⚠️ Add a Google Client ID first");}
     else if(err&&err.kind==="noscope"){toast("Re-connect Google and CHECK the “Google Drive” permission box so files can be created.");}
     else{toast("Couldn't create: "+(typeof err==="string"?err:"sign-in needed, folder not accessible, or sharing blocked by your org"));}
+  });
+}
+
+/* ----- create a Drive folder for a launch, inside the shared "BV SuperPM" folder -----
+   Called from newLaunch(). Best-effort: if Google isn't configured/signed-in, the card is
+   still created locally and we just skip (or surface a hint). The folder id is stored on the
+   launch so every Sheet/Doc generated for it lands inside its own folder. */
+function createLaunchFolder(slug){
+  const l=L(slug); if(!l)return;
+  if(!GOOGLE_CLIENT_ID||!gReady())return; // Google not set up / still loading → skip silently, card already created
+  if(GAUTH.token&&!gHasDrive())GAUTH.token=null; // drop a stale token lacking Drive access so we re-consent
+  const fname="BV-SuperPM-"+l.name; // folder named after the product, matching the Doc/Sheet naming
+  toast("Creating Drive folder “"+fname+"”…");
+  gGetToken(true).then(tok=>{
+    if(!gHasDrive())throw {kind:"noscope"};
+    const body={name:fname,mimeType:"application/vnd.google-apps.folder"};
+    if(GOOGLE_FOLDER_ID)body.parents=[GOOGLE_FOLDER_ID]; // nest inside the shared "BV SuperPM" folder
+    return fetch("https://www.googleapis.com/drive/v3/files?fields=id,webViewLink,name",{method:"POST",
+      headers:{"Authorization":"Bearer "+tok,"Content-Type":"application/json"},
+      body:JSON.stringify(body)})
+    .then(r=>r.json()).then(d=>{ if(!d.id)throw ((d.error&&d.error.message)||"create failed");
+      // auto-share: anyone with the link can edit, like the generated Sheets/Docs
+      return fetch("https://www.googleapis.com/drive/v3/files/"+d.id+"/permissions",{method:"POST",
+        headers:{"Authorization":"Bearer "+tok,"Content-Type":"application/json"},
+        body:JSON.stringify({role:"writer",type:"anyone"})}).then(()=>d).catch(()=>d); });
+  }).then(d=>{
+    const cur=L(slug); if(!cur)return;
+    cur.driveFolderId=d.id; cur.driveFolderUrl=d.webViewLink||("https://drive.google.com/open?id="+d.id);
+    cur.checkins.unshift({d:today,a:actor(),txt:`Drive folder “${d.name||fname}” created in BV SuperPM (anyone-with-link can edit) — new files for this launch are saved there.`});
+    log("📁 Drive folder created: "+(d.name||fname)+(GAUTH.email?(" · by "+GAUTH.email):"")); save(); render();
+    toast("📁 Drive folder “"+(d.name||fname)+"” created in BV SuperPM");
+  }).catch(err=>{
+    if(err&&err.kind==="noscope"){toast("Folder not created — re-connect Google and CHECK the “Google Drive” box.");}
+    else if(err&&(err.kind==="denied"||err.kind==="unconfigured")){/* sign-in cancelled — card still created locally */}
+    else{toast("Couldn't create Drive folder: "+(typeof err==="string"?err:"sign-in needed or blocked by your org"));}
   });
 }
 
@@ -1470,7 +1507,7 @@ function viewLaunch(){
   const mand=mandatory(l);
   const pushable=allMet(l), allowed=canPushRole(l);
   return `<span class="back" onclick="go('portfolio')">← Portfolio</span>
-  <h2>${l.name} <span class="pill ${cls}">${h}</span></h2>
+  <h2>${l.name} <span class="pill ${cls}">${h}</span>${l.driveFolderUrl?`<a class="btn ghost" style="margin-left:10px;padding:6px 12px" href="${l.driveFolderUrl}" target="_blank" title="Open this launch's folder in the shared BV SuperPM Drive folder">📁 Open folder</a>`:`<button class="btn ghost" style="margin-left:10px;padding:6px 12px" title="Create a folder for this launch inside the shared BV SuperPM Drive folder (existing files stay where they are; new ones go here)" onclick="createLaunchFolder('${l.slug}')">📁 Create folder</button>`}</h2>
   <div class="sub">DRI: <select onchange="setDRI('${l.slug}',this.value)" title="change DRI">${DEPTS().map(d=>`<option value="${d}" ${d===l.dri?"selected":""}>${d}</option>`).join("")}</select>
    · target ${fmt(l.target)} · stage <b>${l.complete?"Complete":l.stage}</b>${l.complete?"":` · float <b style="color:${floatDays(l)<0?"var(--red)":"var(--green)"}">${floatDays(l)}d</b> · velocity ${velocity(l).toFixed(1)}/wk · forecast <b>${fmt(forecastDate(l))}</b>`}</div>
   <div class="stages">${STAGES.map((s,i)=>`<span class="stg ${i<idx||l.complete?"past":i===idx?"cur":""}">${s}</span>`).join("")}</div>
