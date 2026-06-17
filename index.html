@@ -1277,10 +1277,12 @@ function removeLink(slug,i,li){
   t.links.splice(li,1); toast("🗑 Link removed"); render();
 }
 /* ----- HTML code attachments: paste code, preview rendered output or view source ----- */
+function htmlUtf8(h){h=h||""; return /<meta[^>]+charset/i.test(h)?h:('<meta charset="utf-8">\n'+h);} // force UTF-8 so ★ · — etc. don't mojibake
 function openCodeFull(html,url){
   if(url){window.open(url,"_blank");return;}
-  try{const b=new Blob([html||""],{type:"text/html"}); window.open(URL.createObjectURL(b),"_blank");}
-  catch(e){const w=window.open("","_blank"); if(w){w.document.open();w.document.write(html||"");w.document.close();}}
+  const doc=htmlUtf8(html);
+  try{const b=new Blob([doc],{type:"text/html;charset=utf-8"}); window.open(URL.createObjectURL(b),"_blank");}
+  catch(e){const w=window.open("","_blank"); if(w){w.document.open();w.document.write(doc);w.document.close();}}
 }
 function codeModal({title,label,html,url,onSave,readOnly}){
   const old=document.getElementById("codeModal"); if(old)old.remove();
@@ -1306,7 +1308,7 @@ function codeModal({title,label,html,url,onSave,readOnly}){
     const view=ov.querySelector("#cmView"), tp=ov.querySelector("#cmTabP"), ts=ov.querySelector("#cmTabS");
     const showP=()=>{tp.classList.add("on");ts.classList.remove("on");const f=document.createElement("iframe");
       f.setAttribute("sandbox",url?"allow-scripts allow-forms allow-popups allow-same-origin":"allow-scripts allow-forms allow-popups");
-      if(url)f.src=url; else f.srcdoc=html||""; view.innerHTML=""; view.appendChild(f);};
+      if(url)f.src=url; else f.srcdoc=htmlUtf8(html); view.innerHTML=""; view.appendChild(f);};
     const showS=()=>{ts.classList.add("on");tp.classList.remove("on");view.innerHTML=url?`<pre><a class="lnk" href="${esc(url)}" target="_blank">🔗 ${esc(url)}</a></pre>`:`<pre>${esc(html||"")}</pre>`;};
     ov.querySelector("#cmFull").onclick=()=>openCodeFull(html,url);
     tp.onclick=showP; ts.onclick=showS; showP();
