@@ -758,6 +758,35 @@ function createLaunchFolder(slug){
   });
 }
 
+/* ----- edit a launch's name / target date (keeps the slug stable so tasks & history still link) ----- */
+function editLaunch(slug){
+  const l=L(slug); if(!l)return;
+  const name=prompt("Launch name?",l.name); if(name===null)return;
+  const nm=name.trim(); if(!nm){toast("Name can't be empty");return;}
+  const target=(prompt("Target launch date (YYYY-MM-DD)?",l.target)||l.target).trim();
+  const oldName=l.name, oldTarget=l.target;
+  const renamed=nm!==oldName, retargeted=target!==oldTarget;
+  if(!renamed&&!retargeted){toast("No changes");return;}
+  l.name=nm; l.target=target;
+  const parts=[]; if(renamed)parts.push(`name “${oldName}” → “${nm}”`); if(retargeted)parts.push(`target ${fmt(oldTarget)} → ${fmt(target)}`);
+  l.checkins.unshift({d:today,a:actor(),txt:"Edited: "+parts.join("; ")+"."});
+  log("✏️ Launch edited: "+nm+(GAUTH.email?(" · by "+GAUTH.email):"")); save(); render(); toast("✏️ Updated");
+  if(renamed&&l.driveFolderId) renameDriveFolder(l.driveFolderId,nm); // keep the Drive folder name in sync
+}
+function renameDriveFolder(fid,name){
+  if(!GOOGLE_CLIENT_ID||!gReady())return; // Google not set up → folder keeps old name, harmless
+  if(GAUTH.token&&!gHasDrive())GAUTH.token=null;
+  gGetToken(true).then(tok=>{
+    if(!gHasDrive())throw {kind:"noscope"};
+    return fetch("https://www.googleapis.com/drive/v3/files/"+fid+"?fields=id,name",{method:"PATCH",
+      headers:{"Authorization":"Bearer "+tok,"Content-Type":"application/json"},
+      body:JSON.stringify({name:"BV-SuperPM-"+name})})
+      .then(r=>{ if(!r.ok) return r.json().then(d=>{throw ((d.error&&d.error.message)||"rename failed");}); });
+  }).then(()=>{ log("📁 Drive folder renamed: BV-SuperPM-"+name); toast("📁 Drive folder renamed to “BV-SuperPM-"+name+"”"); })
+  .catch(err=>{ if(err&&err.kind==="noscope"){toast("Name updated — re-connect Google with Drive permission to also rename the folder.");}
+    else if(!(err&&(err.kind==="denied"||err.kind==="unconfigured"))){toast("Name updated, but couldn't rename the Drive folder.");} });
+}
+
 /* ----- delete a launch (and optionally its Drive folder) ----- */
 function deleteLaunch(slug){
   const l=L(slug); if(!l)return;
@@ -1420,7 +1449,7 @@ const cardHTML=l=>{const g=gateState(l),[h,cls]=health(l);const si=STAGES.indexO
   <div class="bar"><i style="width:${Math.round(done/l.tasks.length*100)}%"></i></div>
   <div class="meta">${g.met}/${g.total} gate criteria · ${done}/${l.tasks.length} tasks overall</div>
   ${l.complete?"":`<div class="meta" style="margin-top:3px">→ ${(()=>{const cn=criticalNext(l);return cn?esc(cn.t):"—";})()}</div>`}
-  <span class="pill ${cls}">${h}</span>${l.complete?"":` <span class="pill ${floatDays(l)<0?"bad":"ok"}">float ${floatDays(l)}d</span>`}</div>`;};
+  <span class="pill ${cls}">${h}</span>${l.complete?"":` <span class="pill ${floatDays(l)<0?"bad":"ok"}">float ${floatDays(l)}d</span>`}${l.driveFolderUrl?` <a class="pill" style="cursor:pointer;text-decoration:none;border:1px solid var(--line,#3a414b)" href="${l.driveFolderUrl}" target="_blank" title="Open this launch's Google Drive folder — anyone with the link can open it" onclick="event.stopPropagation()">📁 Drive</a>`:""}</div>`;};
 
 /* ================= MASTER FLOW CHART RENDER (SVG, live-colored per launch) ================= */
 function flowSVG(l){
@@ -1557,7 +1586,7 @@ function viewLaunch(){
   const mand=mandatory(l);
   const pushable=allMet(l), allowed=canPushRole(l);
   return `<span class="back" onclick="go('portfolio')">← Portfolio</span>
-  <h2>${l.name} <span class="pill ${cls}">${h}</span>${l.driveFolderUrl?`<a class="btn ghost" style="margin-left:10px;padding:6px 12px" href="${l.driveFolderUrl}" target="_blank" title="Open this launch's folder in the shared BV SuperPM Drive folder">📁 Open folder</a>`:`<button class="btn ghost" style="margin-left:10px;padding:6px 12px" title="Create a folder for this launch inside the shared BV SuperPM Drive folder (existing files stay where they are; new ones go here)" onclick="createLaunchFolder('${l.slug}')">📁 Create folder</button>`}<button class="btn ghost" style="margin-left:8px;padding:6px 12px;color:var(--red)" title="Delete this launch (and optionally its Drive folder)" onclick="deleteLaunch('${l.slug}')">🗑️ Delete</button></h2>
+  <h2>${l.name} <span class="pill ${cls}">${h}</span><button class="btn ghost" style="margin-left:10px;padding:6px 12px" title="Edit this launch's name and target date" onclick="editLaunch('${l.slug}')">✏️ Edit</button>${l.driveFolderUrl?`<a class="btn ghost" style="margin-left:8px;padding:6px 12px" href="${l.driveFolderUrl}" target="_blank" title="Open this launch's folder in the shared BV SuperPM Drive folder">📁 Open folder</a>`:`<button class="btn ghost" style="margin-left:8px;padding:6px 12px" title="Create a folder for this launch inside the shared BV SuperPM Drive folder (existing files stay where they are; new ones go here)" onclick="createLaunchFolder('${l.slug}')">📁 Create folder</button>`}<button class="btn ghost" style="margin-left:8px;padding:6px 12px;color:var(--red)" title="Delete this launch (and optionally its Drive folder)" onclick="deleteLaunch('${l.slug}')">🗑️ Delete</button></h2>
   <div class="sub">DRI: <select onchange="setDRI('${l.slug}',this.value)" title="change DRI">${DEPTS().map(d=>`<option value="${d}" ${d===l.dri?"selected":""}>${d}</option>`).join("")}</select>
    · target ${fmt(l.target)} · stage <b>${l.complete?"Complete":l.stage}</b>${l.complete?"":` · float <b style="color:${floatDays(l)<0?"var(--red)":"var(--green)"}">${floatDays(l)}d</b> · velocity ${velocity(l).toFixed(1)}/wk · forecast <b>${fmt(forecastDate(l))}</b>`}</div>
   <div class="stages">${STAGES.map((s,i)=>`<span class="stg ${i<idx||l.complete?"past":i===idx?"cur":""}">${s}</span>`).join("")}</div>
