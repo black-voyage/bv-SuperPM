@@ -212,6 +212,9 @@
   .chatres{border-top:1px solid var(--line);padding:6px 2px;display:flex;flex-wrap:wrap;gap:5px}
   .chatinput{display:flex;gap:6px;padding-top:8px;border-top:1px solid var(--line)}
   .chatinput textarea{flex:1;height:46px;resize:vertical;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:7px 9px;font-family:inherit;font-size:13px}
+  .catts{margin-top:7px;display:flex;flex-wrap:wrap;gap:6px}
+  .catt{display:inline-flex;align-items:center;gap:5px;background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:6px 11px;font-size:12.5px;color:var(--blue);text-decoration:none;cursor:pointer}
+  .catt:hover{border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -1722,34 +1725,34 @@ function chatSystemPrompt(l){
   const res=(l.resources||[]).map(r=>"- "+(r.type||"link")+": "+r.n).join("\n")||"(none yet)";
   return "You are Claude, embedded in the Black Voyage \"SuperPM\" product dashboard. You help the team manage the product card \""+l.name+"\" (stage: "+l.stage+", DRI: "+l.dri+"). This chat is SHARED — everyone on the team sees it and your actions, for this product only.\nWhen the user asks to upload/attach a link, doc, or HTML, add a note, or change a task status, USE the tools to actually do it on the board (don't just describe it). Keep replies short.\nIMPORTANT — keep ONE final version of each document: attach only the finished version, not drafts. If you revise something you already attached, call add_html again with the EXACT SAME label so it replaces the old file in place. Never create 'v1', 'v2', 'clean', 'draft', or 'final' label variants of the same document.\nTasks on this card:\n"+tasks+"\nAttached resources:\n"+res;
 }
-function chatMsgHTML(m){
+function chatMsgHTML(m,mi){
   const cls=m.role==="assistant"?"assistant":"user";
   const av=m.role==="assistant"?"AI":esc(((m.who||"?")[0]||"?").toUpperCase());
-  return `<div class="cmsg ${cls}"><div class="av">${av}</div><div><div class="who">${esc(m.who||(m.role==="assistant"?"Claude":"User"))}${m.ts?" · "+esc(m.ts):""}</div><div class="bub">${esc(m.text||"")}</div>${(m.actions&&m.actions.length)?`<div class="acts">⚡ ${m.actions.map(esc).join(" · ")}</div>`:""}</div></div>`;
+  const atts=(m.attachments||[]).map((a,ai)=>a.type==="link"
+    ?`<a class="catt" href="${esc(a.u)}" target="_blank">🔗 ${esc(a.n)}</a>`
+    :`<span class="catt" title="open the HTML — preview / source / full page" onclick="openMsgAtt(${mi},${ai})">📄 &lt;/&gt; ${esc(a.n)}</span>`).join("");
+  return `<div class="cmsg ${cls}"><div class="av">${av}</div><div><div class="who">${esc(m.who||(m.role==="assistant"?"Claude":"User"))}${m.ts?" · "+esc(m.ts):""}</div>${m.text?`<div class="bub">${esc(m.text)}</div>`:""}${atts?`<div class="catts">${atts}</div>`:""}${(m.actions&&m.actions.length)?`<div class="acts">⚡ ${m.actions.map(esc).join(" · ")}</div>`:""}</div></div>`;
 }
-function viewRes(slug,ri){const r=((L(slug)||{}).resources||[])[ri]; if(!r)return; if(r.type==="code")codeModal({readOnly:true,label:r.n,html:r.h}); else window.open(r.u,"_blank");}
-function chatResChips(l){return (l.resources||[]).map((r,ri)=>r.type==="code"
-  ?`<span class="codechip" style="cursor:pointer" title="view HTML" onclick="viewRes('${l.slug}',${ri})">&lt;/&gt; ${esc(r.n)}</span>`
-  :`<a class="lnk" href="${esc(r.u)}" target="_blank">🔗 ${esc(r.n)}</a>`).join("")||'<span class="ghostnote">No files yet — ask Claude to attach links, docs, or HTML.</span>';}
+function openMsgAtt(mi,ai){const a=(((CHAT.msgs||[])[mi]||{}).attachments||[])[ai]; if(!a)return; if(a.type==="link")window.open(a.u,"_blank"); else codeModal({readOnly:true,label:a.n,html:a.h});}
+function clearChat(slug){ if(typeof confirm!=="undefined"&&!confirm("Start a new chat? This clears the shared conversation for this card (for everyone)."))return; if(FB.ready){try{chatRef(slug).set({messages:[],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){}} CHAT.msgs=[]; renderChatBody(); toast("🆕 New chat started"); }
 function renderChatPanel(l){
   return `<div class="panel chatpanel${CHAT.full?" full":""}" id="chatPanel"><h3>💬 Claude — ${esc(l.name)} <span class="ghostnote" style="font-weight:400">· shared</span>
       <span style="float:right;display:inline-flex;gap:6px;align-items:center">
         <select title="model — Opus is deepest, Haiku is fastest" onchange="setChatModel(this.value)" style="font-size:11px;padding:3px 6px">${CHAT_MODELS.map(m=>`<option value="${m.id}" ${m.id===chatModel()?"selected":""}>${m.label}</option>`).join("")}</select>
+        <button class="iconbtn" title="start a new chat (clears this card's conversation)" onclick="clearChat('${l.slug}')">＋ New</button>
         <button class="iconbtn" title="full screen" onclick="toggleChatFull()">${CHAT.full?"✕ close":"⛶ full"}</button></span></h3>
     <div class="chatmsgs" id="chatMsgs"></div>
-    <div class="chatres" id="chatRes"></div>
     <div class="chatinput"><textarea id="chatInput" placeholder="Ask Claude to attach a link/doc/HTML, add a note, or update a task… (Enter to send)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${l.slug}')}"></textarea><button class="btn" onclick="chatSend('${l.slug}')">Send</button></div></div>`;
 }
 function renderChatBody(){
-  const m=document.getElementById("chatMsgs"); if(m){m.innerHTML=(CHAT.msgs||[]).map(chatMsgHTML).join("")+(CHAT.busy?`<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub">…thinking</div></div></div>`:""); m.scrollTop=m.scrollHeight;}
-  const r=document.getElementById("chatRes"); if(r&&CHAT.slug){const l=L(CHAT.slug); if(l)r.innerHTML=chatResChips(l);}
+  const m=document.getElementById("chatMsgs"); if(m){m.innerHTML=(CHAT.msgs||[]).map((mm,i)=>chatMsgHTML(mm,i)).join("")+(CHAT.busy?`<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub">…thinking</div></div></div>`:""); m.scrollTop=m.scrollHeight;}
 }
 function toggleChatFull(){CHAT.full=!CHAT.full; const p=document.getElementById("chatPanel"); if(p){p.classList.toggle("full",CHAT.full); const b=p.querySelector("h3 .iconbtn"); if(b)b.textContent=CHAT.full?"✕ close":"⛶ full";}}
 function runChatTool(slug,name,input){
   const l=L(slug); if(!l)return {summary:"",text:"card not found"};
   try{
-    if(name==="add_link"){ if(!(input.url||"").trim())return {summary:"",text:"No url provided — include the full url."}; l.resources=l.resources||[]; const nm=input.label||"Link"; const ex=l.resources.find(r=>r.type==="link"&&r.n===nm); if(ex){ex.u=input.url;}else{l.resources.push({type:"link",n:nm,u:input.url});} save(); return {summary:"🔗 "+nm+(ex?" (updated)":""),text:(ex?"Updated":"Added")+" link “"+nm+"”."}; }
-    if(name==="add_html"){ if(!(input.html||"").trim())return {summary:"",text:"No HTML content was provided — put the FULL html document in the html argument and try once."}; l.resources=l.resources||[]; const nm=input.label||"HTML"; const ex=l.resources.find(r=>r.type==="code"&&r.n===nm); if(ex){ex.h=input.html;}else{l.resources.push({type:"code",n:nm,h:input.html});} save(); return {summary:"</> "+nm+(ex?" (updated)":""),text:(ex?"Updated":"Attached")+" HTML “"+nm+"” ("+input.html.length+" chars). Reuse this exact label to revise it in place."}; }
+    if(name==="add_link"){ if(!(input.url||"").trim())return {text:"No url provided — include the full url."}; const nm=input.label||"Link"; return {summary:"🔗 "+nm,text:"Shared link “"+nm+"” in the chat.",att:{type:"link",n:nm,u:input.url}}; }
+    if(name==="add_html"){ if(!(input.html||"").trim())return {text:"No HTML content was provided — put the FULL html document in the html argument and try once."}; const nm=input.label||"HTML"; return {summary:"</> "+nm,text:"Created HTML “"+nm+"” ("+input.html.length+" chars) — shown inline in the chat.",att:{type:"code",n:nm,h:input.html}}; }
     if(name==="add_note"){ (l.checkins=l.checkins||[]).unshift({d:today,a:actor(),txt:input.text||""}); save(); return {summary:"📝 note",text:"Note added to the log."}; }
     if(name==="set_task_status"){ const map={todo:"o",in_progress:"p",done:"x",blocked:"b"}; const st=map[input.status]; if(!st)return {summary:"",text:"Unknown status."};
       const q=(input.task||"").toLowerCase(); const t=(l.tasks||[]).find(t=>t.t.toLowerCase().includes(q)); if(!t)return {summary:"",text:"No task matching “"+(input.task||"")+"”."};
@@ -1769,7 +1772,7 @@ async function chatSend(slug){
   let messages=[];
   for(const mm of prior.concat([{role:"user",who,text}])){ const role=mm.role==="assistant"?"assistant":"user"; const content=mm.role==="user"?((mm.who||"User")+": "+mm.text):mm.text;
     if(messages.length&&messages[messages.length-1].role===role&&typeof messages[messages.length-1].content==="string"){messages[messages.length-1].content+="\n"+content;} else {messages.push({role,content});} }
-  const actions=[];
+  const actions=[], atts=[];
   try{
     for(let hop=0;hop<6;hop++){
       const resp=await fetch(CHAT_API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:chatModel(),system:chatSystemPrompt(l),messages,tools:CHAT_TOOLS})}).then(r=>r.json());
@@ -1778,9 +1781,9 @@ async function chatSend(slug){
       const tus=(resp.content||[]).filter(b=>b.type==="tool_use");
       const txt=(resp.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim();
       if(tus.length){ const results=[];
-        for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out.summary)actions.push(out.summary); results.push({type:"tool_result",tool_use_id:tu.id,content:out.text}); }
+        for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out.summary)actions.push(out.summary); if(out.att)atts.push(out.att); results.push({type:"tool_result",tool_use_id:tu.id,content:out.text}); }
         messages.push({role:"user",content:results}); renderChatBody(); continue;
-      } else { chatPush(slug,{role:"assistant",who:"Claude",text:txt||"(done)",actions:actions.slice(),ts:nowStamp()}); break; }
+      } else { chatPush(slug,{role:"assistant",who:"Claude",text:txt||(atts.length?"":"(done)"),actions:actions.slice(),attachments:atts.slice(),ts:nowStamp()}); break; }
     }
   }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Couldn't reach the chat backend.",ts:nowStamp()}); }
   CHAT.busy=false; renderChatBody();
