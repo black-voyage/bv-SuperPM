@@ -1690,7 +1690,7 @@ function viewVersions(){
     </div>`).join("")}</div>`;
 }
 /* ================= CLAUDE CHAT — per-card, shared, tool-using ================= */
-const CHAT_API_URL="";  // <-- paste your deployed chat-proxy URL, e.g. https://bv-superpm-chat.onrender.com/chat  (see CHAT-SETUP.md)
+const CHAT_API_URL="https://bv-superpm-chat.onrender.com/chat";  // deployed chat-proxy (holds ANTHROPIC_API_KEY). See CHAT-SETUP.md
 const CHAT_MODEL="claude-sonnet-4-6";
 const CHAT_TOOLS=[
   {name:"add_link",description:"Attach a link/URL (Google Doc, Sheet, Figma, listing, or any resource) to this product card so the whole team sees it.",input_schema:{type:"object",properties:{label:{type:"string"},url:{type:"string"}},required:["label","url"]}},
