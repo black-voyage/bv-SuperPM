@@ -830,6 +830,9 @@ function addRisk(slug){ const t=prompt("Risk (one line)"); if(!t)return;
   const owner=prompt("Owning department","Product")||"—"; const sc=parseInt(prompt("Score 1-9 (likelihood × impact)","6"))||5;
   const trigger=prompt("Trigger / early warning","")||"—";
   (L(slug).risks=L(slug).risks||[]).push({t,owner,sc,trigger}); log("⚠️ Risk added to "+L(slug).name); toast("Risk logged"); render(); }
+function delRisk(slug,i){ const l=L(slug); if(!l||!l.risks||!l.risks[i])return;
+  const r=l.risks[i]; if(!confirm("Remove risk “"+r.t+"”?"))return;
+  l.risks.splice(i,1); log("🗑️ Risk removed from "+l.name+": "+r.t); save(); render(); toast("Risk removed"); }
 
 /* ----- persistence (guarded): autosave, export, reset ----- */
 function snapshot(){return JSON.stringify({v:2,TEAM,LAUNCHES,CAMPAIGNS,LOG,GATES,FLOW,XROUTES});}
@@ -1600,7 +1603,7 @@ function viewLaunch(){
       <div style="margin-top:10px"><button class="btn" ${pushable&&allowed?"":"disabled"} onclick="push('${l.slug}')">${l.complete?"Launch complete":pushable?(allowed?"🚀 Push to "+(next||"Complete"):"🔒 Ready — push reserved for DRI ("+l.dri+"), mandatory dept heads, or Ben"):"🔒 Push locked — "+(g.total-g.met)+" criteria left"}</button>
       <div class="sub" style="margin-top:6px">Every department ticks its own items; when all are ✓, the DRI (<b>${l.dri}</b>) or a mandatory department head pushes the card. ◆ items need Ben.</div></div>
     <div class="panel"><h3>⚠️ RISK REGISTER (${(l.risks||[]).length}) <button class="iconbtn" style="float:right" onclick="addRisk('${l.slug}')">+ add risk</button></h3>
-      ${(l.risks||[]).sort((a,b)=>b.sc-a.sc).map(r=>`<div class="risk"><b>${esc(r.t)}</b><span style="float:right;color:${r.sc>=8?"var(--red)":"var(--amber)"};font-weight:700">score ${r.sc}</span><div class="ghostnote">owner: <span style="color:${DCOLOR(r.owner)}">${esc(r.owner)}</span> · trigger: ${esc(r.trigger)}</div></div>`).join("")||'<div class="sub">No risks logged. Add the top 3 at every stage push (pre-mortem).</div>'}</div></div>
+      ${(l.risks||[]).sort((a,b)=>b.sc-a.sc).map(r=>`<div class="risk"><b>${esc(r.t)}</b><span style="float:right"><span style="color:${r.sc>=8?"var(--red)":"var(--amber)"};font-weight:700">score ${r.sc}</span> <button class="lnkb" title="remove risk" style="color:var(--red)" onclick="delRisk('${l.slug}',${l.risks.indexOf(r)})">✕</button></span><div class="ghostnote">owner: <span style="color:${DCOLOR(r.owner)}">${esc(r.owner)}</span> · trigger: ${esc(r.trigger)}</div></div>`).join("")||'<div class="sub">No risks logged. Add the top 3 at every stage push (pre-mortem).</div>'}</div></div>
     ${DEPTS().map(d=>{const ts=l.tasks.filter(t=>t.d===d);return ts.length?`<div class="panel"><h3>${d.toUpperCase()}</h3>${ts.map(t=>taskRow(l,t,t.stage)).join("")}</div>`:"";}).join("")}
   </div><div>
     ${pend?`<div class="panel" style="border-color:var(--accent);margin-bottom:14px"><h3>◆ Approval needed</h3><div class="sub" style="margin-bottom:8px">${esc(pend.t)} — all other ${l.stage} criteria are done. Approving unblocks the push to <b>${next||"Complete"}</b>.</div><button class="btn" onclick="approve('${l.slug}',${l.tasks.indexOf(pend.task)})">✓ Approve</button></div>`:""}
