@@ -945,7 +945,7 @@ const FIREBASE_CONFIG={
   appId:"1:864428735438:web:d353709e716410fecf899f"
 };
 let FB={ready:false,synced:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null};
-let KNOWLEDGE={catalog:[],memory:[]};  // shared knowledge base (Firestore /catalog + /chat_memory)
+let KNOWLEDGE={catalog:[],memory:[],tech:[],series:[],materials:[],hardware:[],glossary:[]};  // shared brand knowledge base (Firestore)
 function fbConfigured(){return !!(FIREBASE_CONFIG&&FIREBASE_CONFIG.projectId);}
 function fbStatus(txt,color){const el=document.getElementById("fbsync"); if(el){el.textContent=txt; el.style.color=color||"var(--faint)";}}
 function fbInit(){
@@ -979,6 +979,7 @@ function fbInit(){
     const fdb=firebase.firestore();
     fdb.collection("catalog").onSnapshot(qs=>{KNOWLEDGE.catalog=qs.docs.map(d=>d.data());}, e=>{});
     fdb.collection("chat_memory").limit(400).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});
+    ["tech","series","materials","hardware","glossary"].forEach(c=>fdb.collection(c).onSnapshot(qs=>{KNOWLEDGE[c]=qs.docs.map(d=>d.data());}, e=>{}));
   }catch(e){ fbStatus("● error","var(--red)"); }
 }
 function fbAddVersion(entry){ try{ FB.versRef.add(Object.assign({},entry,{createdAt:firebase.firestore.FieldValue.serverTimestamp()})); }catch(e){} }
@@ -1766,6 +1767,7 @@ function setChatModel(id){try{localStorage.setItem("bv-chat-model",id);}catch(e)
 const CHAT_TOOLS=[
   {name:"search_catalog",description:"Search the Black Voyage product CATALOG (real products with specs, materials, features, pricing, and explicit competitor & vs-previous comparisons). ALWAYS use this to ground product/brand/competitor suggestions in real data before answering.",input_schema:{type:"object",properties:{query:{type:"string",description:"keywords: product line, material, category, feature, competitor, price…"}},required:["query"]}},
   {name:"get_product",description:"Get the FULL detail of one catalog product (summary, full features, vs-competitor, vs-previous, price, assets) by product name or sku.",input_schema:{type:"object",properties:{name:{type:"string"}},required:["name"]}},
+  {name:"search_knowledge",description:"Search the Black Voyage BRAND knowledge base — core TECHNOLOGY (Vortex Vacuum Seal™, IPX8, compression chamber 60kPa), product SERIES (Essential/Pro/Pro Lite positioning), MATERIALS (CloudWeave™, Cordura® 1680D, X-Pac® VX21…), and HARDWARE (YKK, Fidlock…). Use this to ground tech/material/series claims in real, approved facts before writing copy or suggestions.",input_schema:{type:"object",properties:{query:{type:"string"}},required:["query"]}},
   {name:"recall",description:"Search the shared long-term MEMORY for facts/insights/decisions saved earlier (persists across all chats and users).",input_schema:{type:"object",properties:{query:{type:"string"}},required:["query"]}},
   {name:"remember",description:"Save a durable fact/insight/decision to the shared long-term MEMORY so it persists across every future chat. Use whenever you learn something lasting about the brand, a product, a customer, pricing, or a decision.",input_schema:{type:"object",properties:{fact:{type:"string"},tags:{type:"string",description:"comma-separated, e.g. brand,pricing,Aero"}},required:["fact"]}},
   {name:"add_link",description:"Attach a link/URL (Google Doc, Sheet, Figma, listing, or any resource) to this product card so the whole team sees it.",input_schema:{type:"object",properties:{label:{type:"string"},url:{type:"string"}},required:["label","url"]}},
@@ -1798,9 +1800,12 @@ function chatSystemPrompt(l){
   (CHAT.msgs||[]).forEach(m=>(m.attachments||[]).forEach(a=>inv.push("- ["+(a.type==="code"?"html":"link")+"] "+(a.n||"")+(a.u?(" — "+a.u):"")+"   (generated earlier in this chat)")));
   const res=inv.join("\n")||"(nothing attached to this card yet)";
   const lines=[...new Set((KNOWLEDGE.catalog||[]).map(p=>p.product_line).filter(Boolean))];
-  const kb="KNOWLEDGE BASE you can read (ground EVERY product/brand/competitor suggestion in this real data BEFORE answering):\n"
-   +"- CATALOG: "+(KNOWLEDGE.catalog||[]).length+" Black Voyage products"+(lines.length?" across lines: "+lines.join(", "):"")+". Each has specs, materials, features, pricing, and explicit vs-competitor + vs-previous comparisons. Use search_catalog then get_product to read the real details — don't guess product facts.\n"
-   +"- MEMORY: shared long-term memory ("+(KNOWLEDGE.memory||[]).length+" facts saved). Call recall to look up past insights/decisions; call remember to save durable new ones so they persist across every chat. Prefer recalling before answering, and remember anything lasting you learn.\n";
+  const gloss=(KNOWLEDGE.glossary||[]).filter(g=>g.en_approved).map(g=>"  ✓ \""+g.en_approved+"\""+(g.en_avoid?(" — NOT \""+g.en_avoid+"\""):"")+(g.context?("  ("+g.context+")"):"")).join("\n");
+  const kb="BLACK VOYAGE KNOWLEDGE BASE — ground EVERY product/brand/tech/competitor claim in this REAL data before answering (don't invent facts):\n"
+   +"- CATALOG: "+(KNOWLEDGE.catalog||[]).length+" products"+(lines.length?" ("+lines.join(", ")+")":"")+" — specs, features, pricing, vs-competitor & vs-previous. Use search_catalog → get_product.\n"
+   +"- BRAND KNOWLEDGE: core TECH ("+(KNOWLEDGE.tech||[]).length+": Vortex Vacuum Seal™, IPX8, compression), SERIES ("+(KNOWLEDGE.series||[]).length+": Essential/Pro/Pro Lite), MATERIALS ("+(KNOWLEDGE.materials||[]).length+": CloudWeave™, Cordura®, X-Pac®…), HARDWARE ("+(KNOWLEDGE.hardware||[]).length+"). Use search_knowledge.\n"
+   +"- MEMORY: shared long-term memory ("+(KNOWLEDGE.memory||[]).length+" facts). Call recall before answering; call remember to save durable new insights so they persist across every chat.\n"
+   +(gloss?("VOICE RULES (approved vs avoided wording — ALWAYS follow when writing any copy):\n"+gloss+"\n"):"");
   return "You are Claude, embedded in the Black Voyage \"SuperPM\" product dashboard. You help the team manage the product card \""+l.name+"\" (stage: "+l.stage+", DRI: "+l.dri+"). This chat is SHARED — everyone on the team sees it and your actions, for this product only.\n"
    +kb
    +"You CAN see everything already attached to this card: the full inventory of links and files the team has uploaded (including ones pasted on individual tasks) is listed below under ATTACHMENTS. When asked what's attached, or to pull/list/collect the links, read them straight from that inventory and give the actual URLs — never say you can't see them.\n"
@@ -1838,6 +1843,12 @@ function runChatTool(slug,name,input){
       const hits=(KNOWLEDGE.catalog||[]).map(p=>{const b=[p.name_en,p.product_line,p.variant,p.material,p.category,p.summary_en,p.vs_competitor_en,p.features_en].join(" ").toLowerCase(); return {p,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,8).map(x=>x.p);
       if(!hits.length)return {summary:"🔎 catalog",text:"No catalog products matched “"+(input.query||"")+"”. ("+(KNOWLEDGE.catalog||[]).length+" products in catalog.)"};
       return {summary:"🔎 catalog ("+hits.length+")",text:"Catalog matches:\n"+hits.map(p=>"• "+(p.name_en||p.sku)+" ["+p.product_line+" / "+p.material+" / "+p.category+"]"+(p.price_usd?" $"+p.price_usd:"")+" — "+((p.summary_en||"").replace(/\s+/g," ").slice(0,150))).join("\n")+"\n(call get_product for full specs + competitor comparison)"}; }
+    if(name==="search_knowledge"){ const q=(input.query||"").toLowerCase().split(/\s+/).filter(Boolean); let hits=[];
+      [["tech",KNOWLEDGE.tech],["series",KNOWLEDGE.series],["materials",KNOWLEDGE.materials],["hardware",KNOWLEDGE.hardware]].forEach(([d,arr])=>(arr||[]).forEach(x=>{const b=Object.values(x).join(" ").toLowerCase(); const s=q.reduce((a,t)=>a+(b.includes(t)?1:0),0); if(q.length?s>0:true)hits.push({d,x,s});}));
+      hits=hits.sort((a,b)=>b.s-a.s).slice(0,6);
+      if(!hits.length)return {summary:"📚 brand",text:"No brand-knowledge entries matched “"+(input.query||"")+"”."};
+      const fmt=h=>{const x=h.x,nm=x.title_en||x.name_en||x.id||x.material_code||""; const body=(x.content_en||x.description_en||x.positioning_en||x.summary_en||"").replace(/\s+/g," "); const extra=h.d==="series"?(" | vacuum: "+(x.vacuum_en||"")+" | zipper: "+(x.zipper_en||"")+" | hipbelt: "+(x.hipbelt_en||"")):h.d==="materials"?(" | properties: "+(x.properties_en||"").replace(/\s+/g," ")+" | "+(x.composition_en||"")+(x.weight_gsm?(" | "+x.weight_gsm+"gsm"):"")):""; return "["+h.d.toUpperCase()+"] "+nm+": "+body.slice(0,550)+extra;};
+      return {summary:"📚 brand ("+hits.length+")",text:"Brand knowledge:\n\n"+hits.map(fmt).join("\n\n")}; }
     if(name==="get_product"){ const q=(input.name||"").toLowerCase(); const p=(KNOWLEDGE.catalog||[]).find(p=>(((p.name_en||"")+" "+(p.sku||""))).toLowerCase().includes(q))||(KNOWLEDGE.catalog||[]).find(p=>q&&((p.product_line||"").toLowerCase().includes(q)));
       if(!p)return {summary:"",text:"No product found for “"+(input.name||"")+"”."};
       return {summary:"📦 "+(p.name_en||p.sku),text:["PRODUCT: "+(p.name_en||p.sku)+" (sku "+p.sku+")","line "+p.product_line+" · variant "+p.variant+" · material "+p.material+" · category "+p.category+" · status "+p.status+(p.price_usd?" · $"+p.price_usd:"")+(p.is_featured==="TRUE"?" · FEATURED":""),"SUMMARY: "+(p.summary_en||""),"FEATURES:\n"+(p.features_en||""),"VS PREVIOUS: "+(p.vs_previous_en||""),"VS COMPETITORS: "+(p.vs_competitor_en||""),"assets: "+(p.image_folder||"")].join("\n")}; }
