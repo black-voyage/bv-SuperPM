@@ -10,26 +10,31 @@ _Last updated: 2026-06-18_
 
 ---
 
-## 1. The Core
-**BV DATA CORE = one Firestore project that all apps read/write.** Operationally this is the
-**`bv-superpm` Firebase project** today (it already holds the brand knowledge + shared memory and is
-reachable). The core is **one config swap** away from being promoted/mirrored to BV Second Brain later —
-no app code changes when that happens.
+## 1. The Core  =  **BV Second Brain**
+**BV DATA CORE = the BV Second Brain Firestore project.** That is the company's data center by design —
+the canonical knowledge graph (entities/facts, the domains). Every other app is a **client**:
 
-**Connect with this (public web config — safe to embed in client apps):**
+- **BV Second Brain** = the data center. **Owns** the core schema, ingestion, and writes at scale
+  (server-side via Application Default Credentials / Admin SDK on Firebase App Hosting).
+- **BV SuperPM** = a product-management dashboard. A **client** — it **reads** core data when needed and
+  **writes learnings back to `memory`**. It does NOT own shared data.
+- Marketing / KCC / future apps = clients, same rules.
+
+**Connect to the core** (the Second Brain project provides these — fill in once its chat sets up a Web App):
 ```js
-const BV_CORE = {
-  apiKey: "AIzaSyACM71vycT4OeKxxoT6vL5MCK7H6g592vQ",
-  authDomain: "bv-superpm.firebaseapp.com",
-  projectId: "bv-superpm",
-  storageBucket: "bv-superpm.firebasestorage.app",
-  messagingSenderId: "864428735438",
-  appId: "1:864428735438:web:d353709e716410fecf899f"
+const BV_CORE = {                 // <-- from BV Second Brain → Project settings → Web app
+  apiKey: "…", authDomain: "<secondbrain>.firebaseapp.com",
+  projectId: "<secondbrain-project-id>", storageBucket: "…",
+  messagingSenderId: "…", appId: "…"
 };
 ```
-- **Client apps:** Firebase JS SDK with `BV_CORE` (+ Firebase Auth, see §5).
-- **Servers / agents / LLM backends:** same project via the Admin SDK (service-account / ADC) OR the REST
-  API. (Server access is how Second Brain etc. write at scale.)
+- **Client apps:** Firebase JS SDK with `BV_CORE` (+ Firebase Auth, §5) — read core, write `memory`.
+- **Servers / agents / LLM backends:** Admin SDK (service-account / ADC) or REST.
+
+> **Interim migration note:** brand/catalog data was seeded into the `bv-superpm` project to get SuperPM's
+> AI working. That data **migrates to the core** (Second Brain ingests the Sheets); SuperPM then reads the
+> core instead of its local copies. Until then SuperPM uses its local copies — no app code changes when it
+> repoints, only the `BV_CORE` config.
 
 ---
 
