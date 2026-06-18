@@ -945,6 +945,7 @@ const FIREBASE_CONFIG={
   appId:"1:864428735438:web:d353709e716410fecf899f"
 };
 let FB={ready:false,synced:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null};
+let KNOWLEDGE={catalog:[],memory:[]};  // shared knowledge base (Firestore /catalog + /chat_memory)
 function fbConfigured(){return !!(FIREBASE_CONFIG&&FIREBASE_CONFIG.projectId);}
 function fbStatus(txt,color){const el=document.getElementById("fbsync"); if(el){el.textContent=txt; el.style.color=color||"var(--faint)";}}
 function fbInit(){
@@ -974,6 +975,10 @@ function fbInit(){
       const arr=[]; qs.forEach(doc=>{ const x=doc.data(); x.id=doc.id; arr.push(x); });
       VERSIONS=arr; if(S.view==="versions") render();
     }, e=>{});
+    // shared KNOWLEDGE base — catalog (from the Google Sheet) + accumulating long-term memory
+    const fdb=firebase.firestore();
+    fdb.collection("catalog").onSnapshot(qs=>{KNOWLEDGE.catalog=qs.docs.map(d=>d.data());}, e=>{});
+    fdb.collection("chat_memory").limit(400).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});
   }catch(e){ fbStatus("● error","var(--red)"); }
 }
 function fbAddVersion(entry){ try{ FB.versRef.add(Object.assign({},entry,{createdAt:firebase.firestore.FieldValue.serverTimestamp()})); }catch(e){} }
@@ -1759,6 +1764,10 @@ const CHAT_MODELS=[
 function chatModel(){const m=(typeof localStorage!=="undefined"&&localStorage.getItem("bv-chat-model"))||"claude-opus-4-8"; return CHAT_MODELS.some(x=>x.id===m)?m:"claude-opus-4-8";}
 function setChatModel(id){try{localStorage.setItem("bv-chat-model",id);}catch(e){} toast("🧠 Chat model → "+((CHAT_MODELS.find(x=>x.id===id)||{}).label||id));}
 const CHAT_TOOLS=[
+  {name:"search_catalog",description:"Search the Black Voyage product CATALOG (real products with specs, materials, features, pricing, and explicit competitor & vs-previous comparisons). ALWAYS use this to ground product/brand/competitor suggestions in real data before answering.",input_schema:{type:"object",properties:{query:{type:"string",description:"keywords: product line, material, category, feature, competitor, price…"}},required:["query"]}},
+  {name:"get_product",description:"Get the FULL detail of one catalog product (summary, full features, vs-competitor, vs-previous, price, assets) by product name or sku.",input_schema:{type:"object",properties:{name:{type:"string"}},required:["name"]}},
+  {name:"recall",description:"Search the shared long-term MEMORY for facts/insights/decisions saved earlier (persists across all chats and users).",input_schema:{type:"object",properties:{query:{type:"string"}},required:["query"]}},
+  {name:"remember",description:"Save a durable fact/insight/decision to the shared long-term MEMORY so it persists across every future chat. Use whenever you learn something lasting about the brand, a product, a customer, pricing, or a decision.",input_schema:{type:"object",properties:{fact:{type:"string"},tags:{type:"string",description:"comma-separated, e.g. brand,pricing,Aero"}},required:["fact"]}},
   {name:"add_link",description:"Attach a link/URL (Google Doc, Sheet, Figma, listing, or any resource) to this product card so the whole team sees it.",input_schema:{type:"object",properties:{label:{type:"string"},url:{type:"string"}},required:["label","url"]}},
   {name:"add_html",description:"Attach an HTML snippet/code block to this product card (renders as a live preview for everyone).",input_schema:{type:"object",properties:{label:{type:"string"},html:{type:"string"}},required:["label","html"]}},
   {name:"add_note",description:"Add a note / check-in to this product card's log.",input_schema:{type:"object",properties:{text:{type:"string"}},required:["text"]}},
@@ -1788,7 +1797,12 @@ function chatSystemPrompt(l){
   (l.resources||[]).forEach(r=>inv.push("- ["+(r.type==="code"?"html":"link")+"] "+(r.n||"")+(r.u?(" — "+r.u):"")+"   (card-level)"));
   (CHAT.msgs||[]).forEach(m=>(m.attachments||[]).forEach(a=>inv.push("- ["+(a.type==="code"?"html":"link")+"] "+(a.n||"")+(a.u?(" — "+a.u):"")+"   (generated earlier in this chat)")));
   const res=inv.join("\n")||"(nothing attached to this card yet)";
+  const lines=[...new Set((KNOWLEDGE.catalog||[]).map(p=>p.product_line).filter(Boolean))];
+  const kb="KNOWLEDGE BASE you can read (ground EVERY product/brand/competitor suggestion in this real data BEFORE answering):\n"
+   +"- CATALOG: "+(KNOWLEDGE.catalog||[]).length+" Black Voyage products"+(lines.length?" across lines: "+lines.join(", "):"")+". Each has specs, materials, features, pricing, and explicit vs-competitor + vs-previous comparisons. Use search_catalog then get_product to read the real details — don't guess product facts.\n"
+   +"- MEMORY: shared long-term memory ("+(KNOWLEDGE.memory||[]).length+" facts saved). Call recall to look up past insights/decisions; call remember to save durable new ones so they persist across every chat. Prefer recalling before answering, and remember anything lasting you learn.\n";
   return "You are Claude, embedded in the Black Voyage \"SuperPM\" product dashboard. You help the team manage the product card \""+l.name+"\" (stage: "+l.stage+", DRI: "+l.dri+"). This chat is SHARED — everyone on the team sees it and your actions, for this product only.\n"
+   +kb
    +"You CAN see everything already attached to this card: the full inventory of links and files the team has uploaded (including ones pasted on individual tasks) is listed below under ATTACHMENTS. When asked what's attached, or to pull/list/collect the links, read them straight from that inventory and give the actual URLs — never say you can't see them.\n"
    +"When asked to upload/attach a link, doc, or HTML, add a note, or change a task status, USE the tools to actually do it on the board (don't just describe it). Think carefully and be thorough and accurate — don't be terse when depth is useful.\n"
    +"Keep ONE final version of each document: attach only the finished version, not drafts. To revise, call add_html with the EXACT SAME label so it replaces the old file. Never create 'v1', 'v2', 'clean', 'draft', or 'final' label variants.\n"
@@ -1820,6 +1834,18 @@ function toggleChatFull(){CHAT.full=!CHAT.full; const p=document.getElementById(
 function runChatTool(slug,name,input){
   const l=L(slug); if(!l)return {summary:"",text:"card not found"};
   try{
+    if(name==="search_catalog"){ const q=(input.query||"").toLowerCase().split(/\s+/).filter(Boolean);
+      const hits=(KNOWLEDGE.catalog||[]).map(p=>{const b=[p.name_en,p.product_line,p.variant,p.material,p.category,p.summary_en,p.vs_competitor_en,p.features_en].join(" ").toLowerCase(); return {p,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,8).map(x=>x.p);
+      if(!hits.length)return {summary:"🔎 catalog",text:"No catalog products matched “"+(input.query||"")+"”. ("+(KNOWLEDGE.catalog||[]).length+" products in catalog.)"};
+      return {summary:"🔎 catalog ("+hits.length+")",text:"Catalog matches:\n"+hits.map(p=>"• "+(p.name_en||p.sku)+" ["+p.product_line+" / "+p.material+" / "+p.category+"]"+(p.price_usd?" $"+p.price_usd:"")+" — "+((p.summary_en||"").replace(/\s+/g," ").slice(0,150))).join("\n")+"\n(call get_product for full specs + competitor comparison)"}; }
+    if(name==="get_product"){ const q=(input.name||"").toLowerCase(); const p=(KNOWLEDGE.catalog||[]).find(p=>(((p.name_en||"")+" "+(p.sku||""))).toLowerCase().includes(q))||(KNOWLEDGE.catalog||[]).find(p=>q&&((p.product_line||"").toLowerCase().includes(q)));
+      if(!p)return {summary:"",text:"No product found for “"+(input.name||"")+"”."};
+      return {summary:"📦 "+(p.name_en||p.sku),text:["PRODUCT: "+(p.name_en||p.sku)+" (sku "+p.sku+")","line "+p.product_line+" · variant "+p.variant+" · material "+p.material+" · category "+p.category+" · status "+p.status+(p.price_usd?" · $"+p.price_usd:"")+(p.is_featured==="TRUE"?" · FEATURED":""),"SUMMARY: "+(p.summary_en||""),"FEATURES:\n"+(p.features_en||""),"VS PREVIOUS: "+(p.vs_previous_en||""),"VS COMPETITORS: "+(p.vs_competitor_en||""),"assets: "+(p.image_folder||"")].join("\n")}; }
+    if(name==="recall"){ const q=(input.query||"").toLowerCase().split(/\s+/).filter(Boolean);
+      const hits=(KNOWLEDGE.memory||[]).map(m=>{const b=((m.fact||"")+" "+(m.tags||"")).toLowerCase(); return {m,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,12).map(x=>x.m);
+      if(!hits.length)return {summary:"🧠 recall",text:"No memories matched. ("+(KNOWLEDGE.memory||[]).length+" stored.)"};
+      return {summary:"🧠 recall ("+hits.length+")",text:"Recalled from memory:\n"+hits.map(m=>"• "+m.fact+(m.tags?"  ["+m.tags+"]":"")+(m.who?"  —"+m.who:"")).join("\n")}; }
+    if(name==="remember"){ const fact=(input.fact||"").trim(); if(!fact)return {text:"Nothing to remember."}; try{firebase.firestore().collection("chat_memory").add({fact,tags:input.tags||"",who:actor(),card:slug,ts:Date.now()});}catch(e){} return {summary:"🧠 remembered",text:"Saved to long-term memory."}; }
     if(name==="add_link"){ if(!(input.url||"").trim())return {text:"No url provided — include the full url."}; const nm=input.label||"Link"; return {summary:"🔗 "+nm,text:"Shared link “"+nm+"” in the chat.",att:{type:"link",n:nm,u:input.url}}; }
     if(name==="add_html"){ if(!(input.html||"").trim())return {text:"No HTML content was provided — put the FULL html document in the html argument and try once."}; const nm=input.label||"HTML"; return {summary:"</> "+nm,text:"Created HTML “"+nm+"” ("+input.html.length+" chars) — shown inline in the chat.",att:{type:"code",n:nm,h:input.html}}; }
     if(name==="add_note"){ (l.checkins=l.checkins||[]).unshift({d:today,a:actor(),txt:input.text||""}); save(); return {summary:"📝 note",text:"Note added to the log."}; }
