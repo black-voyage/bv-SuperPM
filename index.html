@@ -978,7 +978,7 @@ function fbInit(){
     // shared KNOWLEDGE base — catalog (from the Google Sheet) + accumulating long-term memory
     const fdb=firebase.firestore();
     fdb.collection("catalog").onSnapshot(qs=>{KNOWLEDGE.catalog=qs.docs.map(d=>d.data());}, e=>{});
-    fdb.collection("chat_memory").limit(400).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});
+    fdb.collection("memory").limit(500).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // shared BV Data Core memory
     ["tech","series","materials","hardware","glossary"].forEach(c=>fdb.collection(c).onSnapshot(qs=>{KNOWLEDGE[c]=qs.docs.map(d=>d.data());}, e=>{}));
   }catch(e){ fbStatus("● error","var(--red)"); }
 }
@@ -1853,10 +1853,10 @@ function runChatTool(slug,name,input){
       if(!p)return {summary:"",text:"No product found for “"+(input.name||"")+"”."};
       return {summary:"📦 "+(p.name_en||p.sku),text:["PRODUCT: "+(p.name_en||p.sku)+" (sku "+p.sku+")","line "+p.product_line+" · variant "+p.variant+" · material "+p.material+" · category "+p.category+" · status "+p.status+(p.price_usd?" · $"+p.price_usd:"")+(p.is_featured==="TRUE"?" · FEATURED":""),"SUMMARY: "+(p.summary_en||""),"FEATURES:\n"+(p.features_en||""),"VS PREVIOUS: "+(p.vs_previous_en||""),"VS COMPETITORS: "+(p.vs_competitor_en||""),"assets: "+(p.image_folder||"")].join("\n")}; }
     if(name==="recall"){ const q=(input.query||"").toLowerCase().split(/\s+/).filter(Boolean);
-      const hits=(KNOWLEDGE.memory||[]).map(m=>{const b=((m.fact||"")+" "+(m.tags||"")).toLowerCase(); return {m,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,12).map(x=>x.m);
-      if(!hits.length)return {summary:"🧠 recall",text:"No memories matched. ("+(KNOWLEDGE.memory||[]).length+" stored.)"};
-      return {summary:"🧠 recall ("+hits.length+")",text:"Recalled from memory:\n"+hits.map(m=>"• "+m.fact+(m.tags?"  ["+m.tags+"]":"")+(m.who?"  —"+m.who:"")).join("\n")}; }
-    if(name==="remember"){ const fact=(input.fact||"").trim(); if(!fact)return {text:"Nothing to remember."}; try{firebase.firestore().collection("chat_memory").add({fact,tags:input.tags||"",who:actor(),card:slug,ts:Date.now()});}catch(e){} return {summary:"🧠 remembered",text:"Saved to long-term memory."}; }
+      const hits=(KNOWLEDGE.memory||[]).map(m=>{const b=(((m.text||m.fact||"")+" "+(m.tags||"")+" "+(m.app||"")).toLowerCase()); return {m,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,12).map(x=>x.m);
+      if(!hits.length)return {summary:"🧠 recall",text:"No memories matched. ("+(KNOWLEDGE.memory||[]).length+" in shared memory.)"};
+      return {summary:"🧠 recall ("+hits.length+")",text:"Recalled from shared memory:\n"+hits.map(m=>"• "+(m.text||m.fact||"")+(m.tags?"  ["+m.tags+"]":"")+(m.app?"  ("+m.app+")":"")).join("\n")}; }
+    if(name==="remember"){ const fact=(input.fact||"").trim(); if(!fact)return {text:"Nothing to remember."}; try{firebase.firestore().collection("memory").add({text:fact,tags:input.tags||"",app:"superpm",entities:[slug],who:actor(),ts:Date.now()});}catch(e){} return {summary:"🧠 remembered",text:"Saved to shared long-term memory."}; }
     if(name==="add_link"){ if(!(input.url||"").trim())return {text:"No url provided — include the full url."}; const nm=input.label||"Link"; return {summary:"🔗 "+nm,text:"Shared link “"+nm+"” in the chat.",att:{type:"link",n:nm,u:input.url}}; }
     if(name==="add_html"){ if(!(input.html||"").trim())return {text:"No HTML content was provided — put the FULL html document in the html argument and try once."}; const nm=input.label||"HTML"; return {summary:"</> "+nm,text:"Created HTML “"+nm+"” ("+input.html.length+" chars) — shown inline in the chat.",att:{type:"code",n:nm,h:input.html}}; }
     if(name==="add_note"){ (l.checkins=l.checkins||[]).unshift({d:today,a:actor(),txt:input.text||""}); save(); return {summary:"📝 note",text:"Note added to the log."}; }
