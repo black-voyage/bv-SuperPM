@@ -54,8 +54,18 @@ across apps (a product's SKU is the same everywhere → the graph).
 | `brand_docs` | id | Drive PDFs | design guideline / brand bible (chunked text) |
 | **`memory`** | auto | **any app's AI** | shared long-term memory (see §3) |
 
-**Rule:** never copy a shared entity into an app — **reference it by ID** (e.g. SuperPM's `launches/{sku}`
-points at `catalog/{sku}`). App-private data lives in app-named collections (e.g. `bv/superpm/...`).
+### Shared vs app-private (the namespacing rule)
+- **Shared / canonical** (the table above) = **top-level** collections, read by every app. Write only if your
+  app owns that source (e.g. the Sheet-sync owns `catalog`); otherwise read-only.
+- **App-private** = **everything an app creates lives under its OWN namespace `apps/<app>/…`** so it clearly
+  belongs to that app and apps never collide:
+  - `apps/superpm/launches/{sku}`, `apps/superpm/chats/{card}` (SuperPM's board + chats)
+  - `apps/kol/creators/{id}`, `apps/email/campaigns/{id}` …
+  - An app **never** writes outside `apps/<itsName>/…` except the shared `memory`, and **never** touches
+    another app's `apps/<other>/…`.
+  - Every doc carries an `app:"<name>"` field for provenance.
+- **Never copy a shared entity into an app** — reference it by its **stable ID** (e.g. a launch points at
+  `catalog/{sku}`). Shared truth stays in one place; apps just link to it.
 
 ---
 
