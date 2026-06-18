@@ -52,7 +52,23 @@ across apps (a product's SKU is the same everywhere → the graph).
 | `glossary` | term | Sheet | approved-vs-avoid **voice rules** |
 | `competitors` | id | comparison tabs | competitor profiles + comparisons |
 | `brand_docs` | id | Drive PDFs | design guideline / brand bible (chunked text) |
+| `documents` | driveFileId | **Drive master folder** | index of every human file (forms, briefs, PDFs, generated docs) — see §3b |
 | **`memory`** | auto | **any app's AI** | shared long-term memory (see §3) |
+
+### 3b. File layer — Google Drive (the "human form database")
+Files (forms, briefs, PDFs, Docs, images, generated outputs) **stay in Google Drive** — the canonical master
+folder `1iEqnYlbXUKFmnOMeGfaCgafXgs0s-f3K` (the `DRIVE_MASTER_FOLDER_ID`). **Never store file blobs in
+Firestore.** Instead, a **Drive→Firestore sync** indexes each file into `documents`:
+```js
+documents/{driveFileId} = {
+  name, driveId, url,                 // open the real file in Drive
+  type: "pdf|doc|sheet|form|image",
+  folderPath, text: "extracted text", // so the LLM can search/quote it
+  entities: ["<stable ids>"], app: "human|superpm|…", modifiedTime, owner, ts
+}
+```
+Apps/LLMs search `documents` → get the text + the Drive link → reference or open the real file. Humans keep
+using Drive exactly as they do. Pattern = **blob store (Drive) + metadata/index DB (Firestore)**.
 
 ### Shared vs app-private (the namespacing rule)
 - **Shared / canonical** (the table above) = **top-level** collections, read by every app. Write only if your
