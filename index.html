@@ -694,7 +694,7 @@ function createDriveDoc(slug,i,kind){
   const t=_linkTask(slug,i); if(!t){toast("Task not found");return;}
   const isCamp=slug==="__camp"; const l=isCamp?null:L(slug);
   const isIntake=!isCamp&&t.t==="Form (intake)";
-  const name=isCamp?("BV-SuperPM-"+CAMPAIGNS[0].name+"-"+t.t):(isIntake?("BV-SuperPM-"+l.name):("BV-SuperPM-"+l.name+"-"+t.t)); // BV-SuperPM-<product / use-case>
+  const name=isCamp?("BV-SuperPM-"+((curCamp()||{name:"Campaign"}).name)+"-"+t.t):(isIntake?("BV-SuperPM-"+l.name):("BV-SuperPM-"+l.name+"-"+t.t)); // BV-SuperPM-<product / use-case>
   const kindLabel=kind==="doc"?"Doc":"Sheet";
   if(GAUTH.token&&!gHasDrive())GAUTH.token=null; // drop a stale token that lacks Drive access so we re-consent
   toast("Creating Google "+kindLabel+" “"+name+"”…");
@@ -1292,10 +1292,10 @@ function approve(slug,i){
 function addLink(slug,i){
   const u=prompt("Paste link URL (Drive doc, Figma, listing…)"); if(!u)return;
   const n=prompt("Short label for this link","Document")||"Link";
-  (slug==="__camp"?CAMPAIGNS[0].tasks[i]:L(slug).tasks[i]).links.push({n,u});
+  (slug==="__camp"?curCamp().tasks[i]:L(slug).tasks[i]).links.push({n,u});
   toast("🔗 Link attached to task"); render();
 }
-function _linkTask(slug,i){return slug==="__camp"?CAMPAIGNS[0].tasks[i]:L(slug).tasks[i];}
+function _linkTask(slug,i){return slug==="__camp"?((curCamp()||{tasks:[]}).tasks[i]):L(slug).tasks[i];}
 function editLink(slug,i,li){
   const t=_linkTask(slug,i); const k=(t.links||[])[li]; if(!k)return;
   const u=prompt("Edit link URL (blank = keep current)",k.u); if(u===null)return;
@@ -1695,11 +1695,25 @@ function viewTimeline(){
     <div class="sub" style="margin-top:8px">Overrun days are attributed to the departments holding that stage (unmet gate criteria + blocked tasks; past stages from the stage log). Fix the top bar first.</div></div>
   <div class="panel"><h3>LAUNCH TIMELINES</h3>${rows}</div>`;
 }
+function curCamp(){ if(!CAMPAIGNS.length)return null; if((S.camp||0)>=CAMPAIGNS.length)S.camp=0; return CAMPAIGNS[S.camp||0]; }
+function newCampaign(){
+  const name=prompt("Campaign name?"); if(!name)return;
+  const date=prompt("Target date (YYYY-MM-DD)?",today)||today;
+  const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||("camp-"+(CAMPAIGNS.length+1));
+  CAMPAIGNS.push({name,slug,date,products:[],tasks:[]}); S.camp=CAMPAIGNS.length-1;
+  log("🆕 Campaign created: "+name); save(); render(); toast("🆕 Campaign “"+name+"” created");
+}
+function addCampTask(){ const c=curCamp(); if(!c)return; const t=prompt("Campaign task?"); if(!t)return;
+  const d=prompt("Department?","Marketing")||"Marketing"; (c.tasks=c.tasks||[]).push({t,d:DEPTS().includes(d)?d:"Marketing",st:"o",links:[]}); save(); render(); toast("Task added"); }
+function delCampaign(){ const c=curCamp(); if(!c)return; if(typeof confirm!=="undefined"&&!confirm("Delete campaign “"+c.name+"”?"))return; CAMPAIGNS.splice(S.camp||0,1); S.camp=0; save(); render(); toast("Campaign deleted"); }
 function viewCampaign(){
-  const c=CAMPAIGNS[0]; const days=Math.ceil((new Date(c.date)-new Date(today))/864e5);
-  return `<h2>Campaign — ${c.name}</h2><div class="sub">🎯 ${fmt(c.date)} · <b>${days} days out</b>.</div>
-  <div class="panel"><h3>FEATURED PRODUCTS</h3><div class="board">${c.products.map(s=>`<div class="col">${cardHTML(L(s))}</div>`).join("")}</div></div>
-  <div class="panel"><h3>CAMPAIGN TASKS (cross-department)</h3>${c.tasks.map((t,i)=>`<div class="row"><span class="st ${t.st}">${stIcon[t.st]}</span><span>${esc(t.t)} ${(t.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('__camp',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('__camp',${i},${li})">✕</button></span>`).join("")}<button class="addlnk" onclick="addLink('__camp',${i})">+ link</button><button class="addlnk" title="Create a Google Sheet (anyone-with-link can edit)" onclick="createDriveDoc('__camp',${i},'sheet')">📊 Sheet</button><button class="addlnk" title="Create a Google Doc (anyone-with-link can edit)" onclick="createDriveDoc('__camp',${i},'doc')">📝 Doc</button></span><span class="o">${t.d}</span></div>`).join("")}</div>`;
+  const addBtn=`<button class="btn" style="margin-left:8px" onclick="newCampaign()">+ New campaign</button>`;
+  if(!CAMPAIGNS.length) return `<h2>Campaigns ${addBtn}</h2><div class="sub">No campaigns yet — create one to start.</div>`;
+  const c=curCamp(); const days=Math.ceil((new Date(c.date)-new Date(today))/864e5);
+  const sel=CAMPAIGNS.length>1?`<select onchange="S.camp=+this.value;render()" style="margin-left:8px">${CAMPAIGNS.map((x,i)=>`<option value="${i}" ${i===(S.camp||0)?"selected":""}>${esc(x.name)}</option>`).join("")}</select>`:"";
+  return `<h2>Campaign — ${esc(c.name)}${sel} ${addBtn} <button class="iconbtn" style="font-size:12px" onclick="delCampaign()">🗑 delete</button></h2><div class="sub">🎯 ${fmt(c.date)}${isFinite(days)?` · <b>${days} days out</b>`:""}.</div>
+  <div class="panel"><h3>FEATURED PRODUCTS</h3><div class="board">${(c.products||[]).map(s=>L(s)?`<div class="col">${cardHTML(L(s))}</div>`:"").join("")||'<div class="sub">No featured products yet.</div>'}</div></div>
+  <div class="panel"><h3>CAMPAIGN TASKS (cross-department) <button class="iconbtn" style="float:right" onclick="addCampTask()">+ add task</button></h3>${(c.tasks||[]).map((t,i)=>`<div class="row"><span class="st ${t.st}">${stIcon[t.st]}</span><span>${esc(t.t)} ${(t.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('__camp',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('__camp',${i},${li})">✕</button></span>`).join("")}<button class="addlnk" onclick="addLink('__camp',${i})">+ link</button><button class="addlnk" title="Create a Google Sheet (anyone-with-link can edit)" onclick="createDriveDoc('__camp',${i},'sheet')">📊 Sheet</button><button class="addlnk" title="Create a Google Doc (anyone-with-link can edit)" onclick="createDriveDoc('__camp',${i},'doc')">📝 Doc</button></span><span class="o">${t.d}</span></div>`).join("")||'<div class="sub">No tasks yet — add one.</div>'}</div>`;
 }
 function viewSettings(){
   const tab=S.settingsTab||(S.view==="versions"?"history":"team"); // honour old /team /versions deep-links
