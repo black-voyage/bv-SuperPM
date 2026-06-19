@@ -1838,15 +1838,25 @@ function chatSystemPrompt(l){
    +"Keep ONE final version of each document: attach only the finished version, not drafts. To revise, call add_html with the EXACT SAME label so it replaces the old file. Never create 'v1', 'v2', 'clean', 'draft', or 'final' label variants.\n"
    +"TASKS on this card:\n"+tasks+"\nATTACHMENTS already on this card:\n"+res;
 }
+const CHAT_PRICES={"claude-opus-4-8":{in:15,out:75},"claude-sonnet-4-6":{in:3,out:15},"claude-haiku-4-5-20251001":{in:1,out:5}};  // USD per 1M tokens (estimate)
+function chatCost(model,i,o){const p=CHAT_PRICES[model]||{in:0,out:0};return ((i||0)*p.in+(o||0)*p.out)/1e6;}
+function fmtCost(c){return c==null?"—":(c<0.01?("≈$"+c.toFixed(4)):("≈$"+c.toFixed(3)));}
+function chatMetaHTML(meta){
+  if(!meta)return"";
+  const tok=(meta.in||0)+(meta.out||0), n=(meta.trace||[]).length;
+  const rows=n?meta.trace.map(t=>`<div style="margin:5px 0;padding:5px 7px;background:rgba(127,127,127,.10);border-radius:5px"><b>${esc(t.name)}</b> <code style="font-size:10px;word-break:break-all;opacity:.8">${esc(t.inputStr||"{}")}</code><div style="margin-top:3px;white-space:pre-wrap;opacity:.85">${esc((t.result||"").slice(0,800))}${(t.result||"").length>800?"…":""}</div></div>`).join(""):`<div style="opacity:.6">No tools called — answered from the system prompt + knowledge summary only (no DB lookup).</div>`;
+  return `<details style="margin-top:6px;font-size:11px"><summary style="cursor:pointer;opacity:.65;user-select:none">🔍 verify · ${esc(meta.model||"")} · ${tok} tok · ${fmtCost(meta.cost)} · ${n} source${n===1?"":"s"}</summary><div style="margin-top:5px;padding:7px 9px;background:rgba(127,127,127,.07);border-radius:7px"><div style="opacity:.85">Model <b>${esc(meta.model||"?")}</b> · input ${meta.in||0} tok · output ${meta.out||0} tok · ${meta.hops||1} round${(meta.hops||1)===1?"":"s"} · ${fmtCost(meta.cost)} <span style="opacity:.6">(token-based estimate)</span></div><div style="margin-top:6px;font-weight:600;opacity:.7">DATA SOURCES & TOOL CALLS — what it actually read:</div>${rows}</div></details>`;
+}
 function chatMsgHTML(m,mi){
   const cls=m.role==="assistant"?"assistant":"user";
   const av=m.role==="assistant"?"AI":esc(((m.who||"?")[0]||"?").toUpperCase());
   const atts=(m.attachments||[]).map((a,ai)=>a.type==="link"
     ?`<a class="catt" href="${esc(a.u)}" target="_blank">🔗 ${esc(a.n)}</a>`
     :`<span class="catt" title="open the HTML — preview / source / full page" onclick="openMsgAtt(${mi},${ai})">📄 &lt;/&gt; ${esc(a.n)}</span>`).join("");
-  return `<div class="cmsg ${cls}"><div class="av">${av}</div><div><div class="who">${esc(m.who||(m.role==="assistant"?"Claude":"User"))}${m.ts?" · "+esc(m.ts):""}</div>${m.text?`<div class="bub">${esc(m.text)}</div>`:""}${atts?`<div class="catts">${atts}</div>`:""}${(m.actions&&m.actions.length)?`<div class="acts">⚡ ${m.actions.map(esc).join(" · ")}</div>`:""}</div></div>`;
+  return `<div class="cmsg ${cls}"><div class="av">${av}</div><div><div class="who">${esc(m.who||(m.role==="assistant"?"Claude":"User"))}${m.ts?" · "+esc(m.ts):""}<span class="cmsg-del" title="delete this message (for everyone)" onclick="deleteChatMsg(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.5;font-size:11px">✕</span></div>${m.text?`<div class="bub">${esc(m.text)}</div>`:""}${atts?`<div class="catts">${atts}</div>`:""}${(m.actions&&m.actions.length)?`<div class="acts">⚡ ${m.actions.map(esc).join(" · ")}</div>`:""}${m.meta?chatMetaHTML(m.meta):""}</div></div>`;
 }
 function openMsgAtt(mi,ai){const a=(((CHAT.msgs||[])[mi]||{}).attachments||[])[ai]; if(!a)return; if(a.type==="link")window.open(a.u,"_blank"); else codeModal({readOnly:true,label:a.n,html:a.h});}
+function deleteChatMsg(slug,mi){ const arr=(CHAT.msgs||[]).slice(); if(mi<0||mi>=arr.length)return; if(typeof confirm!=="undefined"&&!confirm("Delete this message for everyone?"))return; arr.splice(mi,1); if(FB.ready){try{chatRef(slug).set({messages:arr,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){}} CHAT.msgs=arr; renderChatBody(); toast("🗑 Message deleted"); }
 function clearChat(slug){ if(typeof confirm!=="undefined"&&!confirm("Start a new chat? This clears the shared conversation for this card (for everyone)."))return; if(FB.ready){try{chatRef(slug).set({messages:[],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){}} CHAT.msgs=[]; renderChatBody(); toast("🆕 New chat started"); }
 function renderChatPanel(l){
   return `<div class="panel chatpanel${CHAT.full?" full":""}" id="chatPanel"><h3>💬 Claude — ${esc(l.name)} <span class="ghostnote" style="font-weight:400">· shared</span>
@@ -1916,18 +1926,20 @@ async function chatSend(slug){
   let messages=[];
   for(const mm of prior.concat([{role:"user",who,text}])){ const role=mm.role==="assistant"?"assistant":"user"; const content=mm.role==="user"?((mm.who||"User")+": "+mm.text):mm.text;
     if(messages.length&&messages[messages.length-1].role===role&&typeof messages[messages.length-1].content==="string"){messages[messages.length-1].content+="\n"+content;} else {messages.push({role,content});} }
-  const actions=[], atts=[];
+  const actions=[], atts=[]; let usageIn=0,usageOut=0; const trace=[];
   try{
     for(let hop=0;hop<6;hop++){
       const resp=await fetch(CHAT_API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:chatModel(),system:chatSystemPrompt(l),messages,tools:CHAT_TOOLS})}).then(r=>r.json());
       if(resp.error){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ "+((resp.error&&resp.error.message)||"backend error"),ts:nowStamp()}); break; }
+      if(resp.usage){ usageIn+=resp.usage.input_tokens||0; usageOut+=resp.usage.output_tokens||0; }
       messages.push({role:"assistant",content:resp.content||[]});
       const tus=(resp.content||[]).filter(b=>b.type==="tool_use");
       const txt=(resp.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim();
+      const meta={model:chatModel(),in:usageIn,out:usageOut,cost:chatCost(chatModel(),usageIn,usageOut),hops:hop+1,trace:trace.slice()};
       if(tus.length){ const results=[];
-        for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out.summary)actions.push(out.summary); if(out.att)atts.push(out.att); results.push({type:"tool_result",tool_use_id:tu.id,content:out.text}); }
+        for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out.summary)actions.push(out.summary); if(out.att)atts.push(out.att); trace.push({name:tu.name,inputStr:JSON.stringify(tu.input||{}).slice(0,300),result:(out.text||"").slice(0,1000)}); results.push({type:"tool_result",tool_use_id:tu.id,content:out.text}); }
         messages.push({role:"user",content:results}); renderChatBody(); continue;
-      } else { chatPush(slug,{role:"assistant",who:"Claude",text:txt||(atts.length?"":"(done)"),actions:actions.slice(),attachments:atts.slice(),ts:nowStamp()}); break; }
+      } else { chatPush(slug,{role:"assistant",who:"Claude",text:txt||(atts.length?"":"(done)"),actions:actions.slice(),attachments:atts.slice(),meta,ts:nowStamp()}); break; }
     }
   }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Couldn't reach the chat backend.",ts:nowStamp()}); }
   CHAT.busy=false; renderChatBody();
