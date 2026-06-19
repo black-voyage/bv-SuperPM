@@ -1,0 +1,10 @@
+{
+  "name": "bv-superpm-functions",
+  "description": "BV SuperPM chat proxy as a Cloud Function (holds ANTHROPIC_API_KEY in Secret Manager — TEAM-tier, no downloaded keys)",
+  "main": "index.js",
+  "engines": { "node": "22" },
+  "dependencies": {
+    "firebase-functions": "^6.1.0"
+  },
+  "private": true
+}

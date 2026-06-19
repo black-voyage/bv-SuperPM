@@ -1779,7 +1779,7 @@ function viewVersions(){
     </div>`).join("")}</div>`;
 }
 /* ================= CLAUDE CHAT — per-card, shared, tool-using ================= */
-const CHAT_API_URL="https://bv-superpm-chat.onrender.com/chat";  // deployed chat-proxy (holds ANTHROPIC_API_KEY). See CHAT-SETUP.md
+const CHAT_API_URL=(/\.web\.app$|\.firebaseapp\.com$/.test(location.hostname))?"/api/chat":"https://bv-superpm-chat.onrender.com/chat";  // Firebase Hosting → same-origin Cloud Function; Render → old proxy (parallel during migration). See CHAT-SETUP.md
 const CHAT_MODELS=[
   {id:"claude-opus-4-8",label:"Opus 4.8 · deepest"},
   {id:"claude-sonnet-4-6",label:"Sonnet 4.6 · balanced"},
