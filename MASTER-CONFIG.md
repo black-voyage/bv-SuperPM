@@ -3,14 +3,15 @@
 Single source of truth for every account, connection, and config value behind the SuperPM dashboard.
 Keep this updated when anything changes. **No real secrets live here** (see §9).
 
-_Last updated: 2026-06-15_
+_Last updated: 2026-06-18_
 
 ---
 
 ## 0. TL;DR — the live stack
 - **App (live):** https://bv-superpm-ey4i.onrender.com  — homepage `/` = SuperPM, dashboard at `/dashboard.html`
 - **Code:** https://github.com/black-voyage/bv-SuperPM (private)  — branch `main`, auto-deploys to Render
-- **Data:** Firebase Firestore `bv-superpm` — real-time shared board (everyone sees everyone's edits)
+- **Data (board):** Firebase Firestore `bv-superpm` — real-time shared board/chats/versions (everyone sees everyone's edits)
+- **Data (shared brain):** Firebase Firestore **`bv-second-brain`** = the **BV Data Core** — catalog/brand/competitor knowledge + cross-app AI `memory`. SuperPM's AI **reads** the Core (board stays in `bv-superpm`). See `BV-DATA-ARCHITECTURE.md`.
 - **Docs/Sheets:** created under hello@blackvoyage.com into one Drive folder
 - **Everything is owned by hello@blackvoyage.com** (one GCP project `#864428735438` powers OAuth + Firebase)
 
@@ -96,9 +97,12 @@ appId:             "1:864428735438:web:d353709e716410fecf899f"
 | `GOOGLE_CLIENT_ID` | `864428735438-704…apps.googleusercontent.com` | OAuth sign-in |
 | `GOOGLE_ACCOUNT` | `hello@blackvoyage.com` | account that creates Sheets/Docs |
 | `GOOGLE_FOLDER_ID` | `16b_sYyvOGNxemgdDhADHpd_-z6lu1GgA` | Drive folder for generated files |
-| `FIREBASE_CONFIG` | (object in §5) | shared Firestore board |
+| `FIREBASE_CONFIG` | (object in §5) | shared Firestore board (project `bv-superpm`) |
+| `CORE_CONFIG` | `bv-second-brain` web config | **BV Data Core** — shared knowledge + cross-app memory (read as a 2nd Firebase app named `"core"`) |
 | `CHAT_API_URL` | _(set after deploying chat-proxy)_ | the Claude chat backend URL (`…/chat`) |
 | `CHAT_MODEL` | `claude-sonnet-4-6` | model for the in-app Claude chat |
+
+**Two Firebase projects, one page:** the default app = `bv-superpm` (board/chats/versions); a secondary app `"core"` = `bv-second-brain` (knowledge collections + `memory`). The chat tools (`search_catalog`/`search_knowledge`/`recall`/`remember`) read/write the Core. Repointing apps = swap `CORE_CONFIG` only.
 
 **Claude chat backend** (`chat-proxy/`, deploy as a Render **Web Service**): holds `ANTHROPIC_API_KEY` (Claude key, tested ✅, value in the local secrets file — Ben@/hello@blackvoyage.com). See `CHAT-SETUP.md`.
 
@@ -117,7 +121,8 @@ appId:             "1:864428735438:web:d353709e716410fecf899f"
 
 ## 8. Security status & TODO
 - [ ] **(planned) Gemini LLM feature** — an AI feature is planned for this app, to be added later. It will use the **Gemini API key held under Ben@blackvoyage.com** (§1/§9). The key must be called from a backend / secret store (e.g. a small server or Cloud Function) — it can **not** go in `index.html`, which is fully public.
-- [ ] **Lock down Firestore** — rules are open (anyone with the config could read/write). Add Firebase Auth (Google, restricted to blackvoyage.com) + `allow read, write: if request.auth != null`. ← do soon.
+- [ ] **🔴 Lock down the BV Data Core (`bv-second-brain`)** — now holds company-wide data under OPEN rules (`allow read,write: if true`), exposed via SuperPM's public web config. **Top priority.** Ready-to-apply rules + the Firebase-Auth client wiring are drafted in **`CORE-SECURITY.md`**. ⚠️ Do NOT flip the rules until every client app authenticates to the Core, or their reads break.
+- [ ] **Lock down `bv-superpm` Firestore** — board rules are also open. Add Firebase Auth (Google, blackvoyage.com) + `allow read, write: if request.auth != null`.
 - [ ] **Delete the dead old Render service** `bv-superpm-ihnr` (under `tennisandcode`).
 - [ ] *(optional)* Remove `tennisandcode` as a GitHub collaborator once black-voyage handles all pushes.
 - [ ] *(optional)* Clean mock data out of the code `LAUNCHES` seed (live board already cleaned in Firestore).

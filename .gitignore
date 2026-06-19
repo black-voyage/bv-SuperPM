@@ -1,1 +1,12 @@
 .DS_Store
+
+# Secrets — NEVER commit. Keys live outside the repo / in env vars.
+*.local.json
+*.local.md
+*service-account*.json
+*-adminsdk-*.json
+bv-second-brain-*.json
+serviceAccount*.json
+.env
+.env.*
+chat-proxy/.env

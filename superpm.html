@@ -944,8 +944,20 @@ const FIREBASE_CONFIG={
   messagingSenderId:"864428735438",
   appId:"1:864428735438:web:d353709e716410fecf899f"
 };
-let FB={ready:false,synced:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null};
-let KNOWLEDGE={catalog:[],memory:[],tech:[],series:[],materials:[],hardware:[],glossary:[]};  // shared brand knowledge base (Firestore)
+/* BV DATA CORE (BV Second Brain) — the SHARED, company-wide knowledge graph + cross-app memory.
+   This is a SEPARATE Firebase project. SuperPM's own board/chats/versions stay in FIREBASE_CONFIG
+   (bv-superpm) above; only shared brand/catalog/competitor KNOWLEDGE + long-term MEMORY come from here,
+   so SuperPM's AI shares one brain with every other BV app. See BV-DATA-ARCHITECTURE.md. */
+const CORE_CONFIG={
+  apiKey:"AIzaSyDWj27ftoWzMJyr2Q7PgRAGBDjzesJjk0o",
+  authDomain:"bv-second-brain.firebaseapp.com",
+  projectId:"bv-second-brain",
+  storageBucket:"bv-second-brain.firebasestorage.app",
+  messagingSenderId:"100585934071",
+  appId:"1:100585934071:web:7f5c941dcd1e8959dc57f2"
+};
+let FB={ready:false,synced:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null,coreDb:null};
+let KNOWLEDGE={catalog:[],memory:[],tech:[],series:[],materials:[],hardware:[],glossary:[],competitors:[],brand_docs:[]};  // shared knowledge base (BV Data Core)
 function fbConfigured(){return !!(FIREBASE_CONFIG&&FIREBASE_CONFIG.projectId);}
 function fbStatus(txt,color){const el=document.getElementById("fbsync"); if(el){el.textContent=txt; el.style.color=color||"var(--faint)";}}
 function fbInit(){
@@ -975,11 +987,16 @@ function fbInit(){
       const arr=[]; qs.forEach(doc=>{ const x=doc.data(); x.id=doc.id; arr.push(x); });
       VERSIONS=arr; if(S.view==="versions") render();
     }, e=>{});
-    // shared KNOWLEDGE base — catalog (from the Google Sheet) + accumulating long-term memory
-    const fdb=firebase.firestore();
-    fdb.collection("catalog").onSnapshot(qs=>{KNOWLEDGE.catalog=qs.docs.map(d=>d.data());}, e=>{});
-    fdb.collection("memory").limit(500).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // shared BV Data Core memory
-    ["tech","series","materials","hardware","glossary"].forEach(c=>fdb.collection(c).onSnapshot(qs=>{KNOWLEDGE[c]=qs.docs.map(d=>d.data());}, e=>{}));
+    // shared KNOWLEDGE base + cross-app MEMORY — read from the BV DATA CORE (bv-second-brain),
+    // a SEPARATE Firebase project from this app's board. So SuperPM's AI reads the same brand/catalog/
+    // competitor data (and writes memory) that every other BV app shares.
+    let coreApp; try{ coreApp=firebase.app("core"); }catch(_){ coreApp=firebase.initializeApp(CORE_CONFIG,"core"); }
+    const cdb=coreApp.firestore(); FB.coreDb=cdb;
+    cdb.collection("catalog").onSnapshot(qs=>{KNOWLEDGE.catalog=qs.docs.map(d=>d.data());}, e=>{});
+    cdb.collection("memory").limit(500).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // shared cross-app memory
+    cdb.collection("competitors").onSnapshot(qs=>{KNOWLEDGE.competitors=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});
+    cdb.collection("brand_docs").onSnapshot(qs=>{KNOWLEDGE.brand_docs=qs.docs.map(d=>d.data());}, e=>{});  // brand bible / guidelines (chunked)
+    ["tech","series","materials","hardware","glossary"].forEach(c=>cdb.collection(c).onSnapshot(qs=>{KNOWLEDGE[c]=qs.docs.map(d=>d.data());}, e=>{}));
   }catch(e){ fbStatus("● error","var(--red)"); }
 }
 function fbAddVersion(entry){ try{ FB.versRef.add(Object.assign({},entry,{createdAt:firebase.firestore.FieldValue.serverTimestamp()})); }catch(e){} }
@@ -1765,9 +1782,9 @@ const CHAT_MODELS=[
 function chatModel(){const m=(typeof localStorage!=="undefined"&&localStorage.getItem("bv-chat-model"))||"claude-opus-4-8"; return CHAT_MODELS.some(x=>x.id===m)?m:"claude-opus-4-8";}
 function setChatModel(id){try{localStorage.setItem("bv-chat-model",id);}catch(e){} toast("🧠 Chat model → "+((CHAT_MODELS.find(x=>x.id===id)||{}).label||id));}
 const CHAT_TOOLS=[
-  {name:"search_catalog",description:"Search the Black Voyage product CATALOG (real products with specs, materials, features, pricing, and explicit competitor & vs-previous comparisons). ALWAYS use this to ground product/brand/competitor suggestions in real data before answering.",input_schema:{type:"object",properties:{query:{type:"string",description:"keywords: product line, material, category, feature, competitor, price…"}},required:["query"]}},
-  {name:"get_product",description:"Get the FULL detail of one catalog product (summary, full features, vs-competitor, vs-previous, price, assets) by product name or sku.",input_schema:{type:"object",properties:{name:{type:"string"}},required:["name"]}},
-  {name:"search_knowledge",description:"Search the Black Voyage BRAND knowledge base — core TECHNOLOGY (Vortex Vacuum Seal™, IPX8, compression chamber 60kPa), product SERIES (Essential/Pro/Pro Lite positioning), MATERIALS (CloudWeave™, Cordura® 1680D, X-Pac® VX21…), and HARDWARE (YKK, Fidlock…). Use this to ground tech/material/series claims in real, approved facts before writing copy or suggestions.",input_schema:{type:"object",properties:{query:{type:"string"}},required:["query"]}},
+  {name:"search_catalog",description:"Search the Black Voyage product CATALOG — real SKUs with their specs (model, variant, size, material, dimensions, feature). Use to ground product/spec claims in real data. (Competitor comparisons & brand voice live in search_knowledge.)",input_schema:{type:"object",properties:{query:{type:"string",description:"keywords: model, SKU, material, size, feature…"}},required:["query"]}},
+  {name:"get_product",description:"Get the FULL spec row of one catalog SKU (model, variant, size, material, feature, dimensions) by SKU, model name, or material.",input_schema:{type:"object",properties:{name:{type:"string"}},required:["name"]}},
+  {name:"search_knowledge",description:"Search the Black Voyage BRAND knowledge base — core TECHNOLOGY (Vortex Vacuum Seal™, IPX8, compression chamber 60kPa), product SERIES (Essential/Pro/Pro Lite positioning), MATERIALS (CloudWeave™, Cordura® 1680D, X-Pac® VX21…), HARDWARE (YKK, Fidlock…), COMPETITORS (positioning, strengths, weaknesses, our gap/opportunity), and the BRAND GUIDELINES / bible. Use this to ground tech/material/series/competitor claims and brand voice in real, approved facts before writing copy or suggestions.",input_schema:{type:"object",properties:{query:{type:"string"}},required:["query"]}},
   {name:"recall",description:"Search the shared long-term MEMORY for facts/insights/decisions saved earlier (persists across all chats and users).",input_schema:{type:"object",properties:{query:{type:"string"}},required:["query"]}},
   {name:"remember",description:"Save a durable fact/insight/decision to the shared long-term MEMORY so it persists across every future chat. Use whenever you learn something lasting about the brand, a product, a customer, pricing, or a decision.",input_schema:{type:"object",properties:{fact:{type:"string"},tags:{type:"string",description:"comma-separated, e.g. brand,pricing,Aero"}},required:["fact"]}},
   {name:"add_link",description:"Attach a link/URL (Google Doc, Sheet, Figma, listing, or any resource) to this product card so the whole team sees it.",input_schema:{type:"object",properties:{label:{type:"string"},url:{type:"string"}},required:["label","url"]}},
@@ -1799,12 +1816,12 @@ function chatSystemPrompt(l){
   (l.resources||[]).forEach(r=>inv.push("- ["+(r.type==="code"?"html":"link")+"] "+(r.n||"")+(r.u?(" — "+r.u):"")+"   (card-level)"));
   (CHAT.msgs||[]).forEach(m=>(m.attachments||[]).forEach(a=>inv.push("- ["+(a.type==="code"?"html":"link")+"] "+(a.n||"")+(a.u?(" — "+a.u):"")+"   (generated earlier in this chat)")));
   const res=inv.join("\n")||"(nothing attached to this card yet)";
-  const lines=[...new Set((KNOWLEDGE.catalog||[]).map(p=>p.product_line).filter(Boolean))];
+  const lines=[...new Set((KNOWLEDGE.catalog||[]).map(p=>p.Parent_Model).filter(Boolean))];
   const gloss=(KNOWLEDGE.glossary||[]).filter(g=>g.en_approved).map(g=>"  ✓ \""+g.en_approved+"\""+(g.en_avoid?(" — NOT \""+g.en_avoid+"\""):"")+(g.context?("  ("+g.context+")"):"")).join("\n");
-  const kb="BLACK VOYAGE KNOWLEDGE BASE — ground EVERY product/brand/tech/competitor claim in this REAL data before answering (don't invent facts):\n"
-   +"- CATALOG: "+(KNOWLEDGE.catalog||[]).length+" products"+(lines.length?" ("+lines.join(", ")+")":"")+" — specs, features, pricing, vs-competitor & vs-previous. Use search_catalog → get_product.\n"
-   +"- BRAND KNOWLEDGE: core TECH ("+(KNOWLEDGE.tech||[]).length+": Vortex Vacuum Seal™, IPX8, compression), SERIES ("+(KNOWLEDGE.series||[]).length+": Essential/Pro/Pro Lite), MATERIALS ("+(KNOWLEDGE.materials||[]).length+": CloudWeave™, Cordura®, X-Pac®…), HARDWARE ("+(KNOWLEDGE.hardware||[]).length+"). Use search_knowledge.\n"
-   +"- MEMORY: shared long-term memory ("+(KNOWLEDGE.memory||[]).length+" facts). Call recall before answering; call remember to save durable new insights so they persist across every chat.\n"
+  const kb="BLACK VOYAGE KNOWLEDGE BASE (live from the shared BV DATA CORE) — ground EVERY product/brand/tech/competitor claim in this REAL data before answering (don't invent facts):\n"
+   +"- CATALOG: "+(KNOWLEDGE.catalog||[]).length+" SKUs"+(lines.length?" ("+lines.slice(0,8).join(", ")+(lines.length>8?"…":"")+")":"")+" — model/variant/size/material/feature/dimensions. Use search_catalog → get_product.\n"
+   +"- BRAND KNOWLEDGE: core TECH ("+(KNOWLEDGE.tech||[]).length+": Vortex Vacuum Seal™, IPX8, compression), SERIES ("+(KNOWLEDGE.series||[]).length+": Essential/Pro/Pro Lite), MATERIALS ("+(KNOWLEDGE.materials||[]).length+"), HARDWARE ("+(KNOWLEDGE.hardware||[]).length+"), COMPETITORS ("+(KNOWLEDGE.competitors||[]).length+": positioning/strengths/weaknesses/our gap), BRAND GUIDELINES ("+(KNOWLEDGE.brand_docs||[]).length+" sections). Use search_knowledge.\n"
+   +"- MEMORY: shared cross-app long-term memory ("+(KNOWLEDGE.memory||[]).length+" facts, shared with every BV app). Call recall before answering; call remember to save durable new insights so they persist across every chat and app.\n"
    +(gloss?("VOICE RULES (approved vs avoided wording — ALWAYS follow when writing any copy):\n"+gloss+"\n"):"");
   return "You are Claude, embedded in the Black Voyage \"SuperPM\" product dashboard. You help the team manage the product card \""+l.name+"\" (stage: "+l.stage+", DRI: "+l.dri+"). This chat is SHARED — everyone on the team sees it and your actions, for this product only.\n"
    +kb
@@ -1840,23 +1857,28 @@ function runChatTool(slug,name,input){
   const l=L(slug); if(!l)return {summary:"",text:"card not found"};
   try{
     if(name==="search_catalog"){ const q=(input.query||"").toLowerCase().split(/\s+/).filter(Boolean);
-      const hits=(KNOWLEDGE.catalog||[]).map(p=>{const b=[p.name_en,p.product_line,p.variant,p.material,p.category,p.summary_en,p.vs_competitor_en,p.features_en].join(" ").toLowerCase(); return {p,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,8).map(x=>x.p);
-      if(!hits.length)return {summary:"🔎 catalog",text:"No catalog products matched “"+(input.query||"")+"”. ("+(KNOWLEDGE.catalog||[]).length+" products in catalog.)"};
-      return {summary:"🔎 catalog ("+hits.length+")",text:"Catalog matches:\n"+hits.map(p=>"• "+(p.name_en||p.sku)+" ["+p.product_line+" / "+p.material+" / "+p.category+"]"+(p.price_usd?" $"+p.price_usd:"")+" — "+((p.summary_en||"").replace(/\s+/g," ").slice(0,150))).join("\n")+"\n(call get_product for full specs + competitor comparison)"}; }
+      const hits=(KNOWLEDGE.catalog||[]).map(p=>{const b=[p.SKU,p.Parent_Model,p.Variant,p.Material,p.Size,p.Feature,p.spec].join(" ").toLowerCase(); return {p,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,8).map(x=>x.p);
+      if(!hits.length)return {summary:"🔎 catalog",text:"No catalog SKUs matched “"+(input.query||"")+"”. ("+(KNOWLEDGE.catalog||[]).length+" SKUs in catalog.)"};
+      const clean=s=>(s||"").replace(/\s+/g," ").trim();
+      return {summary:"🔎 catalog ("+hits.length+")",text:"Catalog matches (specs by SKU):\n"+hits.map(p=>"• "+(p.SKU||p.Parent_Model||"?")+(p.Parent_Model&&p.Parent_Model!==p.SKU?" ["+p.Parent_Model+"]":"")+" — material "+(clean(p.Material)||"—")+" · size "+(clean(p.Size)||"—")+(clean(p.Feature)?(" · "+clean(p.Feature)):"")+(clean(p.spec)?(" · dims "+clean(p.spec)):"")).join("\n")+"\n(call get_product for the full spec row; competitor/brand context → search_knowledge)"}; }
     if(name==="search_knowledge"){ const q=(input.query||"").toLowerCase().split(/\s+/).filter(Boolean); let hits=[];
-      [["tech",KNOWLEDGE.tech],["series",KNOWLEDGE.series],["materials",KNOWLEDGE.materials],["hardware",KNOWLEDGE.hardware]].forEach(([d,arr])=>(arr||[]).forEach(x=>{const b=Object.values(x).join(" ").toLowerCase(); const s=q.reduce((a,t)=>a+(b.includes(t)?1:0),0); if(q.length?s>0:true)hits.push({d,x,s});}));
-      hits=hits.sort((a,b)=>b.s-a.s).slice(0,6);
+      [["tech",KNOWLEDGE.tech],["series",KNOWLEDGE.series],["materials",KNOWLEDGE.materials],["hardware",KNOWLEDGE.hardware],["competitor",KNOWLEDGE.competitors],["brand",KNOWLEDGE.brand_docs]].forEach(([d,arr])=>(arr||[]).forEach(x=>{const b=Object.values(x).join(" ").toLowerCase(); const s=q.reduce((a,t)=>a+(b.includes(t)?1:0),0); if(q.length?s>0:true)hits.push({d,x,s});}));
+      hits=hits.sort((a,b)=>b.s-a.s).slice(0,8);
       if(!hits.length)return {summary:"📚 brand",text:"No brand-knowledge entries matched “"+(input.query||"")+"”."};
-      const fmt=h=>{const x=h.x,nm=x.title_en||x.name_en||x.id||x.material_code||""; const body=(x.content_en||x.description_en||x.positioning_en||x.summary_en||"").replace(/\s+/g," "); const extra=h.d==="series"?(" | vacuum: "+(x.vacuum_en||"")+" | zipper: "+(x.zipper_en||"")+" | hipbelt: "+(x.hipbelt_en||"")):h.d==="materials"?(" | properties: "+(x.properties_en||"").replace(/\s+/g," ")+" | "+(x.composition_en||"")+(x.weight_gsm?(" | "+x.weight_gsm+"gsm"):"")):""; return "["+h.d.toUpperCase()+"] "+nm+": "+body.slice(0,550)+extra;};
+      const fmt=h=>{const x=h.x;
+        if(h.d==="competitor")return "[COMPETITOR] "+(x.Competitor||"")+" ("+(x.Type||"")+"): "+(x.Positioning||"")+" | strengths: "+(x.Strengths||"")+" | weaknesses: "+(x.Weaknesses||"")+" | OUR gap/opportunity: "+(x["Positioning Gap/Opportunity"]||"");
+        if(h.d==="brand")return "[BRAND GUIDELINES"+(x.sourceName?(": "+x.sourceName):"")+"] "+((x.text||"").replace(/\s+/g," ").slice(0,650));
+        const nm=x.title_en||x.name_en||x.id||x.material_code||""; const body=(x.content_en||x.description_en||x.positioning_en||x.summary_en||"").replace(/\s+/g," "); const extra=h.d==="series"?(" | vacuum: "+(x.vacuum_en||"")+" | zipper: "+(x.zipper_en||"")+" | hipbelt: "+(x.hipbelt_en||"")):h.d==="materials"?(" | properties: "+(x.properties_en||"").replace(/\s+/g," ")+" | "+(x.composition_en||"")+(x.weight_gsm?(" | "+x.weight_gsm+"gsm"):"")):""; return "["+h.d.toUpperCase()+"] "+nm+": "+body.slice(0,550)+extra;};
       return {summary:"📚 brand ("+hits.length+")",text:"Brand knowledge:\n\n"+hits.map(fmt).join("\n\n")}; }
-    if(name==="get_product"){ const q=(input.name||"").toLowerCase(); const p=(KNOWLEDGE.catalog||[]).find(p=>(((p.name_en||"")+" "+(p.sku||""))).toLowerCase().includes(q))||(KNOWLEDGE.catalog||[]).find(p=>q&&((p.product_line||"").toLowerCase().includes(q)));
-      if(!p)return {summary:"",text:"No product found for “"+(input.name||"")+"”."};
-      return {summary:"📦 "+(p.name_en||p.sku),text:["PRODUCT: "+(p.name_en||p.sku)+" (sku "+p.sku+")","line "+p.product_line+" · variant "+p.variant+" · material "+p.material+" · category "+p.category+" · status "+p.status+(p.price_usd?" · $"+p.price_usd:"")+(p.is_featured==="TRUE"?" · FEATURED":""),"SUMMARY: "+(p.summary_en||""),"FEATURES:\n"+(p.features_en||""),"VS PREVIOUS: "+(p.vs_previous_en||""),"VS COMPETITORS: "+(p.vs_competitor_en||""),"assets: "+(p.image_folder||"")].join("\n")}; }
+    if(name==="get_product"){ const q=(input.name||"").toLowerCase(); const clean=s=>(s||"").replace(/\s+/g," ").trim();
+      const p=(KNOWLEDGE.catalog||[]).find(p=>(((p.SKU||"")+" "+(p.Parent_Model||"")+" "+(p.Material||"")).toLowerCase().includes(q)));
+      if(!p)return {summary:"",text:"No catalog SKU found for “"+(input.name||"")+"”. Try search_catalog first."};
+      return {summary:"📦 "+(p.SKU||p.Parent_Model),text:["SKU: "+(p.SKU||"—"),"model: "+(clean(p.Parent_Model)||"—")+" · variant "+(clean(p.Variant)||"—")+" · size "+(clean(p.Size)||"—")+" · material "+(clean(p.Material)||"—"),"FEATURE: "+(clean(p.Feature)||"—"),"DIMENSIONS/SPEC: "+(clean(p.spec)||"—")].join("\n")}; }
     if(name==="recall"){ const q=(input.query||"").toLowerCase().split(/\s+/).filter(Boolean);
       const hits=(KNOWLEDGE.memory||[]).map(m=>{const b=(((m.text||m.fact||"")+" "+(m.tags||"")+" "+(m.app||"")).toLowerCase()); return {m,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,12).map(x=>x.m);
       if(!hits.length)return {summary:"🧠 recall",text:"No memories matched. ("+(KNOWLEDGE.memory||[]).length+" in shared memory.)"};
       return {summary:"🧠 recall ("+hits.length+")",text:"Recalled from shared memory:\n"+hits.map(m=>"• "+(m.text||m.fact||"")+(m.tags?"  ["+m.tags+"]":"")+(m.app?"  ("+m.app+")":"")).join("\n")}; }
-    if(name==="remember"){ const fact=(input.fact||"").trim(); if(!fact)return {text:"Nothing to remember."}; try{firebase.firestore().collection("memory").add({text:fact,tags:input.tags||"",app:"superpm",entities:[slug],who:actor(),ts:Date.now()});}catch(e){} return {summary:"🧠 remembered",text:"Saved to shared long-term memory."}; }
+    if(name==="remember"){ const fact=(input.fact||"").trim(); if(!fact)return {text:"Nothing to remember."}; try{(FB.coreDb||firebase.firestore()).collection("memory").add({text:fact,tags:input.tags||"",app:"superpm",entities:[slug],who:actor(),ts:Date.now()});}catch(e){} return {summary:"🧠 remembered",text:"Saved to shared long-term memory (BV Data Core)."}; }
     if(name==="add_link"){ if(!(input.url||"").trim())return {text:"No url provided — include the full url."}; const nm=input.label||"Link"; return {summary:"🔗 "+nm,text:"Shared link “"+nm+"” in the chat.",att:{type:"link",n:nm,u:input.url}}; }
     if(name==="add_html"){ if(!(input.html||"").trim())return {text:"No HTML content was provided — put the FULL html document in the html argument and try once."}; const nm=input.label||"HTML"; return {summary:"</> "+nm,text:"Created HTML “"+nm+"” ("+input.html.length+" chars) — shown inline in the chat.",att:{type:"code",n:nm,h:input.html}}; }
     if(name==="add_note"){ (l.checkins=l.checkins||[]).unshift({d:today,a:actor(),txt:input.text||""}); save(); return {summary:"📝 note",text:"Note added to the log."}; }

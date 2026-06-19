@@ -44,7 +44,7 @@ across apps (a product's SKU is the same everywhere → the graph).
 
 | Collection | Doc ID | Owner / source | Holds |
 |---|---|---|---|
-| `catalog` | SKU | Catalog Google Sheet | products: specs, features, pricing, vs-competitor, vs-previous |
+| `catalog` | SKU | Catalog Google Sheet | product **specs**: size, material, dimensions, features (NOT sales data) |
 | `materials` | material_code | Sheet | CloudWeave™, Cordura®, X-Pac®… |
 | `tech` | id | Sheet | Vortex Vacuum Seal™, IPX8, compression |
 | `series` | id | Sheet | Essential / Pro / Pro Lite positioning |
@@ -54,6 +54,26 @@ across apps (a product's SKU is the same everywhere → the graph).
 | `brand_docs` | id | Drive PDFs | design guideline / brand bible (chunked text) |
 | `documents` | driveFileId | **Drive master folder** | index of every human file (forms, briefs, PDFs, generated docs) — see §3b |
 | **`memory`** | auto | **any app's AI** | shared long-term memory (see §3) |
+
+### 2a. Second Brain native graph (read-only for client apps)
+Beyond the Sheet/Drive sync, the Core owns a richer **analytics + strategy graph** — apps should READ these
+for deep context (never write them; Second Brain owns them):
+
+| Collection | Doc ID | Holds |
+|---|---|---|
+| `products` | ASIN | **Amazon performance** — impressions, clicks, sales, CTR, CVR, monthly sales (NOT specs; specs = `catalog`) |
+| `product_performance` / `amazon_monthly` | — | time-series performance |
+| `personas` / `audience_segments` | — | who we sell to |
+| `jobs_to_be_done` / `category_entry_points` | — | demand framing |
+| `insights` / `ideas` / `ad_ideas` | — | mined insights + idea banks |
+| `review_praise` / `review_objections` | — | voice-of-customer from reviews |
+| `differentiation` / `brand_elements` | — | positioning + brand assets |
+| `search_terms` | — | demand/keyword data |
+| `meta_ads` / `finance_monthly` | — | ad + finance data |
+
+> **`catalog` vs `products`:** different things, not duplicates. `catalog` = physical specs by SKU;
+> `products` = Amazon sales metrics by ASIN. Product Q&A reads `catalog`+`tech`+`materials`+`series`;
+> "how is it selling" reads `products`/`product_performance`.
 
 ### 3b. File layer — Google Drive (the "human form database")
 Files (forms, briefs, PDFs, Docs, images, generated outputs) **stay in Google Drive** — the canonical master
