@@ -992,6 +992,7 @@ function fbInit(){
     // competitor data (and writes memory) that every other BV app shares.
     let coreApp; try{ coreApp=firebase.app("core"); }catch(_){ coreApp=firebase.initializeApp(CORE_CONFIG,"core"); }
     const cdb=coreApp.firestore(); FB.coreDb=cdb;
+    try{ cdb.collection("clients").doc("superpm").set({app:"superpm",project:"bv-superpm",connectedVia:"firebase-sdk",lastSeen:Date.now()},{merge:true}); }catch(_){}  // announce this connection to the Core registry (GET /api/connect)
     cdb.collection("catalog").onSnapshot(qs=>{KNOWLEDGE.catalog=qs.docs.map(d=>d.data());}, e=>{});
     cdb.collection("memory").limit(500).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // shared cross-app memory
     cdb.collection("competitors").onSnapshot(qs=>{KNOWLEDGE.competitors=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});
