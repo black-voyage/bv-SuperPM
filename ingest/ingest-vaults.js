@@ -29,16 +29,22 @@
 
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 
 // ---- config -------------------------------------------------------------
 // Default target is the BV Data Core (bv-second-brain). The Core is locked (auth-only),
-// so writes go through the Admin SDK with a service-account key. If no key is present we
-// fall back to the keyed REST API — which only works on OPEN projects (e.g. bv-superpm).
+// so writes go through the Admin SDK. Two ways to authenticate it:
+//   1. a service-account key (service-account.json), OR
+//   2. gcloud Application Default Credentials — `gcloud auth application-default login`
+//      (a USER login, no key file — works even when org policy blocks service-account keys).
+// With neither, we fall back to the keyed REST API — which only works on OPEN projects (e.g. bv-superpm).
 const PROJECT_ID = process.env.BV_PROJECT_ID || "bv-second-brain";
 const API_KEY = process.env.BV_API_KEY || "AIzaSyDWj27ftoWzMJyr2Q7PgRAGBDjzesJjk0o"; // Core web apiKey (REST fallback / probe only)
 const SA_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS
   || [path.join(__dirname, "service-account.json"), path.join(__dirname, "bv-second-brain-service-account.json")].find(p => fs.existsSync(p));
-const ADMIN = !!(SA_PATH && fs.existsSync(SA_PATH));
+const ADC_PATH = path.join(os.homedir(), ".config", "gcloud", "application_default_credentials.json");
+const HAS_ADC = fs.existsSync(ADC_PATH);
+const ADMIN = !!(SA_PATH || HAS_ADC);
 const WORKSPACE = path.resolve(__dirname, "..", "..");
 const INFO = path.join(WORKSPACE, "products_info");
 const ASSIST = path.join(WORKSPACE, "products_assistant");
@@ -48,8 +54,14 @@ let _db = null;
 function adminDb() {
   if (_db) return _db;
   const admin = require("firebase-admin");
-  const cred = require(path.resolve(SA_PATH));
-  if (!admin.apps.length) admin.initializeApp({ credential: admin.credential.cert(cred), projectId: cred.project_id });
+  if (!admin.apps.length) {
+    if (SA_PATH) {
+      const cred = require(path.resolve(SA_PATH));
+      admin.initializeApp({ credential: admin.credential.cert(cred), projectId: cred.project_id });
+    } else {
+      admin.initializeApp({ projectId: PROJECT_ID }); // uses gcloud ADC (application-default login)
+    }
+  }
   _db = admin.firestore();
   return _db;
 }
@@ -264,7 +276,8 @@ function buildProductsAssistant() {
     return;
   }
 
-  console.log(`Project: ${PROJECT_ID}   Mode: ${WRITE ? "WRITE" : "DRY RUN"}   Auth: ${ADMIN ? "Admin SDK (service account)" : "REST apiKey"}   Scope: ${SCOPE}\n`);
+  const authLabel = SA_PATH ? "Admin SDK (service account)" : HAS_ADC ? "Admin SDK (gcloud ADC)" : "REST apiKey";
+  console.log(`Project: ${PROJECT_ID}   Mode: ${WRITE ? "WRITE" : "DRY RUN"}   Auth: ${authLabel}   Scope: ${SCOPE}\n`);
   for (const col of Object.keys(byCol).sort()) {
     console.log(`  ${col.padEnd(26)} ${byCol[col].length} docs`);
   }
@@ -274,7 +287,7 @@ function buildProductsAssistant() {
 
   // Writing to the locked Core requires the Admin SDK — fail fast with guidance if the key is missing.
   if (PROJECT_ID === "bv-second-brain" && !ADMIN) {
-    console.error("⛔ Target is the locked Core (bv-second-brain) but no service-account key was found.\n   Put it at ingest/service-account.json (or set GOOGLE_APPLICATION_CREDENTIALS) and re-run.");
+    console.error("⛔ Target is the locked Core (bv-second-brain) but no admin credential was found.\n   Either: `gcloud auth application-default login` (no key needed), or drop a service-account.json in ingest/. Then re-run.");
     process.exit(1);
   }
 
