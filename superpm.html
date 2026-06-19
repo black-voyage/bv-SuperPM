@@ -992,6 +992,7 @@ function fbInit(){
     // competitor data (and writes memory) that every other BV app shares.
     let coreApp; try{ coreApp=firebase.app("core"); }catch(_){ coreApp=firebase.initializeApp(CORE_CONFIG,"core"); }
     const cdb=coreApp.firestore(); FB.coreDb=cdb;
+    try{ cdb.collection("clients").doc("superpm").set({app:"superpm",project:"bv-superpm",connectedVia:"firebase-sdk",lastSeen:Date.now()},{merge:true}); }catch(_){}  // announce this connection to the Core registry (GET /api/connect)
     cdb.collection("catalog").onSnapshot(qs=>{KNOWLEDGE.catalog=qs.docs.map(d=>d.data());}, e=>{});
     cdb.collection("memory").limit(500).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // shared cross-app memory
     cdb.collection("competitors").onSnapshot(qs=>{KNOWLEDGE.competitors=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});
@@ -1908,7 +1909,7 @@ function runChatTool(slug,name,input){
       const p=(KNOWLEDGE.catalog||[]).find(p=>(((p.SKU||"")+" "+(p.Parent_Model||"")+" "+(p.Material||"")).toLowerCase().includes(q)));
       if(!p)return {summary:"",text:"No catalog SKU found for “"+(input.name||"")+"”. Try search_catalog first."};
       const shown=new Set(["SKU","Parent_Model","Variant","Size","Material","Feature","spec","_gid","_synced"]);
-      const extra=Object.keys(p).filter(k=>!shown.has(k)&&clean(p[k])).map(k=>k.replace(/_/g," ").trim()+": "+clean(p[k]));  // auto-surface weight/liters/expansion etc. once synced
+      const extra=Object.keys(p).filter(k=>!shown.has(k)&&!k.startsWith("_")&&clean(p[k])).map(k=>k.replace(/_/g," ").trim()+": "+clean(p[k]));  // auto-surface weight/liters/expansion etc. (skip internal _fields)
       const rows=["SKU: "+(p.SKU||"—"),"model: "+(clean(p.Parent_Model)||"—")+" · variant "+(clean(p.Variant)||"—")+" · size "+(clean(p.Size)||"—")+" · material "+(clean(p.Material)||"—"),"FEATURE: "+(clean(p.Feature)||"—"),"DIMENSIONS/SPEC: "+(clean(p.spec)||"—")];
       if(extra.length)rows.push("OTHER SPECS: "+extra.join(" · "));
       return {summary:"📦 "+(p.SKU||p.Parent_Model),text:rows.join("\n")}; }
