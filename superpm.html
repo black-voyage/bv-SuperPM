@@ -1853,10 +1853,26 @@ function chatMsgHTML(m,mi){
   const atts=(m.attachments||[]).map((a,ai)=>a.type==="link"
     ?`<a class="catt" href="${esc(a.u)}" target="_blank">🔗 ${esc(a.n)}</a>`
     :`<span class="catt" title="open the HTML — preview / source / full page" onclick="openMsgAtt(${mi},${ai})">📄 &lt;/&gt; ${esc(a.n)}</span>`).join("");
-  return `<div class="cmsg ${cls}"><div class="av">${av}</div><div><div class="who">${esc(m.who||(m.role==="assistant"?"Claude":"User"))}${m.ts?" · "+esc(m.ts):""}<span class="cmsg-del" title="delete this message (for everyone)" onclick="deleteChatMsg(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.5;font-size:11px">✕</span></div>${m.text?`<div class="bub">${esc(m.text)}</div>`:""}${atts?`<div class="catts">${atts}</div>`:""}${(m.actions&&m.actions.length)?`<div class="acts">⚡ ${m.actions.map(esc).join(" · ")}</div>`:""}${m.meta?chatMetaHTML(m.meta):""}</div></div>`;
+  return `<div class="cmsg ${cls}"><div class="av">${av}</div><div><div class="who">${esc(m.who||(m.role==="assistant"?"Claude":"User"))}${m.ts?" · "+esc(m.ts):""}${m.role==="assistant"?`<span class="cmsg-report" title="report an answer-quality issue (logged to BV Second Brain)" onclick="reportAnswer(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.55;font-size:11px">⚑ report</span>`:""}<span class="cmsg-del" title="delete this message (for everyone)" onclick="deleteChatMsg(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.5;font-size:11px">✕</span></div>${m.text?`<div class="bub">${esc(m.text)}</div>`:""}${atts?`<div class="catts">${atts}</div>`:""}${(m.actions&&m.actions.length)?`<div class="acts">⚡ ${m.actions.map(esc).join(" · ")}</div>`:""}${m.meta?chatMetaHTML(m.meta):""}</div></div>`;
 }
 function openMsgAtt(mi,ai){const a=(((CHAT.msgs||[])[mi]||{}).attachments||[])[ai]; if(!a)return; if(a.type==="link")window.open(a.u,"_blank"); else codeModal({readOnly:true,label:a.n,html:a.h});}
 function deleteChatMsg(slug,mi){ const arr=(CHAT.msgs||[]).slice(); if(mi<0||mi>=arr.length)return; if(typeof confirm!=="undefined"&&!confirm("Delete this message for everyone?"))return; arr.splice(mi,1); if(FB.ready){try{chatRef(slug).set({messages:arr,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){}} CHAT.msgs=arr; renderChatBody(); toast("🗑 Message deleted"); }
+function reportAnswer(slug,mi){
+  const m=(CHAT.msgs||[])[mi]; if(!m||m.role!=="assistant")return;
+  const reason=(typeof prompt!=="undefined")?prompt("Report an answer-quality issue — what's wrong? (e.g. inaccurate, made-up, incomplete, wrong source, missing data)"):"";
+  if(reason===null)return;                       // cancelled
+  let q=""; for(let j=mi-1;j>=0;j--){ if((CHAT.msgs[j]||{}).role!=="assistant"){ q=(CHAT.msgs[j].text||""); break; } }   // the question that led to this answer
+  const meta=m.meta||{};
+  const rep={ app:"superpm", card:slug, cardName:((L(slug)||{}).name)||slug,
+    question:(q||"").slice(0,2000), answer:(m.text||"").slice(0,4000),
+    model:meta.model||chatModel(), tokensIn:meta.in||0, tokensOut:meta.out||0, cost:(meta.cost!=null?meta.cost:null),
+    sources:(meta.trace||[]).map(t=>({name:t.name,input:t.inputStr,result:(t.result||"").slice(0,800)})),
+    reason:(reason||"").slice(0,1000), status:"open", who:actor(), reportedAt:Date.now(), ts:Date.now() };
+  const db=(FB.coreDb||(typeof firebase!=="undefined"&&firebase.firestore?firebase.firestore():null));
+  if(!db){ toast("⚠️ Not connected — can't file report"); return; }
+  try{ db.collection("quality_reports").add(rep); }catch(e){ toast("⚠️ Report failed"); return; }
+  toast("⚑ Issue reported to BV Second Brain — thank you");
+}
 function clearChat(slug){ if(typeof confirm!=="undefined"&&!confirm("Start a new chat? This clears the shared conversation for this card (for everyone)."))return; if(FB.ready){try{chatRef(slug).set({messages:[],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){}} CHAT.msgs=[]; renderChatBody(); toast("🆕 New chat started"); }
 function renderChatPanel(l){
   return `<div class="panel chatpanel${CHAT.full?" full":""}" id="chatPanel"><h3>💬 Claude — ${esc(l.name)} <span class="ghostnote" style="font-weight:400">· shared</span>

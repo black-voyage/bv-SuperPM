@@ -54,6 +54,7 @@ across apps (a product's SKU is the same everywhere → the graph).
 | `brand_docs` | id | Drive PDFs | design guideline / brand bible (chunked text) |
 | `documents` | driveFileId | **Drive master folder** | index of every human file (forms, briefs, PDFs, generated docs) — see §3b |
 | **`memory`** | auto | **any app's AI** | shared long-term memory (see §3) |
+| **`quality_reports`** | auto | **any app's chat** | answer-quality issue reports (`app, card, cardName, question, answer, model, cost, sources[], reason, status, who, ts`) — feeds the Second Brain **Quality** dashboard + its Claude Code. Like `memory`, any app may write; Second Brain triages/sets `status`. |
 
 ### 2a. Second Brain native graph (read-only for client apps)
 Beyond the Sheet/Drive sync, the Core owns a richer **analytics + strategy graph** — apps should READ these
