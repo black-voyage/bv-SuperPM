@@ -1880,7 +1880,11 @@ function runChatTool(slug,name,input){
     if(name==="get_product"){ const q=(input.name||"").toLowerCase(); const clean=s=>(s||"").replace(/\s+/g," ").trim();
       const p=(KNOWLEDGE.catalog||[]).find(p=>(((p.SKU||"")+" "+(p.Parent_Model||"")+" "+(p.Material||"")).toLowerCase().includes(q)));
       if(!p)return {summary:"",text:"No catalog SKU found for “"+(input.name||"")+"”. Try search_catalog first."};
-      return {summary:"📦 "+(p.SKU||p.Parent_Model),text:["SKU: "+(p.SKU||"—"),"model: "+(clean(p.Parent_Model)||"—")+" · variant "+(clean(p.Variant)||"—")+" · size "+(clean(p.Size)||"—")+" · material "+(clean(p.Material)||"—"),"FEATURE: "+(clean(p.Feature)||"—"),"DIMENSIONS/SPEC: "+(clean(p.spec)||"—")].join("\n")}; }
+      const shown=new Set(["SKU","Parent_Model","Variant","Size","Material","Feature","spec","_gid","_synced"]);
+      const extra=Object.keys(p).filter(k=>!shown.has(k)&&clean(p[k])).map(k=>k.replace(/_/g," ").trim()+": "+clean(p[k]));  // auto-surface weight/liters/expansion etc. once synced
+      const rows=["SKU: "+(p.SKU||"—"),"model: "+(clean(p.Parent_Model)||"—")+" · variant "+(clean(p.Variant)||"—")+" · size "+(clean(p.Size)||"—")+" · material "+(clean(p.Material)||"—"),"FEATURE: "+(clean(p.Feature)||"—"),"DIMENSIONS/SPEC: "+(clean(p.spec)||"—")];
+      if(extra.length)rows.push("OTHER SPECS: "+extra.join(" · "));
+      return {summary:"📦 "+(p.SKU||p.Parent_Model),text:rows.join("\n")}; }
     if(name==="search_product_spec"){ const q=(input.query||"").toLowerCase().split(/\s+/).filter(Boolean);
       const hits=(KNOWLEDGE.product_docs||[]).map(p=>{const b=((p.name||"")+" "+(p.category||"")+" "+(p.currentMO||"")+" "+((p.skus||[]).join(" "))+" "+(p.text||"")).toLowerCase(); return {p,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,3).map(x=>x.p);
       if(!hits.length)return {summary:"📄 spec",text:"No product spec sheet matched “"+(input.query||"")+"”. ("+(KNOWLEDGE.product_docs||[]).length+" spec sheets loaded.)"};
