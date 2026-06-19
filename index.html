@@ -957,7 +957,7 @@ const CORE_CONFIG={
   appId:"1:100585934071:web:7f5c941dcd1e8959dc57f2"
 };
 let FB={ready:false,synced:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null,coreDb:null};
-let KNOWLEDGE={catalog:[],memory:[],tech:[],series:[],materials:[],hardware:[],glossary:[],competitors:[],brand_docs:[]};  // shared knowledge base (BV Data Core)
+let KNOWLEDGE={catalog:[],memory:[],tech:[],series:[],materials:[],hardware:[],glossary:[],competitors:[],brand_docs:[],product_docs:[]};  // shared knowledge base (BV Data Core)
 function fbConfigured(){return !!(FIREBASE_CONFIG&&FIREBASE_CONFIG.projectId);}
 function fbStatus(txt,color){const el=document.getElementById("fbsync"); if(el){el.textContent=txt; el.style.color=color||"var(--faint)";}}
 function fbInit(){
@@ -996,6 +996,11 @@ function fbInit(){
     cdb.collection("memory").limit(500).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // shared cross-app memory
     cdb.collection("competitors").onSnapshot(qs=>{KNOWLEDGE.competitors=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});
     cdb.collection("brand_docs").onSnapshot(qs=>{KNOWLEDGE.brand_docs=qs.docs.map(d=>d.data());}, e=>{});  // brand bible / guidelines (chunked)
+    // product_docs (full per-product spec sheets): the Core is the target, but until it is seeded
+    // we fall back to the copy already in bv-superpm (open) so the AI is usable immediately. Core wins when present.
+    let _pdCore=[],_pdFb=[];
+    cdb.collection("product_docs").onSnapshot(qs=>{_pdCore=qs.docs.map(d=>d.data()); KNOWLEDGE.product_docs=_pdCore.length?_pdCore:_pdFb;}, e=>{});
+    try{ firebase.firestore().collection("product_docs").onSnapshot(qs=>{_pdFb=qs.docs.map(d=>d.data()); if(!_pdCore.length)KNOWLEDGE.product_docs=_pdFb;}, e=>{}); }catch(_){}
     ["tech","series","materials","hardware","glossary"].forEach(c=>cdb.collection(c).onSnapshot(qs=>{KNOWLEDGE[c]=qs.docs.map(d=>d.data());}, e=>{}));
   }catch(e){ fbStatus("● error","var(--red)"); }
 }
@@ -1785,6 +1790,7 @@ const CHAT_TOOLS=[
   {name:"search_catalog",description:"Search the Black Voyage product CATALOG — real SKUs with their specs (model, variant, size, material, dimensions, feature). Use to ground product/spec claims in real data. (Competitor comparisons & brand voice live in search_knowledge.)",input_schema:{type:"object",properties:{query:{type:"string",description:"keywords: model, SKU, material, size, feature…"}},required:["query"]}},
   {name:"get_product",description:"Get the FULL spec row of one catalog SKU (model, variant, size, material, feature, dimensions) by SKU, model name, or material.",input_schema:{type:"object",properties:{name:{type:"string"}},required:["name"]}},
   {name:"search_knowledge",description:"Search the Black Voyage BRAND knowledge base — core TECHNOLOGY (Vortex Vacuum Seal™, IPX8, compression chamber 60kPa), product SERIES (Essential/Pro/Pro Lite positioning), MATERIALS (CloudWeave™, Cordura® 1680D, X-Pac® VX21…), HARDWARE (YKK, Fidlock…), COMPETITORS (positioning, strengths, weaknesses, our gap/opportunity), and the BRAND GUIDELINES / bible. Use this to ground tech/material/series/competitor claims and brand voice in real, approved facts before writing copy or suggestions.",input_schema:{type:"object",properties:{query:{type:"string"}},required:["query"]}},
+  {name:"search_product_spec",description:"Search the full per-product SPEC SHEETS — the rich markdown source-of-truth from products_info (技術規格 / 五金輔料 / 功能特色 / 品牌呈現 / 歷史版本 / MO 變更史). Use when you need the DETAILED current spec, hardware, features, brand presentation or MO change-history of a Black Voyage backpack — deeper than the catalog SKU row. Query by product name (e.g. 'Apex Pro', 'Zephyr Pro 35L') or keyword.",input_schema:{type:"object",properties:{query:{type:"string",description:"product name or keyword"}},required:["query"]}},
   {name:"recall",description:"Search the shared long-term MEMORY for facts/insights/decisions saved earlier (persists across all chats and users).",input_schema:{type:"object",properties:{query:{type:"string"}},required:["query"]}},
   {name:"remember",description:"Save a durable fact/insight/decision to the shared long-term MEMORY so it persists across every future chat. Use whenever you learn something lasting about the brand, a product, a customer, pricing, or a decision.",input_schema:{type:"object",properties:{fact:{type:"string"},tags:{type:"string",description:"comma-separated, e.g. brand,pricing,Aero"}},required:["fact"]}},
   {name:"add_link",description:"Attach a link/URL (Google Doc, Sheet, Figma, listing, or any resource) to this product card so the whole team sees it.",input_schema:{type:"object",properties:{label:{type:"string"},url:{type:"string"}},required:["label","url"]}},
@@ -1820,6 +1826,7 @@ function chatSystemPrompt(l){
   const gloss=(KNOWLEDGE.glossary||[]).filter(g=>g.en_approved).map(g=>"  ✓ \""+g.en_approved+"\""+(g.en_avoid?(" — NOT \""+g.en_avoid+"\""):"")+(g.context?("  ("+g.context+")"):"")).join("\n");
   const kb="BLACK VOYAGE KNOWLEDGE BASE (live from the shared BV DATA CORE) — ground EVERY product/brand/tech/competitor claim in this REAL data before answering (don't invent facts):\n"
    +"- CATALOG: "+(KNOWLEDGE.catalog||[]).length+" SKUs"+(lines.length?" ("+lines.slice(0,8).join(", ")+(lines.length>8?"…":"")+")":"")+" — model/variant/size/material/feature/dimensions. Use search_catalog → get_product.\n"
+   +"- PRODUCT SPECS: "+(KNOWLEDGE.product_docs||[]).length+" full spec sheets (技術規格/五金/功能/品牌呈現/MO 史) — the deep source-of-truth per product. Use search_product_spec for detailed specs beyond the catalog row.\n"
    +"- BRAND KNOWLEDGE: core TECH ("+(KNOWLEDGE.tech||[]).length+": Vortex Vacuum Seal™, IPX8, compression), SERIES ("+(KNOWLEDGE.series||[]).length+": Essential/Pro/Pro Lite), MATERIALS ("+(KNOWLEDGE.materials||[]).length+"), HARDWARE ("+(KNOWLEDGE.hardware||[]).length+"), COMPETITORS ("+(KNOWLEDGE.competitors||[]).length+": positioning/strengths/weaknesses/our gap), BRAND GUIDELINES ("+(KNOWLEDGE.brand_docs||[]).length+" sections). Use search_knowledge.\n"
    +"- MEMORY: shared cross-app long-term memory ("+(KNOWLEDGE.memory||[]).length+" facts, shared with every BV app). Call recall before answering; call remember to save durable new insights so they persist across every chat and app.\n"
    +(gloss?("VOICE RULES (approved vs avoided wording — ALWAYS follow when writing any copy):\n"+gloss+"\n"):"");
@@ -1874,6 +1881,10 @@ function runChatTool(slug,name,input){
       const p=(KNOWLEDGE.catalog||[]).find(p=>(((p.SKU||"")+" "+(p.Parent_Model||"")+" "+(p.Material||"")).toLowerCase().includes(q)));
       if(!p)return {summary:"",text:"No catalog SKU found for “"+(input.name||"")+"”. Try search_catalog first."};
       return {summary:"📦 "+(p.SKU||p.Parent_Model),text:["SKU: "+(p.SKU||"—"),"model: "+(clean(p.Parent_Model)||"—")+" · variant "+(clean(p.Variant)||"—")+" · size "+(clean(p.Size)||"—")+" · material "+(clean(p.Material)||"—"),"FEATURE: "+(clean(p.Feature)||"—"),"DIMENSIONS/SPEC: "+(clean(p.spec)||"—")].join("\n")}; }
+    if(name==="search_product_spec"){ const q=(input.query||"").toLowerCase().split(/\s+/).filter(Boolean);
+      const hits=(KNOWLEDGE.product_docs||[]).map(p=>{const b=((p.name||"")+" "+(p.category||"")+" "+(p.currentMO||"")+" "+((p.skus||[]).join(" "))+" "+(p.text||"")).toLowerCase(); return {p,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,3).map(x=>x.p);
+      if(!hits.length)return {summary:"📄 spec",text:"No product spec sheet matched “"+(input.query||"")+"”. ("+(KNOWLEDGE.product_docs||[]).length+" spec sheets loaded.)"};
+      return {summary:"📄 spec ("+hits.length+")",text:hits.map(p=>"### "+(p.name||"?")+(p.currentMO?(" ["+p.currentMO+"]"):"")+(p.category?(" · "+p.category):"")+"\n"+(p.text||"").slice(0,2800)).join("\n\n———\n\n")}; }
     if(name==="recall"){ const q=(input.query||"").toLowerCase().split(/\s+/).filter(Boolean);
       const hits=(KNOWLEDGE.memory||[]).map(m=>{const b=(((m.text||m.fact||"")+" "+(m.tags||"")+" "+(m.app||"")).toLowerCase()); return {m,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,12).map(x=>x.m);
       if(!hits.length)return {summary:"🧠 recall",text:"No memories matched. ("+(KNOWLEDGE.memory||[]).length+" in shared memory.)"};

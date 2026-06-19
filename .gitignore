@@ -10,3 +10,6 @@ serviceAccount*.json
 .env
 .env.*
 chat-proxy/.env
+ingest/_catalog-prepurge-backup.json
+node_modules/
+ingest/node_modules/

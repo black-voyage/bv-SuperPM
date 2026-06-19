@@ -1,0 +1,8 @@
+{
+  "name": "bv-vault-ingest",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Parse products_info / products_assistant vaults into the BV Data Core (bv-second-brain) Firestore",
+  "type": "commonjs",
+  "dependencies": { "firebase-admin": "^12.7.0" }
+}
