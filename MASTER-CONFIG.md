@@ -91,6 +91,34 @@ appId:             "1:864428735438:web:d353709e716410fecf899f"
 
 ---
 
+## 5b. BV Data Core — `bv-second-brain` (shared knowledge + memory) ✅ LIVE
+A **separate** Firebase project = the company-wide knowledge graph every BV app reads. SuperPM connects to
+it as a **secondary** Firebase app named `"core"` (default app stays `bv-superpm`, §5). Shipped `7c96b55`.
+| Item | Value |
+|---|---|
+| Project ID / # | **`bv-second-brain`** / `100585934071` |
+| Firestore | `(default)`, **nam5 (US)** |
+| SuperPM reads | `catalog` (specs by SKU — canonical for product Q&A), `tech`, `series`, `materials`, `hardware`, `glossary`, `competitors`, `brand_docs` |
+| SuperPM read+write | **`memory`** — shared cross-app long-term memory (writes tagged `app:"superpm"`) |
+| Rules | **OPEN** (`allow read, write: if true`) — ⚠️ company-wide data; lock down next, see §8 + `CORE-SECURITY.md` |
+| Server SA email | `firebase-adminsdk-fbsvc@bv-second-brain.iam.gserviceaccount.com` (admin key is a secret — §9) |
+| Console | https://console.firebase.google.com/project/bv-second-brain |
+
+**Web config (also in `index.html` → `CORE_CONFIG`; non-secret client identifiers):**
+```js
+apiKey:            "AIzaSyDWj27ftoWzMJyr2Q7PgRAGBDjzesJjk0o"
+authDomain:        "bv-second-brain.firebaseapp.com"
+projectId:         "bv-second-brain"
+storageBucket:     "bv-second-brain.firebasestorage.app"
+messagingSenderId: "100585934071"
+appId:             "1:100585934071:web:7f5c941dcd1e8959dc57f2"
+```
+> The Core owns ingestion (Sheets/Drive sync, native analytics graph). SuperPM is a **read** client (+ `memory`
+> writes). It does NOT use the Core's Amazon/finance collections (e.g. `amazon_asin_performance__ABA-SCP`).
+> Full contract: `BV-DATA-ARCHITECTURE.md`.
+
+---
+
 ## 6. In-code config (edit in `index.html`, copy to `dashboard.html`+`superpm.html`, push)
 | Constant | Value | Purpose |
 |---|---|---|
@@ -114,6 +142,7 @@ appId:             "1:864428735438:web:d353709e716410fecf899f"
 - **Google sign-in** (Connect Google) → create **Sheet/Doc** on any task (`📊 Sheet` / `📝 Doc`), auto-shared.
 - **Attachments per task:** `+ link` (URL), **`</> Code/Link`** (paste HTML *or* a link → preview / view source / **⛶ full page**).
 - **Claude chat per card** (in the product card, replacing the old Slack/check-in panel) — shared across all users, ⛶ full-screen, and can attach links/HTML, add notes, and update task status via tools. Needs the **chat-proxy** backend (`CHAT_API_URL`); see `CHAT-SETUP.md`. Key (`ANTHROPIC_API_KEY`) lives on the proxy, never in the app.
+- **AI grounded in the BV Data Core** (§5b) — the per-card chat reads real **catalog specs, tech, materials, competitors, and brand guidelines** from `bv-second-brain` before answering (tools: `search_catalog`/`get_product`/`search_knowledge`), and **remembers** durable insights to shared cross-app `memory` (`recall`/`remember`). Voice rules from the glossary are always enforced.
 - **Edit/remove (✎/✕)** on every link & attachment.
 - **Wide view** (⛶) full-width; **flow-chart hide** toggle; EN/中文; light/dark/blue theme.
 
@@ -132,6 +161,9 @@ appId:             "1:864428735438:web:d353709e716410fecf899f"
   https://github.com/settings/tokens if exposed.
 - **Gemini API key**: held under the **Ben@blackvoyage.com** Google account (Google AI Studio /
   Google Cloud). Not stored in this repo — keep it in an env var / secret manager, not in client code.
+- **BV Data Core service-account key** (`bv-second-brain-*.json`, admin/server key): lives **outside the
+  repo** at `~/Desktop/MASTER-CONFIG/` (and is gitignored by name). Used only for server-side/admin sync &
+  one-off scripts — never client code, never committed. SA email in §5b. Rotate in the Firebase console if exposed.
 - The OAuth Client ID and Firebase `apiKey` above are **not secrets** — they're public client identifiers
   by design (already visible in page source). Security comes from OAuth origins + Firestore rules, not from
   hiding them.
