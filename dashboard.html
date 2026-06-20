@@ -987,6 +987,7 @@ function fbInit(){
       const arr=[]; qs.forEach(doc=>{ const x=doc.data(); x.id=doc.id; arr.push(x); });
       VERSIONS=arr; if(S.view==="versions") render();
     }, e=>{});
+    FB.docRef.collection("briefs").orderBy("createdAt","desc").onSnapshot(qs=>{ BRIEFS=qs.docs.map(d=>{const x=d.data();x.id=d.id;return x;}); renderBriefs(); }, e=>{});  // shared, real-time briefs
     // shared KNOWLEDGE base + cross-app MEMORY — read from the BV DATA CORE (bv-second-brain),
     // a SEPARATE Firebase project from this app's board. So SuperPM's AI reads the same brand/catalog/
     // competitor data (and writes memory) that every other BV app shares.
@@ -1639,6 +1640,7 @@ function viewLaunch(){
     ${DEPTS().map(d=>{const ts=l.tasks.filter(t=>t.d===d);return ts.length?`<div class="panel"><h3>${d.toUpperCase()}</h3>${ts.map(t=>taskRow(l,t,t.stage)).join("")}</div>`:"";}).join("")}
   </div><div>
     ${pend?`<div class="panel" style="border-color:var(--accent);margin-bottom:14px"><h3>◆ Approval needed</h3><div class="sub" style="margin-bottom:8px">${esc(pend.t)} — all other ${l.stage} criteria are done. Approving unblocks the push to <b>${next||"Complete"}</b>.</div><button class="btn" onclick="approve('${l.slug}',${l.tasks.indexOf(pend.task)})">✓ Approve</button></div>`:""}
+    ${renderBriefsPanel(l)}
     ${renderChatPanel(l)}
   </div></div>`;
 }
@@ -1799,6 +1801,7 @@ const CHAT_TOOLS=[
   {name:"search_documents",description:"Search the Black Voyage STRATEGY / RESEARCH / BRAND documents — the extracted TEXT of real Drive files (brand strategy, research reports, frameworks, verbal-identity & content guides, deep research). Use to ground positioning, audience, research, content-strategy or brand claims in the company's ACTUAL documents — then quote and link the source. Returns text snippets + the Drive link.",input_schema:{type:"object",properties:{query:{type:"string",description:"topic/keyword, e.g. 'positioning', 'audience research', 'verbal identity', 'content strategy'"}},required:["query"]}},
   {name:"search_strategy",description:"Search the Black Voyage CUSTOMER & STRATEGY intelligence — real PERSONAS (avatars, pains, desired outcomes), audience SEGMENTS, JOBS-TO-BE-DONE, customer REVIEWS (praise + objections w/ how to handle them), category ENTRY POINTS, DIFFERENTIATION vs each competitor, mined INSIGHTS, and brand ELEMENTS. Use this whenever writing marketing/positioning/copy/briefs or reasoning about WHO the customer is, WHY they buy, their objections, or how we win vs competitors. Ground claims in this real data instead of guessing.",input_schema:{type:"object",properties:{query:{type:"string",description:"audience/positioning topic, e.g. 'who buys this', 'objections about price', 'why we beat Away', 'gym commuter pains'"}},required:["query"]}},
   {name:"save_skill",description:"Save a reusable PLAYBOOK/skill so it's loaded into EVERY future chat (the team's growing know-how). Use after you work out a strong repeatable approach for a recurring task, or when the user teaches you a preference or process worth keeping forever.",input_schema:{type:"object",properties:{name:{type:"string"},trigger:{type:"string",description:"when to apply it, e.g. 'user asks for a launch checklist'"},content:{type:"string",description:"the step-by-step playbook"}},required:["name","content"]}},
+  {name:"save_brief",description:"File a finished document (marketing brief, concept brief, one-pager, spec) into THIS card's BRIEFS panel as a versioned draft for the team to review and sign off (Marketing lead + Ben) — becoming the single confirmed source of truth. Use this (instead of only add_html) whenever you produce a deliverable that needs team confirmation. To REVISE after feedback, call save_brief again with the SAME title (it creates the next version).",input_schema:{type:"object",properties:{title:{type:"string",description:"e.g. 'Vesper Air — Marketing Brief'"},html:{type:"string",description:"the FULL HTML document (embed real <img> URLs from find_images)"}},required:["title","html"]}},
   {name:"recall",description:"Search the shared long-term MEMORY for facts/insights/decisions saved earlier (persists across all chats and users).",input_schema:{type:"object",properties:{query:{type:"string"}},required:["query"]}},
   {name:"remember",description:"Save a durable fact/insight/decision to the shared long-term MEMORY so it persists across every future chat. Use whenever you learn something lasting about the brand, a product, a customer, pricing, or a decision.",input_schema:{type:"object",properties:{fact:{type:"string"},tags:{type:"string",description:"comma-separated, e.g. brand,pricing,Aero"}},required:["fact"]}},
   {name:"add_link",description:"Attach a link/URL (Google Doc, Sheet, Figma, listing, or any resource) to this product card so the whole team sees it.",input_schema:{type:"object",properties:{label:{type:"string"},url:{type:"string"}},required:["label","url"]}},
@@ -1807,6 +1810,7 @@ const CHAT_TOOLS=[
   {name:"set_task_status",description:"Update a task's status on this card.",input_schema:{type:"object",properties:{task:{type:"string"},status:{type:"string",enum:["todo","in_progress","done","blocked"]}},required:["task","status"]}}
 ];
 let CHAT={slug:null,unsub:null,msgs:[],busy:false,full:false};
+let BRIEFS=[];  // collaborative versioned briefs (bv/superpm/briefs) — real-time, shared
 function chatRef(slug){return firebase.firestore().collection("bv").doc("superpm").collection("chats").doc(slug);}
 let _chatKnLoaded=false;
 function loadChatKnowledge(){   // lazy: only when a chat actually opens (saves ~2,300 Firestore reads on board-only page views)
@@ -1858,7 +1862,12 @@ function chatSystemPrompt(l){
    +"CLARIFY FIRST when it matters — if the user asks you to PRODUCE something substantial (a brief, doc, plan, analysis, campaign, comparison, naming, or any meaningful copy) and the request is vague or underspecified, ASK 1–3 sharp clarifying questions and WAIT for the answer BEFORE building. Ask only about things that genuinely change the result and that you can't infer from this card or the data — e.g. the target audience/avatar, the angle or goal, which product/variant, the format & length, the tone, or where it will be used. Frame them as a short numbered list and say you'll build it once they answer. This sharpens both your data lookups (search_strategy / search_catalog / search_knowledge / find_images) and the final output. BUT don't stall: if the request is already clear, or it's a quick lookup/edit, just do it — clarifying questions are only for genuinely ambiguous, high-effort asks.\n"
    +"You CAN see everything already attached to this card: the full inventory of links and files the team has uploaded (including ones pasted on individual tasks) is listed below under ATTACHMENTS. When asked what's attached, or to pull/list/collect the links, read them straight from that inventory and give the actual URLs — never say you can't see them.\n"
    +"MANDATORY GROUNDING — for ANY question about a specific product (its specs, weight, size, material, dimensions, price, features, capacity, or even whether it EXISTS), you MUST call search_catalog (then get_product) in THIS reply BEFORE answering — even if you think you already answered, or expect no data. NEVER state a product has '0 SKUs', 'no specs', or 'isn't in the catalog' unless search_catalog actually returned ZERO results for it in THIS turn. The KNOWLEDGE BASE summary above lists only TOTALS — you cannot know which rows exist without searching. To show product photos, call find_images first; never claim you have no images without calling it. Don't reuse an earlier 'no data' answer — re-search every time.\n"
-   +"DOCUMENTS / BRIEFS WITH IMAGES (marketing brief, one-pager, mood board, concept, landing page): when asked to write a document that should include images, (1) FIRST gather the facts with search_catalog/get_product/search_knowledge AND call find_images for the product to get image URLs; (2) THEN build ONE complete, polished HTML document with add_html that EMBEDS the returned image URLs as real inline images — <img src=\"URL\" style=\"max-width:100%;border-radius:8px\"> — not just links; lay it out with headings, the spec table, competitor angle, and a few hero images. Always produce the actual add_html document, never just describe it. Keep ONE version (reuse the same label to revise).\n"
+   +"PRODUCING A BRIEF / DOCUMENT (marketing brief, concept brief, one-pager, spec, landing page) — this is an INTERACTIVE, ITERATIVE process, and good output REQUIRES enough context. You MUST get enough context — from the database OR from the user — before producing. Steps:\n"
+   +"   1. GATHER FROM THE DATABASE first: call the relevant tools — search_catalog/get_product (real specs), search_strategy (personas, jobs-to-be-done, objections, differentiation vs competitors), search_knowledge (tech, competitors, brand voice), search_documents (strategy/research/concept text), find_images (real product photos), recall (saved decisions) — AND read this card's own context (the intake form, the concept definition, and everything under ATTACHMENTS).\n"
+   +"   2. ASK THE USER for what the data can't tell you and what changes the result — target audience/avatar, the angle or goal, which variant, format & length, tone, where it'll be used. Ask 1-3 sharp questions and WAIT for the answer, unless they already specified it. NEVER produce a thin brief from assumptions — if context is missing, get it first.\n"
+   +"   3. BUILD one complete, polished HTML document that EMBEDS real images from find_images as inline <img src=\"URL\" style=\"max-width:100%;border-radius:8px\"> (not links), grounded entirely in the real data, following the VOICE RULES. Lay it out with headings, the spec table, the audience, the competitor angle, and hero images.\n"
+   +"   4. FILE it with save_brief (NOT just add_html) so it enters this card's BRIEFS panel for team review + Marketing & Ben sign-off — the single confirmed source of truth.\n"
+   +"   5. ITERATE: when the team leaves feedback (in the brief comments or this chat), revise and call save_brief with the SAME title (it makes the next version). Keep iterating until it's confirmed.\n"
    +"REFINE & LEARN (perfect the output): after producing any substantial output, end with 1–2 SPECIFIC questions to improve it (e.g. 'more performance-led or more lifestyle?', 'add the BOM cost line?'). When the user gives direction, REVISE the same add_html (same label) and call remember to save any durable preference or decision so future outputs get better.\n"
    +((KNOWLEDGE.skills||[]).length?("PLAYBOOKS — saved skills for recurring tasks; when the user's request matches a playbook's trigger, FOLLOW it step by step:\n"+(KNOWLEDGE.skills||[]).map(s=>"▸ "+(s.name||s.id||"skill")+(s.trigger?"  (use when: "+s.trigger+")":"")+"\n"+(s.content||"").slice(0,1800)).join("\n\n")+"\n"):"")
    +"When asked to upload/attach a link, doc, or HTML, add a note, or change a task status, USE the tools to actually do it on the board (don't just describe it). Think carefully and be thorough and accurate — don't be terse when depth is useful.\n"
@@ -1881,6 +1890,7 @@ function chatRoute(name){   // human-readable data route per tool, captured at c
     case "recall":              return "READ memory (shared cross-app) · "+CORE+" · "+n(K.memory)+" facts";
     case "remember":            return "WRITE → memory (app:superpm) · "+CORE;
     case "save_skill":          return "WRITE → skills playbook · Firestore · bv-superpm";
+    case "save_brief":          return "WRITE → briefs (versioned doc · Marketing+Ben sign-off) · Firestore · bv-superpm";
     case "add_link": case "add_html": case "add_note": case "set_task_status":
                                 return "WRITE → this card · Firestore · bv-superpm (board)";
     default:                    return "";
@@ -1920,6 +1930,65 @@ function reportAnswer(slug,mi){
   toast("⚑ Issue reported to BV Second Brain — thank you");
 }
 function clearChat(slug){ if(typeof confirm!=="undefined"&&!confirm("Start a new chat? This clears the shared conversation for this card (for everyone)."))return; if(FB.ready){try{chatRef(slug).set({messages:[],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){}} CHAT.msgs=[]; renderChatBody(); toast("🆕 New chat started"); }
+/* ===== BRIEFS — collaborative, versioned documents · Marketing + Ben sign-off · one Confirmed source of truth ===== */
+function briefsCol(){return firebase.firestore().collection("bv").doc("superpm").collection("briefs");}
+function briefById(id){return (BRIEFS||[]).find(b=>b.id===id);}
+function canBenSign(){return S.role==="ceo";}
+function canMktSign(){return (S.role==="dept"&&S.dept==="Marketing")||S.role==="ceo";}
+function bts(t){return t?new Date(t).toLocaleDateString(undefined,{month:"short",day:"numeric"}):"";}
+function briefSave(card,title,html,type){ if(!FB.ready||!card)return 0; title=(title||"Marketing Brief").trim();
+  const ex=(BRIEFS||[]).filter(b=>b.card===card&&(b.title||"").toLowerCase()===title.toLowerCase());
+  const version=ex.reduce((m,b)=>Math.max(m,b.version||0),0)+1;
+  try{briefsCol().add({card,title,type:type||"marketing",version,status:"review",html:html||"",author:actor(),createdAt:Date.now(),updatedAt:Date.now(),approvals:{marketing:null,ben:null},comments:[]});}catch(e){}
+  return version;
+}
+function briefApprove(id,slot){ const b=briefById(id); if(!b||b.status==="confirmed"||b.status==="superseded")return;
+  if(slot==="ben"&&!canBenSign()){toast("Only Ben (CEO) gives this sign-off — switch 'Viewing as' to Ben.");return;}
+  if(slot==="marketing"&&!canMktSign()){toast("Only Marketing gives this sign-off — switch 'Viewing as' to Marketing.");return;}
+  const a=Object.assign({marketing:null,ben:null},b.approvals||{}); a[slot]={by:actor(),at:Date.now()};
+  const upd={approvals:a,updatedAt:Date.now()};
+  if(a.marketing&&a.ben){ upd.status="confirmed"; upd.confirmedAt=Date.now();
+    (BRIEFS||[]).filter(x=>x.card===b.card&&(x.title||"").toLowerCase()===(b.title||"").toLowerCase()&&x.id!==id&&x.status==="confirmed").forEach(x=>{try{briefsCol().doc(x.id).set({status:"superseded",updatedAt:Date.now()},{merge:true});}catch(e){}});
+  }
+  try{briefsCol().doc(id).set(upd,{merge:true});}catch(e){}
+  if(upd.status==="confirmed")toast("✓ Brief confirmed — it's now the single source of truth.");
+}
+function briefComment(id){ const inp=document.getElementById("bc_"+id), text=inp?inp.value.trim():""; if(!text)return; const b=briefById(id); if(!b)return;
+  const comments=(b.comments||[]).concat([{who:actor(),role:roleLabel(),text,at:Date.now()}]);
+  try{briefsCol().doc(id).set({comments,updatedAt:Date.now()},{merge:true});}catch(e){} if(inp)inp.value="";
+}
+function briefView(id){ const b=briefById(id); if(b)codeModal({readOnly:true,label:b.title+" · v"+b.version,html:b.html}); }
+function briefToggle(id){ S.open=S.open||{}; S.open["brief_"+id]=!S.open["brief_"+id]; renderBriefs(); }
+function briefReopen(id){ const b=briefById(id); if(!b)return; if(typeof confirm!=="undefined"&&!confirm("Start a new revision round? Creates a new draft version for re-confirmation. The current confirmed brief stays the source of truth until the new one is confirmed by Marketing + Ben."))return; const v=briefSave(b.card,b.title,b.html,b.type); if(v)toast("Opened revision v"+v+" for review."); }
+function briefDelete(id){ if(typeof confirm!=="undefined"&&!confirm("Delete this brief version (for everyone)?"))return; try{briefsCol().doc(id).delete();}catch(e){} }
+function statusBadge(s){const m={draft:["Draft","#999"],review:["In Review","var(--amber)"],confirmed:["✓ CONFIRMED","var(--green)"],superseded:["superseded","#777"]},x=m[s]||m.review;return `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;border:1px solid ${x[1]};color:${x[1]}">${x[0]}</span>`;}
+function briefCardHTML(b){ const a=b.approvals||{},mk=a.marketing,bn=a.ben,op=S.open&&S.open["brief_"+b.id],live=b.status==="review"||b.status==="draft";
+  return `<div style="border:1px solid ${b.status==="confirmed"?"var(--green)":"var(--line)"};border-radius:8px;padding:8px 10px;margin:8px 0;${b.status==="superseded"?"opacity:.55":""}">
+    <div><b style="${b.status==="superseded"?"text-decoration:line-through":""}">${esc(b.title)}</b> <span class="ghostnote">v${b.version}</span> ${statusBadge(b.status)}</div>
+    <div class="ghostnote" style="margin:2px 0 6px">by ${esc(b.author||"?")} · ${esc(bts(b.createdAt))}${(mk||bn)?(" · "+(mk?"✓ Mkt":"⬜ Mkt")+" "+(bn?"✓ Ben":"⬜ Ben")):""}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+      <button class="iconbtn" onclick="briefView('${b.id}')">👁 View</button>
+      <button class="iconbtn" onclick="briefToggle('${b.id}')">💬 ${(b.comments||[]).length}</button>
+      ${live?`<button class="iconbtn" ${mk?"disabled":""} title="${mk?("Marketing ✓ "+esc(mk.by)):"Marketing lead sign-off"}" onclick="briefApprove('${b.id}','marketing')">${mk?"✓ Marketing":"Marketing sign-off"}</button>
+      <button class="iconbtn" ${bn?"disabled":""} title="${bn?("Ben ✓ "+esc(bn.by)):"Ben (CEO) sign-off"}" onclick="briefApprove('${b.id}','ben')">${bn?"✓ Ben":"Ben sign-off"}</button>`:""}
+      ${b.status==="confirmed"?`<button class="iconbtn" onclick="briefReopen('${b.id}')" title="reopen for a new revision round">↺ revise</button>`:""}
+      <button class="iconbtn" style="color:var(--red)" onclick="briefDelete('${b.id}')">✕</button>
+    </div>
+    ${op?`<div style="margin-top:8px;border-top:1px solid var(--line);padding-top:6px">${(b.comments||[]).map(c=>`<div style="font-size:12px;margin:4px 0"><b>${esc(c.who)}</b> <span class="ghostnote">${esc(c.role||"")} · ${esc(bts(c.at))}</span><div>${esc(c.text)}</div></div>`).join("")||'<div class="ghostnote">No feedback yet — add the first note.</div>'}<div style="display:flex;gap:6px;margin-top:6px"><input id="bc_${b.id}" placeholder="add feedback…" style="flex:1;font-size:12px;padding:4px 6px" onkeydown="if(event.key==='Enter')briefComment('${b.id}')"><button class="iconbtn" onclick="briefComment('${b.id}')">Send</button></div></div>`:""}
+  </div>`;
+}
+function briefsInner(l){ if(!l)return"";
+  const mine=(BRIEFS||[]).filter(b=>b.card===l.slug), ord={confirmed:0,review:1,draft:2,superseded:3};
+  mine.sort((a,b)=>(ord[a.status]-ord[b.status])||((b.version||0)-(a.version||0)));
+  const conf=mine.find(b=>b.status==="confirmed");
+  return `<div class="panel"><h3>📋 Briefs <span class="ghostnote" style="font-weight:400">· ${mine.length}</span></h3>`
+    +(conf?`<div class="sub" style="margin-bottom:6px;color:var(--green)">✓ <b>Source of truth:</b> ${esc(conf.title)} v${conf.version} — confirmed by ${esc((conf.approvals.marketing||{}).by||"Marketing")} + ${esc((conf.approvals.ben||{}).by||"Ben")}</div>`
+      :`<div class="sub" style="margin-bottom:6px">No confirmed brief yet. Ask the chat to draft one — it files the brief here for the team to review, leave feedback, and collect <b>Marketing + Ben</b> sign-off.</div>`)
+    +(mine.length?mine.map(briefCardHTML).join(""):"")
+    +`</div>`;
+}
+function renderBriefsPanel(l){return `<div id="briefsPanel">${briefsInner(l)}</div>`;}
+function renderBriefs(){const el=document.getElementById("briefsPanel"); if(el&&S.launch)el.innerHTML=briefsInner(L(S.launch));}
 function renderChatPanel(l){
   return `<div class="panel chatpanel${CHAT.full?" full":""}" id="chatPanel"><h3>💬 Claude — ${esc(l.name)} <span class="ghostnote" style="font-weight:400">· shared</span>
       <span style="float:right;display:inline-flex;gap:6px;align-items:center">
@@ -1969,6 +2038,7 @@ function runChatTool(slug,name,input){
       return {summary:"🎯 strategy ("+hits.length+")",text:"Customer & strategy intelligence (ground avatars / positioning / objections / our edge in this REAL data):\n\n"+hits.map(fmt).join("\n\n")}; }
     if(name==="save_skill"){ const nm=(input.name||"").trim(), content=(input.content||"").trim(); if(!nm||!content)return {text:"Need both a name and content to save a skill."};
       try{firebase.firestore().collection("skills").add({name:nm,trigger:input.trigger||"",content:content,app:"superpm",who:actor(),ts:Date.now()});}catch(e){} return {summary:"📘 skill saved",text:"Saved the playbook “"+nm+"” — it's now loaded into every future chat."}; }
+    if(name==="save_brief"){ if(!(input.html||"").trim())return {text:"No HTML provided for the brief."}; const ttl=(input.title||"Marketing Brief").trim(); const v=briefSave(slug,ttl,input.html,"marketing"); if(!v)return {text:"Couldn't file the brief (not connected)."}; return {summary:"📋 brief v"+v,text:"Filed “"+ttl+"” as Brief v"+v+" in this card's BRIEFS panel — status In Review. The team can now read it, leave feedback, and give Marketing + Ben sign-off to confirm it as the single source of truth. To revise after feedback, I'll call save_brief with the same title (new version)."}; }
     if(name==="search_catalog"){ const q=(input.query||"").toLowerCase().split(/\s+/).filter(Boolean);
       const hits=(KNOWLEDGE.catalog||[]).map(p=>{const b=[p.SKU,p.Parent_Model,p.Variant,p.Material,p.Size,p.Feature,p.spec].join(" ").toLowerCase(); return {p,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,8).map(x=>x.p);
       if(!hits.length)return {summary:"🔎 catalog",text:"No catalog SKUs matched “"+(input.query||"")+"”. ("+(KNOWLEDGE.catalog||[]).length+" SKUs in catalog.)"};
