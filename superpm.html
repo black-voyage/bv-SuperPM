@@ -1779,7 +1779,7 @@ function viewVersions(){
     </div>`).join("")}</div>`;
 }
 /* ================= CLAUDE CHAT — per-card, shared, tool-using ================= */
-const CHAT_API_URL="https://bv-superpm-chat.onrender.com/chat";  // chat proxy on Render. (Firebase Functions can't be made publicly invocable under the blackvoyage.com org policy; App Hosting is the full-Firebase follow-up.) See FIREBASE-DEPLOY.md
+const CHAT_API_URL="https://bv-superpm-chat-475005600052.us-central1.run.app/chat";  // chat proxy on Google Cloud Run (project bv-infra-499600, no-org — public allowed; key in Secret Manager). OFF Render. See FIREBASE-DEPLOY.md
 const CHAT_MODELS=[
   {id:"claude-opus-4-8",label:"Opus 4.8 · deepest"},
   {id:"claude-sonnet-4-6",label:"Sonnet 4.6 · balanced"},
