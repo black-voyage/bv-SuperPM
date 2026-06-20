@@ -992,7 +992,7 @@ function fbInit(){
     // competitor data (and writes memory) that every other BV app shares.
     let coreApp; try{ coreApp=firebase.app("core"); }catch(_){ coreApp=firebase.initializeApp(CORE_CONFIG,"core"); }
     const cdb=coreApp.firestore(); FB.coreDb=cdb;
-    try{ cdb.collection("clients").doc("superpm").set({app:"superpm",project:"bv-superpm",connectedVia:"firebase-sdk",lastSeen:Date.now()},{merge:true}); }catch(_){}  // announce this connection to the Core registry (GET /api/connect)
+    try{ fetch("https://bv-second-brain--bv-second-brain.us-east4.hosted.app/api/connect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({app:"superpm",project:"bv-superpm",version:"core-connect-2",role:"product dashboard"})}).catch(()=>{}); }catch(_){}  // register with the Core via REST (server Admin SDK; client writes are blocked by the locked Firestore rules)
     cdb.collection("catalog").onSnapshot(qs=>{KNOWLEDGE.catalog=qs.docs.map(d=>d.data());}, e=>{});
     cdb.collection("memory").limit(500).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // shared cross-app memory
     cdb.collection("competitors").onSnapshot(qs=>{KNOWLEDGE.competitors=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});
@@ -1848,11 +1848,26 @@ function chatSystemPrompt(l){
 const CHAT_PRICES={"claude-opus-4-8":{in:15,out:75},"claude-sonnet-4-6":{in:3,out:15},"claude-haiku-4-5-20251001":{in:1,out:5}};  // USD per 1M tokens (estimate)
 function chatCost(model,i,o){const p=CHAT_PRICES[model]||{in:0,out:0};return ((i||0)*p.in+(o||0)*p.out)/1e6;}
 function fmtCost(c){return c==null?"—":(c<0.01?("≈$"+c.toFixed(4)):("≈$"+c.toFixed(3)));}
+function chatRoute(name){   // human-readable data route per tool, captured at call time (for the verify panel)
+  const K=KNOWLEDGE||{}, CORE="Firestore · bv-second-brain (BV Data Core)", n=a=>(a||[]).length;
+  switch(name){
+    case "search_catalog":
+    case "get_product":         return "READ catalog · "+CORE+" · "+n(K.catalog)+" SKUs indexed";
+    case "search_knowledge":    return "READ tech/series/materials/hardware/competitors/brand_docs · "+CORE+" · "+(n(K.tech)+n(K.series)+n(K.materials)+n(K.hardware)+n(K.competitors)+n(K.brand_docs))+" entries";
+    case "search_product_spec": return "READ product_docs · "+CORE+" · "+n(K.product_docs)+" spec sheets";
+    case "find_images":         return "READ documents (Drive image index) · "+CORE+" · "+n(K.images)+" photos indexed";
+    case "recall":              return "READ memory (shared cross-app) · "+CORE+" · "+n(K.memory)+" facts";
+    case "remember":            return "WRITE → memory (app:superpm) · "+CORE;
+    case "add_link": case "add_html": case "add_note": case "set_task_status":
+                                return "WRITE → this card · Firestore · bv-superpm (board)";
+    default:                    return "";
+  }
+}
 function chatMetaHTML(meta){
   if(!meta)return"";
   const tok=(meta.in||0)+(meta.out||0), n=(meta.trace||[]).length;
-  const rows=n?meta.trace.map(t=>`<div style="margin:5px 0;padding:5px 7px;background:rgba(127,127,127,.10);border-radius:5px"><b>${esc(t.name)}</b> <code style="font-size:10px;word-break:break-all;opacity:.8">${esc(t.inputStr||"{}")}</code><div style="margin-top:3px;white-space:pre-wrap;opacity:.85">${esc((t.result||"").slice(0,800))}${(t.result||"").length>800?"…":""}</div></div>`).join(""):`<div style="opacity:.6">No tools called — answered from the system prompt + knowledge summary only (no DB lookup).</div>`;
-  return `<details style="margin-top:6px;font-size:11px"><summary style="cursor:pointer;opacity:.65;user-select:none">🔍 verify · ${esc(meta.model||"")} · ${tok} tok · ${fmtCost(meta.cost)} · ${n} source${n===1?"":"s"}</summary><div style="margin-top:5px;padding:7px 9px;background:rgba(127,127,127,.07);border-radius:7px"><div style="opacity:.85">Model <b>${esc(meta.model||"?")}</b> · input ${meta.in||0} tok · output ${meta.out||0} tok · ${meta.hops||1} round${(meta.hops||1)===1?"":"s"} · ${fmtCost(meta.cost)} <span style="opacity:.6">(token-based estimate)</span></div><div style="margin-top:6px;font-weight:600;opacity:.7">DATA SOURCES & TOOL CALLS — what it actually read:</div>${rows}</div></details>`;
+  const rows=n?meta.trace.map((t,i)=>`<div style="margin:5px 0;padding:5px 7px;background:rgba(127,127,127,.10);border-radius:5px"><b>${i+1}. ${esc(t.name)}</b> <code style="font-size:10px;word-break:break-all;opacity:.8">${esc(t.inputStr||"{}")}</code>${t.route?`<div style="margin-top:2px;font-size:10px;opacity:.72"><span style="opacity:.6">↳ routed to:</span> ${esc(t.route)}</div>`:""}<div style="margin-top:3px;font-size:10px;opacity:.55">↳ returned to the model:</div><div style="margin-top:1px;white-space:pre-wrap;opacity:.85">${esc((t.result||"").slice(0,800))}${(t.result||"").length>800?"…":""}</div></div>`).join(""):`<div style="opacity:.6">No tools called — answered from the system prompt + knowledge summary only (no DB lookup).</div>`;
+  return `<details style="margin-top:6px;font-size:11px"><summary style="cursor:pointer;opacity:.65;user-select:none">🔍 verify · ${esc(meta.model||"")} · ${tok} tok · ${fmtCost(meta.cost)} · ${n} source${n===1?"":"s"}</summary><div style="margin-top:5px;padding:7px 9px;background:rgba(127,127,127,.07);border-radius:7px"><div style="opacity:.85">Model <b>${esc(meta.model||"?")}</b> · input ${meta.in||0} tok · output ${meta.out||0} tok · ${meta.hops||1} round${(meta.hops||1)===1?"":"s"} · ${fmtCost(meta.cost)} <span style="opacity:.6">(token-based estimate)</span></div><div style="margin-top:6px;font-weight:600;opacity:.7">DATA ROUTING — where each query went &amp; what came back (fact-check the lookups):</div>${rows}</div></details>`;
 }
 function chatMsgHTML(m,mi){
   const cls=m.role==="assistant"?"assistant":"user";
@@ -1937,7 +1952,7 @@ function runChatTool(slug,name,input){
       const hits=(KNOWLEDGE.memory||[]).map(m=>{const b=(((m.text||m.fact||"")+" "+(m.tags||"")+" "+(m.app||"")).toLowerCase()); return {m,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,12).map(x=>x.m);
       if(!hits.length)return {summary:"🧠 recall",text:"No memories matched. ("+(KNOWLEDGE.memory||[]).length+" in shared memory.)"};
       return {summary:"🧠 recall ("+hits.length+")",text:"Recalled from shared memory:\n"+hits.map(m=>"• "+(m.text||m.fact||"")+(m.tags?"  ["+m.tags+"]":"")+(m.app?"  ("+m.app+")":"")).join("\n")}; }
-    if(name==="remember"){ const fact=(input.fact||"").trim(); if(!fact)return {text:"Nothing to remember."}; try{(FB.coreDb||firebase.firestore()).collection("memory").add({text:fact,tags:input.tags||"",app:"superpm",entities:[slug],who:actor(),ts:Date.now()});}catch(e){} return {summary:"🧠 remembered",text:"Saved to shared long-term memory (BV Data Core)."}; }
+    if(name==="remember"){ const fact=(input.fact||"").trim(); if(!fact)return {text:"Nothing to remember."}; try{fetch("https://bv-second-brain--bv-second-brain.us-east4.hosted.app/api/memory",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:fact,tags:input.tags||"",app:"superpm",entities:[slug],who:actor()})}).catch(()=>{});}catch(e){} return {summary:"🧠 remembered",text:"Saved to shared long-term memory (BV Data Core)."}; }
     if(name==="add_link"){ if(!(input.url||"").trim())return {text:"No url provided — include the full url."}; const nm=input.label||"Link"; return {summary:"🔗 "+nm,text:"Shared link “"+nm+"” in the chat.",att:{type:"link",n:nm,u:input.url}}; }
     if(name==="add_html"){ if(!(input.html||"").trim())return {text:"No HTML content was provided — put the FULL html document in the html argument and try once."}; const nm=input.label||"HTML"; return {summary:"</> "+nm,text:"Created HTML “"+nm+"” ("+input.html.length+" chars) — shown inline in the chat.",att:{type:"code",n:nm,h:input.html}}; }
     if(name==="add_note"){ (l.checkins=l.checkins||[]).unshift({d:today,a:actor(),txt:input.text||""}); save(); return {summary:"📝 note",text:"Note added to the log."}; }
@@ -1982,7 +1997,7 @@ async function chatSend(slug){
       const txt=(resp.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim();
       const meta={model:chatModel(),in:usageIn,out:usageOut,cost:chatCost(chatModel(),usageIn,usageOut),hops:hop+1,trace:trace.slice()};
       if(tus.length){ const results=[];
-        for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out.summary)actions.push(out.summary); if(out.att)atts.push(out.att); trace.push({name:tu.name,inputStr:JSON.stringify(tu.input||{}).slice(0,300),result:(out.text||"").slice(0,1000)}); results.push({type:"tool_result",tool_use_id:tu.id,content:out.text}); }
+        for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out.summary)actions.push(out.summary); if(out.att)atts.push(out.att); trace.push({name:tu.name,inputStr:JSON.stringify(tu.input||{}).slice(0,300),route:chatRoute(tu.name),result:(out.text||"").slice(0,1000)}); results.push({type:"tool_result",tool_use_id:tu.id,content:out.text}); }
         messages.push({role:"user",content:results}); renderChatBody(); continue;
       } else { chatPush(slug,{role:"assistant",who:"Claude",text:txt||(atts.length?"":"(done)"),actions:actions.slice(),attachments:atts.slice(),meta,ts:nowStamp()}); break; }
     }
