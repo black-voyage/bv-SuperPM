@@ -1,5 +1,14 @@
 # BV SuperPM → Firebase (TEAM tier) — deploy & cutover
 
+> **STATUS (2026-06-19):** ✅ **Static site LIVE on Firebase Hosting** at https://bv-superpm.web.app.
+> ❌ **Chat proxy could NOT move to a Cloud Function** — the `blackvoyage.com` **Domain Restricted Sharing**
+> org policy blocks making the function publicly invocable (`allUsers` invoker → `FAILED_PRECONDITION:
+> do not belong to a permitted customer`). So **the chat proxy stays on Render**, and the Firebase site
+> calls it (CORS now allows `bv-superpm.web.app`). The deployed `chat` function + its secret are left in
+> place but unused. **Full-Firebase proxy = the App Hosting follow-up** (ambient SA, no public invoker —
+> the rules' TEAM path), which needs a minimal framework wrapper + interactive GitHub connect.
+
+
 Per `~/Desktop/MASTER-CONFIG/PROJECT-TIERS.md`, SuperPM is **TEAM**: its own Firebase project
 **`bv-superpm`** (owner **hello@blackvoyage.com**), Firebase **Hosting** for the static site + a
 **Cloud Function** for the chat proxy, secret in **Secret Manager** (no downloaded key). Board, OAuth,

@@ -2,16 +2,23 @@
   "hosting": {
     "public": ".",
     "ignore": [
-      "firebase.json",
       "**/.*",
       "**/node_modules/**",
+      "firebase.json",
       "functions/**",
       "chat-proxy/**",
       "ingest/**",
       "spy/**",
+      "skill/**",
+      "data/**",
+      "docs/**",
       "**/*.md",
       "**/*.yml",
-      "**/*.yaml"
+      "**/*.yaml",
+      "**/*.json",
+      "**/*.sh",
+      "**/*.txt",
+      "**/*.template"
     ],
     "rewrites": [
       { "source": "/api/chat", "function": "chat" }
