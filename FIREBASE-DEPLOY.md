@@ -1,12 +1,12 @@
 # BV SuperPM → Firebase (TEAM tier) — deploy & cutover
 
-> **STATUS (2026-06-19):** ✅ **Static site LIVE on Firebase Hosting** at https://bv-superpm.web.app.
-> ❌ **Chat proxy could NOT move to a Cloud Function** — the `blackvoyage.com` **Domain Restricted Sharing**
-> org policy blocks making the function publicly invocable (`allUsers` invoker → `FAILED_PRECONDITION:
-> do not belong to a permitted customer`). So **the chat proxy stays on Render**, and the Firebase site
-> calls it (CORS now allows `bv-superpm.web.app`). The deployed `chat` function + its secret are left in
-> place but unused. **Full-Firebase proxy = the App Hosting follow-up** (ambient SA, no public invoker —
-> the rules' TEAM path), which needs a minimal framework wrapper + interactive GitHub connect.
+> **STATUS (2026-06-19) — FINAL, off Render entirely:**
+> - ✅ **Static site → Firebase Hosting**: https://bv-superpm.web.app (project `bv-superpm`). Deploy: `~/.local/bin/firebase deploy --only hosting`.
+> - ✅ **Chat proxy → Google Cloud Run**: service `bv-superpm-chat` in project **`bv-infra-499600`** (no-org, `blackvoyageusa`) at `https://bv-superpm-chat-475005600052.us-central1.run.app/chat`. Public (`--allow-unauthenticated`); key in **Secret Manager** (`anthropic-api-key`). Source = `chat-proxy/server.js`. `CHAT_API_URL` in `index.html` points here.
+> - **Why not a Firebase Function in `bv-superpm`:** the `blackvoyage.com` **Domain Restricted Sharing** org policy blocks a public function (`allUsers` invoker → `FAILED_PRECONDITION: not a permitted customer`). The no-org `bv-infra` project has no such policy, so Cloud Run public works there. The `chat` Function + secret built earlier in `bv-superpm` are **orphaned — safe to delete** (see §cleanup).
+> - ⚠️ **Render is fully retired** (services 503). The old Cloud-Function/Render notes below are kept for history only.
+> - 🔒 **Security:** the Cloud Run endpoint is public — hardened with a model allowlist + per-IP rate limit + fixed `max_tokens`, but set an **Anthropic spend cap** and consider **Firebase App Check** for real caller auth.
+> - Redeploy the proxy after code changes: `~/google-cloud-sdk/bin/gcloud run deploy bv-superpm-chat --source chat-proxy --region us-central1 --allow-unauthenticated --set-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest --set-env-vars MAX_TOKENS=8000 --max-instances 4 --project bv-infra-499600 --account blackvoyageusa@gmail.com`
 
 
 Per `~/Desktop/MASTER-CONFIG/PROJECT-TIERS.md`, SuperPM is **TEAM**: its own Firebase project

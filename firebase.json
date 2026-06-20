@@ -20,15 +20,8 @@
       "**/*.txt",
       "**/*.template"
     ],
-    "rewrites": [
-      { "source": "/api/chat", "function": "chat" }
-    ],
     "headers": [
       { "source": "**", "headers": [ { "key": "Cache-Control", "value": "no-cache" } ] }
     ]
-  },
-  "functions": {
-    "source": "functions",
-    "runtime": "nodejs22"
   }
 }

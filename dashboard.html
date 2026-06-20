@@ -641,7 +641,7 @@ function newLaunch(){
 /* ----- Google: per-user sign-in + create Sheet/Doc as the signed-in user, auto-shared -----
    SETUP: paste your Google OAuth 2.0 Web Client ID below. Get one at
    https://console.cloud.google.com/apis/credentials → Create OAuth client ID → Web application,
-   with Authorized JavaScript origin = the deployed site URL (e.g. https://bv-superpm-ey4i.onrender.com).
+   with Authorized JavaScript origin = the deployed site URL (e.g. https://bv-superpm.web.app).
    Enable the "Google Drive API" for the same project. Until a Client ID is set, sign-in explains the setup. */
 const GOOGLE_CLIENT_ID="864428735438-704etq9hsq1lrse1s2i6fs2ctg6m7vu2.apps.googleusercontent.com";  // BV SuperPM web (black-voyage Workspace, Internal)
 const GOOGLE_ACCOUNT="hello@blackvoyage.com";  // every Sheet/Doc is created under this account (sign-in defaults to it)
@@ -1885,7 +1885,7 @@ function renderChatPanel(l){
     <div class="chatinput"><textarea id="chatInput" placeholder="Ask Claude to attach a link/doc/HTML, add a note, or update a task… (Enter to send)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${l.slug}')}"></textarea><button class="btn" onclick="chatSend('${l.slug}')">Send</button></div></div>`;
 }
 function renderChatBody(){
-  const m=document.getElementById("chatMsgs"); if(m){m.innerHTML=(CHAT.msgs||[]).map((mm,i)=>chatMsgHTML(mm,i)).join("")+(CHAT.busy?`<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub">${CHAT.wake?"…waking the backend (free-tier cold start, ~30s)":"…thinking"}</div></div></div>`:""); m.scrollTop=m.scrollHeight;}
+  const m=document.getElementById("chatMsgs"); if(m){m.innerHTML=(CHAT.msgs||[]).map((mm,i)=>chatMsgHTML(mm,i)).join("")+(CHAT.busy?`<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub">${CHAT.wake?"…waking the backend":"…thinking"}</div></div></div>`:""); m.scrollTop=m.scrollHeight;}
 }
 function toggleChatFull(){CHAT.full=!CHAT.full; const p=document.getElementById("chatPanel"); if(p){p.classList.toggle("full",CHAT.full); const b=p.querySelector("h3 .iconbtn"); if(b)b.textContent=CHAT.full?"✕ close":"⛶ full";}}
 function runChatTool(slug,name,input){
@@ -1931,7 +1931,7 @@ function runChatTool(slug,name,input){
     return {summary:"",text:"Unknown tool "+name};
   }catch(e){ return {summary:"",text:"Tool error: "+e}; }
 }
-async function chatFetch(body){   // resilient to free-tier cold starts: retries + tolerates the non-JSON "waking" page
+async function chatFetch(body){   // resilient to backend cold starts: retries + tolerates a non-JSON "waking" page
   let lastErr="";
   for(let a=0;a<3;a++){
     try{
@@ -1970,7 +1970,7 @@ async function chatSend(slug){
         messages.push({role:"user",content:results}); renderChatBody(); continue;
       } else { chatPush(slug,{role:"assistant",who:"Claude",text:txt||(atts.length?"":"(done)"),actions:actions.slice(),attachments:atts.slice(),meta,ts:nowStamp()}); break; }
     }
-  }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ The chat backend didn't respond after a few tries — it may be waking from sleep (free tier). Wait ~30s and send again.",ts:nowStamp()}); }
+  }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ The chat backend didn't respond after a few tries — please wait a moment and send again.",ts:nowStamp()}); }
   CHAT.busy=false; CHAT.wake=false; renderChatBody();
 }
 function render(){

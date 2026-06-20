@@ -9,7 +9,7 @@ _Last updated: 2026-06-18_
 
 ## 0. TL;DR — the live stack
 - **App (live):** **https://bv-superpm.web.app** (Firebase Hosting, `bv-superpm` project) — homepage `/` = SuperPM, dashboard at `/dashboard.html`. _(Legacy: https://bv-superpm-ey4i.onrender.com — Render static, kept as fallback, retire after cutover.)_
-- **Chat backend:** Render Web Service `bv-superpm-chat` (holds `ANTHROPIC_API_KEY`). _Could NOT move to a Firebase Function — the blackvoyage.com Domain Restricted Sharing org policy blocks public function invocation; App Hosting is the full-Firebase follow-up. See `FIREBASE-DEPLOY.md`._
+- **Chat backend:** **Google Cloud Run** service `bv-superpm-chat` in project `bv-infra-499600` (`https://bv-superpm-chat-475005600052.us-central1.run.app/chat`) — holds `ANTHROPIC_API_KEY` (Secret Manager). **Off Render.** Public endpoint, hardened (model allowlist + per-IP rate limit); set an Anthropic spend cap. See `FIREBASE-DEPLOY.md`.
 - **Code:** https://github.com/black-voyage/bv-SuperPM (private)  — branch `main`. Firebase Hosting deploys via `firebase deploy` (local); the proxy is a manually-managed Render service.
 - **Data (board):** Firebase Firestore `bv-superpm` — real-time shared board/chats/versions (everyone sees everyone's edits)
 - **Data (shared brain):** Firebase Firestore **`bv-second-brain`** = the **BV Data Core** — catalog/brand/competitor knowledge + cross-app AI `memory`. SuperPM's AI **reads** the Core (board stays in `bv-superpm`). See `BV-DATA-ARCHITECTURE.md`.
@@ -41,12 +41,12 @@ _Last updated: 2026-06-18_
 ---
 
 ## 3. Hosting
-**Site → Firebase Hosting** (TEAM tier, project `bv-superpm`, owner hello@). **Chat proxy → Render** (org policy blocks a Firebase Function).
+**Site → Firebase Hosting** (TEAM tier, project `bv-superpm`, owner hello@). **Chat proxy → Cloud Run** in no-org `bv-infra-499600` (org policy blocks a public Firebase Function in `bv-superpm`). **Render fully retired.**
 | Item | Value |
 |---|---|
 | **Site (live)** | **https://bv-superpm.web.app** + `https://bv-superpm.firebaseapp.com` (Firebase Hosting) |
 | Site deploy | `~/.local/bin/firebase deploy --only hosting` (from local repo; `firebase.json` serves the HTML, ignores everything else) |
-| **Chat proxy** | Render Web Service `bv-superpm-chat` (`https://bv-superpm-chat.onrender.com/chat`) — holds `ANTHROPIC_API_KEY`; CORS allows the Firebase + Render origins. Manually-managed (not in `render.yaml`). |
+| **Chat proxy** | **Cloud Run** `bv-superpm-chat` in `bv-infra-499600` (`https://bv-superpm-chat-475005600052.us-central1.run.app/chat`) — holds `ANTHROPIC_API_KEY` (Secret Manager `anthropic-api-key`); public + hardened (model allowlist, per-IP rate limit, max_tokens 8000). Source `chat-proxy/server.js`. Redeploy: `gcloud run deploy … --source chat-proxy … --project bv-infra-499600 --account blackvoyageusa@gmail.com`. |
 | Legacy site | `bv-superpm-ey4i.onrender.com` (Render static, `render.yaml`) — fallback during cutover, then retire |
 | Deployed-but-unused | Firebase Function `chat(us-central1)` + Secret Manager `ANTHROPIC_API_KEY` (built, but org policy blocks public invoke; left for the App Hosting follow-up) |
 | ⚠️ Dead/old | `bv-superpm-ihnr.onrender.com` (old `tennisandcode` Render acct, 503) — **delete it** |
