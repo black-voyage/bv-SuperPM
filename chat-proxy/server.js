@@ -5,10 +5,10 @@ const express = require("express");
 const app = express();
 app.use(express.json({ limit: "4mb" }));
 
-// Allow the app's known origins (Render static site + Firebase Hosting). Override with ALLOWED_ORIGINS (comma-separated).
-const ALLOWED = (process.env.ALLOWED_ORIGINS || process.env.ALLOWED_ORIGIN ||
-  "https://bv-superpm-ey4i.onrender.com,https://bv-superpm.web.app,https://bv-superpm.firebaseapp.com")
-  .split(",").map((s) => s.trim()).filter(Boolean);
+// Always allow the app's known origins (Render static site + Firebase Hosting); env ALLOWED_ORIGINS adds more.
+const DEFAULT_ORIGINS = ["https://bv-superpm-ey4i.onrender.com", "https://bv-superpm.web.app", "https://bv-superpm.firebaseapp.com"];
+const ALLOWED = [...new Set([...DEFAULT_ORIGINS,
+  ...(process.env.ALLOWED_ORIGINS || process.env.ALLOWED_ORIGIN || "").split(",").map((s) => s.trim()).filter(Boolean)])];
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && ALLOWED.includes(origin)) res.header("Access-Control-Allow-Origin", origin);
