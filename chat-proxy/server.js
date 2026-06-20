@@ -47,8 +47,10 @@ app.post("/chat", async (req, res) => {
     const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.ip || "unknown";
     if (rateLimited(ip)) return res.status(429).json({ error: { message: "Too many requests — please slow down." } });
     if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: { message: "ANTHROPIC_API_KEY not set on the server" } });
-    const { system, messages, tools, model } = req.body || {};
+    const { system, messages, tools, model, think } = req.body || {};
     const safeModel = ALLOWED_MODELS.has(model) ? model : DEFAULT_MODEL; // never honor an arbitrary/pricier model
+    const payload = { model: safeModel, max_tokens: MAX_TOKENS, system, messages, tools };
+    if (think) payload.thinking = { type: "enabled", budget_tokens: Math.min(6000, MAX_TOKENS - 2048) }; // extended thinking so the app can show the LLM's reasoning
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -56,7 +58,7 @@ app.post("/chat", async (req, res) => {
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
       },
-      body: JSON.stringify({ model: safeModel, max_tokens: MAX_TOKENS, system, messages, tools }),
+      body: JSON.stringify(payload),
     });
     const data = await r.json();
     res.status(r.status).json(data);

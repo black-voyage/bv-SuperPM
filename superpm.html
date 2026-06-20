@@ -957,7 +957,7 @@ const CORE_CONFIG={
   appId:"1:100585934071:web:7f5c941dcd1e8959dc57f2"
 };
 let FB={ready:false,synced:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null,coreDb:null};
-let KNOWLEDGE={catalog:[],memory:[],tech:[],series:[],materials:[],hardware:[],glossary:[],competitors:[],brand_docs:[],product_docs:[],images:[],productImages:[],brandAssets:[]};  // shared knowledge base (BV Data Core)
+let KNOWLEDGE={catalog:[],memory:[],tech:[],series:[],materials:[],hardware:[],glossary:[],competitors:[],brand_docs:[],product_docs:[],images:[],productImages:[],brandAssets:[],skills:[]};  // shared knowledge base (BV Data Core) + skills (playbooks)
 function fbConfigured(){return !!(FIREBASE_CONFIG&&FIREBASE_CONFIG.projectId);}
 function fbStatus(txt,color){const el=document.getElementById("fbsync"); if(el){el.textContent=txt; el.style.color=color||"var(--faint)";}}
 function fbInit(){
@@ -1006,6 +1006,7 @@ function fbInit(){
     cdb.collection("documents").where("type",">=","image/").where("type","<","image0").get().then(qs=>{KNOWLEDGE.images=qs.docs.map(d=>{const x=d.data();return {name:x.name||"",driveId:x.driveId||"",folderPath:x.folderPath||"",entities:x.entities||[]};});}).catch(e=>{});  // Drive-indexed product photos (Core `documents` index) — fallback for find_images
     cdb.collection("product_images").onSnapshot(qs=>{KNOWLEDGE.productImages=qs.docs.map(d=>d.data());}, e=>{});  // BV Data Core: product photos — PUBLIC Firebase URLs (embeddable, no login), for find_images
     cdb.collection("brand_assets").onSnapshot(qs=>{KNOWLEDGE.brandAssets=qs.docs.map(d=>d.data());}, e=>{});  // BV Data Core: logos/guidelines/graphics/fonts — PUBLIC URLs, for find_images
+    firebase.firestore().collection("skills").onSnapshot(qs=>{KNOWLEDGE.skills=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // SuperPM playbooks/skills (app-private, bv-superpm) injected into the chat prompt
   }catch(e){ fbStatus("● error","var(--red)"); }
 }
 function fbAddVersion(entry){ try{ FB.versRef.add(Object.assign({},entry,{createdAt:firebase.firestore.FieldValue.serverTimestamp()})); }catch(e){} }
@@ -1841,6 +1842,9 @@ function chatSystemPrompt(l){
    +kb
    +"You CAN see everything already attached to this card: the full inventory of links and files the team has uploaded (including ones pasted on individual tasks) is listed below under ATTACHMENTS. When asked what's attached, or to pull/list/collect the links, read them straight from that inventory and give the actual URLs — never say you can't see them.\n"
    +"MANDATORY GROUNDING — for ANY question about a specific product (its specs, weight, size, material, dimensions, price, features, capacity, or even whether it EXISTS), you MUST call search_catalog (then get_product) in THIS reply BEFORE answering — even if you think you already answered, or expect no data. NEVER state a product has '0 SKUs', 'no specs', or 'isn't in the catalog' unless search_catalog actually returned ZERO results for it in THIS turn. The KNOWLEDGE BASE summary above lists only TOTALS — you cannot know which rows exist without searching. To show product photos, call find_images first; never claim you have no images without calling it. Don't reuse an earlier 'no data' answer — re-search every time.\n"
+   +"DOCUMENTS / BRIEFS WITH IMAGES (marketing brief, one-pager, mood board, concept, landing page): when asked to write a document that should include images, (1) FIRST gather the facts with search_catalog/get_product/search_knowledge AND call find_images for the product to get image URLs; (2) THEN build ONE complete, polished HTML document with add_html that EMBEDS the returned image URLs as real inline images — <img src=\"URL\" style=\"max-width:100%;border-radius:8px\"> — not just links; lay it out with headings, the spec table, competitor angle, and a few hero images. Always produce the actual add_html document, never just describe it. Keep ONE version (reuse the same label to revise).\n"
+   +"REFINE & LEARN (perfect the output): after producing any substantial output, end with 1–2 SPECIFIC questions to improve it (e.g. 'more performance-led or more lifestyle?', 'add the BOM cost line?'). When the user gives direction, REVISE the same add_html (same label) and call remember to save any durable preference or decision so future outputs get better.\n"
+   +((KNOWLEDGE.skills||[]).length?("PLAYBOOKS — saved skills for recurring tasks; when the user's request matches a playbook's trigger, FOLLOW it step by step:\n"+(KNOWLEDGE.skills||[]).map(s=>"▸ "+(s.name||s.id||"skill")+(s.trigger?"  (use when: "+s.trigger+")":"")+"\n"+(s.content||"").slice(0,1800)).join("\n\n")+"\n"):"")
    +"When asked to upload/attach a link, doc, or HTML, add a note, or change a task status, USE the tools to actually do it on the board (don't just describe it). Think carefully and be thorough and accurate — don't be terse when depth is useful.\n"
    +"Keep ONE final version of each document: attach only the finished version, not drafts. To revise, call add_html with the EXACT SAME label so it replaces the old file. Never create 'v1', 'v2', 'clean', 'draft', or 'final' label variants.\n"
    +"TASKS on this card:\n"+tasks+"\nATTACHMENTS already on this card:\n"+res;
@@ -1866,8 +1870,9 @@ function chatRoute(name){   // human-readable data route per tool, captured at c
 function chatMetaHTML(meta){
   if(!meta)return"";
   const tok=(meta.in||0)+(meta.out||0), n=(meta.trace||[]).length;
-  const rows=n?meta.trace.map((t,i)=>`<div style="margin:5px 0;padding:5px 7px;background:rgba(127,127,127,.10);border-radius:5px"><b>${i+1}. ${esc(t.name)}</b> <code style="font-size:10px;word-break:break-all;opacity:.8">${esc(t.inputStr||"{}")}</code>${t.route?`<div style="margin-top:2px;font-size:10px;opacity:.72"><span style="opacity:.6">↳ routed to:</span> ${esc(t.route)}</div>`:""}<div style="margin-top:3px;font-size:10px;opacity:.55">↳ returned to the model:</div><div style="margin-top:1px;white-space:pre-wrap;opacity:.85">${esc((t.result||"").slice(0,800))}${(t.result||"").length>800?"…":""}</div></div>`).join(""):`<div style="opacity:.6">No tools called — answered from the system prompt + knowledge summary only (no DB lookup).</div>`;
-  return `<details style="margin-top:6px;font-size:11px"><summary style="cursor:pointer;opacity:.65;user-select:none">🔍 verify · ${esc(meta.model||"")} · ${tok} tok · ${fmtCost(meta.cost)} · ${n} source${n===1?"":"s"}</summary><div style="margin-top:5px;padding:7px 9px;background:rgba(127,127,127,.07);border-radius:7px"><div style="opacity:.85">Model <b>${esc(meta.model||"?")}</b> · input ${meta.in||0} tok · output ${meta.out||0} tok · ${meta.hops||1} round${(meta.hops||1)===1?"":"s"} · ${fmtCost(meta.cost)} <span style="opacity:.6">(token-based estimate)</span></div><div style="margin-top:6px;font-weight:600;opacity:.7">DATA ROUTING — where each query went &amp; what came back (fact-check the lookups):</div>${rows}</div></details>`;
+  const rows=n?meta.trace.map((t,i)=>`<div style="margin:5px 0;padding:5px 7px;background:rgba(127,127,127,.10);border-radius:5px"><b>${i+1}. ${esc(t.name)}</b> <code style="font-size:10px;word-break:break-all;opacity:.8">${esc(t.inputStr||"{}")}</code>${t.route?`<div style="margin-top:2px;font-size:10px;opacity:.72"><span style="opacity:.6">↳ routed to:</span> ${esc(t.route)}</div>`:""}<div style="margin-top:3px;font-size:10px;opacity:.55">↳ returned to the model:</div><div style="margin-top:1px;white-space:pre-wrap;opacity:.85">${esc((t.result||"").slice(0,2000))}${(t.result||"").length>2000?"…":""}</div></div>`).join(""):`<div style="opacity:.6">No tools called — answered from the system prompt + knowledge summary only (no DB lookup).</div>`;
+  const reason=meta.reasoning?`<div style="margin-top:8px;font-weight:600;opacity:.7">🧠 LLM REASONING — how it decided what to call (extended thinking):</div><div style="margin-top:3px;white-space:pre-wrap;opacity:.82;max-height:300px;overflow:auto;padding:6px 8px;background:rgba(99,102,241,.10);border-radius:6px;font-size:10.5px">${esc(meta.reasoning)}</div>`:"";
+  return `<details style="margin-top:6px;font-size:11px"><summary style="cursor:pointer;opacity:.65;user-select:none">🔍 verify · ${esc(meta.model||"")} · ${tok} tok · ${fmtCost(meta.cost)} · ${n} source${n===1?"":"s"}</summary><div style="margin-top:5px;padding:7px 9px;background:rgba(127,127,127,.07);border-radius:7px"><div style="opacity:.85">Model <b>${esc(meta.model||"?")}</b> · input ${meta.in||0} tok · output ${meta.out||0} tok · ${meta.hops||1} round${(meta.hops||1)===1?"":"s"} · ${fmtCost(meta.cost)} <span style="opacity:.6">(token-based estimate)</span></div>${reason}<div style="margin-top:8px;font-weight:600;opacity:.7">DATA ROUTING — where each query went &amp; what came back (fact-check the lookups):</div>${rows}</div></details>`;
 }
 function chatMsgHTML(m,mi){
   const cls=m.role==="assistant"?"assistant":"user";
@@ -1986,18 +1991,19 @@ async function chatSend(slug){
   let messages=[];
   for(const mm of prior.concat([{role:"user",who,text}])){ const role=mm.role==="assistant"?"assistant":"user"; const content=mm.role==="user"?((mm.who||"User")+": "+mm.text):mm.text;
     if(messages.length&&messages[messages.length-1].role===role&&typeof messages[messages.length-1].content==="string"){messages[messages.length-1].content+="\n"+content;} else {messages.push({role,content});} }
-  const actions=[], atts=[]; let usageIn=0,usageOut=0; const trace=[];
+  const actions=[], atts=[]; let usageIn=0,usageOut=0,reasoning=""; const trace=[];
   try{
     for(let hop=0;hop<6;hop++){
-      const resp=await chatFetch({model:chatModel(),system:chatSystemPrompt(l),messages,tools:CHAT_TOOLS}); CHAT.wake=false;
+      const resp=await chatFetch({model:chatModel(),system:chatSystemPrompt(l),messages,tools:CHAT_TOOLS,think:true}); CHAT.wake=false;
       if(resp.error){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ "+((resp.error&&resp.error.message)||"backend error"),ts:nowStamp()}); break; }
       if(resp.usage){ usageIn+=resp.usage.input_tokens||0; usageOut+=resp.usage.output_tokens||0; }
       messages.push({role:"assistant",content:resp.content||[]});
       const tus=(resp.content||[]).filter(b=>b.type==="tool_use");
       const txt=(resp.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim();
-      const meta={model:chatModel(),in:usageIn,out:usageOut,cost:chatCost(chatModel(),usageIn,usageOut),hops:hop+1,trace:trace.slice()};
+      const think=(resp.content||[]).filter(b=>b.type==="thinking").map(b=>b.thinking||"").join("\n\n").trim(); if(think)reasoning+=(reasoning?"\n\n— next step —\n\n":"")+think;   // LLM reasoning (extended thinking) for the verify panel
+      const meta={model:chatModel(),in:usageIn,out:usageOut,cost:chatCost(chatModel(),usageIn,usageOut),hops:hop+1,trace:trace.slice(),reasoning:reasoning};
       if(tus.length){ const results=[];
-        for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out.summary)actions.push(out.summary); if(out.att)atts.push(out.att); trace.push({name:tu.name,inputStr:JSON.stringify(tu.input||{}).slice(0,300),route:chatRoute(tu.name),result:(out.text||"").slice(0,1000)}); results.push({type:"tool_result",tool_use_id:tu.id,content:out.text}); }
+        for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out.summary)actions.push(out.summary); if(out.att)atts.push(out.att); trace.push({name:tu.name,inputStr:JSON.stringify(tu.input||{}).slice(0,1500),route:chatRoute(tu.name),result:(out.text||"").slice(0,2000)}); results.push({type:"tool_result",tool_use_id:tu.id,content:out.text}); }
         messages.push({role:"user",content:results}); renderChatBody(); continue;
       } else { chatPush(slug,{role:"assistant",who:"Claude",text:txt||(atts.length?"":"(done)"),actions:actions.slice(),attachments:atts.slice(),meta,ts:nowStamp()}); break; }
     }
