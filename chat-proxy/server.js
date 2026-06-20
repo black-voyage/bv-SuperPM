@@ -25,7 +25,7 @@ app.use((req, res, next) => {
 // Only the models the app actually offers — anything else falls back to the cheapest (blocks cost abuse).
 const ALLOWED_MODELS = new Set(["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]);
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
-const MAX_TOKENS = Math.min(Number(process.env.MAX_TOKENS) || 8000, 8000);
+const MAX_TOKENS = Math.min(Number(process.env.MAX_TOKENS) || 16000, 32000);  // headroom for big image-rich docs/briefs (4.x models support it)
 
 // Best-effort per-IP rate limit (in-memory; per Cloud Run instance — pair with a low --max-instances).
 const RL_WINDOW_MS = 60000;
