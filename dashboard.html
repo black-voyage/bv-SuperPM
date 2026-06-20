@@ -992,7 +992,7 @@ function fbInit(){
     // competitor data (and writes memory) that every other BV app shares.
     let coreApp; try{ coreApp=firebase.app("core"); }catch(_){ coreApp=firebase.initializeApp(CORE_CONFIG,"core"); }
     const cdb=coreApp.firestore(); FB.coreDb=cdb;
-    try{ cdb.collection("clients").doc("superpm").set({app:"superpm",project:"bv-superpm",connectedVia:"firebase-sdk",lastSeen:Date.now()},{merge:true}); }catch(_){}  // announce this connection to the Core registry (GET /api/connect)
+    try{ fetch("https://bv-second-brain--bv-second-brain.us-east4.hosted.app/api/connect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({app:"superpm",project:"bv-superpm",version:"core-connect-2",role:"product dashboard"})}).catch(()=>{}); }catch(_){}  // register with the Core via REST (server Admin SDK; client writes are blocked by the locked Firestore rules)
     cdb.collection("catalog").onSnapshot(qs=>{KNOWLEDGE.catalog=qs.docs.map(d=>d.data());}, e=>{});
     cdb.collection("memory").limit(500).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // shared cross-app memory
     cdb.collection("competitors").onSnapshot(qs=>{KNOWLEDGE.competitors=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});
@@ -1937,7 +1937,7 @@ function runChatTool(slug,name,input){
       const hits=(KNOWLEDGE.memory||[]).map(m=>{const b=(((m.text||m.fact||"")+" "+(m.tags||"")+" "+(m.app||"")).toLowerCase()); return {m,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,12).map(x=>x.m);
       if(!hits.length)return {summary:"🧠 recall",text:"No memories matched. ("+(KNOWLEDGE.memory||[]).length+" in shared memory.)"};
       return {summary:"🧠 recall ("+hits.length+")",text:"Recalled from shared memory:\n"+hits.map(m=>"• "+(m.text||m.fact||"")+(m.tags?"  ["+m.tags+"]":"")+(m.app?"  ("+m.app+")":"")).join("\n")}; }
-    if(name==="remember"){ const fact=(input.fact||"").trim(); if(!fact)return {text:"Nothing to remember."}; try{(FB.coreDb||firebase.firestore()).collection("memory").add({text:fact,tags:input.tags||"",app:"superpm",entities:[slug],who:actor(),ts:Date.now()});}catch(e){} return {summary:"🧠 remembered",text:"Saved to shared long-term memory (BV Data Core)."}; }
+    if(name==="remember"){ const fact=(input.fact||"").trim(); if(!fact)return {text:"Nothing to remember."}; try{fetch("https://bv-second-brain--bv-second-brain.us-east4.hosted.app/api/memory",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:fact,tags:input.tags||"",app:"superpm",entities:[slug],who:actor()})}).catch(()=>{});}catch(e){} return {summary:"🧠 remembered",text:"Saved to shared long-term memory (BV Data Core)."}; }
     if(name==="add_link"){ if(!(input.url||"").trim())return {text:"No url provided — include the full url."}; const nm=input.label||"Link"; return {summary:"🔗 "+nm,text:"Shared link “"+nm+"” in the chat.",att:{type:"link",n:nm,u:input.url}}; }
     if(name==="add_html"){ if(!(input.html||"").trim())return {text:"No HTML content was provided — put the FULL html document in the html argument and try once."}; const nm=input.label||"HTML"; return {summary:"</> "+nm,text:"Created HTML “"+nm+"” ("+input.html.length+" chars) — shown inline in the chat.",att:{type:"code",n:nm,h:input.html}}; }
     if(name==="add_note"){ (l.checkins=l.checkins||[]).unshift({d:today,a:actor(),txt:input.text||""}); save(); return {summary:"📝 note",text:"Note added to the log."}; }
