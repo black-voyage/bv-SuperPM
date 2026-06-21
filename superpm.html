@@ -1944,6 +1944,30 @@ function briefSave(card,title,html,type){ if(!FB.ready||!card)return 0; title=(t
   try{briefsCol().add({card,title,type:type||"marketing",version,status:"review",html:html||"",author:actor(),createdAt:Date.now(),updatedAt:Date.now(),approvals:{marketing:null,ben:null},comments:[]});}catch(e){}
   return version;
 }
+function briefMd(b){ return String(b&&b.html||"")
+  .replace(/<(style|script)[\s\S]*?<\/\1>/gi,"")
+  .replace(/<h1[^>]*>/gi,"\n# ").replace(/<h2[^>]*>/gi,"\n## ").replace(/<h3[^>]*>/gi,"\n### ").replace(/<h[4-6][^>]*>/gi,"\n#### ").replace(/<\/h[1-6]>/gi,"\n")
+  .replace(/<li[^>]*>/gi,"\n- ").replace(/<\/li>/gi,"")
+  .replace(/<img[^>]*?src=["']([^"']+)["'][^>]*?>/gi,(m,u)=>"\n!["+"]("+u+")\n")
+  .replace(/<a[^>]*?href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,(m,u,t)=>"["+t.replace(/<[^>]+>/g,"").trim()+"]("+u+")")
+  .replace(/<\/(p|div|tr|table|ul|ol|section|header)>/gi,"\n").replace(/<br[^>]*>/gi,"\n")
+  .replace(/<[^>]+>/g," ")
+  .replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/&lt;/gi,"<").replace(/&gt;/gi,">").replace(/&#39;|&apos;/gi,"'").replace(/&quot;/gi,'"')
+  .replace(/[ \t]+/g," ").replace(/\n[ \t]+/g,"\n").replace(/\n{3,}/g,"\n\n").trim(); }
+// On confirm, push the brief to the BV Data Core as the company's canonical record — the WIKI (prose/EXPLAIN
+// layer, exactly where confirmed strategy docs belong) + /api/learn to distill durable facts. Writes go through
+// the Core's server-side Admin SDK REST surface (client writes to Core are blocked by design) — no rules/IAM change.
+function promoteBriefToCore(b){ try{
+  const card=L(b.card), prod=card?(card.title||b.card):b.card, a=b.approvals||{};
+  const head="> Confirmed marketing brief — single source of truth · "+prod+" · v"+(b.version||1)
+    +"\n> Signed off: Marketing ("+((a.marketing&&a.marketing.by)||"?")+") + Ben ("+((a.ben&&a.ben.by)||"?")+")"
+    +"\n> Source: BV SuperPM card “"+prod+"”\n\n";
+  const body=head+briefMd(b), ents=[...new Set([b.card,prod].filter(Boolean))], B="https://bv-second-brain--bv-second-brain.us-east4.hosted.app";
+  fetch(B+"/api/wiki",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title:b.title,body_md:body,type:"marketing_brief",tags:"marketing-brief,confirmed,superpm",entities:ents})})
+    .then(r=>r.json()).then(d=>{ const slug=d&&(d.slug||d.id); try{briefsCol().doc(b.id).set({core:{wiki:slug||true,at:Date.now()}},{merge:true});}catch(e){} toast("🧠 Promoted to the company brain (Core wiki)."); })
+    .catch(()=>toast("Brief confirmed — company-brain sync didn't reach the Core (it stays the source of truth here)."));
+  fetch(B+"/api/learn",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:briefMd(b),app:"superpm",source:"confirmed brief: "+b.title,entities:ents})}).catch(()=>{});
+}catch(e){} }
 function briefApprove(id,slot){ const b=briefById(id); if(!b||b.status==="confirmed"||b.status==="superseded")return;
   if(slot==="ben"&&!canBenSign()){toast("Only Ben (CEO) gives this sign-off — switch 'Viewing as' to Ben.");return;}
   if(slot==="marketing"&&!canMktSign()){toast("Only Marketing gives this sign-off — switch 'Viewing as' to Marketing.");return;}
@@ -1953,7 +1977,7 @@ function briefApprove(id,slot){ const b=briefById(id); if(!b||b.status==="confir
     (BRIEFS||[]).filter(x=>x.card===b.card&&(x.title||"").toLowerCase()===(b.title||"").toLowerCase()&&x.id!==id&&x.status==="confirmed").forEach(x=>{try{briefsCol().doc(x.id).set({status:"superseded",updatedAt:Date.now()},{merge:true});}catch(e){}});
   }
   try{briefsCol().doc(id).set(upd,{merge:true});}catch(e){}
-  if(upd.status==="confirmed")toast("✓ Brief confirmed — it's now the single source of truth.");
+  if(upd.status==="confirmed"){ toast("✓ Brief confirmed — it's now the single source of truth."); promoteBriefToCore(Object.assign({},b,{approvals:a,status:"confirmed"})); }
 }
 function briefComment(id){ const inp=document.getElementById("bc_"+id), text=inp?inp.value.trim():""; if(!text)return; const b=briefById(id); if(!b)return;
   const comments=(b.comments||[]).concat([{who:actor(),role:roleLabel(),text,at:Date.now()}]);
@@ -1967,7 +1991,7 @@ function statusBadge(s){const m={draft:["Draft","#999"],review:["In Review","var
 function briefCardHTML(b){ const a=b.approvals||{},mk=a.marketing,bn=a.ben,op=S.open&&S.open["brief_"+b.id],live=b.status==="review"||b.status==="draft";
   return `<div style="border:1px solid ${b.status==="confirmed"?"var(--green)":"var(--line)"};border-radius:8px;padding:8px 10px;margin:8px 0;${b.status==="superseded"?"opacity:.55":""}">
     <div><b style="${b.status==="superseded"?"text-decoration:line-through":""}">${esc(b.title)}</b> <span class="ghostnote">v${b.version}</span> ${statusBadge(b.status)}</div>
-    <div class="ghostnote" style="margin:2px 0 6px">by ${esc(b.author||"?")} · ${esc(bts(b.createdAt))}${(mk||bn)?(" · "+(mk?"✓ Mkt":"⬜ Mkt")+" "+(bn?"✓ Ben":"⬜ Ben")):""}</div>
+    <div class="ghostnote" style="margin:2px 0 6px">by ${esc(b.author||"?")} · ${esc(bts(b.createdAt))}${(mk||bn)?(" · "+(mk?"✓ Mkt":"⬜ Mkt")+" "+(bn?"✓ Ben":"⬜ Ben")):""}${b.core&&b.core.wiki?` · <span title="published to the BV Data Core as the company's canonical brief" style="color:var(--green)">🧠 in company brain</span>`:""}</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
       <button class="iconbtn" onclick="briefView('${b.id}')">👁 View</button>
       <button class="iconbtn" onclick="briefToggle('${b.id}')">💬 ${(b.comments||[]).length}</button>
