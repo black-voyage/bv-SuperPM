@@ -211,6 +211,9 @@
   .cmsg .who{font-size:11px;color:var(--faint);margin-bottom:2px}
   .cmsg .acts{margin-top:5px;font-size:11px;color:var(--green)}
   .bvthink{font-weight:600} .bvdots{display:inline-block;animation:pulse 1.1s ease-in-out infinite;letter-spacing:1px}
+  .bvbar{height:3px;border-radius:3px;background:var(--line);overflow:hidden;position:relative;margin-top:7px}
+  .bvbar::after{content:"";position:absolute;top:0;left:-45%;height:100%;width:45%;border-radius:3px;background:var(--accent);animation:bvslide 1.15s ease-in-out infinite}
+  @keyframes bvslide{0%{left:-45%}100%{left:100%}}
   .chatres{border-top:1px solid var(--line);padding:6px 2px;display:flex;flex-wrap:wrap;gap:5px}
   .chatinput{display:flex;gap:6px;padding-top:8px;border-top:1px solid var(--line)}
   .chatinput textarea{flex:1;height:46px;resize:vertical;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:7px 9px;font-family:inherit;font-size:13px}
@@ -1844,11 +1847,15 @@ function viewVersions(){
 /* ================= CLAUDE CHAT — per-card, shared, tool-using ================= */
 const CHAT_API_URL="https://bv-superpm-chat-475005600052.us-central1.run.app/chat";  // chat proxy on Google Cloud Run (project bv-infra-499600, no-org — public allowed; key in Secret Manager). OFF Render. See FIREBASE-DEPLOY.md
 const CHAT_MODELS=[
+  {id:"claude-sonnet-4-6",label:"Sonnet 4.6 · default"},
   {id:"claude-opus-4-8",label:"Opus 4.8 · deepest"},
-  {id:"claude-sonnet-4-6",label:"Sonnet 4.6 · balanced"},
   {id:"claude-haiku-4-5-20251001",label:"Haiku 4.5 · fast"}
 ];
-function chatModel(){const m=(typeof localStorage!=="undefined"&&localStorage.getItem("bv-chat-model"))||"claude-opus-4-8"; return CHAT_MODELS.some(x=>x.id===m)?m:"claude-opus-4-8";}
+const CHAT_MODEL_DEFAULT="claude-sonnet-4-6";
+function chatModel(){let m=(typeof localStorage!=="undefined"&&localStorage.getItem("bv-chat-model"))||"";
+  // one-time move to the Sonnet 4.6 default (the prior default was Opus); the picker still lets anyone switch
+  try{ if(typeof localStorage!=="undefined"&&!localStorage.getItem("bv-chat-default-sonnet")){ localStorage.setItem("bv-chat-default-sonnet","1"); if(!m||m==="claude-opus-4-8"){ m=CHAT_MODEL_DEFAULT; localStorage.setItem("bv-chat-model",m); } } }catch(e){}
+  return CHAT_MODELS.some(x=>x.id===m)?m:CHAT_MODEL_DEFAULT;}
 function setChatModel(id){try{localStorage.setItem("bv-chat-model",id);}catch(e){} toast("🧠 Chat model → "+((CHAT_MODELS.find(x=>x.id===id)||{}).label||id));}
 const CHAT_TOOLS=[
   {name:"search_catalog",description:"Search the Black Voyage product CATALOG — real SKUs with their specs (model, variant, size, material, dimensions, feature). Use to ground product/spec claims in real data. (Competitor comparisons & brand voice live in search_knowledge.)",input_schema:{type:"object",properties:{query:{type:"string",description:"keywords: model, SKU, material, size, feature…"}},required:["query"]}},
@@ -1918,7 +1925,7 @@ function chatSystemPrompt(l){
    +(gloss?("VOICE RULES (approved vs avoided wording — ALWAYS follow when writing any copy):\n"+gloss+"\n"):"");
   return "You are Claude, embedded in the Black Voyage \"SuperPM\" product dashboard. You help the team manage the product card \""+l.name+"\" (stage: "+l.stage+", DRI: "+l.dri+"). This chat is SHARED — everyone on the team sees it and your actions, for this product only.\n"
    +kb
-   +"CLARIFY FIRST when it matters — if the user asks you to PRODUCE something substantial (a brief, doc, plan, analysis, campaign, comparison, naming, or any meaningful copy) and the request is vague or underspecified, ASK 1–3 sharp clarifying questions and WAIT for the answer BEFORE building. Ask only about things that genuinely change the result and that you can't infer from this card or the data — e.g. the target audience/avatar, the angle or goal, which product/variant, the format & length, the tone, or where it will be used. Frame them as a short numbered list and say you'll build it once they answer. This sharpens both your data lookups (search_strategy / search_catalog / search_knowledge / find_images) and the final output. BUT don't stall: if the request is already clear, or it's a quick lookup/edit, just do it — clarifying questions are only for genuinely ambiguous, high-effort asks.\n"
+   +"ALWAYS GATHER CONTEXT BEFORE YOU ANSWER — this is your default behaviour. The people here type short, vague prompts; your job is to DRAW OUT the detail that makes the output great, not to guess and hope. For ANY request that produces something or makes a judgement (a brief, doc, plan, analysis, recommendation, naming, copy, comparison, decision, or 'help me with X'), FIRST ask 2–4 sharp clarifying questions and WAIT for the answers BEFORE doing the work — even when you think you could guess. Ask about whatever genuinely shapes the result: the goal/outcome they want, the audience/avatar, which product or variant, format & length, tone, hard constraints, where it'll be used, and what a GREAT result looks like to them. Frame them as a short numbered list and say you'll build it as soon as they answer. Do NOT apologise for asking and do NOT worry that you're asking for too much — gathering more context is exactly what's wanted and reliably produces far better output; one focused round of questions beats a generic answer every time. Combine this with your tools: ask the user for what only they know, and pull everything else yourself (read_card_doc, search_strategy / search_catalog / search_knowledge / search_documents / find_images, recall). The ONLY time to skip the questions is a pure factual lookup or a tiny mechanical edit where there is genuinely nothing that would change the answer.\n"
    +"You CAN see everything already attached to this card: the full inventory of links and files the team has uploaded (including ones pasted on individual tasks) is listed below under ATTACHMENTS. When asked what's attached, or to pull/list/collect the links, read them straight from that inventory and give the actual URLs — never say you can't see them.\n"
    +"MANDATORY GROUNDING — for ANY question about a specific product (its specs, weight, size, material, dimensions, price, features, capacity, or even whether it EXISTS), you MUST call search_catalog (then get_product) in THIS reply BEFORE answering — even if you think you already answered, or expect no data. NEVER state a product has '0 SKUs', 'no specs', or 'isn't in the catalog' unless search_catalog actually returned ZERO results for it in THIS turn. The KNOWLEDGE BASE summary above lists only TOTALS — you cannot know which rows exist without searching. To show product photos, call find_images first; never claim you have no images without calling it. Don't reuse an earlier 'no data' answer — re-search every time.\n"
    +"PRODUCING A BRIEF / DOCUMENT (marketing brief, concept brief, one-pager, spec, landing page) — this is an INTERACTIVE, ITERATIVE process, and good output REQUIRES enough context. You MUST get enough context — from the database OR from the user — before producing. Steps:\n"
@@ -2088,7 +2095,7 @@ function renderBriefs(){const el=document.getElementById("briefsPanel"); if(el&&
 function renderChatPanel(l){
   return `<div class="panel chatpanel${CHAT.full?" full":""}" id="chatPanel"><h3>💬 Claude — ${esc(l.name)} <span class="ghostnote" style="font-weight:400">· shared</span>
       <span style="float:right;display:inline-flex;gap:6px;align-items:center">
-        <select title="model — Opus is deepest, Haiku is fastest" onchange="setChatModel(this.value)" style="font-size:11px;padding:3px 6px">${CHAT_MODELS.map(m=>`<option value="${m.id}" ${m.id===chatModel()?"selected":""}>${m.label}</option>`).join("")}</select>
+        <select title="model — Sonnet 4.6 is the default; Opus is deepest, Haiku is fastest" onchange="setChatModel(this.value)" style="font-size:11px;padding:3px 6px">${CHAT_MODELS.map(m=>`<option value="${m.id}" ${m.id===chatModel()?"selected":""}>${m.label}</option>`).join("")}</select>
         <button class="iconbtn" id="chatFullBtn" title="${CHAT.full?"close — back to the card (Esc)":"expand to full screen"}" onclick="toggleChatFull()">${CHAT.full?"✕ Close":"⛶ Full"}</button></span></h3>
     <div class="chatmsgs" id="chatMsgs"></div>
     <div class="chatinput"><textarea id="chatInput" placeholder="Ask Claude to attach a link/doc/HTML, add a note, or update a task… (Enter to send · Esc to close)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${l.slug}')}else if(event.key==='Escape'&&CHAT.full){event.preventDefault();toggleChatFull()}"></textarea><button class="btn" onclick="chatSend('${l.slug}')">Send</button></div>
@@ -2102,7 +2109,7 @@ function renderChatBody(){
   if(CHAT.busy){
     const head=CHAT.wake?"…waking the backend":(CHAT.phase==="acting"?"Working":"Thinking");
     const steps=(CHAT.steps&&CHAT.steps.length)?`<div style="margin-top:6px;font-size:11.5px;opacity:.8;line-height:1.7">${CHAT.steps.map((s,i)=>`<div>${i===CHAT.steps.length-1&&CHAT.phase!=="acting"?"✓ ":(i===CHAT.steps.length-1?"⏳ ":"✓ ")}${esc(s)}</div>`).join("")}</div>`:"";
-    busyHTML=`<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub"><span class="bvthink">${head}<span class="bvdots">…</span></span>${steps}</div></div></div>`;
+    busyHTML=`<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub"><span class="bvthink">${head}<span class="bvdots">…</span></span><div class="bvbar"></div>${steps}</div></div></div>`;
   }
   m.innerHTML=(CHAT.msgs||[]).map((mm,i)=>chatMsgHTML(mm,i)).join("")+busyHTML; m.scrollTop=m.scrollHeight;
 }
