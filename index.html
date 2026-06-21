@@ -890,7 +890,7 @@ function signInUser(){
 function signOutUser(){ try{ firebase.auth().signOut(); }catch(e){} }
 function onUser(u){
   if(u){ ME={uid:u.uid,email:u.email||"",name:u.displayName||"",photo:u.photoURL||""};
-    authGate(false); firstRunName(u); saveUserProfile(); renderWhoami(); renderGAuth();
+    authGate(false); firstRunName(u); saveUserProfile(); applyMyRoleToView(); renderWhoami(); renderGAuth(); try{render();}catch(e){}
   } else { ME=null; const b=document.getElementById("authgateBtn"); if(b){b.disabled=false;b.textContent="Sign in with Google";} authGate(true,""); renderWhoami(); }
 }
 function firstRunName(u){
@@ -1336,7 +1336,7 @@ function setLang(){LANG=LANG==="en"?"zh":"en";
   render();}
 
 function toast(m){const t=document.getElementById("toast");t.textContent=LANG==="zh"?zhText(m):m;t.style.display="block";setTimeout(()=>t.style.display="none",3000);}
-function setRole(v){ if(v==="ceo"||v==="director"){S.role=v;} else {S.role="dept";S.dept=v.slice(5);} S.view="home";S.launch=null;render(); }
+function setRole(v){ if(!isCEO()){toast("Only the CEO can switch views — you're signed in as "+roleLabel()+".");return;} if(v==="ceo"||v==="director"){S.role=v;} else {S.role="dept";S.dept=v.slice(5);} S.view="home";S.launch=null;render(); }
 function go(v){S.view=v;S.launch=null;render();}
 function openL(slug){S.view="launch";S.launch=slug;render();}
 const L=slug=>LAUNCHES.find(x=>x.slug===slug);
@@ -1992,8 +1992,14 @@ function clearChat(slug){ if(typeof confirm!=="undefined"&&!confirm("Start a new
 /* ===== BRIEFS — collaborative, versioned documents · Marketing + Ben sign-off · one Confirmed source of truth ===== */
 function briefsCol(){return firebase.firestore().collection("bv").doc("superpm").collection("briefs");}
 function briefById(id){return (BRIEFS||[]).find(b=>b.id===id);}
-function canBenSign(){return S.role==="ceo";}
-function canMktSign(){return (S.role==="dept"&&S.dept==="Marketing")||S.role==="ceo";}
+// Sign-off authority is tied to the SIGNED-IN Google account, NOT the "Viewing as" view selector.
+// Add the Marketing lead / directors here anytime (email → role). Until then the CEO can cover Marketing.
+const ROLE_BY_EMAIL={ "ben@blackvoyage.com":"ceo" /* , "marketing@blackvoyage.com":"marketing", "someone@blackvoyage.com":"director" */ };
+function myRole(){ return ME?(ROLE_BY_EMAIL[(ME.email||"").toLowerCase()]||"dept"):S.role; }  // signed in → role from login; not signed in (local dev) → fall back to the view
+function isCEO(){ return myRole()==="ceo"; }
+function applyMyRoleToView(){ const r=myRole(); if(r==="ceo")S.role="ceo"; else if(r==="director")S.role="director"; else if(r==="marketing"){S.role="dept";S.dept="Marketing";} else S.role="dept"; }
+function canBenSign(){return myRole()==="ceo";}
+function canMktSign(){const r=myRole();return r==="ceo"||r==="marketing";}
 function bts(t){return t?new Date(t).toLocaleDateString(undefined,{month:"short",day:"numeric"}):"";}
 function briefSave(card,title,html,type){ if(!FB.ready||!card)return 0; title=(title||"Marketing Brief").trim();
   const ex=(BRIEFS||[]).filter(b=>b.card===card&&(b.title||"").toLowerCase()===title.toLowerCase());
@@ -2031,8 +2037,8 @@ function promoteBriefToCore(b){ try{
   // /api/learn write, which would leave stale distilled "facts" behind when a brief is revised.
 }catch(e){} }
 function briefApprove(id,slot){ const b=briefById(id); if(!b||b.status==="confirmed"||b.status==="superseded")return;
-  if(slot==="ben"&&!canBenSign()){toast("Only Ben (CEO) gives this sign-off — switch 'Viewing as' to Ben.");return;}
-  if(slot==="marketing"&&!canMktSign()){toast("Only Marketing gives this sign-off — switch 'Viewing as' to Marketing.");return;}
+  if(slot==="ben"&&!canBenSign()){toast("Only the CEO can give this sign-off — sign in as ben@blackvoyage.com.");return;}
+  if(slot==="marketing"&&!canMktSign()){toast("Only the Marketing lead (or CEO) can give this sign-off — add their email to ROLE_BY_EMAIL.");return;}
   const a=Object.assign({marketing:null,ben:null},b.approvals||{}); a[slot]={by:actor(),at:Date.now()};
   const upd={approvals:a,updatedAt:Date.now()};
   if(a.marketing&&a.ben){ upd.status="confirmed"; upd.confirmedAt=Date.now();
@@ -2245,10 +2251,15 @@ async function chatSend(slug){
   CHAT.busy=false; CHAT.wake=false; renderChatBody();
 }
 function render(){
-  const sel=document.getElementById("roleSel");
-  const cur=S.role==="dept"?"dept:"+S.dept:S.role;
-  sel.innerHTML=tx(`<option value="ceo">Ben — CEO</option><option value="director">Director</option>`+DEPTS().map(d=>`<option value="dept:${d}">Head — ${d}</option>`).join(""));
-  sel.value=[...sel.options].some(o=>o.value===cur)?cur:"ceo";
+  const sel=document.getElementById("roleSel"), vaLab=document.getElementById("vaLab");
+  if(isCEO()){
+    if(vaLab)vaLab.textContent="Preview as";
+    const cur=S.role==="dept"?"dept:"+S.dept:S.role;
+    if(sel){ sel.style.display=""; sel.innerHTML=tx(`<option value="ceo">Ben — CEO</option><option value="director">Director</option>`+DEPTS().map(d=>`<option value="dept:${d}">Head — ${d}</option>`).join("")); sel.value=[...sel.options].some(o=>o.value===cur)?cur:"ceo"; }
+  } else {
+    if(sel)sel.style.display="none";
+    if(vaLab)vaLab.textContent= ME?("Signed in as "+roleLabel()):"Viewing as";
+  }
   document.getElementById("nav").innerHTML=tx(NAVS.map(([v,l])=>`<button class="${S.view===v?"on":""}" onclick="go('${v}')">${l}</button>`).join(""));
   const app=document.getElementById("app");
   // datalist for assignee suggestions (from Team tab heads/members + departments)
