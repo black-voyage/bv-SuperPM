@@ -561,7 +561,7 @@ function autopilot(){ // the auto-correct brain: detect → propose → one-clic
   benQueue().forEach(({l,c})=>{const age=decisionAge(l,c.t); const br=age>SLA_DAYS;
     issues.push({sev:br?"red":"amber",msg:`◆ ${l.name} — “${c.t}” waiting ${age}d${br?" (SLA "+SLA_DAYS+"d breached)":""}`,
       fixLabel:"Escalate",fix:br?()=>{const t=l.tasks.find(x=>x.t===c.t); t.urg="urgent";
-        l.checkins.unshift({d:today,a:"Autopilot",txt:`Escalated “${c.t}” — decision SLA breached (${age}d). Slack: re-pinged Ben + #bv-portfolio.`});
+        l.checkins.unshift({d:today,a:"Autopilot",txt:`Escalated “${c.t}” — decision SLA breached (${age}d); flagged for Ben in the decision queue.`});
         log("⚡ Escalated "+l.name+" ◆ gate (SLA breach)");}:null});});
   LAUNCHES.filter(l=>!l.complete).forEach(l=>{
     const last=l.checkins[0], staleD=last?dayDiff(last.d,today):99;
@@ -628,7 +628,7 @@ function copyDigest(){const ta=document.getElementById("digestTA");
 function viewDigest(){
   return `<span class="back" onclick="go('home')">← Home</span>
   <h2>📋 Weekly digest <button class="btn" style="margin-left:10px" onclick="copyDigest()">Copy for Slack</button></h2>
-  <div class="sub">Generated live from the tracker — this is what the Phase-2 Slack bot posts to #bv-portfolio every Monday.</div>
+  <div class="sub">Generated live from the tracker — copy it into Slack or email for your Monday portfolio update.</div>
   <textarea id="digestTA" class="digestbox" readonly>${esc(buildDigest())}</textarea>`;
 }
 
@@ -894,12 +894,10 @@ function onUser(u){
   } else { ME=null; const b=document.getElementById("authgateBtn"); if(b){b.disabled=false;b.textContent="Sign in with Google";} authGate(true,""); renderWhoami(); }
 }
 function firstRunName(u){
-  if(USERNAME) return;                       // already chose a display name on this device
-  const suggested=((u.displayName||"").trim())||((u.email||"").split("@")[0])||"";
-  const n=(typeof prompt!=="undefined")?prompt("Welcome! Pick the name your teammates will see next to your questions and completed milestones (you can change it anytime):",suggested):suggested;
-  USERNAME=((n===null?suggested:n)||"").trim();
+  if(USERNAME) return;                       // already have a display name on this device
+  USERNAME=(((u.displayName||"").trim())||((u.email||"").split("@")[0])||"").trim();  // default silently to the Google name — no extra prompt
   try{localStorage.setItem("bv-username",USERNAME);}catch(e){}
-  if(USERNAME)toast("👋 Welcome, "+USERNAME);
+  if(USERNAME)toast("👋 Welcome, "+USERNAME+" — click your name (top-right) to change it.");
 }
 function saveUserProfile(){ if(!ME||!FB.docRef)return; try{ FB.docRef.collection("users").doc(ME.uid).set({uid:ME.uid,email:ME.email,name:USERNAME||ME.name,lastSeen:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); }catch(e){} }
 function activityRef(){ return FB.docRef?FB.docRef.collection("activity"):null; }
@@ -1066,7 +1064,6 @@ function fbWriteNow(force){
   FB.lastWritten=s;
   try{ FB.docRef.set({state:s,updatedBy:actor(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()}); }catch(e){}
 }
-function resetDemo(){try{if(typeof localStorage!=="undefined")localStorage.removeItem("bv-superpm");}catch(e){} location.reload();}
 function exportJSON(){try{
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([snapshot()],{type:"application/json"}));
@@ -1086,7 +1083,7 @@ function renderDrawer(){const b=document.getElementById("drawerBody"); if(!b)ret
       ? ACTIVITY.slice(0,60).map(e=>`<div class="feeditem"><div class="d">${esc(e.stamp||"")}</div>${e.who?`<b>${esc(e.who)}</b> `:""}${esc(e.text||"")}</div>`)
       : LOG.slice(0,40).map(e=>`<div class="feeditem"><div class="d">${e.d}</div>${esc(e.m)}</div>`)
     ).join("")}
-  <div style="margin-top:14px"><button class="iconbtn" onclick="resetDemo()">↺ Reset demo data</button></div>`;}
+  `;}
 
 /* ----- command palette ----- */
 function palItems(q){ const items=[];
@@ -1345,12 +1342,20 @@ function openL(slug){S.view="launch";S.launch=slug;render();}
 const L=slug=>LAUNCHES.find(x=>x.slug===slug);
 
 /* ================= ACTIONS (all by task index — mock commits) ================= */
+// ONE guarded status setter used by BOTH the checkbox (humans) and the AI's set_task_status tool:
+// same lock-order + evidence-required rules + audit feed for everyone. Returns {ok} or {ok:false,reason}.
+function applyTaskStatus(l,t,nx){
+  if(taskLocked(l,t)) return {ok:false,reason:"🔒 Locked — "+lockReason(l,t)};
+  if(nx==="x"&&EVID.has(t.t)&&!(t.links||[]).length) return {ok:false,reason:"📎 Evidence required — attach a link before marking “"+t.t+"” done (Task Playbook)"};
+  t.st=nx;
+  if(nx==="x")logEvent("milestone","✓ completed · "+l.name+" — "+t.t,{card:l.slug});
+  else if(nx==="b")logEvent("blocked","⛔ blocked · "+l.name+" — "+t.t,{card:l.slug});
+  return {ok:true};
+}
 function cycle(slug,i){ // checkbox click cycles status: todo → in progress → done → blocked → todo
   const l=L(slug), t=l.tasks[i];
-  if(taskLocked(l,t)){toast("🔒 Locked — "+lockReason(l,t));return;}
   const nx={o:"p",p:"x",x:"b",b:"o"}[t.st];
-  if(nx==="x"&&EVID.has(t.t)&&!(t.links||[]).length){toast("📎 Evidence required — attach a link before marking done (see Task Playbook)");return;}
-  t.st=nx; if(nx==="x")logEvent("milestone","✓ completed · "+l.name+" — "+t.t,{card:slug}); if(nx==="b")logEvent("blocked","⛔ blocked · "+l.name+" — "+t.t,{card:slug});
+  const r=applyTaskStatus(l,t,nx); if(!r.ok){toast(r.reason);return;}
   if(nx==="x"){const lane=FLOW[t.d]; const ii=lane?lane.findIndex(n=>n.t===t.t):-1;
     if(ii>=0){const key=t.d+"|"+lane[ii].l; const others=[...new Set(routeSteps(key,t.d,ii).map(p=>p[0]))].filter(x=>x!==t.d);
       if(others.length){S.route={key,d:t.d,i:ii};
@@ -1462,7 +1467,7 @@ function push(slug){
   const i=STAGES.indexOf(l.stage);
   if(i>=STAGES.length-1){l.complete=true;}else{l.stage=STAGES[i+1];}
   const who=S.role==="ceo"?"Ben":S.dept+" (head)";
-  l.checkins.unshift({d:today,a:who,txt:`Pushed to ${l.complete?"Complete":l.stage}. ${l.complete?"":"Slack: notified "+mandatory(l).join(", ")+" — their stage begins."}`});
+  l.checkins.unshift({d:today,a:who,txt:`Pushed to ${l.complete?"Complete":l.stage}.${l.complete?"":" Next up: "+mandatory(l).join(", ")+" — their stage begins."}`});
   log("🚀 "+l.name+" pushed to "+(l.complete?"Complete":l.stage)+" by "+who); boom();
   if(!l.complete){const r=prompt(`Pre-mortem (optional): biggest risk entering ${l.stage}?`);
     if(r){(l.risks=l.risks||[]).push({t:r,owner:l.dri,sc:5,trigger:"—"}); log("⚠️ Pre-mortem risk logged on "+l.name);}}
@@ -1860,7 +1865,7 @@ const CHAT_TOOLS=[
   {name:"add_link",description:"Attach a link/URL (Google Doc, Sheet, Figma, listing, or any resource) to this product card so the whole team sees it.",input_schema:{type:"object",properties:{label:{type:"string"},url:{type:"string"}},required:["label","url"]}},
   {name:"add_html",description:"Attach an HTML snippet/code block to this product card (renders as a live preview for everyone).",input_schema:{type:"object",properties:{label:{type:"string"},html:{type:"string"}},required:["label","html"]}},
   {name:"add_note",description:"Add a note / check-in to this product card's log.",input_schema:{type:"object",properties:{text:{type:"string"}},required:["text"]}},
-  {name:"set_task_status",description:"Update a task's status on this card.",input_schema:{type:"object",properties:{task:{type:"string"},status:{type:"string",enum:["todo","in_progress","done","blocked"]}},required:["task","status"]}}
+  {name:"set_task_status",description:"Update a task's status on this card. Subject to the SAME rules as the board: a locked task (prerequisites not done / wrong stage) is rejected, and marking an evidence-required task 'done' is rejected unless it has a link attached. If blocked, the tool tells you why — relay that instead of forcing it.",input_schema:{type:"object",properties:{task:{type:"string"},status:{type:"string",enum:["todo","in_progress","done","blocked"]}},required:["task","status"]}}
 ];
 let CHAT={slug:null,unsub:null,msgs:[],busy:false,full:false};
 let BRIEFS=[];  // collaborative versioned briefs (bv/superpm/briefs) — real-time, shared
@@ -2022,7 +2027,8 @@ function promoteBriefToCore(b){ try{
   fetch(B+"/api/wiki",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({slug,title:b.title,body_md:body,type:"marketing_brief",tags:"marketing-brief,confirmed,superpm",entities:ents})})
     .then(r=>r.json()).then(d=>{ try{briefsCol().doc(b.id).set({core:{wiki:(d&&d.slug)||slug,at:Date.now()}},{merge:true});}catch(e){} toast("🧠 Promoted to the company brain (Core wiki)."); })
     .catch(()=>toast("Brief confirmed — company-brain sync didn't reach the Core (it stays the source of truth here)."));
-  fetch(B+"/api/learn",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:briefMd(b),app:"superpm",source:"confirmed brief: "+b.title,entities:ents})}).catch(()=>{});
+  // ONE canonical home: the wiki page (deterministic slug) — a revision overwrites it cleanly. No parallel
+  // /api/learn write, which would leave stale distilled "facts" behind when a brief is revised.
 }catch(e){} }
 function briefApprove(id,slot){ const b=briefById(id); if(!b||b.status==="confirmed"||b.status==="superseded")return;
   if(slot==="ben"&&!canBenSign()){toast("Only Ben (CEO) gives this sign-off — switch 'Viewing as' to Ben.");return;}
@@ -2185,9 +2191,10 @@ function runChatTool(slug,name,input){
     if(name==="add_link"){ if(!(input.url||"").trim())return {text:"No url provided — include the full url."}; const nm=input.label||"Link"; return {summary:"🔗 "+nm,text:"Shared link “"+nm+"” in the chat.",att:{type:"link",n:nm,u:input.url}}; }
     if(name==="add_html"){ if(!(input.html||"").trim())return {text:"No HTML content was provided — put the FULL html document in the html argument and try once."}; const nm=input.label||"HTML"; return {summary:"</> "+nm,text:"Created HTML “"+nm+"” ("+input.html.length+" chars) — shown inline in the chat.",att:{type:"code",n:nm,h:input.html}}; }
     if(name==="add_note"){ (l.checkins=l.checkins||[]).unshift({d:today,a:actor(),txt:input.text||""}); save(); return {summary:"📝 note",text:"Note added to the log."}; }
-    if(name==="set_task_status"){ const map={todo:"o",in_progress:"p",done:"x",blocked:"b"}; const st=map[input.status]; if(!st)return {summary:"",text:"Unknown status."};
+    if(name==="set_task_status"){ const map={todo:"o",in_progress:"p",done:"x",blocked:"b"}; const nx=map[input.status]; if(!nx)return {summary:"",text:"Unknown status."};
       const q=(input.task||"").toLowerCase(); const t=(l.tasks||[]).find(t=>t.t.toLowerCase().includes(q)); if(!t)return {summary:"",text:"No task matching “"+(input.task||"")+"”."};
-      t.st=st; save(); return {summary:"✓ "+t.t+"→"+input.status,text:"Set “"+t.t+"” to "+input.status+"."}; }
+      const r=applyTaskStatus(l,t,nx); if(!r.ok)return {summary:"⛔ can't",text:"Can't set “"+t.t+"” to "+input.status+" — "+r.reason+". The board's lock-order and evidence rules apply to the assistant exactly as they do to people; finish the prerequisite or attach the evidence first."};
+      save(); return {summary:"✓ "+t.t+"→"+input.status,text:"Set “"+t.t+"” to "+input.status+" (recorded in the activity feed)."}; }
     return {summary:"",text:"Unknown tool "+name};
   }catch(e){ return {summary:"",text:"Tool error: "+e}; }
 }

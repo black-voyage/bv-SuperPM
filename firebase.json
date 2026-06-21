@@ -1,6 +1,10 @@
 {
   "hosting": {
     "public": ".",
+    "redirects": [
+      { "source": "/dashboard.html", "destination": "/index.html", "type": 301 },
+      { "source": "/superpm.html", "destination": "/index.html", "type": 301 }
+    ],
     "ignore": [
       "**/.*",
       "**/node_modules/**",
