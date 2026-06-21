@@ -1,0 +1,12 @@
+rules_version = '2';
+// BV SuperPM (project bv-superpm). Access policy: ANY signed-in Google user may read/write the board.
+// The app loads board data only AFTER sign-in (startBoardSync), so the initial read is authenticated.
+// Unauthenticated callers (e.g. raw REST with the public web apiKey) are rejected.
+// NOTE: the shared BV Data Core is a SEPARATE project (bv-second-brain) with its own rules — unaffected by this file.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

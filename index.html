@@ -890,7 +890,7 @@ function signInUser(){
 function signOutUser(){ try{ firebase.auth().signOut(); }catch(e){} }
 function onUser(u){
   if(u){ ME={uid:u.uid,email:u.email||"",name:u.displayName||"",photo:u.photoURL||""};
-    authGate(false); firstRunName(u); saveUserProfile(); applyMyRoleToView(); renderWhoami(); renderGAuth(); try{render();}catch(e){}
+    authGate(false); startBoardSync(); firstRunName(u); saveUserProfile(); applyMyRoleToView(); renderWhoami(); renderGAuth(); try{render();}catch(e){}
   } else { ME=null; const b=document.getElementById("authgateBtn"); if(b){b.disabled=false;b.textContent="Sign in with Google";} authGate(true,""); renderWhoami(); }
 }
 function firstRunName(u){
@@ -998,7 +998,8 @@ const CORE_CONFIG={
   messagingSenderId:"100585934071",
   appId:"1:100585934071:web:7f5c941dcd1e8959dc57f2"
 };
-let FB={ready:false,synced:false,serverSeen:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null,coreDb:null};
+let FB={ready:false,synced:false,serverSeen:false,boardStarted:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null,coreDb:null};
+let _pdCore=[],_pdFb=[];   // product_docs: Core copy vs bv-superpm fallback (shared across fbInit + startBoardSync)
 let ME=null;        // the signed-in person {uid,email,name,photo} — Firebase Auth identity (any Google account)
 let ACTIVITY=[];    // shared, attributed team activity feed (Firestore bv/superpm/activity)
 let KNOWLEDGE={catalog:[],memory:[],tech:[],series:[],materials:[],hardware:[],glossary:[],competitors:[],brand_docs:[],product_docs:[],images:[],productImages:[],brandAssets:[],skills:[],docs:[],personas:[],insights:[],jobs_to_be_done:[],differentiation:[],audience_segments:[],category_entry_points:[],review_praise:[],review_objections:[],brand_elements:[]};  // shared knowledge base (BV Data Core) + skills + docs + customer/strategy graph
@@ -1012,7 +1013,25 @@ function fbInit(){
     FB.docRef=firebase.firestore().collection("bv").doc("superpm");
     FB.versRef=FB.docRef.collection("versions");
     FB.ready=true; fbStatus("◍ connecting…","var(--amber)");
-    try{ firebase.auth().onAuthStateChanged(onUser); }catch(e){ authGate(false); }  // hard sign-in gate (any Google account)
+    try{ firebase.auth().onAuthStateChanged(onUser); }catch(e){ authGate(false); startBoardSync(); }  // hard sign-in gate; if auth is unavailable, still load the board
+    // shared KNOWLEDGE base + cross-app MEMORY — read from the BV DATA CORE (bv-second-brain), a SEPARATE
+    // Firebase project with OPEN read on these collections (no auth needed), so Core reads work pre-login.
+    let coreApp; try{ coreApp=firebase.app("core"); }catch(_){ coreApp=firebase.initializeApp(CORE_CONFIG,"core"); }
+    const cdb=coreApp.firestore(); FB.coreDb=cdb;
+    try{ fetch("https://bv-second-brain--bv-second-brain.us-east4.hosted.app/api/connect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({app:"superpm",project:"bv-superpm",version:"core-connect-2",role:"product dashboard"})}).catch(()=>{}); }catch(_){}  // register with the Core via REST (server Admin SDK; client writes are blocked by the locked Firestore rules)
+    cdb.collection("catalog").onSnapshot(qs=>{KNOWLEDGE.catalog=qs.docs.map(d=>d.data());}, e=>{});
+    cdb.collection("memory").limit(500).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // shared cross-app memory
+    cdb.collection("competitors").onSnapshot(qs=>{KNOWLEDGE.competitors=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});
+    cdb.collection("brand_docs").onSnapshot(qs=>{KNOWLEDGE.brand_docs=qs.docs.map(d=>d.data());}, e=>{});  // brand bible / guidelines (chunked)
+    cdb.collection("product_docs").onSnapshot(qs=>{_pdCore=qs.docs.map(d=>d.data()); KNOWLEDGE.product_docs=_pdCore.length?_pdCore:_pdFb;}, e=>{});
+    ["tech","series","materials","hardware","glossary"].forEach(c=>cdb.collection(c).onSnapshot(qs=>{KNOWLEDGE[c]=qs.docs.map(d=>d.data());}, e=>{}));
+  }catch(e){ fbStatus("● error","var(--red)"); }
+}
+// bv-superpm (THIS project) reads/writes start ONLY after sign-in, so the auth-required firestore.rules
+// don't reject the initial read. Called from onUser() when a user is present; idempotent.
+function startBoardSync(){
+  if(FB.boardStarted||!FB.docRef) return; FB.boardStarted=true;
+  try{
     FB.docRef.collection("activity").orderBy("ts","desc").limit(80).onSnapshot(qs=>{ ACTIVITY=qs.docs.map(d=>d.data()); const dr=document.getElementById("drawer"); if(dr&&dr.classList&&dr.classList.contains("openD"))renderDrawer(); }, e=>{});  // shared attributed feed
     FB.docRef.onSnapshot(snap=>{
       if(snap.metadata.hasPendingWrites) return;            // our own optimistic write — ignore
@@ -1029,31 +1048,13 @@ function fbInit(){
       render(); FB.applying=false;
       if(data.updatedBy&&data.updatedBy!==actor()) toast("🔄 "+data.updatedBy+" updated the board");
     }, err=>{ fbStatus("● offline","var(--red)"); });
-    // shared version history — everyone sees every user's changes in the History tab
-    FB.versRef.orderBy("createdAt","desc").limit(120).onSnapshot(qs=>{
+    FB.versRef.orderBy("createdAt","desc").limit(120).onSnapshot(qs=>{   // shared version history (History tab)
       const arr=[]; qs.forEach(doc=>{ const x=doc.data(); x.id=doc.id; arr.push(x); });
       VERSIONS=arr; if(S.view==="versions") render();
     }, e=>{});
     FB.docRef.collection("briefs").orderBy("createdAt","desc").onSnapshot(qs=>{ BRIEFS=qs.docs.map(d=>{const x=d.data();x.id=d.id;return x;}); renderBriefs(); }, e=>{});  // shared, real-time briefs
-    // shared KNOWLEDGE base + cross-app MEMORY — read from the BV DATA CORE (bv-second-brain),
-    // a SEPARATE Firebase project from this app's board. So SuperPM's AI reads the same brand/catalog/
-    // competitor data (and writes memory) that every other BV app shares.
-    let coreApp; try{ coreApp=firebase.app("core"); }catch(_){ coreApp=firebase.initializeApp(CORE_CONFIG,"core"); }
-    const cdb=coreApp.firestore(); FB.coreDb=cdb;
-    try{ fetch("https://bv-second-brain--bv-second-brain.us-east4.hosted.app/api/connect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({app:"superpm",project:"bv-superpm",version:"core-connect-2",role:"product dashboard"})}).catch(()=>{}); }catch(_){}  // register with the Core via REST (server Admin SDK; client writes are blocked by the locked Firestore rules)
-    cdb.collection("catalog").onSnapshot(qs=>{KNOWLEDGE.catalog=qs.docs.map(d=>d.data());}, e=>{});
-    cdb.collection("memory").limit(500).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // shared cross-app memory
-    cdb.collection("competitors").onSnapshot(qs=>{KNOWLEDGE.competitors=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});
-    cdb.collection("brand_docs").onSnapshot(qs=>{KNOWLEDGE.brand_docs=qs.docs.map(d=>d.data());}, e=>{});  // brand bible / guidelines (chunked)
-    // product_docs (full per-product spec sheets): the Core is the target, but until it is seeded
-    // we fall back to the copy already in bv-superpm (open) so the AI is usable immediately. Core wins when present.
-    let _pdCore=[],_pdFb=[];
-    cdb.collection("product_docs").onSnapshot(qs=>{_pdCore=qs.docs.map(d=>d.data()); KNOWLEDGE.product_docs=_pdCore.length?_pdCore:_pdFb;}, e=>{});
-    try{ firebase.firestore().collection("product_docs").onSnapshot(qs=>{_pdFb=qs.docs.map(d=>d.data()); if(!_pdCore.length)KNOWLEDGE.product_docs=_pdFb;}, e=>{}); }catch(_){}
-    ["tech","series","materials","hardware","glossary"].forEach(c=>cdb.collection(c).onSnapshot(qs=>{KNOWLEDGE[c]=qs.docs.map(d=>d.data());}, e=>{}));
-    // Heavy chat-only knowledge (product images + brand assets + document text) is now LAZY-loaded on first chat open
-    // via loadChatKnowledge() — keeps board page-loads ~95% lighter in Firestore reads. See loadChatKnowledge().
-    firebase.firestore().collection("skills").onSnapshot(qs=>{KNOWLEDGE.skills=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // SuperPM playbooks/skills (app-private, bv-superpm) injected into the chat prompt
+    try{ firebase.firestore().collection("product_docs").onSnapshot(qs=>{_pdFb=qs.docs.map(d=>d.data()); if(!_pdCore.length)KNOWLEDGE.product_docs=_pdFb;}, e=>{}); }catch(_){}  // bv-superpm fallback until Core seeded
+    firebase.firestore().collection("skills").onSnapshot(qs=>{KNOWLEDGE.skills=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // SuperPM playbooks/skills injected into the chat prompt
   }catch(e){ fbStatus("● error","var(--red)"); }
 }
 function fbAddVersion(entry){ try{ FB.versRef.add(Object.assign({},entry,{createdAt:firebase.firestore.FieldValue.serverTimestamp()})); }catch(e){} }
