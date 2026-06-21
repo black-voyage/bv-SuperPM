@@ -9,6 +9,7 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
   /* ===== BLACK VOYAGE brand system (Brand Guidelines V4) =====
      Primary: Black #111215 · Orange #EE3124 (signal — use strategically)
@@ -209,6 +210,7 @@
   .cmsg .bub{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:7px 10px;font-size:13px;line-height:1.5;white-space:pre-wrap;max-width:88%}
   .cmsg .who{font-size:11px;color:var(--faint);margin-bottom:2px}
   .cmsg .acts{margin-top:5px;font-size:11px;color:var(--green)}
+  .bvthink{font-weight:600} .bvdots{display:inline-block;animation:pulse 1.1s ease-in-out infinite;letter-spacing:1px}
   .chatres{border-top:1px solid var(--line);padding:6px 2px;display:flex;flex-wrap:wrap;gap:5px}
   .chatinput{display:flex;gap:6px;padding-top:8px;border-top:1px solid var(--line)}
   .chatinput textarea{flex:1;height:46px;resize:vertical;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:7px 9px;font-family:inherit;font-size:13px}
@@ -218,6 +220,13 @@
 </style>
 </head>
 <body>
+<div id="authgate" style="position:fixed;inset:0;z-index:9999;background:var(--bg,#0e0e12);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;text-align:center;padding:24px">
+  <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:.3em;color:var(--accent)">BV SUPERPM</div>
+  <h2 style="margin:0;font-size:22px">Sign in to see the board</h2>
+  <p id="authgateSub" style="margin:0;max-width:420px;color:var(--faint,#888);font-size:14px;line-height:1.5">Everyone signs in with their Google account so the team can see who asked what and who completed each milestone.</p>
+  <button class="btn" id="authgateBtn" style="padding:11px 20px;font-size:15px" onclick="signInUser()">Sign in with Google</button>
+  <div id="authgateErr" style="font-size:12px;color:var(--red,#f87171);min-height:16px"></div>
+</div>
 <header>
   <div class="logo" style="display:flex;align-items:center;gap:10px;color:var(--text)"><svg width="160" height="36" viewBox="0 0 1607 360" fill="none" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#clip0_2_2867)"><g clip-path="url(#clip1_2_2867)"><path d="M230.153 80.9255C229.8 80.0628 228.957 79.5138 228.035 79.5138L196.163 79.4746C196.163 79.4746 196.026 79.4746 195.947 79.4942H168.763C168.763 79.4942 180.668 86.5331 188.827 94.3758C194.221 100.023 205.421 109.159 216.228 133.178C241.745 189.822 277.717 281.934 277.717 281.934L295.879 239.78L230.153 80.9255Z" fill="currentColor"/><path d="M347.776 119.139C348.875 116.492 364.899 79.4551 364.899 79.4551H325.437C347.129 92.6897 347.816 114.1 347.757 119.139H347.776Z" fill="currentColor"/><path d="M319.023 131.668C316.571 125.629 308.118 116.923 291.76 124.649C300.429 119.257 310.864 112.747 310.864 112.747C310.864 112.747 301.94 90.6504 301.077 88.925C297.527 82.1999 291.505 79.0824 283.581 79.4157C283.581 79.4157 251.709 79.4746 244.727 79.4942C246.1 79.5138 247.571 79.6706 249.081 79.9255H248.904C255.965 81.1607 264.026 85.3762 268.753 94.7286C271.872 101.826 281.463 125.609 282.13 127.256C282.856 129.08 282.601 130.335 281.502 130.942C275.5 134.648 269.499 138.432 269.028 138.746C269.028 138.746 276.069 137.883 282.11 139.02C284.699 139.51 287.798 141.471 289.21 144.628C289.348 144.942 312.766 200.527 312.766 200.527L330.674 158.902L319.023 131.687V131.668Z" fill="currentColor"/><path d="M248.904 79.906C247.453 79.6511 246.041 79.5138 244.727 79.4746L248.904 79.906Z" fill="currentColor"/><path d="M719.652 153.275C728.517 153.275 737.265 156.824 745.601 163.804L747.758 165.607V144.354L747.111 143.981C738.657 139.06 729.753 136.57 720.672 136.57C704.059 136.57 690.329 142.824 679.856 155.177C671.363 165.235 667.048 176.881 667.048 189.743C667.048 204.096 672.206 216.526 682.386 226.702C692.585 236.78 705.098 241.878 719.534 241.878C729.125 241.878 738.402 239.388 747.111 234.466L747.778 234.094V212.487L745.62 214.311C743.227 216.33 740.913 218.056 738.795 219.467C736.657 220.879 734.597 221.997 732.577 222.84C729.086 224.467 724.771 225.29 719.73 225.29C709.963 225.29 701.607 221.82 694.899 214.977C688.172 208.135 684.759 199.586 684.759 189.626C684.759 179.666 688.172 170.862 694.919 163.862C701.588 156.863 709.923 153.314 719.671 153.314L719.652 153.275Z" fill="currentColor"/><path d="M842.002 138.472H818.347L781.69 176.038V138.472H764.116V240.054H781.69V198.331L783.337 196.665L818.465 240.054H841.903L795.87 184.665L842.002 138.472Z" fill="currentColor"/><path d="M1143.37 138.472L1121.42 176.685L1099.55 138.472H1079.33L1112.61 196.331V240.054H1130.17V196.331L1163.59 138.472H1143.37Z" fill="currentColor"/><path d="M1246.79 238.995L1198.68 131.884C1198.42 131.295 1197.6 131.295 1197.32 131.884L1147.45 238.995C1147.21 239.486 1147.58 240.054 1148.11 240.054H1165.45C1165.74 240.054 1166 239.878 1166.12 239.623L1171.88 227.035L1184.81 198.507L1191.3 184.155L1197.62 170.215L1198.22 171.607L1206.48 190.39L1228.25 239.956C1228.25 239.956 1228.41 240.035 1228.49 240.035H1246.08C1246.63 240.035 1246.98 239.486 1246.77 238.976L1246.79 238.995Z" fill="currentColor"/><path d="M663.027 238.995L614.915 131.884C614.66 131.295 613.836 131.295 613.561 131.884L563.174 240.054H582.16L588.122 227.035L601.048 198.507L607.54 184.155L613.856 170.215L614.464 171.607L622.721 190.39L644.512 240.035H663.458L663.007 238.976L663.027 238.995Z" fill="currentColor"/><path d="M539.324 223.389H518.572V138.472H500.999V240.054H546.816L539.324 223.389Z" fill="currentColor"/><path d="M1420.29 155.118V138.452H1363.04V240.054H1420.29V223.389H1380.61V192.939H1410.88V176.274H1380.61V155.118H1420.29Z" fill="currentColor"/><path d="M1302.12 185.901V185.979L1309.57 202.566H1326.62C1325.67 208.546 1322.6 213.801 1317.44 218.193C1311.85 222.918 1305.47 225.31 1298.47 225.31C1290.21 225.31 1282.41 222.075 1275.31 215.722C1267.72 208.88 1263.87 200.037 1263.87 189.449C1263.87 178.862 1267.32 170.509 1274.13 163.706C1280.94 156.784 1289.49 153.275 1299.55 153.275C1310.73 153.275 1320.36 158.549 1328.19 168.96L1329.07 170.137L1341.68 158.059L1340.86 157.118C1334.56 149.922 1328.07 144.648 1321.52 141.413C1314.65 138.178 1307.18 136.55 1299.29 136.55C1284.6 136.55 1271.95 141.746 1261.69 152C1251.44 162.216 1246.24 174.803 1246.24 189.469C1246.24 204.135 1251.36 216.291 1261.44 226.545C1271.52 236.761 1283.8 241.937 1297.96 241.937C1312.12 241.937 1324.62 236.564 1334.01 225.977C1338.17 221.252 1341.17 216.095 1342.93 210.625C1344.72 204.801 1345.62 198.037 1345.62 190.508V185.92H1302.08L1302.12 185.901Z" fill="currentColor"/><path d="M1063.81 152.118C1053.52 141.824 1041 136.609 1026.59 136.609C1012.17 136.609 999.362 141.785 988.986 151.981C978.552 162.196 973.276 174.587 973.276 188.802C973.276 204.978 979.082 218.251 990.516 228.251C1000.89 237.27 1012.76 241.838 1025.8 241.838C1040.53 241.838 1053.3 236.682 1063.71 226.526C1074.11 216.408 1079.37 203.899 1079.37 189.371C1079.37 174.842 1074.13 162.392 1063.79 152.098L1063.81 152.118ZM1061.69 189.253C1061.69 199.272 1058.22 207.899 1051.36 214.86C1044.51 221.741 1035.98 225.232 1026 225.232C1016.82 225.232 1008.6 221.8 1001.58 215.016C994.537 208.252 990.948 199.507 990.948 188.979C990.948 178.45 994.4 170.431 1001.21 163.627C1008.01 156.745 1016.48 153.255 1026.37 153.255C1036.26 153.255 1044.75 156.745 1051.48 163.627C1058.24 170.47 1061.67 179.097 1061.67 189.233L1061.69 189.253Z" fill="currentColor"/><path d="M479.836 194.155C477.031 190.018 473.304 186.939 468.695 184.979C473.383 180.097 475.756 174.214 475.756 167.45C475.756 163.392 474.873 159.333 473.147 155.392C471.46 151.471 469.126 148.157 466.204 145.51C463.321 142.942 459.751 141.099 455.593 140.02C452.926 139.334 449.63 138.863 445.767 138.628L407.304 138.432V240.015H447.179C454.024 240.015 459.81 239.368 464.439 238.093C468.734 236.76 472.637 234.348 476.05 230.917C481.758 225.349 484.66 218.428 484.66 210.369C484.66 204.232 483.033 198.762 479.816 194.115L479.836 194.155ZM424.898 154.804H444.766C449.454 154.804 453.043 155.902 455.416 158.078C457.809 160.254 458.967 163.411 458.967 167.725C458.967 172.038 457.79 175.45 455.495 177.646C453.181 179.842 449.375 180.979 444.178 180.979H424.878V154.823L424.898 154.804ZM462.772 219.722C459.869 222.153 455.142 223.388 448.748 223.388H424.898V196.076H447.081C454.73 196.076 460.065 197.409 462.929 200.037C465.871 202.703 467.302 205.919 467.302 209.84C467.302 213.761 465.812 217.114 462.772 219.741V219.722Z" fill="currentColor"/><path d="M903.177 136.374H884.348L928.302 243.407L937.932 221.016L903.177 136.374Z" fill="currentColor"/><path d="M974.355 136.374H956.134L933.754 188.39L942.659 210.056L974.355 136.374Z" fill="currentColor"/></g></g><defs><clipPath id="clip0_2_2867"><rect width="1607" height="360" fill="white"/></clipPath><clipPath id="clip1_2_2867"><rect width="1389" height="360" fill="white" transform="translate(109 -0.167969)"/></clipPath></defs></svg><span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.3em;color:var(--accent)">TRACKER</span></div>
   <nav id="nav"></nav>
@@ -861,9 +870,44 @@ function nowStamp(){try{const d=new Date(),p=n=>String(n).padStart(2,"0");return
 let USERNAME=(typeof localStorage!=="undefined"&&localStorage.getItem("bv-username"))||"";
 function roleLabel(){return S.role==="ceo"?"Ben (CEO)":S.role==="director"?"Director":(S.dept+" (head)");}
 function actor(){return USERNAME?USERNAME:roleLabel();}  // version-history "who" = the real person (falls back to role)
-function setUsername(){const n=prompt("Your name — used to label YOUR changes in the shared History so the team can see who did what:",USERNAME||"");if(n===null)return;USERNAME=(n||"").trim();try{localStorage.setItem("bv-username",USERNAME);}catch(e){} renderWhoami(); toast(USERNAME?("👤 You are "+USERNAME):"Name cleared");}
+function setUsername(){const n=prompt("Your name — shown next to your questions and completed milestones in the shared activity feed (change it anytime):",USERNAME||"");if(n===null)return;USERNAME=(n||"").trim();try{localStorage.setItem("bv-username",USERNAME);}catch(e){} saveUserProfile(); renderWhoami(); toast(USERNAME?("👤 You are "+USERNAME):"Name cleared");}
 function renderWhoami(){const el=document.getElementById("whoami");if(!el)return;
-  el.innerHTML=USERNAME?`<span style="cursor:pointer;color:var(--accent);font-size:12px" title="this is how your edits are labelled in History — click to change" onclick="setUsername()">👤 ${esc(USERNAME)}</span>`:`<button class="btn ghost" style="padding:6px 10px" title="Set your name so your edits show as YOU in the shared History" onclick="setUsername()">👤 Set your name</button>`;}
+  const name=USERNAME||(ME&&ME.name)||"";
+  el.innerHTML=ME
+    ? `<span style="cursor:pointer;color:var(--accent);font-size:12px" title="${esc((ME.email||"")+" — click to rename")}" onclick="setUsername()">👤 ${esc(name||"Set name")}</span> <button class="iconbtn" style="font-size:11px" title="sign out" onclick="signOutUser()">⎋</button>`
+    : (USERNAME?`<span style="cursor:pointer;color:var(--accent);font-size:12px" title="click to change" onclick="setUsername()">👤 ${esc(USERNAME)}</span>`:`<button class="btn ghost" style="padding:6px 10px" onclick="setUsername()">👤 Set your name</button>`);}
+/* ----- per-user Google identity (Firebase Auth, any Google account) + hard sign-in gate + attributed feed ----- */
+function authGate(show,msg){ const g=document.getElementById("authgate"); if(g)g.style.display=show?"flex":"none"; const e=document.getElementById("authgateErr"); if(e&&msg!==undefined)e.textContent=msg||""; }
+function signInUser(){
+  if(!(window.firebase&&firebase.auth)){ authGate(true,"Still loading — try again in a second."); return; }
+  const btn=document.getElementById("authgateBtn"); if(btn){btn.disabled=true;btn.textContent="Opening Google…";}
+  const prov=new firebase.auth.GoogleAuthProvider(); prov.setCustomParameters({prompt:"select_account"});
+  firebase.auth().signInWithPopup(prov).catch(err=>{
+    authGate(true, (err&&err.code==="auth/popup-blocked")?"Pop-up blocked — allow pop-ups for this site and retry.":((err&&err.message)||"Sign-in failed — try again."));
+    if(btn){btn.disabled=false;btn.textContent="Sign in with Google";}
+  });
+}
+function signOutUser(){ try{ firebase.auth().signOut(); }catch(e){} }
+function onUser(u){
+  if(u){ ME={uid:u.uid,email:u.email||"",name:u.displayName||"",photo:u.photoURL||""};
+    authGate(false); firstRunName(u); saveUserProfile(); renderWhoami(); renderGAuth();
+  } else { ME=null; const b=document.getElementById("authgateBtn"); if(b){b.disabled=false;b.textContent="Sign in with Google";} authGate(true,""); renderWhoami(); }
+}
+function firstRunName(u){
+  if(USERNAME) return;                       // already chose a display name on this device
+  const suggested=((u.displayName||"").trim())||((u.email||"").split("@")[0])||"";
+  const n=(typeof prompt!=="undefined")?prompt("Welcome! Pick the name your teammates will see next to your questions and completed milestones (you can change it anytime):",suggested):suggested;
+  USERNAME=((n===null?suggested:n)||"").trim();
+  try{localStorage.setItem("bv-username",USERNAME);}catch(e){}
+  if(USERNAME)toast("👋 Welcome, "+USERNAME);
+}
+function saveUserProfile(){ if(!ME||!FB.docRef)return; try{ FB.docRef.collection("users").doc(ME.uid).set({uid:ME.uid,email:ME.email,name:USERNAME||ME.name,lastSeen:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); }catch(e){} }
+function activityRef(){ return FB.docRef?FB.docRef.collection("activity"):null; }
+function logEvent(type,text,extra){            // attributed, shared team activity feed
+  log(text);                                   // also keep the local feed (works offline)
+  const ref=activityRef(); if(!ref||!ME)return;
+  try{ ref.add({type:type||"event",text:String(text||"").slice(0,300),who:actor(),uid:ME.uid,email:ME.email,card:(extra&&extra.card)||null,ts:firebase.firestore.FieldValue.serverTimestamp(),stamp:nowStamp()}); }catch(e){}
+}
 function verSnap(){return JSON.stringify({v:2,TEAM,LAUNCHES,CAMPAIGNS,GATES,FLOW,XROUTES});} // no LOG → smaller, change-relevant
 function stWord(s){return ({o:"to-do",p:"in progress",b:"blocked",x:"done"})[s]||s;}
 function saveVersions(){try{if(typeof localStorage==="undefined")return;localStorage.setItem("bv-superpm-versions",JSON.stringify(VERSIONS));}catch(e){try{VERSIONS.length=Math.floor(VERSIONS.length/2);localStorage.setItem("bv-superpm-versions",JSON.stringify(VERSIONS));}catch(_){}}}
@@ -957,17 +1001,21 @@ const CORE_CONFIG={
   appId:"1:100585934071:web:7f5c941dcd1e8959dc57f2"
 };
 let FB={ready:false,synced:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null,coreDb:null};
+let ME=null;        // the signed-in person {uid,email,name,photo} — Firebase Auth identity (any Google account)
+let ACTIVITY=[];    // shared, attributed team activity feed (Firestore bv/superpm/activity)
 let KNOWLEDGE={catalog:[],memory:[],tech:[],series:[],materials:[],hardware:[],glossary:[],competitors:[],brand_docs:[],product_docs:[],images:[],productImages:[],brandAssets:[],skills:[],docs:[],personas:[],insights:[],jobs_to_be_done:[],differentiation:[],audience_segments:[],category_entry_points:[],review_praise:[],review_objections:[],brand_elements:[]};  // shared knowledge base (BV Data Core) + skills + docs + customer/strategy graph
 function fbConfigured(){return !!(FIREBASE_CONFIG&&FIREBASE_CONFIG.projectId);}
 function fbStatus(txt,color){const el=document.getElementById("fbsync"); if(el){el.textContent=txt; el.style.color=color||"var(--faint)";}}
 function fbInit(){
-  if(!fbConfigured()){fbStatus("",""); return;}
-  if(!(window.firebase&&firebase.initializeApp&&firebase.firestore)){ setTimeout(fbInit,400); return; }
+  if(!fbConfigured()){fbStatus("",""); authGate(false); return;}   // unconfigured → don't lock anyone out
+  if(!(window.firebase&&firebase.initializeApp&&firebase.firestore&&firebase.auth)){ setTimeout(fbInit,400); return; }
   try{
     if(!firebase.apps||!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     FB.docRef=firebase.firestore().collection("bv").doc("superpm");
     FB.versRef=FB.docRef.collection("versions");
     FB.ready=true; fbStatus("◍ connecting…","var(--amber)");
+    try{ firebase.auth().onAuthStateChanged(onUser); }catch(e){ authGate(false); }  // hard sign-in gate (any Google account)
+    FB.docRef.collection("activity").orderBy("ts","desc").limit(80).onSnapshot(qs=>{ ACTIVITY=qs.docs.map(d=>d.data()); const dr=document.getElementById("drawer"); if(dr&&dr.classList&&dr.classList.contains("openD"))renderDrawer(); }, e=>{});  // shared attributed feed
     FB.docRef.onSnapshot(snap=>{
       FB.synced=true; fbStatus("● live (shared)","var(--green)");
       if(snap.metadata.hasPendingWrites) return;            // our own optimistic write — ignore
@@ -1032,8 +1080,11 @@ function renderDrawer(){const b=document.getElementById("drawerBody"); if(!b)ret
   ${issues.map((i,k)=>`<div class="autofix"><span class="sev" style="background:${i.sev==="red"?"var(--red)":"var(--amber)"}"></span>
     <span style="flex:1;font-size:12.5px">${esc(i.msg)}</span>
     ${i.fix?`<button class="btn" style="padding:4px 10px;font-size:12px" onclick="runFix(${k})">${i.fixLabel||"Fix"}</button>`:""}</div>`).join("")||'<div class="sub">All clear ✨</div>'}
-  <h3 style="color:var(--accent);font-size:13px;margin:16px 0 8px">📜 ACTIVITY</h3>
-  ${LOG.slice(0,40).map(e=>`<div class="feeditem"><div class="d">${e.d}</div>${esc(e.m)}</div>`).join("")}
+  <h3 style="color:var(--accent);font-size:13px;margin:16px 0 8px">📜 ACTIVITY ${FB.ready&&ACTIVITY.length?'<span class="sub" style="font-weight:400">· who did what</span>':""}</h3>
+  ${(FB.ready&&ACTIVITY.length
+      ? ACTIVITY.slice(0,60).map(e=>`<div class="feeditem"><div class="d">${esc(e.stamp||"")}</div>${e.who?`<b>${esc(e.who)}</b> `:""}${esc(e.text||"")}</div>`)
+      : LOG.slice(0,40).map(e=>`<div class="feeditem"><div class="d">${e.d}</div>${esc(e.m)}</div>`)
+    ).join("")}
   <div style="margin-top:14px"><button class="iconbtn" onclick="resetDemo()">↺ Reset demo data</button></div>`;}
 
 /* ----- command palette ----- */
@@ -1298,7 +1349,7 @@ function cycle(slug,i){ // checkbox click cycles status: todo → in progress �
   if(taskLocked(l,t)){toast("🔒 Locked — "+lockReason(l,t));return;}
   const nx={o:"p",p:"x",x:"b",b:"o"}[t.st];
   if(nx==="x"&&EVID.has(t.t)&&!(t.links||[]).length){toast("📎 Evidence required — attach a link before marking done (see Task Playbook)");return;}
-  t.st=nx; if(nx==="x")log("☑ "+l.name+" · "+t.t+" done"); if(nx==="b")log("⛔ "+l.name+" · "+t.t+" blocked");
+  t.st=nx; if(nx==="x")logEvent("milestone","✓ completed · "+l.name+" — "+t.t,{card:slug}); if(nx==="b")logEvent("blocked","⛔ blocked · "+l.name+" — "+t.t,{card:slug});
   if(nx==="x"){const lane=FLOW[t.d]; const ii=lane?lane.findIndex(n=>n.t===t.t):-1;
     if(ii>=0){const key=t.d+"|"+lane[ii].l; const others=[...new Set(routeSteps(key,t.d,ii).map(p=>p[0]))].filter(x=>x!==t.d);
       if(others.length){S.route={key,d:t.d,i:ii};
@@ -1981,7 +2032,8 @@ function briefApprove(id,slot){ const b=briefById(id); if(!b||b.status==="confir
     (BRIEFS||[]).filter(x=>x.card===b.card&&(x.title||"").toLowerCase()===(b.title||"").toLowerCase()&&x.id!==id&&x.status==="confirmed").forEach(x=>{try{briefsCol().doc(x.id).set({status:"superseded",updatedAt:Date.now()},{merge:true});}catch(e){}});
   }
   try{briefsCol().doc(id).set(upd,{merge:true});}catch(e){}
-  if(upd.status==="confirmed"){ toast("✓ Brief confirmed — it's now the single source of truth."); promoteBriefToCore(Object.assign({},b,{approvals:a,status:"confirmed"})); }
+  logEvent("signoff","✍️ "+(slot==="ben"?"Ben":"Marketing")+" sign-off · "+b.title+" (v"+(b.version||1)+")",{card:b.card});
+  if(upd.status==="confirmed"){ toast("✓ Brief confirmed — it's now the single source of truth."); logEvent("signoff","✓ CONFIRMED brief · "+b.title+" — now the single source of truth",{card:b.card}); promoteBriefToCore(Object.assign({},b,{approvals:a,status:"confirmed"})); }
 }
 function briefComment(id){ const inp=document.getElementById("bc_"+id), text=inp?inp.value.trim():""; if(!text)return; const b=briefById(id); if(!b)return;
   const comments=(b.comments||[]).concat([{who:actor(),role:roleLabel(),text,at:Date.now()}]);
@@ -2023,15 +2075,25 @@ function renderChatPanel(l){
   return `<div class="panel chatpanel${CHAT.full?" full":""}" id="chatPanel"><h3>💬 Claude — ${esc(l.name)} <span class="ghostnote" style="font-weight:400">· shared</span>
       <span style="float:right;display:inline-flex;gap:6px;align-items:center">
         <select title="model — Opus is deepest, Haiku is fastest" onchange="setChatModel(this.value)" style="font-size:11px;padding:3px 6px">${CHAT_MODELS.map(m=>`<option value="${m.id}" ${m.id===chatModel()?"selected":""}>${m.label}</option>`).join("")}</select>
-        <button class="iconbtn" title="start a new chat (clears this card's conversation)" onclick="clearChat('${l.slug}')">＋ New</button>
-        <button class="iconbtn" title="full screen" onclick="toggleChatFull()">${CHAT.full?"✕ close":"⛶ full"}</button></span></h3>
+        <button class="iconbtn" id="chatFullBtn" title="${CHAT.full?"close — back to the card (Esc)":"expand to full screen"}" onclick="toggleChatFull()">${CHAT.full?"✕ Close":"⛶ Full"}</button></span></h3>
     <div class="chatmsgs" id="chatMsgs"></div>
-    <div class="chatinput"><textarea id="chatInput" placeholder="Ask Claude to attach a link/doc/HTML, add a note, or update a task… (Enter to send)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${l.slug}')}"></textarea><button class="btn" onclick="chatSend('${l.slug}')">Send</button></div></div>`;
+    <div class="chatinput"><textarea id="chatInput" placeholder="Ask Claude to attach a link/doc/HTML, add a note, or update a task… (Enter to send · Esc to close)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${l.slug}')}else if(event.key==='Escape'&&CHAT.full){event.preventDefault();toggleChatFull()}"></textarea><button class="btn" onclick="chatSend('${l.slug}')">Send</button></div>
+    <div style="display:flex;justify-content:flex-end;padding:5px 2px 0"><button class="iconbtn" style="font-size:11px;opacity:.55" title="erase this card's entire conversation for everyone (cannot be undone)" onclick="clearChat('${l.slug}')">🗑 Clear conversation</button></div></div>`;
 }
+const TOOL_STEP={search_catalog:"🔎 Searching the product catalog",get_product:"🔎 Looking up the product",search_knowledge:"📚 Searching brand & tech knowledge",search_product_spec:"📐 Checking the product spec",search_documents:"📄 Reading strategy / research docs",search_strategy:"🎯 Pulling customer & strategy insights",read_card_doc:"📄 Reading this card's intake / concept",find_images:"🖼 Finding product images",recall:"🧠 Recalling saved decisions",remember:"🧠 Saving to shared memory",add_link:"🔗 Attaching a link",add_html:"</> Building an HTML document",add_note:"📝 Adding a note",set_task_status:"☑ Updating a task",save_skill:"📘 Saving a skill",save_brief:"📋 Filing the brief for sign-off"};
+function chatStepLabel(n){return TOOL_STEP[n]||("⚙️ Running "+n);}
 function renderChatBody(){
-  const m=document.getElementById("chatMsgs"); if(m){m.innerHTML=(CHAT.msgs||[]).map((mm,i)=>chatMsgHTML(mm,i)).join("")+(CHAT.busy?`<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub">${CHAT.wake?"…waking the backend":"…thinking"}</div></div></div>`:""); m.scrollTop=m.scrollHeight;}
+  const m=document.getElementById("chatMsgs"); if(!m)return;
+  let busyHTML="";
+  if(CHAT.busy){
+    const head=CHAT.wake?"…waking the backend":(CHAT.phase==="acting"?"Working":"Thinking");
+    const steps=(CHAT.steps&&CHAT.steps.length)?`<div style="margin-top:6px;font-size:11.5px;opacity:.8;line-height:1.7">${CHAT.steps.map((s,i)=>`<div>${i===CHAT.steps.length-1&&CHAT.phase!=="acting"?"✓ ":(i===CHAT.steps.length-1?"⏳ ":"✓ ")}${esc(s)}</div>`).join("")}</div>`:"";
+    busyHTML=`<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub"><span class="bvthink">${head}<span class="bvdots">…</span></span>${steps}</div></div></div>`;
+  }
+  m.innerHTML=(CHAT.msgs||[]).map((mm,i)=>chatMsgHTML(mm,i)).join("")+busyHTML; m.scrollTop=m.scrollHeight;
 }
-function toggleChatFull(){CHAT.full=!CHAT.full; const p=document.getElementById("chatPanel"); if(p){p.classList.toggle("full",CHAT.full); const b=p.querySelector("h3 .iconbtn"); if(b)b.textContent=CHAT.full?"✕ close":"⛶ full";}}
+function toggleChatFull(){CHAT.full=!CHAT.full; const p=document.getElementById("chatPanel"); if(p){p.classList.toggle("full",CHAT.full); const b=document.getElementById("chatFullBtn"); if(b){b.textContent=CHAT.full?"✕ Close":"⛶ Full"; b.title=CHAT.full?"close — back to the card (Esc)":"expand to full screen";}}}
+try{ if(!window._bvEscBound){ window._bvEscBound=true; document.addEventListener("keydown",function(e){ if(e.key==="Escape"&&typeof CHAT!=="undefined"&&CHAT.full)toggleChatFull(); }); } }catch(e){}
 function runChatTool(slug,name,input){
   const l=L(slug); if(!l)return {summary:"",text:"card not found"};
   try{
@@ -2148,13 +2210,15 @@ async function chatSend(slug){
   input.value=""; const who=actor(), l=L(slug);
   const prior=(CHAT.msgs||[]).slice();
   chatPush(slug,{role:"user",who,text,ts:nowStamp()});
-  CHAT.busy=true; renderChatBody();
+  logEvent("question","💬 asked AI · "+((l&&l.name)||slug)+": “"+text.slice(0,90)+(text.length>90?"…":"")+"”",{card:slug});
+  CHAT.busy=true; CHAT.steps=[]; CHAT.phase="thinking"; renderChatBody();
   let messages=[];
   for(const mm of prior.concat([{role:"user",who,text}])){ const role=mm.role==="assistant"?"assistant":"user"; const content=mm.role==="user"?((mm.who||"User")+": "+mm.text):mm.text;
     if(messages.length&&messages[messages.length-1].role===role&&typeof messages[messages.length-1].content==="string"){messages[messages.length-1].content+="\n"+content;} else {messages.push({role,content});} }
   const actions=[], atts=[]; let usageIn=0,usageOut=0,reasoning=""; const trace=[];
   try{
     for(let hop=0;hop<6;hop++){
+      CHAT.phase="thinking"; renderChatBody();
       const resp=await chatFetch({model:chatModel(),system:chatSystemPrompt(l),messages,tools:CHAT_TOOLS,think:true}); CHAT.wake=false;
       if(resp.error){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ "+((resp.error&&resp.error.message)||"backend error"),ts:nowStamp()}); break; }
       if(resp.usage){ usageIn+=resp.usage.input_tokens||0; usageOut+=resp.usage.output_tokens||0; }
@@ -2164,8 +2228,9 @@ async function chatSend(slug){
       const think=(resp.content||[]).filter(b=>b.type==="thinking").map(b=>b.thinking||"").join("\n\n").trim(); if(think)reasoning+=(reasoning?"\n\n— next step —\n\n":"")+think;   // LLM reasoning (extended thinking) for the verify panel
       const meta={model:chatModel(),in:usageIn,out:usageOut,cost:chatCost(chatModel(),usageIn,usageOut),hops:hop+1,trace:trace.slice(),reasoning:reasoning};
       if(tus.length){ const results=[];
+        tus.forEach(tu=>CHAT.steps.push(chatStepLabel(tu.name))); CHAT.phase="acting"; renderChatBody();
         for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out.summary)actions.push(out.summary); if(out.att)atts.push(out.att); trace.push({name:tu.name,inputStr:JSON.stringify(tu.input||{}).slice(0,1500),route:chatRoute(tu.name),result:(out.text||"").slice(0,2000)}); results.push({type:"tool_result",tool_use_id:tu.id,content:out.text}); }
-        messages.push({role:"user",content:results}); renderChatBody(); continue;
+        messages.push({role:"user",content:results}); CHAT.phase="thinking"; renderChatBody(); continue;
       } else { chatPush(slug,{role:"assistant",who:"Claude",text:txt||(atts.length?"":"(done)"),actions:actions.slice(),attachments:atts.slice(),meta,ts:nowStamp()}); break; }
     }
   }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ The chat backend didn't respond after a few tries — please wait a moment and send again.",ts:nowStamp()}); }
