@@ -1000,7 +1000,7 @@ const CORE_CONFIG={
   messagingSenderId:"100585934071",
   appId:"1:100585934071:web:7f5c941dcd1e8959dc57f2"
 };
-let FB={ready:false,synced:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null,coreDb:null};
+let FB={ready:false,synced:false,serverSeen:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null,coreDb:null};
 let ME=null;        // the signed-in person {uid,email,name,photo} — Firebase Auth identity (any Google account)
 let ACTIVITY=[];    // shared, attributed team activity feed (Firestore bv/superpm/activity)
 let KNOWLEDGE={catalog:[],memory:[],tech:[],series:[],materials:[],hardware:[],glossary:[],competitors:[],brand_docs:[],product_docs:[],images:[],productImages:[],brandAssets:[],skills:[],docs:[],personas:[],insights:[],jobs_to_be_done:[],differentiation:[],audience_segments:[],category_entry_points:[],review_praise:[],review_objections:[],brand_elements:[]};  // shared knowledge base (BV Data Core) + skills + docs + customer/strategy graph
@@ -1017,9 +1017,10 @@ function fbInit(){
     try{ firebase.auth().onAuthStateChanged(onUser); }catch(e){ authGate(false); }  // hard sign-in gate (any Google account)
     FB.docRef.collection("activity").orderBy("ts","desc").limit(80).onSnapshot(qs=>{ ACTIVITY=qs.docs.map(d=>d.data()); const dr=document.getElementById("drawer"); if(dr&&dr.classList&&dr.classList.contains("openD"))renderDrawer(); }, e=>{});  // shared attributed feed
     FB.docRef.onSnapshot(snap=>{
-      FB.synced=true; fbStatus("● live (shared)","var(--green)");
       if(snap.metadata.hasPendingWrites) return;            // our own optimistic write — ignore
-      if(!snap.exists){ fbWriteNow(true); return; }          // first ever run → seed the cloud from this state
+      const fromCache=snap.metadata&&snap.metadata.fromCache;
+      if(!fromCache){ FB.serverSeen=true; FB.synced=true; fbStatus("● live (shared)","var(--green)"); }  // authoritative server data has arrived
+      if(!snap.exists){ if(!fromCache) fbWriteNow(true); return; }   // seed the cloud ONLY when the SERVER confirms there is no board — NEVER from a cache miss (that was wiping fresh sign-ins with the demo seed)
       const data=snap.data(); if(!data||typeof data.state!=="string") return;
       if(data.state===verSnap()){ FB.lastWritten=data.state; return; } // already identical
       FB.applying=true;
@@ -1060,7 +1061,7 @@ function fbInit(){
 function fbAddVersion(entry){ try{ FB.versRef.add(Object.assign({},entry,{createdAt:firebase.firestore.FieldValue.serverTimestamp()})); }catch(e){} }
 function fbSchedule(){ if(!FB.ready||FB.applying) return; clearTimeout(FB.timer); FB.timer=setTimeout(()=>fbWriteNow(false),700); }
 function fbWriteNow(force){
-  if(!FB.ready||!FB.synced) return;
+  if(!FB.ready||!FB.synced||!FB.serverSeen) return;        // never write before the authoritative remote board has loaded (prevents the demo-seed overwrite)
   const s=verSnap(); if(!force && s===FB.lastWritten) return;
   FB.lastWritten=s;
   try{ FB.docRef.set({state:s,updatedBy:actor(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()}); }catch(e){}
