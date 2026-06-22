@@ -1005,6 +1005,7 @@ let FB={ready:false,synced:false,serverSeen:false,boardStarted:false,applying:fa
 let _pdCore=[],_pdFb=[];   // product_docs: Core copy vs bv-superpm fallback (shared across fbInit + startBoardSync)
 let ME=null;        // the signed-in person {uid,email,name,photo} — Firebase Auth identity (any Google account)
 let ACTIVITY=[];    // shared, attributed team activity feed (Firestore bv/superpm/activity)
+let USAGE=null, USAGE_LOADING=false;   // spend/usage history, aggregated on demand from all chats
 let KNOWLEDGE={catalog:[],memory:[],tech:[],series:[],materials:[],hardware:[],glossary:[],competitors:[],brand_docs:[],product_docs:[],images:[],productImages:[],brandAssets:[],skills:[],docs:[],personas:[],insights:[],jobs_to_be_done:[],differentiation:[],audience_segments:[],category_entry_points:[],review_praise:[],review_objections:[],brand_elements:[]};  // shared knowledge base (BV Data Core) + skills + docs + customer/strategy graph
 function fbConfigured(){return !!(FIREBASE_CONFIG&&FIREBASE_CONFIG.projectId);}
 function fbStatus(txt,color){const el=document.getElementById("fbsync"); if(el){el.textContent=txt; el.style.color=color||"var(--faint)";}}
@@ -1815,9 +1816,49 @@ function viewSettings(){
   const tabs=`<div style="margin:10px 0 16px">
     <button class="btn ${tab==="team"?"":"ghost"}" onclick="S.settingsTab='team';render()">👥 Team &amp; departments</button>
     <button class="btn ${tab==="history"?"":"ghost"}" style="margin-left:6px" onclick="S.settingsTab='history';render()">🕘 History</button>
+    <button class="btn ${tab==="usage"?"":"ghost"}" style="margin-left:6px" onclick="S.settingsTab='usage';render()">💸 Spend &amp; usage</button>
   </div>`;
-  return `<h2>Settings</h2><div class="sub">People config and the shared change history, in one place.</div>${tabs}${tab==="history"?viewVersions():viewTeam()}`;
+  return `<h2>Settings</h2><div class="sub">People config, change history and AI spend, in one place.</div>${tabs}${tab==="history"?viewVersions():tab==="usage"?viewUsage():viewTeam()}`;
 }
+// Aggregate every AI question/answer (with cost, tokens, who, data used) from the shared chats — full history.
+function loadUsage(){
+  if(!FB.docRef){USAGE=[];return;}
+  if(USAGE_LOADING)return; USAGE_LOADING=true;
+  FB.docRef.collection("chats").get().then(qs=>{
+    const rows=[];
+    qs.forEach(doc=>{ const card=doc.id; const msgs=(doc.data().messages)||[]; let q=null;
+      msgs.forEach(m=>{ if(m.role==="user"){ q=m; }
+        else if(m.role==="assistant"){ const meta=m.meta||{}; const isErr=/^⚠️/.test(m.text||""); if(!q&&!meta.in&&!isErr)return;
+          rows.push({card, who:(q&&q.who)||"—", question:(q&&q.text)||"(no question)", answer:m.text||"", model:meta.model||"", tin:meta.in||0, tout:meta.out||0, cost:(typeof meta.cost==="number"?meta.cost:0), err:isErr, tools:[...new Set((meta.trace||[]).map(t=>t.name))], ts:(m.ts||(q&&q.ts)||"")}); q=null; } });
+    });
+    rows.sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
+    USAGE=rows; USAGE_LOADING=false; if(S.view==="settings"&&S.settingsTab==="usage")render();
+  }).catch(e=>{ USAGE=[]; USAGE_LOADING=false; if(S.view==="settings"&&S.settingsTab==="usage")render(); });
+}
+function usageMoney(c){return "$"+(c||0).toFixed((c||0)<0.01?4:2);}
+function viewUsage(){
+  if(USAGE===null){ loadUsage(); return `<h2>💸 Spend &amp; usage</h2><div class="sub">Loading every question, answer, cost and data lookup from the shared chats…</div>`; }
+  const rows=USAGE;
+  const total=rows.reduce((a,r)=>a+(r.cost||0),0), tin=rows.reduce((a,r)=>a+r.tin,0), tout=rows.reduce((a,r)=>a+r.tout,0);
+  const by={}; rows.forEach(r=>{const k=r.who||"—"; (by[k]=by[k]||{n:0,c:0}); by[k].n++; by[k].c+=r.cost||0;});
+  const people=Object.entries(by).sort((a,b)=>b[1].c-a[1].c);
+  return `<h2>💸 Spend &amp; usage</h2><div class="sub">Every AI question on this account — who asked, the answer, what it cost, and which databases it used. <button class="iconbtn" onclick="USAGE=null;render()">↻ refresh</button></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin:12px 0">
+    <div class="panel" style="flex:1;min-width:130px"><div class="sub">Total spend</div><div style="font-size:24px;font-weight:700">${usageMoney(total)}</div></div>
+    <div class="panel" style="flex:1;min-width:130px"><div class="sub">Questions</div><div style="font-size:24px;font-weight:700">${rows.length}</div></div>
+    <div class="panel" style="flex:1;min-width:130px"><div class="sub">Tokens in / out</div><div style="font-size:18px;font-weight:700">${(tin/1000).toFixed(1)}k / ${(tout/1000).toFixed(1)}k</div></div>
+  </div>
+  <div class="panel"><h3>By person</h3><table><tr><th>Person</th><th>Questions</th><th>Spend</th></tr>${people.map(([who,v])=>`<tr><td>${esc(who)}</td><td>${v.n}</td><td>${usageMoney(v.c)}</td></tr>`).join("")||'<tr><td colspan="3" class="sub">No usage yet.</td></tr>'}</table></div>
+  <div class="panel"><h3>History <span class="ghostnote" style="font-weight:400">· newest first</span></h3>
+   ${rows.length?rows.map((r,i)=>`<div style="border-top:1px solid var(--line);padding:8px 0">
+     <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(r.who)}</b><span class="ghostnote">${esc(String(r.ts))} · ${esc(r.card)} · ${esc((r.model||"?").replace("claude-",""))} · ${(r.tin+r.tout)} tok · <b>${usageMoney(r.cost)}</b></span></div>
+     <div style="margin:3px 0">💬 ${esc(r.question)}</div>
+     <div style="opacity:.82">${r.err?"⚠️ ":"↳ "}${esc((r.answer||"").slice(0,260))}${(r.answer||"").length>260?` <a onclick="usageOpen(${i})" style="cursor:pointer;color:var(--accent)">full answer</a>`:""}</div>
+     ${r.tools.length?`<div class="ghostnote" style="margin-top:2px">data used: ${r.tools.map(esc).join(" · ")}</div>`:""}
+   </div>`).join(""):'<div class="sub">No questions recorded yet.</div>'}
+  </div>`;
+}
+function usageOpen(i){ const r=(USAGE||[])[i]; if(r)codeModal({readOnly:true,label:"Answer · "+(r.who||"")+" · "+usageMoney(r.cost),html:"<div style='white-space:pre-wrap;font-family:system-ui,sans-serif;padding:16px;line-height:1.5'><b>Q:</b> "+esc(r.question)+"<hr style='opacity:.2'>"+esc(r.answer||"")+"</div>"}); }
 function viewTeam(){
   return `<h2>Team & departments</h2><div class="sub">This is the tracker's <b>people config</b> (the future <code>config/people.yaml</code>). Edit roles, heads and members here — DRI pickers, task owners, gate logic and lenses all read from this list. No personal names required; departments are the unit of ownership.</div>
   <div class="panel"><table><tr><th style="width:140px">Department</th><th>Role / responsibility</th><th style="width:150px">Head (optional)</th><th style="width:170px">Members (optional)</th><th style="width:40px"></th></tr>
