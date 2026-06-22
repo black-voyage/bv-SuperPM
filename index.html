@@ -2110,7 +2110,9 @@ function renderChatBody(){
   const m=document.getElementById("chatMsgs"); if(!m)return;
   let busyHTML="";
   if(CHAT.busy){
-    const head=CHAT.wake?"…waking the backend":(CHAT.phase==="acting"?"Working":"Thinking");
+    const secs=CHAT.startedAt?Math.round((Date.now()-CHAT.startedAt)/1000):0;
+    const meterTxt=(CHAT.hop?(" · step "+CHAT.hop):"")+(secs?(" · "+secs+"s"):"")+(secs>=25?" · big request, still working…":"");
+    const head=CHAT.wake?"…waking the backend":((CHAT.phase==="acting"?"Working":"Thinking")+meterTxt);
     const steps=(CHAT.steps&&CHAT.steps.length)?`<div style="margin-top:6px;font-size:11.5px;line-height:1.5">${CHAT.steps.map((s,i)=>{const running=(i===CHAT.steps.length-1&&CHAT.phase==="acting");const mark=running?"⏳ ":"✓ ";return `<div style="opacity:${running?1:.8}">${mark}${esc(s.head||s)}${s.sub?`<div style="opacity:.6;margin:0 0 3px 16px;font-size:10.5px">${esc(s.sub)}</div>`:""}</div>`;}).join("")}</div>`:"";
     busyHTML=`<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub"><span class="bvthink">${head}<span class="bvdots">…</span></span><div class="bvbar"></div>${steps}</div></div></div>`;
   }
@@ -2236,7 +2238,9 @@ async function chatSend(slug){
   const prior=(CHAT.msgs||[]).slice();
   chatPush(slug,{role:"user",who,text,ts:nowStamp()});
   logEvent("question","💬 asked AI · "+((l&&l.name)||slug)+": “"+text.slice(0,90)+(text.length>90?"…":"")+"”",{card:slug});
-  CHAT.busy=true; CHAT.steps=[]; CHAT.phase="thinking"; renderChatBody();
+  CHAT.busy=true; CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
+  try{ clearInterval(CHAT.tick); }catch(e){} CHAT.tick=setInterval(()=>{ if(CHAT.busy)renderChatBody(); else { try{clearInterval(CHAT.tick);}catch(e){} } },1000);  // live elapsed-time tick
+  renderChatBody();
   let messages=[];
   for(const mm of prior.concat([{role:"user",who,text}])){ const role=mm.role==="assistant"?"assistant":"user"; const content=mm.role==="user"?((mm.who||"User")+": "+mm.text):mm.text;
     if(messages.length&&messages[messages.length-1].role===role&&typeof messages[messages.length-1].content==="string"){messages[messages.length-1].content+="\n"+content;} else {messages.push({role,content});} }
@@ -2244,7 +2248,7 @@ async function chatSend(slug){
   const mkMeta=hops=>({model:chatModel(),in:usageIn,out:usageOut,cost:chatCost(chatModel(),usageIn,usageOut),hops,trace:trace.slice(),reasoning:reasoning});
   try{
     for(let hop=0;hop<MAXHOP;hop++){
-      CHAT.phase="thinking"; renderChatBody();
+      CHAT.hop=hop+1; CHAT.phase="thinking"; renderChatBody();
       const lastHop=(hop===MAXHOP-1);   // on the final hop, take tools away (and thinking budget) so it MUST write the answer
       const resp=await chatFetch({model:chatModel(),system:chatSystemPrompt(l),messages,tools:lastHop?undefined:CHAT_TOOLS,think:!lastHop}); CHAT.wake=false;
       if(resp.error){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ "+((resp.error&&resp.error.message)||"backend error"),ts:nowStamp()}); answered=true; break; }
@@ -2268,7 +2272,7 @@ async function chatSend(slug){
       chatPush(slug,{role:"assistant",who:"Claude",text:txt||"I pulled all the research but ran out of steps before writing it up. Re-send, or split it into parts (e.g. ‘marketing brief + competitor table’ first, then ‘personas + ad concepts’) and I’ll deliver each in full.",actions:actions.slice(),attachments:atts.slice(),meta:mkMeta(MAXHOP),ts:nowStamp()});
     }
   }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ The chat backend didn't respond after a few tries — please wait a moment and send again.",ts:nowStamp()}); }
-  CHAT.busy=false; CHAT.wake=false; renderChatBody();
+  CHAT.busy=false; CHAT.wake=false; try{clearInterval(CHAT.tick);}catch(e){} renderChatBody();
 }
 function render(){
   const sel=document.getElementById("roleSel"), vaLab=document.getElementById("vaLab");
