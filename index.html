@@ -2329,7 +2329,7 @@ async function chatSend(slug){
    can time out or truncate. Gather → Plan → write each section (bounded, continue-on-cap) → assemble (pure JS)
    → file as a Brief. Ships app-only; reuses chatFetch/runChatTool/briefSave/chatPush. See deep-output workflow. */
 const JOB_PLANNER="DEEP-DELIVERABLE PLANNER: The user wants a large, multi-part document. Output ONLY a fenced ```json block — NO prose — shaped {\"title\":\"…\",\"sections\":[{\"id\":\"s1\",\"heading\":\"…\",\"instructions\":\"what this section must cover (keep terse)\",\"image_urls\":[\"https://…\"],\"budget_words\":1500}]}. Rules: 5–7 self-contained sections that cover what the user asked for (do NOT pad with extra sections they didn't request); each ≤ ~1800 words; keep instructions terse; pull the most relevant find_images URLs from the research into each section's image_urls; SPLIT any section likely to exceed ~1800 words (e.g. one section per competitor); do NOT write the document content here — only the plan JSON.";
-const SECTION_WRITER="SECTION WRITER: You are writing ONE section of a larger HTML document. Use ONLY the provided RESEARCH as your source of facts. Embed any given image URLs as <img>. Output a clean HTML fragment using only h2/h3/p/ul/ol/li/table/tr/td/th/strong/em/img (NO <html>/<head>/<body>, NO markdown, NO code fences, NO preamble or sign-off). Be specific and grounded — never invent specs, prices, or competitor facts; trust catalog figures and never restate them differently. Write in Black Voyage's confident, plain-spoken brand voice.";
+const SECTION_WRITER="SECTION WRITER: You are writing ONE section of a larger HTML document. Use ONLY the provided RESEARCH as your source of facts. Embed any given image URLs as <img>. Output a clean HTML fragment using only h2/h3/p/ul/ol/li/table/tr/td/th/strong/em/img (NO <html>/<head>/<body>, NO markdown, NO code fences, NO preamble or sign-off). STAY UNDER the word target and FINISH CLEANLY — a section cut off mid-sentence is worse than a shorter complete one. Be specific and grounded — never invent specs, prices, or competitor facts; if the research lacks a fact, say so plainly rather than inventing it; trust catalog figures and never restate them differently. Write in Black Voyage's confident, plain-spoken brand voice.";
 // Heuristic: does this request look like a big multi-part deliverable? Used ONLY to SUGGEST deep mode
 // (never to auto-run it), so normal quick questions are never hijacked.
 function looksDeep(text){
@@ -2344,7 +2344,7 @@ function toggleDeep(){ CHAT.deep=!CHAT.deep; const b=document.getElementById("de
 function parsePlanJSON(txt,reqText){
   try{ let s=String(txt||""); const m=s.match(/```(?:json)?\s*([\s\S]*?)```/i); if(m)s=m[1]; const a=s.indexOf("{"),b=s.lastIndexOf("}"); if(a>=0&&b>a)s=s.slice(a,b+1);
     const p=JSON.parse(s);
-    if(p&&Array.isArray(p.sections)&&p.sections.length){ const sections=p.sections.slice(0,12).map((x,i)=>({heading:String(x.heading||x.title||("Section "+(i+1))),instructions:String(x.instructions||x.heading||""),image_urls:Array.isArray(x.image_urls)?x.image_urls.filter(Boolean).slice(0,6):[],budget_words:Math.min(2000,Math.max(400,parseInt(x.budget_words,10)||1500))})); return {title:String(p.title||("Deliverable")).slice(0,120),sections}; }
+    if(p&&Array.isArray(p.sections)&&p.sections.length){ const sections=p.sections.slice(0,12).map((x,i)=>({heading:String(x.heading||x.title||("Section "+(i+1))),instructions:String(x.instructions||x.heading||""),image_urls:Array.isArray(x.image_urls)?x.image_urls.filter(Boolean).slice(0,6):[],budget_words:Math.min(1600,Math.max(400,parseInt(x.budget_words,10)||1400))})); return {title:String(p.title||("Deliverable")).slice(0,120),sections}; }
   }catch(e){}
   return defaultPlan(reqText);
 }
@@ -2356,15 +2356,23 @@ function defaultPlan(reqText){ return {title:"Marketing Deliverable",sections:[
   {heading:"Competitor Comparison",instructions:"Compare against the top competitors in a table, then the key takeaways and our edge.",image_urls:[],budget_words:1400}
 ]}; }
 function sanitizeFragment(h){ return String(h||"").replace(/```html?/gi,"").replace(/```/g,"").replace(/<\/?(?:html|head|body)[^>]*>/gi,"").replace(/<!doctype[^>]*>/gi,"").replace(/<meta[^>]*>/gi,"").replace(/<title[\s\S]*?<\/title>/gi,"").trim(); }
+function escAll(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+function balanceFragment(h){ let s=String(h||"");
+  s=s.replace(/<[a-zA-Z][^>]*$/,"");   // drop a half-written final tag (e.g. "<stro" or "<img src=\"http")
+  const VOID={br:1,hr:1,img:1,input:1,meta:1,link:1,col:1,source:1,track:1,wbr:1,area:1,base:1,embed:1,param:1};
+  const stack=[]; const re=/<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/?)>/g; let m;
+  while((m=re.exec(s))){ const close=m[1]==="/", tag=m[2].toLowerCase(), self=m[3]==="/"; if(VOID[tag]||self)continue;
+    if(!close)stack.push(tag); else { const i=stack.lastIndexOf(tag); if(i>=0)stack.splice(i,1); } }
+  for(let i=stack.length-1;i>=0;i--)s+="</"+stack[i]+">"; return s; }
 function assembleDeepDoc(title,plan,parts){
-  const toc=plan.sections.map((s,i)=>'<li><a href="#sec'+i+'">'+esc(s.heading)+'</a></li>').join("");
-  const body=parts.map((p,i)=>'<section id="sec'+i+'">'+p+'</section>').join("\n");
-  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>'
+  const toc=plan.sections.map((s,i)=>'<li><a href="#sec'+i+'">'+escAll(s.heading)+'</a></li>').join("");
+  const body=parts.map((p,i)=>'<section id="sec'+i+'">'+balanceFragment(p)+'</section>').join("\n");
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+escAll(title)+'</title><style>'
     +'body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;max-width:880px;margin:0 auto;padding:34px 24px;color:#1a1a1a;line-height:1.6}'
     +'h1{font-size:30px;margin:0 0 4px}h2{font-size:22px;margin:32px 0 10px;border-bottom:2px solid #ececf2;padding-bottom:6px}h3{font-size:17px;margin:16px 0 6px}'
     +'img{max-width:100%;height:auto;border-radius:8px;margin:10px 0}table{border-collapse:collapse;width:100%;margin:12px 0}th,td{border:1px solid #e2e2e8;padding:7px 10px;text-align:left;font-size:14px}th{background:#f6f6f8}'
     +'.toc{background:#f6f6f8;border-radius:10px;padding:14px 18px;margin:18px 0}.toc a{color:#3b5bdb;text-decoration:none}ul{margin:6px 0}'
-    +'</style></head><body><h1>'+esc(title)+'</h1><div class="toc"><b>Contents</b><ul>'+toc+'</ul></div>'+body+'</body></html>';
+    +'</style></head><body><h1>'+escAll(title)+'</h1><div class="toc"><b>Contents</b><ul>'+toc+'</ul></div>'+body+'</body></html>';
 }
 async function writeSection(l,sys0,researchPack,plan,sec,doneHeads,acc){
   const others=plan.sections.map(s=>s.heading).filter(h=>h!==sec.heading).join(" · ");
@@ -2434,6 +2442,20 @@ async function chatSendDeep(slug,text){
   renderChatBody();
   const sys0=chatSystemPrompt(l); let tIn=0,tOut=0; const acc=d=>{tIn+=d.in||0;tOut+=d.out||0;};
   const note=t=>chatPush(slug,{role:"assistant",who:"Claude",text:t,ts:nowStamp()});
+  let plan=null; const parts=[], gaps=[];
+  // assemble whatever sections completed and either file a Brief (≥40% real) or show inline — called from BOTH
+  // the success path AND the catch, so a deep run ALWAYS ends with a document, never a bare "error, nothing produced".
+  function fileIt(reason){
+    const p=plan||defaultPlan(text,true);
+    const built=p.sections.map((s,i)=>{ let frag=parts[i]; if(!frag||frag.trim().length<20){ gaps[i]=true; frag="<h2>"+escAll(s.heading)+"</h2><p><i>[This section couldn't be generated this run — ask for it on its own and I'll write it in full.]</i></p>"; } return frag; });
+    const real=built.length-gaps.filter(Boolean).length, title=p.title||("Deliverable — "+(l.name||slug)), fullHtml=assembleDeepDoc(title,p,built);
+    const ok=real>=Math.ceil(built.length*0.4)&&real>=1; let v=0; if(ok){ try{ v=briefSave(slug,title,fullHtml,"marketing"); }catch(e){} }
+    const gapN=gaps.filter(Boolean).length;
+    const head = !ok ? ("🔬 I could only complete "+real+"/"+built.length+" sections"+(reason?(" ("+reason+")"):"")+", so I'm showing the draft below rather than filing a thin Brief — re-run, or ask for the missing sections one at a time.")
+      : (gapN===0 ? ("🔬 Done — assembled **"+title+"** ("+built.length+" sections)"+(v?(" and filed it to the 📋 Briefs panel as v"+v+" for Marketing + Ben sign-off"):"")+". Full document below.")
+        : ("🔬 Assembled **"+title+"** — "+real+"/"+built.length+" sections"+(reason?(" before it stopped ("+reason+")"):"")+(v?(", filed as v"+v):"")+". Missing sections are marked inside; ask for them individually. Document below."));
+    chatPush(slug,{role:"assistant",who:"Claude",text:head,actions:(v?["📋 filed to Briefs"]:[]),attachments:[{type:"code",n:title,h:fullHtml}],meta:{model:chatModel(),in:tIn,out:tOut,cost:chatCost(chatModel(),tIn,tOut),hops:built.length,trace:[],reasoning:""},ts:nowStamp()});
+  }
   try{
     // 1) GATHER — deterministic skill-driven route (tools run instantly client-side → NO LLM hops, NO 180s crash).
     //    Root cause fix: the old loop used the LLM to CHOOSE tools (slow + could write prose → timeout → crash).
@@ -2471,7 +2493,6 @@ async function chatSendDeep(slug,text){
     const researchPack=research.join("\n\n").slice(0,16000)||"(no research returned — write from general best practice and clearly flag gaps)";
     // 2) PLAN — skip the planner LLM call when the matched route already carries a section plan
     CHAT.phase="thinking"; CHAT.steps.push({head:"📋 Planning the document sections",sub:routePlan?"using the route's plan":""}); renderChatBody();
-    let plan;
     if(routePlan){ plan=parsePlanJSON(JSON.stringify({title:(l.name||"Deliverable"),sections:routePlan}),text);
       plan.sections.forEach((s,i)=>{ const src=routePlan[i]; if(src&&src.want_images&&routeImages.length)s.image_urls=(s.image_urls||[]).concat(routeImages).slice(0,6); });
     } else {
@@ -2480,21 +2501,18 @@ async function chatSendDeep(slug,text){
         plan=parsePlanJSON((pr&&pr.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n"),text);
       }catch(e){ plan=defaultPlan(text); } }
     CHAT.steps.push({head:"📋 "+plan.sections.length+" sections planned",sub:plan.sections.map(s=>s.heading).join(" · ")}); renderChatBody();
-    // 3) SECTION LOOP
-    const parts=[], doneHeads=[];
+    // 3) SECTION LOOP — push each fragment into the hoisted `parts`; fileIt() fills any gaps
+    const doneHeads=[];
     for(let i=0;i<plan.sections.length;i++){
       const sec=plan.sections[i]; CHAT.phase="acting"; CHAT.hop=i+1;
       CHAT.steps.push({head:"✍️ Section "+(i+1)+"/"+plan.sections.length+": "+sec.heading,sub:"writing…"}); renderChatBody();
-      let frag=sanitizeFragment(await writeSection(l,sys0,researchPack,plan,sec,doneHeads,acc));
-      if(!frag||frag.length<20)frag="<h2>"+esc(sec.heading)+"</h2><p><i>[This section couldn't be generated this run — ask for it on its own and I'll write it in full.]</i></p>";
+      const frag=sanitizeFragment(await writeSection(l,sys0,researchPack,plan,sec,doneHeads,acc));
       parts.push(frag); doneHeads.push(sec.heading);
-      note("✓ Section "+(i+1)+"/"+plan.sections.length+" — "+sec.heading);
+      note((frag&&frag.trim().length>=20?"✓":"⚠️")+" Section "+(i+1)+"/"+plan.sections.length+" — "+sec.heading);
     }
-    // 4) ASSEMBLE (pure JS) + file as a Brief
-    const fullHtml=assembleDeepDoc(plan.title||("Deliverable — "+l.name),plan,parts);
-    let v=0; try{ v=briefSave(slug,plan.title||("Deliverable — "+l.name),fullHtml,"marketing"); }catch(e){}
-    chatPush(slug,{role:"assistant",who:"Claude",text:"🔬 Done — assembled **"+(plan.title||"the deliverable")+"** ("+plan.sections.length+" sections)"+(v?(" and filed it to the 📋 Briefs panel as v"+v+" for Marketing + Ben sign-off"):"")+". Full document below.",actions:(v?["📋 filed to Briefs"]:[]),attachments:[{type:"code",n:(plan.title||("Deliverable — "+l.name)),h:fullHtml}],meta:{model:chatModel(),in:tIn,out:tOut,cost:chatCost(chatModel(),tIn,tOut),hops:plan.sections.length,trace:[],reasoning:""},ts:nowStamp()});
-  }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Deep run hit an error: "+((e&&e.message)||e)+". Any sections noted above were saved; try again or narrow the scope.",ts:nowStamp()}); }
+    // 4) ASSEMBLE + file (or show inline) — shared path, used by success and the catch
+    fileIt(null);
+  }catch(e){ if(parts.length||plan){ try{ fileIt("stopped: "+((e&&e.message)||e)); }catch(_){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Deep run hit an error after some sections: "+((e&&e.message)||e)+".",ts:nowStamp()}); } } else { chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Deep run couldn't start: "+((e&&e.message)||e)+". Please try again.",ts:nowStamp()}); } }
   finally{ CHAT.busy=false; CHAT.wake=false; CHAT.deep=false; try{clearInterval(CHAT.tick);}catch(e){} if(leaseRef){try{leaseRef.set({deepRunAt:0},{merge:true});}catch(e){}} const b=document.getElementById("deepBtn"); if(b)b.classList.remove("on"); renderChatBody(); }
 }
 function render(){
