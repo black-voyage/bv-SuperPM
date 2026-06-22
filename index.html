@@ -2103,12 +2103,15 @@ function renderChatPanel(l){
 }
 const TOOL_STEP={search_catalog:"🔎 Searching the product catalog",get_product:"🔎 Looking up the product",search_knowledge:"📚 Searching brand & tech knowledge",search_product_spec:"📐 Checking the product spec",search_documents:"📄 Reading strategy / research docs",search_strategy:"🎯 Pulling customer & strategy insights",read_card_doc:"📄 Reading this card's intake / concept",find_images:"🖼 Finding product images",recall:"🧠 Recalling saved decisions",remember:"🧠 Saving to shared memory",add_link:"🔗 Attaching a link",add_html:"</> Building an HTML document",add_note:"📝 Adding a note",set_task_status:"☑ Updating a task",save_skill:"📘 Saving a skill",save_brief:"📋 Filing the brief for sign-off"};
 function chatStepLabel(n){return TOOL_STEP[n]||("⚙️ Running "+n);}
+// where each tool actually reads/writes — shown live under the action so you can see which database it's hitting
+const TOOL_SRC={search_catalog:"BV Data Core › catalog",get_product:"BV Data Core › catalog",search_knowledge:"BV Data Core › tech · competitors · brand",search_product_spec:"BV Data Core › product specs",search_documents:"BV Data Core › documents",search_strategy:"BV Data Core › personas · insights · reviews",find_images:"BV Data Core › product_images · brand_assets",recall:"BV Data Core › shared memory",remember:"BV Data Core › shared memory (write)",read_card_doc:"this card › intake · concept (bv-superpm)",set_task_status:"this board › task (bv-superpm)",add_link:"this card › attachment (bv-superpm)",add_html:"this chat › HTML doc",add_note:"this card › note (bv-superpm)",save_brief:"this card › Briefs (bv-superpm)",save_skill:"playbooks (bv-superpm)"};
+function chatStepSub(name,input){ const src=TOOL_SRC[name]||""; const q=(input&&(input.query||input.task||input.name||input.title||input.label||input.fact)||"").toString().trim(); const qs=q?("“"+q.slice(0,44)+(q.length>44?"…":"")+"”"):""; return [src&&("→ "+src),qs].filter(Boolean).join("  ·  "); }
 function renderChatBody(){
   const m=document.getElementById("chatMsgs"); if(!m)return;
   let busyHTML="";
   if(CHAT.busy){
     const head=CHAT.wake?"…waking the backend":(CHAT.phase==="acting"?"Working":"Thinking");
-    const steps=(CHAT.steps&&CHAT.steps.length)?`<div style="margin-top:6px;font-size:11.5px;opacity:.8;line-height:1.7">${CHAT.steps.map((s,i)=>`<div>${i===CHAT.steps.length-1&&CHAT.phase!=="acting"?"✓ ":(i===CHAT.steps.length-1?"⏳ ":"✓ ")}${esc(s)}</div>`).join("")}</div>`:"";
+    const steps=(CHAT.steps&&CHAT.steps.length)?`<div style="margin-top:6px;font-size:11.5px;line-height:1.5">${CHAT.steps.map((s,i)=>{const running=(i===CHAT.steps.length-1&&CHAT.phase==="acting");const mark=running?"⏳ ":"✓ ";return `<div style="opacity:${running?1:.8}">${mark}${esc(s.head||s)}${s.sub?`<div style="opacity:.6;margin:0 0 3px 16px;font-size:10.5px">${esc(s.sub)}</div>`:""}</div>`;}).join("")}</div>`:"";
     busyHTML=`<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub"><span class="bvthink">${head}<span class="bvdots">…</span></span><div class="bvbar"></div>${steps}</div></div></div>`;
   }
   m.innerHTML=(CHAT.msgs||[]).map((mm,i)=>chatMsgHTML(mm,i)).join("")+busyHTML; m.scrollTop=m.scrollHeight;
@@ -2250,7 +2253,7 @@ async function chatSend(slug){
       const think=(resp.content||[]).filter(b=>b.type==="thinking").map(b=>b.thinking||"").join("\n\n").trim(); if(think)reasoning+=(reasoning?"\n\n— next step —\n\n":"")+think;   // LLM reasoning (extended thinking) for the verify panel
       const meta={model:chatModel(),in:usageIn,out:usageOut,cost:chatCost(chatModel(),usageIn,usageOut),hops:hop+1,trace:trace.slice(),reasoning:reasoning};
       if(tus.length){ const results=[];
-        tus.forEach(tu=>CHAT.steps.push(chatStepLabel(tu.name))); CHAT.phase="acting"; renderChatBody();
+        tus.forEach(tu=>CHAT.steps.push({head:chatStepLabel(tu.name),sub:chatStepSub(tu.name,tu.input||{})})); CHAT.phase="acting"; renderChatBody();
         for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out.summary)actions.push(out.summary); if(out.att)atts.push(out.att); trace.push({name:tu.name,inputStr:JSON.stringify(tu.input||{}).slice(0,1500),route:chatRoute(tu.name),result:(out.text||"").slice(0,2000)}); results.push({type:"tool_result",tool_use_id:tu.id,content:out.text}); }
         messages.push({role:"user",content:results}); CHAT.phase="thinking"; renderChatBody(); continue;
       } else { chatPush(slug,{role:"assistant",who:"Claude",text:txt||(atts.length?"":"(done)"),actions:actions.slice(),attachments:atts.slice(),meta,ts:nowStamp()}); break; }
