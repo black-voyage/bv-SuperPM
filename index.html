@@ -2281,6 +2281,10 @@ async function chatSend(slug){
   if(!CHAT_API_URL){toast("⚠️ Chat backend not set yet — deploy the proxy & set CHAT_API_URL (see CHAT-SETUP.md)");return;}
   if(CHAT.busy){toast("Claude is still working…");return;}
   if(CHAT.deep|| /^\/deep\b/i.test(text)){ input.value=""; return chatSendDeep(slug, text.replace(/^\/deep\s*/i,"").trim()||text); }   // big multi-section deliverable path
+  if(looksDeep(text)){   // SUGGEST deep mode for a big ask (never auto-run) — so the user doesn't have to know when
+    const go=(typeof confirm!=="undefined")&&confirm("This looks like a big, multi-part deliverable.\n\nRun it in 🔬 Deep mode? It builds the whole thing section-by-section (~7–10 min, live progress) and files it as a Brief — instead of trying to write it all at once (which can time out).\n\nOK = Deep mode   ·   Cancel = just answer normally");
+    if(go){ input.value=""; return chatSendDeep(slug,text); }
+  }
   input.value=""; const who=actor(), l=L(slug);
   const prior=(CHAT.msgs||[]).slice();
   chatPush(slug,{role:"user",who,text,ts:nowStamp()});
@@ -2326,6 +2330,16 @@ async function chatSend(slug){
    → file as a Brief. Ships app-only; reuses chatFetch/runChatTool/briefSave/chatPush. See deep-output workflow. */
 const JOB_PLANNER="DEEP-DELIVERABLE PLANNER: The user wants a large, multi-part document. Output ONLY a fenced ```json block — NO prose — shaped {\"title\":\"…\",\"sections\":[{\"id\":\"s1\",\"heading\":\"…\",\"instructions\":\"what this section must cover (keep terse)\",\"image_urls\":[\"https://…\"],\"budget_words\":1500}]}. Rules: 5–7 self-contained sections that cover what the user asked for (do NOT pad with extra sections they didn't request); each ≤ ~1800 words; keep instructions terse; pull the most relevant find_images URLs from the research into each section's image_urls; SPLIT any section likely to exceed ~1800 words (e.g. one section per competitor); do NOT write the document content here — only the plan JSON.";
 const SECTION_WRITER="SECTION WRITER: You are writing ONE section of a larger HTML document. Use ONLY the provided RESEARCH as your source of facts. Embed any given image URLs as <img>. Output a clean HTML fragment using only h2/h3/p/ul/ol/li/table/tr/td/th/strong/em/img (NO <html>/<head>/<body>, NO markdown, NO code fences, NO preamble or sign-off). Be specific and grounded — never invent specs, prices, or competitor facts; trust catalog figures and never restate them differently. Write in Black Voyage's confident, plain-spoken brand voice.";
+// Heuristic: does this request look like a big multi-part deliverable? Used ONLY to SUGGEST deep mode
+// (never to auto-run it), so normal quick questions are never hijacked.
+function looksDeep(text){
+  const t=(text||"").toLowerCase();
+  const kinds=["brief","guide","persona","avatar","ad concept","ad angle"," angles","competitor","comparison","teardown","report","landing page","one-pager","one pager","campaign","strategy","playbook","launch plan","content plan","positioning","go-to-market","gtm","deck","whitepaper","white paper"];
+  const hits=kinds.filter(d=>t.includes(d)).length;
+  const big=/\b(full|complete|comprehensive|in-?depth|detailed|deep|thorough|extensive|end-to-end|everything|whole)\b/.test(t);
+  const joined=/\band\b|,|\+|\bplus\b/.test(t);
+  return hits>=3 || (big&&hits>=1) || (joined&&hits>=2) || t.length>340;
+}
 function toggleDeep(){ CHAT.deep=!CHAT.deep; const b=document.getElementById("deepBtn"); if(b){b.classList.toggle("on",CHAT.deep);} toast(CHAT.deep?"🔬 Deep mode ON — your next message builds a full multi-section document (brief, guide, personas, ad concepts…). It takes a few minutes and files a Brief.":"Deep mode off — back to normal quick chat."); }
 function parsePlanJSON(txt,reqText){
   try{ let s=String(txt||""); const m=s.match(/```(?:json)?\s*([\s\S]*?)```/i); if(m)s=m[1]; const a=s.indexOf("{"),b=s.lastIndexOf("}"); if(a>=0&&b>a)s=s.slice(a,b+1);
