@@ -2324,13 +2324,13 @@ async function chatSend(slug){
 /* ========== DEEP MODE — big multi-section deliverables, generated section-by-section so no single call
    can time out or truncate. Gather → Plan → write each section (bounded, continue-on-cap) → assemble (pure JS)
    → file as a Brief. Ships app-only; reuses chatFetch/runChatTool/briefSave/chatPush. See deep-output workflow. */
-const JOB_PLANNER="DEEP-DELIVERABLE PLANNER: The user wants a large, multi-part document. Output ONLY a fenced ```json block — NO prose — shaped {\"title\":\"…\",\"sections\":[{\"id\":\"s1\",\"heading\":\"…\",\"instructions\":\"what this section must cover\",\"image_urls\":[\"https://…\"],\"budget_words\":1800}]}. Rules: 5–8 self-contained sections, each ≤ ~2500 words; pull the most relevant find_images URLs from the research into each section's image_urls; SPLIT any section likely to exceed ~3000 words (e.g. one section per competitor); cover EVERYTHING the user asked for; do NOT write the document content here — only the plan JSON.";
+const JOB_PLANNER="DEEP-DELIVERABLE PLANNER: The user wants a large, multi-part document. Output ONLY a fenced ```json block — NO prose — shaped {\"title\":\"…\",\"sections\":[{\"id\":\"s1\",\"heading\":\"…\",\"instructions\":\"what this section must cover (keep terse)\",\"image_urls\":[\"https://…\"],\"budget_words\":1500}]}. Rules: 5–7 self-contained sections that cover what the user asked for (do NOT pad with extra sections they didn't request); each ≤ ~1800 words; keep instructions terse; pull the most relevant find_images URLs from the research into each section's image_urls; SPLIT any section likely to exceed ~1800 words (e.g. one section per competitor); do NOT write the document content here — only the plan JSON.";
 const SECTION_WRITER="SECTION WRITER: You are writing ONE section of a larger HTML document. Use ONLY the provided RESEARCH as your source of facts. Embed any given image URLs as <img>. Output a clean HTML fragment using only h2/h3/p/ul/ol/li/table/tr/td/th/strong/em/img (NO <html>/<head>/<body>, NO markdown, NO code fences, NO preamble or sign-off). Be specific and grounded — never invent specs, prices, or competitor facts; trust catalog figures and never restate them differently. Write in Black Voyage's confident, plain-spoken brand voice.";
 function toggleDeep(){ CHAT.deep=!CHAT.deep; const b=document.getElementById("deepBtn"); if(b){b.classList.toggle("on",CHAT.deep);} toast(CHAT.deep?"🔬 Deep mode ON — your next message builds a full multi-section document (brief, guide, personas, ad concepts…). It takes a few minutes and files a Brief.":"Deep mode off — back to normal quick chat."); }
 function parsePlanJSON(txt,reqText){
   try{ let s=String(txt||""); const m=s.match(/```(?:json)?\s*([\s\S]*?)```/i); if(m)s=m[1]; const a=s.indexOf("{"),b=s.lastIndexOf("}"); if(a>=0&&b>a)s=s.slice(a,b+1);
     const p=JSON.parse(s);
-    if(p&&Array.isArray(p.sections)&&p.sections.length){ const sections=p.sections.slice(0,12).map((x,i)=>({heading:String(x.heading||x.title||("Section "+(i+1))),instructions:String(x.instructions||x.heading||""),image_urls:Array.isArray(x.image_urls)?x.image_urls.filter(Boolean).slice(0,6):[],budget_words:Math.min(2800,Math.max(400,parseInt(x.budget_words,10)||1800))})); return {title:String(p.title||("Deliverable")).slice(0,120),sections}; }
+    if(p&&Array.isArray(p.sections)&&p.sections.length){ const sections=p.sections.slice(0,12).map((x,i)=>({heading:String(x.heading||x.title||("Section "+(i+1))),instructions:String(x.instructions||x.heading||""),image_urls:Array.isArray(x.image_urls)?x.image_urls.filter(Boolean).slice(0,6):[],budget_words:Math.min(2000,Math.max(400,parseInt(x.budget_words,10)||1500))})); return {title:String(p.title||("Deliverable")).slice(0,120),sections}; }
   }catch(e){}
   return defaultPlan(reqText);
 }
@@ -2362,7 +2362,7 @@ async function writeSection(l,sys0,researchPack,plan,sec,doneHeads,acc){
     +"\n\nOutput ONLY the HTML fragment now — begin with <h2>"+sec.heading+"</h2>. No <html>/<head>/<body>, no markdown fences, no preamble.";
   const attempt=async(b)=>{ let messages=[{role:"user",content:mk(b)}]; let out="";
     for(let c=0;c<3;c++){
-      const resp=await chatFetch({model:chatModel(),system:sys0,messages,tools:undefined,think:false},{timeout:120000,tries:1,toobigMsg:"section too long"});
+      const resp=await chatFetch({model:chatModel(),system:sys0,messages,tools:undefined,think:false},{timeout:165000,tries:1,toobigMsg:"section too long"});
       if(!resp||resp.error)break;
       if(resp.usage)acc({in:resp.usage.input_tokens||0,out:resp.usage.output_tokens||0});
       out+=(resp.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("");
@@ -2406,7 +2406,7 @@ async function chatSendDeep(slug,text){
     // 2) PLAN
     CHAT.phase="thinking"; CHAT.steps.push({head:"📋 Planning the document sections",sub:""}); renderChatBody();
     let plan;
-    try{ const pr=await chatFetch({model:chatModel(),system:sys0+"\n\n"+JOB_PLANNER,messages:[{role:"user",content:"Plan the sections (JSON only) for this deliverable:\n"+text+"\n\nRESEARCH SNAPSHOT (plan around what's available, esp. image URLs):\n"+researchPack.slice(0,5000)}],tools:undefined,think:false},{timeout:90000,tries:1});
+    try{ const pr=await chatFetch({model:chatModel(),system:sys0+"\n\n"+JOB_PLANNER,messages:[{role:"user",content:"Plan the sections (JSON only) for this deliverable:\n"+text+"\n\nRESEARCH SNAPSHOT (plan around what's available, esp. image URLs):\n"+researchPack.slice(0,5000)}],tools:undefined,think:false},{timeout:150000,tries:1});
       if(pr&&pr.usage)acc({in:pr.usage.input_tokens,out:pr.usage.output_tokens});
       plan=parsePlanJSON((pr&&pr.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n"),text);
     }catch(e){ plan=defaultPlan(text); }
