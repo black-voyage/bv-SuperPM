@@ -2240,23 +2240,32 @@ async function chatSend(slug){
   let messages=[];
   for(const mm of prior.concat([{role:"user",who,text}])){ const role=mm.role==="assistant"?"assistant":"user"; const content=mm.role==="user"?((mm.who||"User")+": "+mm.text):mm.text;
     if(messages.length&&messages[messages.length-1].role===role&&typeof messages[messages.length-1].content==="string"){messages[messages.length-1].content+="\n"+content;} else {messages.push({role,content});} }
-  const actions=[], atts=[]; let usageIn=0,usageOut=0,reasoning=""; const trace=[];
+  const actions=[], atts=[]; let usageIn=0,usageOut=0,reasoning=""; const trace=[]; let answered=false; const MAXHOP=9;
+  const mkMeta=hops=>({model:chatModel(),in:usageIn,out:usageOut,cost:chatCost(chatModel(),usageIn,usageOut),hops,trace:trace.slice(),reasoning:reasoning});
   try{
-    for(let hop=0;hop<6;hop++){
+    for(let hop=0;hop<MAXHOP;hop++){
       CHAT.phase="thinking"; renderChatBody();
-      const resp=await chatFetch({model:chatModel(),system:chatSystemPrompt(l),messages,tools:CHAT_TOOLS,think:true}); CHAT.wake=false;
-      if(resp.error){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ "+((resp.error&&resp.error.message)||"backend error"),ts:nowStamp()}); break; }
+      const lastHop=(hop===MAXHOP-1);   // on the final hop, take tools away (and thinking budget) so it MUST write the answer
+      const resp=await chatFetch({model:chatModel(),system:chatSystemPrompt(l),messages,tools:lastHop?undefined:CHAT_TOOLS,think:!lastHop}); CHAT.wake=false;
+      if(resp.error){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ "+((resp.error&&resp.error.message)||"backend error"),ts:nowStamp()}); answered=true; break; }
       if(resp.usage){ usageIn+=resp.usage.input_tokens||0; usageOut+=resp.usage.output_tokens||0; }
       messages.push({role:"assistant",content:resp.content||[]});
       const tus=(resp.content||[]).filter(b=>b.type==="tool_use");
       const txt=(resp.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim();
       const think=(resp.content||[]).filter(b=>b.type==="thinking").map(b=>b.thinking||"").join("\n\n").trim(); if(think)reasoning+=(reasoning?"\n\n— next step —\n\n":"")+think;   // LLM reasoning (extended thinking) for the verify panel
-      const meta={model:chatModel(),in:usageIn,out:usageOut,cost:chatCost(chatModel(),usageIn,usageOut),hops:hop+1,trace:trace.slice(),reasoning:reasoning};
-      if(tus.length){ const results=[];
+      if(tus.length&&!lastHop){ const results=[];
         tus.forEach(tu=>CHAT.steps.push({head:chatStepLabel(tu.name),sub:chatStepSub(tu.name,tu.input||{})})); CHAT.phase="acting"; renderChatBody();
         for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out.summary)actions.push(out.summary); if(out.att)atts.push(out.att); trace.push({name:tu.name,inputStr:JSON.stringify(tu.input||{}).slice(0,1500),route:chatRoute(tu.name),result:(out.text||"").slice(0,2000)}); results.push({type:"tool_result",tool_use_id:tu.id,content:out.text}); }
         messages.push({role:"user",content:results}); CHAT.phase="thinking"; renderChatBody(); continue;
-      } else { chatPush(slug,{role:"assistant",who:"Claude",text:txt||(atts.length?"":"(done)"),actions:actions.slice(),attachments:atts.slice(),meta,ts:nowStamp()}); break; }
+      } else { chatPush(slug,{role:"assistant",who:"Claude",text:txt||(atts.length?"":"(done)"),actions:actions.slice(),attachments:atts.slice(),meta:mkMeta(hop+1),ts:nowStamp()}); answered=true; break; }
+    }
+    if(!answered){   // ran out of research steps while still calling tools — force ONE final written answer, no more tools
+      CHAT.phase="thinking"; renderChatBody();
+      messages.push({role:"user",content:"You've gathered enough context. Write the COMPLETE final answer NOW using everything above — do not call any more tools. If the ask is large, deliver it in full anyway (e.g. embed the HTML doc)."});
+      const resp=await chatFetch({model:chatModel(),system:chatSystemPrompt(l),messages,tools:undefined,think:false});
+      if(resp.usage){ usageIn+=resp.usage.input_tokens||0; usageOut+=resp.usage.output_tokens||0; }
+      const txt=(resp&&!resp.error&&(resp.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim())||"";
+      chatPush(slug,{role:"assistant",who:"Claude",text:txt||"I pulled all the research but ran out of steps before writing it up. Re-send, or split it into parts (e.g. ‘marketing brief + competitor table’ first, then ‘personas + ad concepts’) and I’ll deliver each in full.",actions:actions.slice(),attachments:atts.slice(),meta:mkMeta(MAXHOP),ts:nowStamp()});
     }
   }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ The chat backend didn't respond after a few tries — please wait a moment and send again.",ts:nowStamp()}); }
   CHAT.busy=false; CHAT.wake=false; renderChatBody();
