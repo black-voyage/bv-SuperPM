@@ -2387,6 +2387,42 @@ async function writeSection(l,sys0,researchPack,plan,sec,doneHeads,acc){
   try{ const r2=await attempt(Math.round((sec.budget_words||1800)/2)); if(r2&&r2.trim().length>20)return r2; }catch(e){}
   return "";
 }
+// ===== DEEP-MODE QUERY ROUTES: the data tools run INSTANTLY client-side, so a deliverable's data needs are
+// pre-declared as a deterministic "route" (run directly, no LLM hops) instead of an LLM loop choosing tools
+// (which was slow AND the 180s-crash surface). Routes come from baked-in defaults + team skills. ==========
+const READ_TOOLS=["search_catalog","get_product","search_product_spec","search_knowledge","search_strategy","search_documents","read_card_doc","find_images","recall"];
+function parseRoute(content){ try{
+  const m=String(content||"").match(/```bv-route\s*([\s\S]*?)```/i); if(!m)return null;
+  const r=JSON.parse(m[1]); if(!r||!Array.isArray(r.steps))return null;
+  const seen=new Set(), steps=[];
+  for(const s of r.steps){ if(!s||READ_TOOLS.indexOf(s.tool)<0)continue; const key=s.tool+"|"+JSON.stringify(s.input||{}); if(seen.has(key))continue; seen.add(key); steps.push({tool:s.tool,input:s.input||{},want_images:!!s.want_images}); }
+  if(!steps.length)return null;
+  return {deliverable:r.deliverable||"",triggers:(r.triggers||[]).map(t=>String(t).toLowerCase()),steps,sections:(Array.isArray(r.sections)&&r.sections.length?r.sections:null),vars:r.vars||{}};
+}catch(e){ return null; } }
+function matchRoute(text,skills){
+  const t=" "+String(text||"").toLowerCase()+" ", tset=new Set(t.split(/[^a-z0-9]+/).filter(Boolean));
+  let best=null,bestScore=0,bestSpec=0;
+  for(const sk of (skills||[])){ const route=parseRoute(sk&&sk.content); if(!route)continue; let score=0,spec=0;
+    for(const trig of route.triggers){ if(!trig)continue;
+      if(t.indexOf(trig)>=0){ score+=2+trig.split(/\s+/).length; spec=Math.max(spec,trig.length); }
+      else { const tw=trig.split(/\s+/).filter(Boolean); const hit=tw.filter(w=>tset.has(w)).length; if(hit)score+=hit/Math.max(1,tw.length); } }
+    if(score>bestScore||(score===bestScore&&score>0&&(spec>bestSpec||(spec===bestSpec&&route.steps.length>((best&&best.steps.length)||0))))){ best=Object.assign({_name:(sk.name||sk.id||"route")},route); bestScore=score; bestSpec=spec; } }
+  return bestScore>=2?best:null;
+}
+function bindVars(input,vars){ const out={}; for(const k in input){ let v=input[k]; if(typeof v==="string")v=v.replace(/<product>/gi,vars.product||"").replace(/<sku>/gi,vars.sku||vars.product||"").replace(/<concept>/gi,vars.concept||""); out[k]=v; } return out; }
+function harvestImageUrls(text){ const urls=[]; String(text||"").split("\n").forEach(ln=>{ const m=ln.match(/https?:\/\/\S+/); if(m&&/^•/.test(ln.trim()))urls.push(m[0]); }); return urls; }
+function toolReady(tool){ switch(tool){
+  case "search_product_spec": return ((KNOWLEDGE.product_docs||[]).length>0);
+  case "search_documents":    return ((KNOWLEDGE.docs||[]).length>0);
+  case "search_strategy":     return (((KNOWLEDGE.personas||[]).length+(KNOWLEDGE.insights||[]).length+(KNOWLEDGE.differentiation||[]).length)>0);
+  case "find_images":         return (((KNOWLEDGE.productImages||[]).length+(KNOWLEDGE.brandAssets||[]).length+(KNOWLEDGE.images||[]).length)>0);
+  default:                    return true; } }
+const BUILTIN_ROUTES=[
+  {name:"Full Marketing Brief",play:"Full marketing brief — ground everything in real BV data; the catalog is the source of truth for specs.",route:{deliverable:"full_marketing_brief",triggers:["marketing brief","full brief","full marketing brief","launch brief","go-to-market brief","gtm brief"],vars:{product:"<product>"},steps:[{tool:"read_card_doc",input:{}},{tool:"read_card_doc",input:{name:"intake"}},{tool:"search_catalog",input:{query:"<product>"}},{tool:"get_product",input:{name:"<product>"}},{tool:"search_product_spec",input:{query:"<product>"}},{tool:"find_images",input:{query:"<product>"},want_images:true},{tool:"search_strategy",input:{query:"personas avatars who buys"}},{tool:"search_strategy",input:{query:"objections price reviews"}},{tool:"search_strategy",input:{query:"differentiation vs competitors"}},{tool:"search_knowledge",input:{query:"competitors positioning"}},{tool:"search_knowledge",input:{query:"tech materials series"}}],sections:[{heading:"Positioning & Key Message",instructions:"Single core message, angle, offer, channels — grounded in strategy data.",budget_words:1200},{heading:"Product & Specs",instructions:"Real catalog specs → benefits; how it works. Trust catalog numbers; never restate differently.",budget_words:1500,want_images:true},{heading:"Target Personas",instructions:"3-4 personas: pains, desired outcome, buying trigger.",budget_words:1400},{heading:"Competitor Edge",instructions:"Table vs top competitors + our differentiation takeaways.",budget_words:1300},{heading:"Ad Angles",instructions:"6-8 hooks tied to personas + objection handlers.",budget_words:1600}]}},
+  {name:"Competitor Teardown",play:"Competitor teardown — anchor every claim in real BV specs + the differentiation graph; be honest where we're exposed.",route:{deliverable:"competitor_teardown",triggers:["competitor","competitive analysis","teardown","how we compare","how we beat","comparison"],vars:{product:"<product>"},steps:[{tool:"search_knowledge",input:{query:"competitors positioning strengths weaknesses"}},{tool:"search_strategy",input:{query:"differentiation"}},{tool:"search_catalog",input:{query:"<product>"}},{tool:"get_product",input:{name:"<product>"}},{tool:"search_product_spec",input:{query:"<product>"}},{tool:"search_documents",input:{query:"positioning competitive"}},{tool:"find_images",input:{query:"<product>"},want_images:true}],sections:[{heading:"Market Map",instructions:"Who's who in the category and where BV sits.",budget_words:1000},{heading:"Feature & Spec Table",instructions:"BV vs top competitors feature-by-feature.",budget_words:1600,want_images:true},{heading:"Where We Win",instructions:"Differentiation takeaways grounded in the differentiation data.",budget_words:1200},{heading:"Where We're Exposed + Counter-Positioning",instructions:"Honest weaknesses and how to counter-position.",budget_words:1100}]}},
+  {name:"Persona Pack",play:"Persona pack — use real review language for pains and objections; tie every persona to the actual product.",route:{deliverable:"persona_pack",triggers:["personas","persona pack","avatars","who buys","target audience","audience profiles","customer profiles","icp"],vars:{product:"<product>"},steps:[{tool:"read_card_doc",input:{}},{tool:"read_card_doc",input:{name:"intake"}},{tool:"search_strategy",input:{query:"personas"}},{tool:"search_strategy",input:{query:"audience segments demographics"}},{tool:"search_strategy",input:{query:"jobs to be done"}},{tool:"search_strategy",input:{query:"reviews praise objections"}},{tool:"search_strategy",input:{query:"category entry points"}},{tool:"search_catalog",input:{query:"<product>"}}],sections:[{heading:"The Core Personas",instructions:"3-4 personas, one block each: demographics, pains, desired outcome, JTBD, buying trigger.",budget_words:1700},{heading:"Objections & How to Handle Them",instructions:"From the review objections handlers — real customer language.",budget_words:1200},{heading:"Messaging Hooks per Persona",instructions:"One hook line per persona tied to their trigger.",budget_words:1100}]}}
+];
+const BUILTIN_SKILLS=BUILTIN_ROUTES.map(r=>({name:r.name,content:r.play+"\n```bv-route\n"+JSON.stringify(r.route)+"\n```"}));
 async function chatSendDeep(slug,text){
   const l=L(slug); if(!l)return;
   const leaseRef=(FB.ready?chatRef(slug):null);
@@ -2399,31 +2435,50 @@ async function chatSendDeep(slug,text){
   const sys0=chatSystemPrompt(l); let tIn=0,tOut=0; const acc=d=>{tIn+=d.in||0;tOut+=d.out||0;};
   const note=t=>chatPush(slug,{role:"assistant",who:"Claude",text:t,ts:nowStamp()});
   try{
-    // 1) GATHER (≤4 hops, tools+think)
+    // 1) GATHER — deterministic skill-driven route (tools run instantly client-side → NO LLM hops, NO 180s crash).
+    //    Root cause fix: the old loop used the LLM to CHOOSE tools (slow + could write prose → timeout → crash).
     CHAT.steps.push({head:"🔬 Deep mode — gathering research",sub:"catalog · strategy · competitors · intake · images"}); renderChatBody();
-    let messages=[{role:"user",content:actor()+": "+text+"\n\n(DEEP DELIVERABLE — gather phase. Call the tools to pull EVERYTHING relevant: search_catalog/get_product (specs), search_strategy (personas, JTBD, objections, differentiation), search_knowledge (competitors, tech, voice), search_documents (strategy), read_card_doc (intake/concept), and find_images (real product photo URLs). Do NOT write the document yet — just gather.)"}];
-    const research=[];
-    for(let hop=0;hop<4;hop++){
-      CHAT.hop=hop+1; CHAT.phase="thinking"; renderChatBody();
-      const resp=await chatFetch({model:chatModel(),system:sys0,messages,tools:CHAT_TOOLS,think:true});
-      if(!resp||resp.error)break;
-      if(resp.usage)acc({in:resp.usage.input_tokens,out:resp.usage.output_tokens});
-      messages.push({role:"assistant",content:resp.content||[]});
-      const tus=(resp.content||[]).filter(b=>b.type==="tool_use");
-      if(!tus.length)break;
-      CHAT.phase="acting"; tus.forEach(tu=>CHAT.steps.push({head:chatStepLabel(tu.name),sub:chatStepSub(tu.name,tu.input||{})})); renderChatBody();
-      const results=[];
-      for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out&&out.text)research.push("["+tu.name+(tu.input&&tu.input.query?(" — "+tu.input.query):"")+"]\n"+out.text); results.push({type:"tool_result",tool_use_id:tu.id,content:(out&&out.text)||""}); }
-      messages.push({role:"user",content:results});
+    const research=[]; let routePlan=null; const routeImages=[];
+    const vars={product:(l.name||"").trim(),sku:"",concept:""};
+    try{ const ic=runChatTool(slug,"read_card_doc",{name:"concept"}); if(ic&&ic.text&&!/no readable/i.test(ic.text))vars.concept=ic.text.slice(0,400); }catch(e){}
+    try{ const c0=runChatTool(slug,"search_catalog",{query:vars.product}); const sku=(c0&&c0.text||"").match(/•\s*([A-Z0-9][A-Z0-9\-]{2,})/); if(sku)vars.sku=sku[1]; }catch(e){}
+    const route=matchRoute(text,(KNOWLEDGE.skills||[]).concat(BUILTIN_SKILLS));
+    if(route){
+      CHAT.steps.push({head:"📘 Route: "+route._name,sub:route.steps.length+" prescribed lookups · instant"}); renderChatBody();
+      for(const step of route.steps){ if(!toolReady(step.tool))continue;
+        const input=bindVars(step.input||{},vars); let out; try{ out=runChatTool(slug,step.tool,input); }catch(e){ out=null; }
+        CHAT.steps.push({head:chatStepLabel(step.tool),sub:chatStepSub(step.tool,input)});
+        if(out&&out.text){ let txt=out.text; if(step.tool==="find_images"){ const us=harvestImageUrls(txt); if(step.want_images!==false)routeImages.push(...us); txt=txt.slice(0,1400); }
+          research.push("["+step.tool+(input.query?(" — "+input.query):input.name?(" — "+input.name):"")+"]\n"+txt); } }
+      renderChatBody(); routePlan=route.sections||null;
+    } else {
+      CHAT.steps.push({head:"🧭 No saved route — one bounded research pass",sub:"read-only · 45s cap"}); renderChatBody();
+      const READ_CHAT_TOOLS=CHAT_TOOLS.filter(t=>READ_TOOLS.indexOf(t.name)>=0);
+      try{
+        const msgs=[{role:"user",content:actor()+": "+text+"\n\n(DEEP DELIVERABLE — research phase. Emit ALL the tool calls you need as tool_use blocks in THIS ONE turn: search_catalog/get_product/search_product_spec, search_strategy (personas, JTBD, objections, differentiation), search_knowledge (competitors, tech), search_documents, read_card_doc, find_images. Do NOT write prose — only tool calls.)"}];
+        const resp=await chatFetch({model:chatModel(),system:sys0,messages:msgs,tools:READ_CHAT_TOOLS,think:true},{timeout:45000,tries:1,toobigMsg:"research pass timed out"});
+        if(resp&&!resp.error){ if(resp.usage)acc({in:resp.usage.input_tokens,out:resp.usage.output_tokens});
+          const tus=(resp.content||[]).filter(b=>b.type==="tool_use").filter(b=>READ_TOOLS.indexOf(b.name)>=0);
+          tus.forEach(tu=>CHAT.steps.push({head:chatStepLabel(tu.name),sub:chatStepSub(tu.name,tu.input||{})})); renderChatBody();
+          for(const tu of tus){ let out; try{ out=runChatTool(slug,tu.name,tu.input||{}); }catch(e){ out=null; }
+            if(out&&out.text){ if(tu.name==="find_images")routeImages.push(...harvestImageUrls(out.text)); research.push("["+tu.name+(tu.input&&tu.input.query?(" — "+tu.input.query):"")+"]\n"+out.text); } }
+        }
+      }catch(e){}
+      if(!research.length){ const mini=[{tool:"read_card_doc",input:{}},{tool:"search_catalog",input:{query:vars.product}},{tool:"search_strategy",input:{query:"personas avatars who buys objections"}},{tool:"find_images",input:{query:vars.product}}];
+        for(const s of mini){ if(!toolReady(s.tool))continue; let out; try{ out=runChatTool(slug,s.tool,s.input); }catch(e){ continue; }
+          if(out&&out.text){ if(s.tool==="find_images")routeImages.push(...harvestImageUrls(out.text)); research.push("["+s.tool+(s.input.query?(" — "+s.input.query):"")+"]\n"+out.text.slice(0,1400)); } } }
     }
     const researchPack=research.join("\n\n").slice(0,16000)||"(no research returned — write from general best practice and clearly flag gaps)";
-    // 2) PLAN
-    CHAT.phase="thinking"; CHAT.steps.push({head:"📋 Planning the document sections",sub:""}); renderChatBody();
+    // 2) PLAN — skip the planner LLM call when the matched route already carries a section plan
+    CHAT.phase="thinking"; CHAT.steps.push({head:"📋 Planning the document sections",sub:routePlan?"using the route's plan":""}); renderChatBody();
     let plan;
-    try{ const pr=await chatFetch({model:chatModel(),system:sys0+"\n\n"+JOB_PLANNER,messages:[{role:"user",content:"Plan the sections (JSON only) for this deliverable:\n"+text+"\n\nRESEARCH SNAPSHOT (plan around what's available, esp. image URLs):\n"+researchPack.slice(0,5000)}],tools:undefined,think:false},{timeout:150000,tries:1});
-      if(pr&&pr.usage)acc({in:pr.usage.input_tokens,out:pr.usage.output_tokens});
-      plan=parsePlanJSON((pr&&pr.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n"),text);
-    }catch(e){ plan=defaultPlan(text); }
+    if(routePlan){ plan=parsePlanJSON(JSON.stringify({title:(l.name||"Deliverable"),sections:routePlan}),text);
+      plan.sections.forEach((s,i)=>{ const src=routePlan[i]; if(src&&src.want_images&&routeImages.length)s.image_urls=(s.image_urls||[]).concat(routeImages).slice(0,6); });
+    } else {
+      try{ const pr=await chatFetch({model:chatModel(),system:sys0+"\n\n"+JOB_PLANNER,messages:[{role:"user",content:"Plan the sections (JSON only) for this deliverable:\n"+text+"\n\nRESEARCH SNAPSHOT (plan around what's available, esp. image URLs):\n"+researchPack.slice(0,5000)}],tools:undefined,think:false},{timeout:150000,tries:1});
+        if(pr&&pr.usage)acc({in:pr.usage.input_tokens,out:pr.usage.output_tokens});
+        plan=parsePlanJSON((pr&&pr.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n"),text);
+      }catch(e){ plan=defaultPlan(text); } }
     CHAT.steps.push({head:"📋 "+plan.sections.length+" sections planned",sub:plan.sections.map(s=>s.heading).join(" · ")}); renderChatBody();
     // 3) SECTION LOOP
     const parts=[], doneHeads=[];
