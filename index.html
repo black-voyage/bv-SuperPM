@@ -299,6 +299,7 @@
     .pj-grid{gap:18px}
   }
 #chatPresets{margin:2px 0 8px}#chatPresets.collapsed .cprebody{display:none}.cpreh{display:flex;align-items:center;justify-content:space-between;margin:0 0 5px}.cpreh>span{font-size:10.5px;font-weight:700;color:var(--faint);letter-spacing:.05em}.cpretog{background:none;border:0;color:var(--faint);cursor:pointer;font-size:13px;line-height:1;padding:2px 6px}#chatPresets.collapsed .cpretog{transform:rotate(-90deg)}.cpregrp{margin-bottom:7px}.cpregh{font-size:10px;font-weight:600;color:var(--faint);margin:0 0 4px;opacity:.85;text-transform:uppercase;letter-spacing:.04em}.cpregrp.pin .cpregh{color:var(--accent);opacity:1}.cprestar{font-weight:600;font-size:9.5px}.cprechips{display:flex;flex-wrap:wrap;gap:5px}.cpre{background:var(--panel2);border:1px solid var(--line);color:var(--dim);font-size:12px;padding:5px 11px;border-radius:999px;cursor:pointer;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cpre:hover{border-color:var(--accent);color:var(--text)}.cpregrp.pin .cpre{border-color:#EE312455}.cpre.deep{border-style:dashed}.cpd{font-size:10.5px;opacity:.85}.cpreother{margin-top:2px}.cpreother>summary{font-size:10.5px;color:var(--faint);cursor:pointer;padding:3px 0;user-select:none}.cpreother[open]>summary{margin-bottom:6px}
+  .pcmsgs{max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:9px;margin:10px 0;padding:2px}.pcmsg{font-size:13px;line-height:1.55}.pcmsg>b{font-size:10.5px;color:var(--faint);display:block;margin-bottom:2px;font-weight:600}.pcmsg.user>div{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:7px 11px}.pcmsg.assistant>div{background:rgba(238,49,36,.06);border:1px solid #EE312433;border-radius:9px;padding:8px 11px;white-space:pre-wrap}
   </style>
 </head>
 <body>
@@ -1965,6 +1966,52 @@ function pjDrawer(p,t){
 }
 
 /* ============ PROJECTS — the view (replaces the old burn-up Progress) ============ */
+/* ===== PROGRESS CHAT — scoped assistant for the Active Projects board: ONLY product progress, manufacturing, specs, quantity ===== */
+let PCHAT={msgs:[],busy:false};
+function progressDigest(){
+  if(!(typeof PROJECTS!=="undefined"&&PROJECTS.length)) return "(no project data loaded yet)";
+  return PROJECTS.map(p=>{ const st=pjStages(p);
+    const stages=PJ_STAGE_LBL.map((lbl,i)=>lbl+":"+(st[i]||"?")).join(", ");
+    const notes=["Design:"+(p.note_design||""),"Sample:"+(p.note_sample||""),"PPS:"+(p.note_pps||""),"Bulk:"+(p.note_bulk||"")].filter(s=>!/:$/.test(s));
+    return ["• "+(p.name||"(unnamed)")+(p.category?" ["+p.category+"]":""),
+      "  supplier: "+(p.supplier||"—")+(p.mo?" · MO "+p.mo:""),
+      "  manufacturing stages — "+stages+"  → current: "+(PJ_STAGE_LBL[pjCurrentStage(p)]||"?"),
+      "  due: "+(p.due_date||"—")+(p.urgency?" · urgency: "+p.urgency:""),
+      p.next_action?"  next action: "+p.next_action:"",
+      notes.length?("  notes: "+notes.join(" | ")):""
+    ].filter(Boolean).join("\n");
+  }).join("\n\n").slice(0,9000);
+}
+function progressSpecDigest(){ const c=(typeof KNOWLEDGE!=="undefined"&&KNOWLEDGE.catalog)||[]; if(!c.length)return "";
+  return "\n\nPRODUCT SPECS (catalog — dimensions / materials / hardware / etc.):\n"+c.slice(0,40).map(x=>"• "+(x.name||x.product||x.model||x.sku||x.id||"?")+": "+JSON.stringify(x).replace(/[{}"]/g," ").replace(/\s+/g," ").trim().slice(0,260)).join("\n").slice(0,4500); }
+function progressChatSystem(){
+  return "You are the Black Voyage PRODUCT PROGRESS assistant for the Active Projects (manufacturing) board. "
+   +"You ONLY help with: product progress, manufacturing status (Design → Sample → PPS → Bulk), suppliers/MOs, due dates and what's next, product specs, and quantities. "
+   +"If asked about anything outside that — marketing, ads, copywriting, strategy, finance, or off-topic chit-chat — briefly decline and steer back to product / manufacturing progress. "
+   +"Answer ONLY from the PROJECT DATA and PRODUCT SPECS below plus the user's question. NEVER invent a stage, status, date, supplier, MO, spec, or quantity that isn't in the data; if it isn't there, say so plainly and suggest who to ask. Be concise and concrete; use each product's real name.\n\n"
+   +"PROJECT DATA (live, from the production sheet):\n"+progressDigest()+progressSpecDigest();
+}
+function pchatMsgsHTML(){ return PCHAT.msgs.map(m=>`<div class="pcmsg ${m.role==="user"?"user":"assistant"}"><b>${m.role==="user"?esc(m.who||"You"):"🏭 Progress AI"}</b><div>${esc(m.text)}</div></div>`).join("")+(PCHAT.busy?`<div class="pcmsg assistant"><b>🏭 Progress AI</b><div class="sub">thinking…</div></div>`:""); }
+function renderPChat(){ const el=document.getElementById("pchatMsgs"); if(!el)return; el.innerHTML=pchatMsgsHTML(); el.scrollTop=el.scrollHeight; }
+function progressChatHTML(){
+  const open=!!S.pchatOpen;
+  const intro=`<div class="sub">Ask about where products stand — manufacturing stage, supplier / MO, due dates, what's next, specs, quantities. <span style="opacity:.8">e.g. “Which products are stuck in Sample?” · “What's overdue?” · “What stage is the Aero at and what's next?”</span></div>`;
+  const body=open?`<div class="pcbody"><div id="pchatMsgs" class="pcmsgs">${PCHAT.msgs.length?pchatMsgsHTML():intro}</div>
+      <div class="chatinput"><textarea id="pchatInput" placeholder="Ask about product progress, manufacturing, specs, quantity… (Enter to send)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();progressChatSend()}"></textarea><button class="btn" onclick="progressChatSend()">Send</button></div></div>`:"";
+  return `<div class="panel" style="margin-bottom:18px"><h3 style="cursor:pointer;margin:0" onclick="S.pchatOpen=!S.pchatOpen;render()">🏭 Ask about progress <span style="font-size:11px">${open?"▾":"▸"}</span> <span class="ghostnote" style="font-weight:400">· manufacturing · specs · quantity</span></h3>${body}</div>`;
+}
+async function progressChatSend(){
+  const ta=document.getElementById("pchatInput"); if(!ta)return; const text=(ta.value||"").trim(); if(!text||PCHAT.busy)return;
+  ta.value=""; PCHAT.msgs.push({role:"user",who:actor(),text}); PCHAT.busy=true; renderPChat();
+  const messages=PCHAT.msgs.slice(-12).map(m=>({role:m.role==="user"?"user":"assistant",content:String(m.text||"")}));
+  let answer="";
+  try{ const r=await chatFetch({model:chatModel(),system:progressChatSystem(),messages,tools:undefined,think:false},{timeout:120000,tries:2,toobigMsg:"That took too long — try asking about one product at a time."});
+    if(r&&!r.error){ answer=(r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim(); }
+    else { answer="⚠️ "+((r&&r.error&&r.error.message)||"backend error"); }
+  }catch(e){ answer="⚠️ "+String((e&&e.message)||e); }
+  PCHAT.busy=false; PCHAT.msgs.push({role:"assistant",text:answer||"(no answer)"}); renderPChat();
+}
+
 function viewProgress(){
   const t=pjToday();
   if(!PROJ_LOADED) return `<h2>Active Projects</h2><div class="panel"><div class="sub">Loading projects from Google Sheet…</div></div>`;
@@ -2022,7 +2069,7 @@ function viewProgress(){
   </div>`:""}`;
   const openP=S.pjOpen?PROJECTS.find(p=>(p.id||p.name)===S.pjOpen):null;
   const drawer=openP?pjDrawer(openP,t):"";
-  return `<div class="pj-wrap">
+  return `<div class="pj-wrap">${progressChatHTML()}
     <div class="pj-hero">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center">
         <h2 style="margin:0">Active Projects</h2>
