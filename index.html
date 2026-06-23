@@ -1304,7 +1304,7 @@ async function loadProjectsData(){
 const NAVS=[["home","Home"],["portfolio","Portfolio"],["progress","Progress"],["campaign","Campaigns"],["settings","Settings"]];
 const stIcon={x:"✓",p:"…",b:"!",o:""};
 const fmt=d=>new Date(d+"T00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
-const today="2026-06-10";
+const today=pjToday();   // real current date (Asia/Taipei) — was hardcoded "2026-06-10", which made launch-board due/overdue math stale
 const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
 
 /* ================= LANGUAGE TOGGLE (EN / 中文) =================
@@ -2003,7 +2003,8 @@ function pjDrawer(p,t){
 
 /* ============ PROJECTS — the view (replaces the old burn-up Progress) ============ */
 /* ===== PROGRESS CHAT — scoped assistant for the Active Projects board: ONLY product progress, manufacturing, specs, quantity ===== */
-let PCHAT={msgs:[],busy:false};
+let PCHAT={msgs:(function(){try{return JSON.parse((typeof localStorage!=="undefined"&&localStorage.getItem("bv-pchat"))||"[]")||[];}catch(e){return [];}})(),busy:false};   // persists across refresh (per-user, localStorage)
+function pchatSave(){ try{ localStorage.setItem("bv-pchat",JSON.stringify((PCHAT.msgs||[]).slice(-40))); }catch(e){} }
 function progressDigest(){
   if(!(typeof PROJECTS!=="undefined"&&PROJECTS.length)) return "(no project data loaded yet)";
   return PROJECTS.map(p=>{ const st=pjStages(p);
@@ -2038,14 +2039,14 @@ function progressChatHTML(){
 }
 async function progressChatSend(){
   const ta=document.getElementById("pchatInput"); if(!ta)return; const text=(ta.value||"").trim(); if(!text||PCHAT.busy)return;
-  ta.value=""; PCHAT.msgs.push({role:"user",who:actor(),text}); PCHAT.busy=true; renderPChat();
+  ta.value=""; PCHAT.msgs.push({role:"user",who:actor(),text}); PCHAT.busy=true; pchatSave(); renderPChat();
   const messages=PCHAT.msgs.slice(-12).map(m=>({role:m.role==="user"?"user":"assistant",content:String(m.text||"")}));
   let answer="";
   try{ const r=await chatFetch({model:chatModel(),system:progressChatSystem(),messages,tools:undefined,think:false},{timeout:120000,tries:2,toobigMsg:"That took too long — try asking about one product at a time."});
     if(r&&!r.error){ answer=(r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim(); }
     else { answer="⚠️ "+((r&&r.error&&r.error.message)||"backend error"); }
   }catch(e){ answer="⚠️ "+String((e&&e.message)||e); }
-  PCHAT.busy=false; PCHAT.msgs.push({role:"assistant",text:answer||"(no answer)"}); renderPChat();
+  PCHAT.busy=false; PCHAT.msgs.push({role:"assistant",text:answer||"(no answer)"}); pchatSave(); renderPChat();
 }
 
 function viewProgress(){
@@ -2956,10 +2957,12 @@ async function chatSend(slug){
   const text=(input.value||"").trim(); if(!text)return;
   if(!CHAT_API_URL){toast("⚠️ Chat backend not set yet — deploy the proxy & set CHAT_API_URL (see CHAT-SETUP.md)");return;}
   if(CHAT.busy){toast("Claude is still working…");return;}
+  // The user is answering the clarifying questions → now build the deliverable WITH their context (or "go" to build as-is).
+  if(CHAT.pendingClarify){ const pc=CHAT.pendingClarify; CHAT.pendingClarify=null; input.value=""; return chatSendDeep(slug, /^\s*(go|proceed|just build( it)?|build it|do it|yes|yep|ok|okay)\s*$/i.test(text)?pc.request:(pc.request+"\n\n[Extra context / answers from "+actor()+": "+text+"]")); }
   // FIRST: a transform of the EXISTING last doc wins over auto-Deep — "make this bilingual / shorten it" must never silently regenerate from scratch.
   { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksTransform(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one)\b/i.test(text)||text.length<90)){ input.value=""; return chatTransformDoc(slug,text,_doc.h,_doc.n); } }   // translate/rewrite/shorten an EXISTING doc — transform it directly, never re-research
   // SECOND: a genuine new, multi-section deliverable still goes to Deep.
-  if(CHAT.deep|| /^\/deep\b/i.test(text)){ input.value=""; return chatSendDeep(slug, text.replace(/^\/deep\s*/i,"").trim()||text); }   // big multi-section deliverable path
+  if(CHAT.deep|| /^\/deep\b/i.test(text)){ input.value=""; const dtext=text.replace(/^\/deep\s*/i,"").trim()||text; if(deepNeedsClarify(dtext)){ return chatClarifyAsk(slug,dtext); } return chatSendDeep(slug, dtext); }   // big deliverable — but ask 2-3 scoping questions first when the request is thin
   if(looksDeep(text)){   // SUGGEST deep mode for a big ask (never auto-run) — so the user doesn't have to know when
     const go=(typeof confirm!=="undefined")&&confirm("This looks like a big, multi-part deliverable.\n\nRun it in 🔬 Deep mode? It builds the whole thing section-by-section (~7–10 min, live progress) and files it as a Brief — instead of trying to write it all at once (which can time out).\n\nOK = Deep mode   ·   Cancel = just answer normally");
     if(go){ input.value=""; return chatSendDeep(slug,text); }
@@ -3178,6 +3181,25 @@ const BUILTIN_ROUTES=[
   {name:"Persona Pack",play:"Persona pack — use real review language for pains and objections; tie every persona to the actual product.",route:{deliverable:"persona_pack",triggers:["personas","persona pack","avatars","who buys","target audience","audience profiles","customer profiles","icp"],vars:{product:"<product>"},steps:[{tool:"read_card_doc",input:{}},{tool:"read_card_doc",input:{name:"intake"}},{tool:"search_strategy",input:{query:"personas"}},{tool:"search_strategy",input:{query:"audience segments demographics"}},{tool:"search_strategy",input:{query:"jobs to be done"}},{tool:"search_strategy",input:{query:"reviews praise objections"}},{tool:"search_strategy",input:{query:"category entry points"}},{tool:"search_catalog",input:{query:"<product>"}}],sections:[{heading:"The Core Personas",instructions:"3-4 personas, one block each: demographics, pains, desired outcome, JTBD, buying trigger.",budget_words:1700},{heading:"Objections & How to Handle Them",instructions:"From the review objections handlers — real customer language.",budget_words:1200},{heading:"Messaging Hooks per Persona",instructions:"One hook line per persona tied to their trigger.",budget_words:1100}]}}
 ];
 const BUILTIN_SKILLS=BUILTIN_ROUTES.map(r=>({name:r.name,content:r.play+"\n```bv-route\n"+JSON.stringify(r.route)+"\n```"}));
+// is a Deep request thin enough that we should ask a couple of scoping questions first?
+function deepNeedsClarify(t){ t=String(t||"").trim();
+  if(CHAT.pendingClarify) return false;                                   // already in a clarify exchange
+  if(t.length<45) return true;                                            // very short → vague
+  return /^(make|build|create|write|generate|draft|do|put together|give me|i('| )?(d like|need|want)|can you (make|build|write|create|draft))\b[\s\S]{0,30}\b(brief|doc|document|deliverable|guide|one[- ]?pager|summary|report|page|write[- ]?up|deck|pack)\.?$/i.test(t); }
+// ask 2-3 tailored scoping questions (incl. language) before building; the user's next reply is folded into the generation
+async function chatClarifyAsk(slug,request){
+  const l=L(slug);
+  chatPush(slug,{role:"user",who:actor(),text:request,ts:nowStamp()});
+  CHAT.busy=true; renderChatBody();
+  let qs="";
+  try{ const r=await chatFetch({model:chatModel(),system:"You are scoping a document for a Black Voyage team member BEFORE it is generated. From their short request, ask the 2-3 SHORT questions that would most improve the result (e.g. who it's for, the single goal, must-include points, length/format). Do NOT answer them or write any of the document. Output one brief intro line, then a numbered list of the questions, then on its own final line exactly: 'And — English, 繁體中文, or bilingual?'",messages:[{role:"user",content:"Card: "+((l&&l.name)||slug)+"\nTheir request: "+request}],tools:undefined,think:false},{timeout:60000,tries:1});
+    if(r&&!r.error){ if(r.usage){} qs=(r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim(); }
+  }catch(e){}
+  CHAT.busy=false;
+  if(!qs) qs="Quick context so I build the right thing:\n1. Who is it for?\n2. What's the one goal?\n3. Anything that must be included?\nAnd — English, 繁體中文, or bilingual?";
+  CHAT.pendingClarify={slug,request};
+  chatPush(slug,{role:"assistant",who:"Claude",text:qs+"\n\n_(Reply with the answers and I'll build it — or just say \"go\" to proceed as-is.)_",ts:nowStamp()});
+}
 async function chatSendDeep(slug,text){
   const l=L(slug); if(!l)return;
   const leaseRef=(FB.ready?chatRef(slug):null);
