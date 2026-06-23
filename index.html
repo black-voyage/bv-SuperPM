@@ -1665,22 +1665,28 @@ function delDept(i){ const d=TEAM[i].name;
 /* ================= RENDER HELPERS ================= */
 const codeChips=(task,slug,i)=>(task.codes||[]).map((c,ci)=>`<span class="lnkg"><span class="codechip" title="${c.u?"View / open the linked page":"View / preview HTML"}" onclick="event.stopPropagation();viewCode('${slug}',${i},${ci})">${c.u?"🔗":"&lt;/&gt;"} ${esc(c.n)}</span><button class="lnkb" title="edit code" onclick="event.stopPropagation();editCode('${slug}',${i},${ci})">✎</button><button class="lnkb" title="remove code" onclick="event.stopPropagation();removeCode('${slug}',${i},${ci})">✕</button></span>`).join("");
 const linkChips=(task,slug,i)=>(task.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank" title="${esc(k.u)}">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('${slug}',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('${slug}',${i},${li})">✕</button></span>`).join("")+codeChips(task,slug,i)+`<button class="addlnk" onclick="event.stopPropagation();addLink('${slug}',${i})">+ link</button><button class="addlnk" title="Create a Google Sheet under hello@blackvoyage.com (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'sheet')">📊 Sheet</button><button class="addlnk" title="Create a Google Doc under hello@blackvoyage.com (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'doc')">📝 Doc</button><button class="addlnk" title="Paste HTML code OR a link (Claude Code / hosted page) — preview, view source, or open the full page" onclick="event.stopPropagation();addCode('${slug}',${i})">&lt;/&gt; Code/Link</button>`;
+/* ---- Step DRI: one responsible person per step, shared across all products (stored on the GATES template, so it persists via snapshot) ---- */
+function stepHasDRI(t){ return (GATES[t.stage]||[]).some(x=>x.t===t.t); }
+function stepDRIget(t){ const s=(GATES[t.stage]||[]).find(x=>x.t===t.t); return (s&&s.who)||""; }
+function setStepDRIByTask(slug,i,v){ const l=L(slug); const t=l&&l.tasks[i]; if(!t)return; const s=(GATES[t.stage]||[]).find(x=>x.t===t.t); if(!s){toast("This step has no shared DRI slot");return;} const old=s.who||""; s.who=(v||"").trim(); if(old!==s.who)log(`🧭 Step DRI · ${t.t} → ${s.who||"(cleared)"}`); save(); render(); }
+function stepDRIfield(l,t,i){ return stepHasDRI(t)?`<div class="frow"><label>Step DRI</label><input type="text" list="people" value="${esc(stepDRIget(t))}" placeholder="responsible person — applies to all products…" title="One person responsible for this step across every product (shared)" onchange="setStepDRIByTask('${l.slug}',${i},this.value)"></div>`:""; }
 function taskRow(l,t,extra){
   const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
   const vids=t.notes.filter(n=>n.v).length; const lk=taskLocked(l,t);
   return `<div id="task-${l.slug}-${i}" style="border-radius:2px"><div class="row" style="${lk?"opacity:.38;filter:grayscale(.6)":""}">
    <span class="st ${lk?"":t.st}" title="${lk?"locked — "+esc(lockReason(l,t)):"click to cycle status"}" onclick="cycle('${l.slug}',${i})">${lk?"🔒":stIcon[t.st]}</span>
    <span>${esc(t.t)}${t.gate?' <span style="color:var(--purple)">◆</span>':""}
-    ${lk?'<span class="urg" style="background:#1d2127;color:var(--faint)">locked</span>':`<span class="urg ${t.urg}" title="urgency">${t.urg}</span>`}${t.assignee?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
+    ${lk?'<span class="urg" style="background:#1d2127;color:var(--faint)">locked</span>':`<span class="urg ${t.urg}" title="urgency">${t.urg}</span>`}${t.assignee?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}${stepDRIget(t)?`<span class="asg" style="background:#2a2336;color:#d8b4fe" title="Step DRI — responsible for this step on every product">🧭 ${esc(stepDRIget(t))}</span>`:""}
     ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
     ${lk?"":linkChips(t,l.slug,i)}
     <button class="exp" onclick="toggle('${key}')">${open?"▴ close":"▾ details"}${t.notes.length?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button></span>
    <span class="o" style="color:${DCOLOR(t.d)}">${extra||t.d}</span></div>
-   ${open?(lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>Locked.</b> ${esc(lockReason(l,t)).replace(/^./,c=>c.toUpperCase())}. ${DOD[t.t]?`<div style="margin-top:6px;color:var(--faint)">Definition of done: ${esc(DOD[t.t])}</div>`:""}</div>`:taskPanel(l,t,i)):""}</div>`;
+   ${open?(lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>Locked.</b> ${esc(lockReason(l,t)).replace(/^./,c=>c.toUpperCase())}. ${DOD[t.t]?`<div style="margin-top:6px;color:var(--faint)">Definition of done: ${esc(DOD[t.t])}</div>`:""}${stepDRIfield(l,t,i)}</div>`:taskPanel(l,t,i)):""}</div>`;
 }
 function taskPanel(l,t,i){
   return `<div class="taskpanel">
    ${DOD[t.t]?`<div style="margin-bottom:8px;color:var(--dim)">✅ <b>Done means:</b> ${esc(DOD[t.t])}${EVID.has(t.t)?' <span style="color:#67e8f9">· evidence link required</span>':""}</div>`:""}
+   ${stepDRIfield(l,t,i)}
    <div class="frow"><label>Assign</label><input type="text" list="people" value="${esc(t.assignee)}" placeholder="person or team…" onchange="setF('${l.slug}',${i},'assignee',this.value)">
     <label>Urgency</label><select onchange="setF('${l.slug}',${i},'urg',this.value)">${["low","med","high","urgent"].map(u=>`<option value="${u}" ${u===t.urg?"selected":""}>${u}</option>`).join("")}</select>
     <button class="btn ghost" onclick="addLoom('${l.slug}',${i})">🎥 Attach Loom / video</button></div>
