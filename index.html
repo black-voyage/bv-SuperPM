@@ -144,6 +144,25 @@
   .cmfoot{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line)}
   .cmtab{background:none;border:1px solid var(--faint);color:var(--faint);border-radius:2px;padding:3px 12px;font-size:12px;cursor:pointer}
   .cmtab.on{border-color:var(--blue);color:var(--blue)}
+  /* ---- inline brief section editor (✎ Edit) ---- */
+  .bedsec{border:1px solid var(--line);border-radius:4px;margin:10px 0;overflow:hidden;background:var(--panel2)}
+  .bedbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .bedh{font-size:12px;font-weight:700;color:var(--ink,#e5e7eb);opacity:.85}
+  .bedprev{padding:12px 14px;background:#fff;color:#202227;max-height:42vh;overflow:auto}
+  .bedprev img{max-width:100%;height:auto;border-radius:8px}
+  .bedprev table{border-collapse:collapse;max-width:100%}.bedprev th,.bedprev td{border:1px solid #ddd;padding:6px 9px;font-size:13px}
+  .bedprev .bvfig{position:relative;display:inline-block;margin:8px 0}
+  .bedprev .bvswap{position:absolute;bottom:8px;right:8px;background:#E2552E;color:#fff;border:0;border-radius:6px;padding:5px 9px;font-size:11px;cursor:default;opacity:.85}
+  .bedprev .bvtag{position:absolute;top:6px;left:6px;background:rgba(22,24,28,.82);color:#fff;font-size:10px;padding:3px 6px;border-radius:5px}
+  .bedpick{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:90;display:none;align-items:center;justify-content:center;padding:5vh 4vw}
+  .bedpick.show{display:flex}
+  .bedpbox{background:var(--panel);border:1px solid var(--line);border-radius:6px;width:min(900px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+  .bedphead{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line)}
+  .bedphead b{font-size:13px}.bedphead input{flex:1;font-size:12px;padding:5px 8px;background:#0d0f13;color:#e5e7eb;border:1px solid var(--line);border-radius:4px}
+  .bedpgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;padding:14px;overflow:auto}
+  .bedthumb{cursor:pointer;border:2px solid transparent;border-radius:8px;overflow:hidden;background:#1a1c22}.bedthumb:hover{border-color:#E2552E}
+  .bedthumb img{width:100%;height:120px;object-fit:cover;display:block;background:#222}
+  .bedthumb span{display:block;font-size:11px;color:#aab;padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gatecard{border:1px solid var(--line);border-radius:2px;padding:12px;margin-bottom:10px;background:var(--panel2)}
   .btn{background:var(--accent);color:#fff;border:none;border-radius:2px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
   .btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
@@ -2516,6 +2535,8 @@ function briefCardHTML(b){ const a=b.approvals||{},mk=a.marketing,bn=a.ben,op=S.
     <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
       <button class="iconbtn" onclick="briefView('${b.id}')">👁 View</button>
       <button class="iconbtn" onclick="briefToggle('${b.id}')">💬 ${(b.comments||[]).length}</button>
+      ${live?`<button class="iconbtn" id="bedit_${b.id}" title="Edit this brief section-by-section — add images, generate a table/chart, then save a new version" onclick="briefEditSections('${b.id}')">✎ Edit</button>`:""}
+      ${(live&&(b.comments||[]).length)?`<button class="iconbtn" id="brev_${b.id}" title="Ask Claude to revise the whole brief to address every feedback note above — files a new version" onclick="briefReviseFromFeedback('${b.id}')">↻ Revise from feedback</button>`:""}
       ${live?`<button class="iconbtn" ${mk?"disabled":""} title="${mk?("Marketing ✓ "+esc(mk.by)):"Marketing lead sign-off"}" onclick="briefApprove('${b.id}','marketing')">${mk?"✓ Marketing":"Marketing sign-off"}</button>
       <button class="iconbtn" ${bn?"disabled":""} title="${bn?("Ben ✓ "+esc(bn.by)):"Ben (CEO) sign-off"}" onclick="briefApprove('${b.id}','ben')">${bn?"✓ Ben":"Ben sign-off"}</button>`:""}
       ${b.status==="confirmed"?`<button class="iconbtn" onclick="briefReopen('${b.id}')" title="reopen for a new revision round">↺ revise</button>`:""}
@@ -2533,6 +2554,149 @@ function briefsInner(l){ if(!l)return"";
       :`<div class="sub" style="margin-bottom:6px">No confirmed brief yet. Ask the chat to draft one — it files the brief here for the team to review, leave feedback, and collect <b>Marketing + Ben</b> sign-off.</div>`)
     +(mine.length?mine.map(briefCardHTML).join(""):"")
     +`</div>`;
+}
+/* ===== BRIEF AI ACTIONS — revise-from-feedback, inline per-section editor (+image), per-section visual ===== */
+// Set/clear a busy state on a brief card's action button (revise / edit) with a label, and toast.
+function _briefBtnBusy(id,prefix,busy,label){ const b=document.getElementById(prefix+"_"+id); if(b){ b.disabled=!!busy; if(label!=null)b.textContent=label; } }
+// FEATURE 1 — Revise the whole brief HTML to address every feedback comment, in one Claude call, then file the next version.
+async function briefReviseFromFeedback(id){ const b=briefById(id); if(!b){toast("Brief not found");return;}
+  const comments=(b.comments||[]); if(!comments.length){toast("No feedback to revise from yet.");return;}
+  if(BRIEF_EDIT&&BRIEF_EDIT.busy)return;
+  const src=String(b.html||""); if(!src.trim()){toast("This brief has no content to revise.");return;}
+  const bilingual=/class=["']bvL bvL-zh["']/.test(src)||/bvLang\(\)/.test(src);   // a Deep doc with an EN + 繁中 toggle
+  _briefBtnBusy(id,"brev",true,"↻ Revising…");
+  const fb=comments.map((c,i)=>(i+1)+". "+(c.who||"?")+(c.role?(" ("+c.role+")"):"")+": "+(c.text||"")).join("\n");
+  const sys="You REVISE a complete HTML marketing/launch brief for Black Voyage to address EVERY piece of team feedback given. "
+    +"Output the FULL revised HTML document — same overall structure, same <section>/<h2>/<h3> layout, the SAME brand voice, and EVERY existing <img> tag with its src URL preserved byte-for-byte (do not drop, swap, or invent image URLs). "
+    +"Keep all product/model names (Black Voyage, Vesper, Aero, Apex, Zephyr, AirCabin) and every number, spec and dimension EXACTLY as given unless a feedback note explicitly corrects one. "
+    +(bilingual?"This brief is BILINGUAL (English + 繁體中文, toggled). Keep BOTH languages: revise the English content AND its matching Traditional-Chinese content, and preserve the bilingual structure (the bvL-en / bvL-zh blocks and the toggle) intact. ":"")
+    +"Make only the changes the feedback calls for — do not rewrite sections the feedback didn't mention. Output ONLY the HTML document — no code fences, no preamble, no commentary.";
+  const usr="CURRENT BRIEF (v"+(b.version||1)+") — “"+(b.title||"")+"”:\n"+src+"\n\nTEAM FEEDBACK TO ADDRESS (every point):\n"+fb;
+  try{
+    const r=await chatFetch({model:chatModel(),system:sys,messages:[{role:"user",content:usr}],tools:undefined,think:false},{timeout:175000,tries:2,toobigMsg:"This brief is large — revising it timed out. Try revising one section at a time with the ✎ Edit tool instead."});
+    if(!r||r.error){ toast("⚠️ Revise failed — "+((r&&r.error)||"no response")+". Old version kept."); _briefBtnBusy(id,"brev",false,"↻ Revise from feedback"); return; }
+    let out=(r.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("");
+    out=balanceFragment(sanitizeFragment(out));
+    if(!out||out.trim().length<60){ toast("⚠️ Revise came back empty — old version kept."); _briefBtnBusy(id,"brev",false,"↻ Revise from feedback"); return; }
+    const v=briefSave(b.card,b.title,out,b.type);
+    if(v){ try{logEvent("question","↻ Revised brief from feedback · "+(b.title||"")+" → v"+v,{card:b.card});}catch(e){} toast("↻ Revising v"+(b.version||1)+" → filed as v"+v); }
+    else toast("⚠️ Couldn't file the revision (not signed in to the board?). Old version kept.");
+  }catch(e){ toast("⚠️ Revise error: "+((e&&e.message)||e)+". Old version kept."); }
+  finally{ _briefBtnBusy(id,"brev",false,"↻ Revise from feedback"); }
+}
+/* ----- Inline per-section editor (FEATURES 2 & 3) ----- */
+let BRIEF_EDIT=null;   // {id,card,title,type,bilingual,head,tail,sections:[{html}],busy,picker:{secIdx},query}
+// Split a brief into head / sections / tail. Prefers <section>…</section>; else splits on <h2>/<h3> boundaries.
+function _briefSplit(html){
+  const src=String(html||"");
+  const secRe=/<section\b[^>]*>[\s\S]*?<\/section>/gi; const secs=[]; let m, lastEnd=-1, firstStart=-1;
+  while((m=secRe.exec(src))){ if(firstStart<0)firstStart=m.index; secs.push(m[0]); lastEnd=m.index+m[0].length; }
+  if(secs.length){ return {mode:"section",head:src.slice(0,firstStart),tail:src.slice(lastEnd),sections:secs.map(h=>({html:h}))}; }
+  // Heading-based split — collect everything from each <h2>/<h3> up to the next heading boundary.
+  const hRe=/<h[23]\b[^>]*>/gi; const idxs=[]; while((m=hRe.exec(src))){ idxs.push(m.index); }
+  if(idxs.length){ const head=src.slice(0,idxs[0]); const sections=[];
+    for(let i=0;i<idxs.length;i++){ const start=idxs[i], end=(i+1<idxs.length)?idxs[i+1]:src.length; sections.push({html:src.slice(start,end)}); }
+    return {mode:"heading",head,tail:"",sections}; }
+  // No structure at all — one section.
+  return {mode:"flat",head:"",tail:"",sections:[{html:src}]};
+}
+// Strip BV swap-figure chrome back to the bare <img> so re-decorating is idempotent (no double <figure>).
+function _briefUnwrapFigures(h){ return String(h||"").replace(/<figure class="bvfig"[^>]*>[\s\S]*?(<img\b[^>]*>)[\s\S]*?<\/figure>/gi,"$1"); }
+// FEATURE 2 — open the section editor overlay.
+function briefEditSections(id){ const b=briefById(id); if(!b){toast("Brief not found");return;}
+  const sp=_briefSplit(b.html);
+  BRIEF_EDIT={ id:b.id, card:b.card, title:b.title, type:b.type,
+    bilingual:/class=["']bvL bvL-zh["']/.test(String(b.html||"")),
+    head:sp.head, tail:sp.tail, mode:sp.mode,
+    sections:sp.sections.map(s=>({html:s.html})), busy:false, picker:null, query:"" };
+  _briefEditRender();
+}
+function briefEditClose(){ const ov=document.getElementById("beditModal"); if(ov)ov.remove(); BRIEF_EDIT=null; }
+// Section heading text for the toolbar label.
+function _briefSecHeading(html,i){ const m=String(html||"").match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i);
+  return m?m[1].replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim():("Section "+(i+1)); }
+function _briefEditRender(){ const E=BRIEF_EDIT; if(!E)return;
+  const old=document.getElementById("beditModal"); if(old)old.remove();
+  const ov=document.createElement("div"); ov.className="cmodal"; ov.id="beditModal";
+  ov.onclick=e=>{ if(e.target===ov&&!E.busy)briefEditClose(); };
+  const secsHTML=E.sections.map((s,i)=>{
+    const folders={}; const preview=decorateImages(balanceFragment(_briefUnwrapFigures(s.html)),folders);
+    return `<div class="bedsec" data-i="${i}">
+      <div class="bedbar"><span class="bedh">§${i+1} · ${esc(_briefSecHeading(s.html,i))}</span>
+        <span style="flex:1"></span>
+        <button class="iconbtn" onclick="briefAddImageOpen(${i})">🖼 Add image</button>
+        <button class="iconbtn" id="bedgen_${i}" onclick="briefGenSectionVisual(${i})">⚡ Generate</button></div>
+      <div class="bedprev">${preview}</div>
+    </div>`;
+  }).join("");
+  ov.innerHTML=`<div class="cmbox" style="max-width:980px;width:100%">
+    <div class="cmhead"><b>✎ Edit · ${esc(E.title||"Brief")}</b>
+      ${E.bilingual?'<span class="ghostnote" style="margin-left:8px">bilingual EN + 繁中 — both kept</span>':''}
+      <span style="flex:1"></span>
+      <button class="btn" id="bedSave" onclick="briefEditSave()">💾 Save new version</button>
+      <button class="lnkb" style="font-size:16px" onclick="briefEditClose()">✕</button></div>
+    <div class="cmbody" id="bedBody"><div class="ghostnote" style="margin-bottom:8px">${E.sections.length} section${E.sections.length===1?"":"s"} · add images or generate a table/chart, then save. The existing brief is untouched until you Save.</div>${secsHTML}</div>
+  </div>
+  <div id="bedPick" class="bedpick"><div class="bedpbox"><div class="bedphead"><b id="bedptitle">Pick an image</b><input id="bedpq" placeholder="search product / category / type / name…" oninput="briefPickerSearch(this.value)"><button class="lnkb" style="font-size:15px" onclick="briefAddImageClose()">✕</button></div><div id="bedpgrid" class="bedpgrid"></div></div></div>`;
+  document.body.appendChild(ov);
+}
+// Build the searchable image gallery (productImages + brandAssets) for the picker.
+function _briefPickerItems(query){ const q=String(query||"").toLowerCase().split(/\s+/).filter(Boolean);
+  const sc=hay=>q.length?q.reduce((a,t)=>a+(hay.indexOf(t)>=0?1:0),0):1;
+  const P=(KNOWLEDGE.productImages||[]).filter(im=>im.url).map(im=>({url:im.url,cap:String(im.file||im.variant||((im.product||"")+(im.variant?(" · "+im.variant):""))||im.id||"image"),s:sc(((im.product||"")+" "+(im.category||"")+" "+(im.variant||"")+" "+(im.file||im.id||"")).toLowerCase())}));
+  const Bd=(KNOWLEDGE.brandAssets||[]).filter(im=>im.url).map(im=>({url:im.url,cap:String(im.name||im.type||im.path||"asset"),s:sc(((im.type||"")+" "+(im.name||"")+" "+(im.path||"")).toLowerCase())}));
+  return P.concat(Bd).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,240);
+}
+function briefAddImageOpen(secIdx){ const E=BRIEF_EDIT; if(!E)return; E.picker={secIdx}; E.query="";
+  const t=document.getElementById("bedptitle"); if(t)t.textContent="Pick an image for §"+(secIdx+1);
+  const q=document.getElementById("bedpq"); if(q)q.value="";
+  briefPickerSearch("");
+  const p=document.getElementById("bedPick"); if(p)p.classList.add("show");
+}
+function briefAddImageClose(){ const p=document.getElementById("bedPick"); if(p)p.classList.remove("show"); if(BRIEF_EDIT)BRIEF_EDIT.picker=null; }
+function briefPickerSearch(query){ const E=BRIEF_EDIT; if(!E)return; E.query=query;
+  const grid=document.getElementById("bedpgrid"); if(!grid)return;
+  const items=_briefPickerItems(query);
+  if(!items.length){ grid.innerHTML='<div class="ghostnote" style="padding:14px">No images matched. Try a product (Vesper, Aero, Apex, Zephyr, AirCabin), a category (backpack, suitcase), or “logo”. '+((KNOWLEDGE.productImages||[]).length+(KNOWLEDGE.brandAssets||[]).length)+' public assets available.</div>'; return; }
+  grid.innerHTML=items.map((it,k)=>`<div class="bedthumb" onclick="briefAddImagePick(${k})"><img src="${escAll(it.url)}" loading="lazy"><span>${esc(it.cap)}</span></div>`).join("");
+  E._pick=items;   // remember the current result set so the click resolves by index
+}
+function briefAddImagePick(k){ const E=BRIEF_EDIT; if(!E||!E.picker)return; const it=(E._pick||[])[k]; if(!it)return;
+  const i=E.picker.secIdx; const img='<img src="'+escAll(it.url)+'" style="max-width:100%;border-radius:8px">';
+  E.sections[i].html=String(E.sections[i].html||"")+"\n"+img;   // append to that section
+  briefAddImageClose();
+  toast("🖼 Image added to §"+(i+1)+" — Save to keep it");
+  _briefEditRender();   // re-render so the new image shows (with a ⇄ Swap button via decorateImages)
+}
+// FEATURE 3 — generate a clean table OR inline SVG infographic summarizing the section, append it.
+async function briefGenSectionVisual(i){ const E=BRIEF_EDIT; if(!E||E.busy)return; const sec=E.sections[i]; if(!sec)return;
+  const text=String(sec.html||"").replace(/<[^>]+>/g," ").replace(/&nbsp;/gi," ").replace(/\s+/g," ").trim();
+  if(text.length<20){ toast("Not enough text in this section to summarize."); return; }
+  E.busy=true; _briefBtnBusy(i,"bedgen",true,"⚡ Generating…");
+  const sys="From a section of a Black Voyage marketing brief, produce EITHER a clean HTML <table> OR a self-contained inline <svg> infographic — whichever better summarizes the content. "
+    +"Output ONLY the HTML/SVG fragment: no prose, no explanation, no code fences, no <html>/<head>/<body>. Use Black Voyage's clean monochrome style (ink #16181C, accent #E2552E, light grey lines), keep it under ~700px wide, and make any <svg> fully self-contained (inline styles/attributes, a width/viewBox, no external refs).";
+  try{
+    const r=await chatFetch({model:chatModel(),system:sys,messages:[{role:"user",content:"SECTION (“"+_briefSecHeading(sec.html,i)+"”) content to summarize as a table or SVG:\n"+text}],tools:undefined,think:false},{timeout:120000,tries:1,toobigMsg:"section too long — trim it first"});
+    if(!r||r.error){ toast("⚠️ Generate failed — "+((r&&r.error)||"no response")); }
+    else{ let out=(r.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("");
+      out=_briefSanitizeVisual(out);
+      if(out&&out.trim().length>12){ E.sections[i].html=String(E.sections[i].html||"")+"\n"+out; toast("⚡ Added a "+(/^<svg/i.test(out.trim())?"chart":"table")+" to §"+(i+1)+" — Save to keep it"); }
+      else toast("⚠️ Generate came back empty."); }
+  }catch(e){ toast("⚠️ Generate error: "+((e&&e.message)||e)); }
+  finally{ E.busy=false; _briefBtnBusy(i,"bedgen",false,"⚡ Generate"); _briefEditRender(); }
+}
+// Allow <svg>/<table> through; strip fences and document/style/script wrappers like sanitizeFragment but keep svg+table tags.
+function _briefSanitizeVisual(h){ return String(h||"").replace(/```html?/gi,"").replace(/```/g,"")
+  .replace(/<\/?(?:html|head|body)[^>]*>/gi,"").replace(/<!doctype[^>]*>/gi,"")
+  .replace(/<script[\s\S]*?<\/script>/gi,"").replace(/<title[\s\S]*?<\/title>/gi,"").trim(); }
+// Reassemble all sections (unwrap → re-decorate once so images get the ⇄ Swap figure) + head + tail, file new version.
+function briefEditSave(){ const E=BRIEF_EDIT; if(!E){toast("Nothing to save");return;} if(E.busy){toast("Hold on — a generate is still running");return;}
+  const folders={}; const body=E.sections.map(s=>decorateImages(balanceFragment(_briefUnwrapFigures(s.html)),folders)).join("\n");
+  const full=String(E.head||"")+body+String(E.tail||"");
+  if(!full.trim()){toast("Nothing to save");return;}
+  const v=briefSave(E.card,E.title,full,E.type);
+  if(v){ try{logEvent("question","✎ Edited brief · "+(E.title||"")+" → v"+v,{card:E.card});}catch(e){} toast("✎ Edits saved — filed as v"+v); briefEditClose(); }
+  else toast("⚠️ Couldn't file the edit (not signed in to the board?). Nothing changed.");
 }
 function renderBriefsPanel(l){return `<div id="briefsPanel">${briefsInner(l)}</div>`;}
 function renderBriefs(){const el=document.getElementById("briefsPanel"); if(el&&S.launch)el.innerHTML=briefsInner(L(S.launch));}
