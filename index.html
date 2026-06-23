@@ -2625,6 +2625,13 @@ function _briefSplit(html){
 }
 // Strip BV swap-figure chrome back to the bare <img> so re-decorating is idempotent (no double <figure>).
 function _briefUnwrapFigures(h){ return String(h||"").replace(/<figure class="bvfig"[^>]*>[\s\S]*?(<img\b[^>]*>)[\s\S]*?<\/figure>/gi,"$1"); }
+// Insert a visual (img / table / svg) INSIDE one <section>, as a section-level sibling OUTSIDE the .bvL-en/.bvL-zh
+// language layers — before the .bvfb feedback block, else before </section>, else append — so it shows under BOTH the
+// EN and 中文 toggle. SINGLE source of truth for the in-app ✎ Edit editor AND the chat "add image / chart / table" path.
+function _briefInjectVisual(sectionHtml,frag){ const s=String(sectionHtml||""); const f=String(frag||""); if(!f.trim())return s;
+  const fb=s.search(/<div class="bvfb"/i); if(fb>=0) return s.slice(0,fb)+"\n"+f+"\n"+s.slice(fb);
+  const sc=s.toLowerCase().lastIndexOf("</section>"); if(sc>=0) return s.slice(0,sc)+"\n"+f+"\n"+s.slice(sc);
+  return s+"\n"+f; }
 // FEATURE 2 — open the section editor overlay.
 function briefEditSections(id){ const b=briefById(id); if(!b){toast("Brief not found");return;}
   const sp=_briefSplit(b.html);
@@ -2660,7 +2667,7 @@ function _briefEditRender(){ const E=BRIEF_EDIT; if(!E)return;
       <button class="lnkb" style="font-size:16px" onclick="briefEditClose()">✕</button></div>
     <div class="cmbody" id="bedBody"><div class="ghostnote" style="margin-bottom:8px">${E.sections.length} section${E.sections.length===1?"":"s"} · add images or generate a table/chart, then save. The existing brief is untouched until you Save.</div>${secsHTML}</div>
   </div>
-  <div id="bedPick" class="bedpick"><div class="bedpbox"><div class="bedphead"><b id="bedptitle">Pick an image</b><input id="bedpq" placeholder="search product / category / type / name…" oninput="briefPickerSearch(this.value)"><button class="lnkb" style="font-size:15px" onclick="briefAddImageClose()">✕</button></div><div id="bedpgrid" class="bedpgrid"></div></div></div>`;
+  <div id="bedPick" class="bedpick"><div class="bedpbox"><div class="bedphead"><b id="bedptitle">Pick an image</b><input id="bedpq" placeholder="search product / category / type / name…" oninput="briefPickerSearch(this.value)"><input id="bedpurl" placeholder="…or paste an image URL" style="min-width:150px;margin-left:6px" onkeydown="if(event.key==='Enter')briefAddImageUrl()"><button class="lnkb" style="font-size:13px" onclick="briefAddImageUrl()" title="Embed an image from any URL">＋ URL</button><button class="lnkb" style="font-size:15px" onclick="briefAddImageClose()">✕</button></div><div id="bedpgrid" class="bedpgrid"></div></div></div>`;
   document.body.appendChild(ov);
 }
 // Build the searchable image gallery (productImages + brandAssets) for the picker.
@@ -2680,16 +2687,26 @@ function briefAddImageClose(){ const p=document.getElementById("bedPick"); if(p)
 function briefPickerSearch(query){ const E=BRIEF_EDIT; if(!E)return; E.query=query;
   const grid=document.getElementById("bedpgrid"); if(!grid)return;
   const items=_briefPickerItems(query);
-  if(!items.length){ grid.innerHTML='<div class="ghostnote" style="padding:14px">No images matched. Try a product (Vesper, Aero, Apex, Zephyr, AirCabin), a category (backpack, suitcase), or “logo”. '+((KNOWLEDGE.productImages||[]).length+(KNOWLEDGE.brandAssets||[]).length)+' public assets available.</div>'; return; }
+  if(!items.length){ grid.innerHTML='<div class="ghostnote" style="padding:14px">No images matched. Try a product (Vesper, Aero, Apex, Zephyr, AirCabin), a category (backpack, suitcase), or “logo”. '+((KNOWLEDGE.productImages||[]).length+(KNOWLEDGE.brandAssets||[]).length)+' public assets available — or paste an image URL above.</div>'; return; }
   grid.innerHTML=items.map((it,k)=>`<div class="bedthumb" onclick="briefAddImagePick(${k})"><img src="${escAll(it.url)}" loading="lazy"><span>${esc(it.cap)}</span></div>`).join("");
   E._pick=items;   // remember the current result set so the click resolves by index
 }
 function briefAddImagePick(k){ const E=BRIEF_EDIT; if(!E||!E.picker)return; const it=(E._pick||[])[k]; if(!it)return;
   const i=E.picker.secIdx; const img='<img src="'+escAll(it.url)+'" style="max-width:100%;border-radius:8px">';
-  E.sections[i].html=String(E.sections[i].html||"")+"\n"+img;   // append to that section
+  E.sections[i].html=_briefInjectVisual(E.sections[i].html,img);   // inject INSIDE the section (outside the EN/中文 layers), not after </section>
   briefAddImageClose();
   toast("🖼 Image added to §"+(i+1)+" — Save to keep it");
   _briefEditRender();   // re-render so the new image shows (with a ⇄ Swap button via decorateImages)
+}
+// Add an image by pasting a URL — the escape hatch when the Core gallery is empty or has no match.
+function briefAddImageUrl(){ const E=BRIEF_EDIT; if(!E||!E.picker)return;
+  const el=document.getElementById("bedpurl"); const u=(el&&el.value||"").trim();
+  if(!/^https?:\/\//i.test(u)){ toast("Paste a full http(s) image URL"); return; }
+  const i=E.picker.secIdx; const img='<img src="'+escAll(u)+'" style="max-width:100%;border-radius:8px">';
+  E.sections[i].html=_briefInjectVisual(E.sections[i].html,img);
+  briefAddImageClose();
+  toast("🖼 Image added to §"+(i+1)+" — Save to keep it");
+  _briefEditRender();
 }
 // FEATURE 3 — generate a clean table OR inline SVG infographic summarizing the section, append it.
 async function briefGenSectionVisual(i){ const E=BRIEF_EDIT; if(!E||E.busy)return; const sec=E.sections[i]; if(!sec)return;
@@ -2703,7 +2720,7 @@ async function briefGenSectionVisual(i){ const E=BRIEF_EDIT; if(!E||E.busy)retur
     if(!r||r.error){ toast("⚠️ Generate failed — "+((r&&r.error)||"no response")); }
     else{ let out=(r.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("");
       out=_briefSanitizeVisual(out);
-      if(out&&out.trim().length>12){ E.sections[i].html=String(E.sections[i].html||"")+"\n"+out; toast("⚡ Added a "+(/^<svg/i.test(out.trim())?"chart":"table")+" to §"+(i+1)+" — Save to keep it"); }
+      if(out&&out.trim().length>12){ E.sections[i].html=_briefInjectVisual(E.sections[i].html,out); toast("⚡ Added a "+(/^<svg/i.test(out.trim())?"chart":"table")+" to §"+(i+1)+" — Save to keep it"); }
       else toast("⚠️ Generate came back empty."); }
   }catch(e){ toast("⚠️ Generate error: "+((e&&e.message)||e)); }
   finally{ E.busy=false; _briefBtnBusy(i,"bedgen",false,"⚡ Generate"); _briefEditRender(); }
@@ -2891,6 +2908,17 @@ function looksTransform(text){ const t=String(text||"");
   const verb=/\b(translat\w*|bilingual|tradu\w*|rewrite|reword|re-?write|shorten|condense|tighten|summar[iy]\w*|tl;?dr|make it (shorter|longer|tighter)|in (chinese|mandarin|cantonese|traditional|simplified|spanish|french|german|japanese|korean|english))\b/i;
   const cjk=/[一-鿿]|繁體|简体|中文|翻譯|翻译/;
   return verb.test(t)||cjk.test(t); }
+// Does the user want to ADD a visual (an image, OR a chart/table) to the EXISTING doc? (distinct from a transform)
+function looksAugment(text){ const t=String(text||"");
+  if(/\b(translat\w*|bilingual|rewrite|reword|shorten|condense|tighten|summar[iy]\w*)\b/i.test(t)) return false;   // those are TRANSFORMS — they must keep routing to chatTransformDoc, not augment
+  const addVerb=/\b(add|insert|include|put|place|embed|drop|attach)\b/i;
+  const imgNoun=/\b(image|images|picture|pic|photo|photos|visual|graphic|logo|shot|render|hero[- ]?image)\b/i;
+  const vizNoun=/\b(chart|graph|table|diagram|infographic|comparison|breakdown|timeline|matrix|svg)\b/i;
+  const makeViz=/\b(make|turn|convert|render|generate|create|build|draw)\b[\s\S]{0,24}\b(chart|graph|table|diagram|infographic|comparison|breakdown|timeline|matrix|svg|image|picture|photo|visual|logo)\b/i;
+  return (addVerb.test(t)&&(imgNoun.test(t)||vizNoun.test(t)))||makeViz.test(t); }
+// of the two augment kinds, is this an IMAGE request (vs a generated chart/table)?
+function augmentIsImage(text){ const t=String(text||"");
+  return /\b(image|images|picture|pic|photo|photos|visual|graphic|logo|shot|render|hero[- ]?image)\b/i.test(t)&&!/\b(chart|graph|table|diagram|infographic|comparison|breakdown|timeline|matrix|svg)\b/i.test(t); }
 // bilingual = a clean English version AND a clean Traditional-Chinese version, toggled (NOT a translation, NOT stacked, NOT Simplified)
 function looksBilingual(text){ const t=String(text||""); return /\bbilingual\b|雙語|兩種語言|两种语言|english[^.]{0,14}(and|\+|&|\/|plus)[^.]{0,14}(chinese|mandarin|中文)|(chinese|mandarin|中文)[^.]{0,14}(and|\+|&|\/|plus)[^.]{0,14}english/i.test(t); }
 function lastChatDoc(slug){
@@ -2951,6 +2979,53 @@ async function chatTransformDoc(slug,instruction,doc,docName){
   }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Couldn't transform the document: "+((e&&e.message)||e)+". Try asking for one section at a time.",ts:nowStamp()}); }
   finally{ CHAT.busy=false; CHAT.wake=false; try{clearInterval(CHAT.tick);}catch(e){} renderChatBody(); }
 }
+// Pick the section whose heading/text best matches the instruction; default to last ("here"/append) else the first section.
+function _augPickSection(sections,instruction){
+  const q=String(instruction||"").toLowerCase().split(/\s+/).filter(w=>w.length>2);
+  let best=-1,bestScore=0;
+  sections.forEach((s,i)=>{ const h=(_briefSecHeading(s.html,i)+" "+String(s.html||"").replace(/<[^>]+>/g," ")).toLowerCase();
+    const sc=q.reduce((a,t)=>a+(h.indexOf(t)>=0?1:0),0); if(sc>bestScore){bestScore=sc;best=i;} });
+  if(best>=0&&bestScore>0)return best;
+  return /\b(here|this section|below|end)\b/i.test(instruction)?sections.length-1:0; }
+// ADD an image (from the Core) or a generated chart/table INTO the existing doc — reuses the editor's insertion + reassembly so it's identical to ✎ Edit. Never re-researches, never regenerates the whole brief.
+async function chatAugmentDoc(slug,instruction,doc,docName){
+  const l=L(slug);
+  CHAT.busy=true; CHAT.steps=[]; CHAT.phase="acting"; CHAT.startedAt=Date.now(); CHAT.hop=0;
+  try{clearInterval(CHAT.tick);}catch(e){} CHAT.tick=setInterval(()=>{ if(CHAT.busy)renderChatBody(); else { try{clearInterval(CHAT.tick);}catch(e){} } },1000);
+  chatPush(slug,{role:"user",who:actor(),text:instruction,ts:nowStamp()});
+  logEvent("question","🖼 add to doc · "+((l&&l.name)||slug)+": “"+instruction.slice(0,80)+"”",{card:slug});
+  const sp=_briefSplit(doc); const sections=sp.sections.map(s=>({html:s.html}));
+  if(!sections.length){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ I couldn't find sections in that document to add to — open it with ✎ Edit and use 🖼 Add image / ⚡ Generate.",ts:nowStamp()}); CHAT.busy=false; CHAT.wake=false; try{clearInterval(CHAT.tick);}catch(e){} renderChatBody(); return; }
+  const t0=(docName&&String(docName))||((l&&l.name)||"Document"); const target=_augPickSection(sections,instruction);
+  let tIn=0,tOut=0; let frag="",kind="",isSvg=false;
+  try{
+    if(augmentIsImage(instruction)){ kind="image";
+      const cleanq=instruction.replace(/\b(add|insert|include|put|place|embed|drop|attach|a|an|the|image|images|picture|pic|photo|photos|of|here|to|into|this|that|doc|brief|document|please|section|visual|graphic)\b/gi," ").replace(/\s+/g," ").trim();
+      const items=_briefPickerItems(cleanq||instruction); const it=items[0];
+      if(!it){ chatPush(slug,{role:"assistant",who:"Claude",text:"🖼 I don't have a matching image in the Core for that. Open the brief with ✎ Edit → 🖼 Add image to browse all "+((KNOWLEDGE.productImages||[]).length+(KNOWLEDGE.brandAssets||[]).length)+" assets, or paste an image URL there and I'll embed it.",ts:nowStamp()}); CHAT.busy=false; CHAT.wake=false; try{clearInterval(CHAT.tick);}catch(e){} renderChatBody(); return; }
+      CHAT.steps.push({head:"🖼 Adding an image",sub:String(it.cap||"")}); renderChatBody();
+      frag='<img src="'+escAll(it.url)+'" style="max-width:100%;border-radius:8px">';
+    } else { kind="visual";
+      const secText=String(sections[target].html||"").replace(/<[^>]+>/g," ").replace(/&nbsp;/gi," ").replace(/\s+/g," ").trim();
+      const baseText=secText.length>40?secText:String(doc).replace(/<[^>]+>/g," ").replace(/&nbsp;/gi," ").replace(/\s+/g," ").trim().slice(0,4000);
+      CHAT.steps.push({head:"⚡ Generating a "+(/\btable\b/i.test(instruction)?"table":"visual"),sub:t0}); renderChatBody();
+      const sys="From a section of a Black Voyage marketing brief, produce EITHER a clean HTML <table> OR a self-contained inline <svg> infographic — whichever better summarizes the content. "
+        +"Output ONLY the HTML/SVG fragment: no prose, no explanation, no code fences, no <html>/<head>/<body>. Use Black Voyage's clean monochrome style (ink #16181C, accent #E2552E, light grey lines), keep it under ~700px wide, and make any <svg> fully self-contained (inline styles/attributes, a width/viewBox, no external refs).";
+      const r=await chatFetch({model:chatModel(),system:sys,messages:[{role:"user",content:"USER ASK: "+instruction+"\n\nSECTION content to summarize as a table or SVG:\n"+baseText}],tools:undefined,think:false},{timeout:120000,tries:1,toobigMsg:"section too long"});
+      if(r&&r.usage){tIn+=r.usage.input_tokens||0;tOut+=r.usage.output_tokens||0;}
+      if(!r||r.error)throw new Error((r&&r.error&&r.error.message)||"the generate call failed");
+      frag=_briefSanitizeVisual((r.content||[]).filter(x=>x.type==="text").map(x=>x.text).join(""));
+      if(!frag||frag.trim().length<12)throw new Error("the visual came back empty");
+      isSvg=/^<svg/i.test(frag.trim());
+    }
+    sections[target].html=_briefInjectVisual(sections[target].html,frag);
+    const folders={}; const body=sections.map(s=>decorateImages(balanceFragment(_briefUnwrapFigures(s.html)),folders)).join("\n");
+    const fullHtml=String(sp.head||"")+body+String(sp.tail||"");
+    let v=0; try{ v=briefSave(slug,t0,fullHtml,"marketing"); }catch(e){}
+    chatPush(slug,{role:"assistant",who:"Claude",text:(kind==="image"?"🖼 Added the image":"⚡ Added a "+(isSvg?"chart":"table"))+" to **"+t0+"** (§"+(target+1)+")."+(v?(" · filed to 📋 Briefs as v"+v):"")+" It sits in the section and stays visible under both the EN and 中文 toggle. Updated document below.",actions:(v?["📋 filed to Briefs"]:[]),attachments:[{type:"code",n:t0,h:fullHtml}],meta:{model:chatModel(),in:tIn,out:tOut,cost:chatCost(chatModel(),tIn,tOut),hops:1,trace:[],reasoning:""},ts:nowStamp()});
+  }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Couldn't add that to the document: "+((e&&e.message)||e)+". You can also use ✎ Edit → 🖼 Add image / ⚡ Generate on the brief card.",ts:nowStamp()}); }
+  finally{ CHAT.busy=false; CHAT.wake=false; try{clearInterval(CHAT.tick);}catch(e){} renderChatBody(); }
+}
 
 async function chatSend(slug){
   const input=document.getElementById("chatInput"); if(!input)return;
@@ -2961,6 +3036,8 @@ async function chatSend(slug){
   if(CHAT.pendingClarify){ const pc=CHAT.pendingClarify; CHAT.pendingClarify=null; input.value=""; return chatSendDeep(slug, /^\s*(go|proceed|just build( it)?|build it|do it|yes|yep|ok|okay)\s*$/i.test(text)?pc.request:(pc.request+"\n\n[Extra context / answers from "+actor()+": "+text+"]")); }
   // FIRST: a transform of the EXISTING last doc wins over auto-Deep — "make this bilingual / shorten it" must never silently regenerate from scratch.
   { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksTransform(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one)\b/i.test(text)||text.length<90)){ input.value=""; return chatTransformDoc(slug,text,_doc.h,_doc.n); } }   // translate/rewrite/shorten an EXISTING doc — transform it directly, never re-research
+  // 1.5: ADD a visual (image / chart / table) INTO the existing last doc — never regenerate, never just show it in a chat bubble. Sits AFTER transform, BEFORE Deep so a short "add a chart" isn't intercepted by deepNeedsClarify.
+  { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksAugment(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one|here|section)\b/i.test(text)||text.length<90)){ input.value=""; return chatAugmentDoc(slug,text,_doc.h,_doc.n); } }
   // SECOND: a genuine new, multi-section deliverable still goes to Deep.
   if(CHAT.deep|| /^\/deep\b/i.test(text)){ input.value=""; const dtext=text.replace(/^\/deep\s*/i,"").trim()||text; if(deepNeedsClarify(dtext)){ return chatClarifyAsk(slug,dtext); } return chatSendDeep(slug, dtext); }   // big deliverable — but ask 2-3 scoping questions first when the request is thin
   if(looksDeep(text)){   // SUGGEST deep mode for a big ask (never auto-run) — so the user doesn't have to know when
