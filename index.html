@@ -2299,9 +2299,11 @@ const CHAT_TOOLS=[
   {name:"add_note",description:"Add a note / check-in to this product card's log.",input_schema:{type:"object",properties:{text:{type:"string"}},required:["text"]}},
   {name:"set_task_status",description:"Update a task's status on this card. Subject to the SAME rules as the board: a locked task (prerequisites not done / wrong stage) is rejected, and marking an evidence-required task 'done' is rejected unless it has a link attached. If blocked, the tool tells you why — relay that instead of forcing it.",input_schema:{type:"object",properties:{task:{type:"string"},status:{type:"string",enum:["todo","in_progress","done","blocked"]}},required:["task","status"]}}
 ];
-let CHAT={slug:null,unsub:null,msgs:[],busy:false,full:false};
+let CHAT={slug:null,unsub:null,msgs:[],busy:false,busyAt:0,full:false};
 let BRIEFS=[];  // collaborative versioned briefs (bv/superpm/briefs) — real-time, shared
 function chatRef(slug){return firebase.firestore().collection("bv").doc("superpm").collection("chats").doc(slug);}
+// If the tab closes mid-deep-run, best-effort clear the lease so the card isn't blocked for 5 minutes.
+try{ if(!window._bvLeaseUnbind){ window._bvLeaseUnbind=true; window.addEventListener("beforeunload",function(){ if(CHAT.slug){ try{ chatRef(CHAT.slug).set({deepRunAt:0},{merge:true}); }catch(e){} } }); } }catch(e){}
 let _chatKnLoaded=false;
 function loadChatKnowledge(){   // lazy: only when a chat actually opens (saves ~2,300 Firestore reads on board-only page views)
   if(_chatKnLoaded||!FB.coreDb)return; _chatKnLoaded=true; const cdb=FB.coreDb;
@@ -2768,7 +2770,7 @@ function renderChatPanel(l){
         <select title="model — Sonnet 4.6 is the default; Opus is deepest, Haiku is fastest" onchange="setChatModel(this.value)" style="font-size:11px;padding:3px 6px">${CHAT_MODELS.map(m=>`<option value="${m.id}" ${m.id===chatModel()?"selected":""}>${m.label}</option>`).join("")}</select>
         <button class="iconbtn" id="chatFullBtn" title="${CHAT.full?"close — back to the card (Esc)":"expand to full screen"}" onclick="toggleChatFull()">${CHAT.full?"✕ Close":"⛶ Full"}</button></span></h3>
     <div class="chatmsgs" id="chatMsgs"></div>${chatPresetsHTML(l)}
-    <div class="chatinput"><textarea id="chatInput" placeholder="Ask Claude to attach a link/doc/HTML, add a note, or update a task… (Enter to send · Esc to close)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${l.slug}')}else if(event.key==='Escape'&&CHAT.full){event.preventDefault();toggleChatFull()}"></textarea><button class="iconbtn${CHAT.deep?" on":""}" id="deepBtn" title="Deep mode — for big multi-part deliverables (full brief + product guide + personas + ad concepts + competitor comparison). Builds it section-by-section into one document and files it as a Brief. Takes a few minutes." onclick="toggleDeep()">🔬 Deep</button><button class="btn" onclick="chatSend('${l.slug}')">Send</button></div>
+    <div class="chatinput"><textarea id="chatInput" placeholder="Ask Claude to attach a link/doc/HTML, add a note, or update a task… (Enter to send · Esc to close)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${l.slug}')}else if(event.key==='Escape'&&CHAT.full){event.preventDefault();toggleChatFull()}"></textarea><button class="iconbtn${CHAT.deep?" on":""}" id="deepBtn" title="Deep mode — for big multi-part deliverables (full brief + product guide + personas + ad concepts + competitor comparison). Builds it section-by-section into one document and files it as a Brief. Takes a few minutes." onclick="toggleDeep()">🔬 Deep</button><button class="btn" onclick="chatSend('${l.slug}')">Send</button><button class="iconbtn" title="reset the chat if it ever gets stuck — clears the working state so you can send again" onclick="chatStop()">⟲ Reset</button></div>
     <div style="display:flex;justify-content:flex-end;padding:5px 2px 0"><button class="iconbtn" style="font-size:11px;opacity:.55" title="erase this card's entire conversation for everyone (cannot be undone)" onclick="clearChat('${l.slug}')">🗑 Clear conversation</button></div></div>`;
 }
 const TOOL_STEP={search_catalog:"🔎 Searching the product catalog",get_product:"🔎 Looking up the product",search_knowledge:"📚 Searching brand & tech knowledge",search_product_spec:"📐 Checking the product spec",search_documents:"📄 Reading strategy / research docs",search_strategy:"🎯 Pulling customer & strategy insights",read_card_doc:"📄 Reading this card's intake / concept",find_images:"🖼 Finding product images",recall:"🧠 Recalling saved decisions",remember:"🧠 Saving to shared memory",add_link:"🔗 Attaching a link",add_html:"</> Building an HTML document",add_note:"📝 Adding a note",set_task_status:"☑ Updating a task",save_skill:"📘 Saving a skill",save_brief:"📋 Filing the brief for sign-off"};
@@ -2776,6 +2778,9 @@ function chatStepLabel(n){return TOOL_STEP[n]||("⚙️ Running "+n);}
 // where each tool actually reads/writes — shown live under the action so you can see which database it's hitting
 const TOOL_SRC={search_catalog:"BV Data Core › catalog",get_product:"BV Data Core › catalog",search_knowledge:"BV Data Core › tech · competitors · brand",search_product_spec:"BV Data Core › product specs",search_documents:"BV Data Core › documents",search_strategy:"BV Data Core › personas · insights · reviews",find_images:"BV Data Core › product_images · brand_assets",recall:"BV Data Core › shared memory",remember:"BV Data Core › shared memory (write)",read_card_doc:"this card › intake · concept (bv-superpm)",set_task_status:"this board › task (bv-superpm)",add_link:"this card › attachment (bv-superpm)",add_html:"this chat › HTML doc",add_note:"this card › note (bv-superpm)",save_brief:"this card › Briefs (bv-superpm)",save_skill:"playbooks (bv-superpm)"};
 function chatStepSub(name,input){ const src=TOOL_SRC[name]||""; const q=(input&&(input.query||input.task||input.name||input.title||input.label||input.fact)||"").toString().trim(); const qs=q?("“"+q.slice(0,44)+(q.length>44?"…":"")+"”"):""; return [src&&("→ "+src),qs].filter(Boolean).join("  ·  "); }
+// ===== Chat fail-safes: ONE guaranteed release path + a user-visible reset, so the chat can NEVER wedge permanently =====
+function chatRelease(){ CHAT.busy=false; CHAT.wake=false; CHAT.busyAt=0; try{clearInterval(CHAT.tick);}catch(e){} renderChatBody(); }
+function chatStop(){ try{ if(CHAT.abort)CHAT.abort.abort(); }catch(e){} CHAT.pendingClarify=null; chatRelease(); if(CHAT.slug){ try{ chatRef(CHAT.slug).set({deepRunAt:0},{merge:true}); }catch(e){} } toast("⟲ Chat reset — you can send again."); }
 function renderChatBody(){
   const m=document.getElementById("chatMsgs"); if(!m)return;
   let busyHTML="";
@@ -2921,6 +2926,8 @@ function augmentIsImage(text){ const t=String(text||"");
   return /\b(image|images|picture|pic|photo|photos|visual|graphic|logo|shot|render|hero[- ]?image)\b/i.test(t)&&!/\b(chart|graph|table|diagram|infographic|comparison|breakdown|timeline|matrix|svg)\b/i.test(t); }
 // bilingual = a clean English version AND a clean Traditional-Chinese version, toggled (NOT a translation, NOT stacked, NOT Simplified)
 function looksBilingual(text){ const t=String(text||""); return /\bbilingual\b|雙語|兩種語言|两种语言|english[^.]{0,14}(and|\+|&|\/|plus)[^.]{0,14}(chinese|mandarin|中文)|(chinese|mandarin|中文)[^.]{0,14}(and|\+|&|\/|plus)[^.]{0,14}english/i.test(t); }
+// An EXPLICIT new, sectioned deliverable — must build FRESH, never be hijacked into transform/augment of an old doc.
+function isExplicitBuild(text){ var t=String(text||""); var hasSecs=/\bsections?\s*[:：]/i.test(t); var newVerb=/\b(new|newest|fresh|another|from scratch|build|create|generate|draft|write|put together|make me a|give me)\b/i.test(t); var deliverable=/\b(brief|guide|persona|personas|one[- ]?pager|deck|report|landing page|campaign|playbook|strategy|launch (brief|plan)|positioning|comparison|teardown|whitepaper|white ?paper)\b/i.test(t); return hasSecs || (newVerb && deliverable); }
 function lastChatDoc(slug){
   // 1) Fast path: the most recent inline HTML attachment in this chat.
   const ms=CHAT.msgs||[];
@@ -2954,11 +2961,12 @@ async function transformFragment(instruction,heading,htmlFrag,acc){ const en=Str
   }catch(e){} return en; }
 async function chatTransformDoc(slug,instruction,doc,docName){
   const l=L(slug);
-  CHAT.busy=true; CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
+  CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
   try{clearInterval(CHAT.tick);}catch(e){} CHAT.tick=setInterval(()=>{ if(CHAT.busy)renderChatBody(); else { try{clearInterval(CHAT.tick);}catch(e){} } },1000);
   chatPush(slug,{role:"user",who:actor(),text:instruction,ts:nowStamp()});
   logEvent("question","🌐 transform doc · "+((l&&l.name)||slug)+": “"+instruction.slice(0,80)+"”",{card:slug});
   const clean=stripDocChrome(doc); const t0=clean.title||docName||((l&&l.name)||"Document");
+  if(!clean.sections.length){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ I couldn't read any sections out of the existing document to transform. Say 'build a new brief' (or turn on 🔬 Deep) and I'll generate a fresh one with your sections.",ts:nowStamp()}); chatRelease(); return; }
   const wantBi=looksBilingual(instruction);   // bilingual = a clean ENGLISH version + a clean TRADITIONAL-CHINESE version, toggled (never stacked, never Simplified)
   let tIn=0,tOut=0; const acc=d=>{tIn+=d.in||0;tOut+=d.out||0;}; const parts=[], partsZh=[];
   try{
@@ -2990,7 +2998,7 @@ function _augPickSection(sections,instruction){
 // ADD an image (from the Core) or a generated chart/table INTO the existing doc — reuses the editor's insertion + reassembly so it's identical to ✎ Edit. Never re-researches, never regenerates the whole brief.
 async function chatAugmentDoc(slug,instruction,doc,docName){
   const l=L(slug);
-  CHAT.busy=true; CHAT.steps=[]; CHAT.phase="acting"; CHAT.startedAt=Date.now(); CHAT.hop=0;
+  CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.steps=[]; CHAT.phase="acting"; CHAT.startedAt=Date.now(); CHAT.hop=0;
   try{clearInterval(CHAT.tick);}catch(e){} CHAT.tick=setInterval(()=>{ if(CHAT.busy)renderChatBody(); else { try{clearInterval(CHAT.tick);}catch(e){} } },1000);
   chatPush(slug,{role:"user",who:actor(),text:instruction,ts:nowStamp()});
   logEvent("question","🖼 add to doc · "+((l&&l.name)||slug)+": “"+instruction.slice(0,80)+"”",{card:slug});
@@ -3031,13 +3039,13 @@ async function chatSend(slug){
   const input=document.getElementById("chatInput"); if(!input)return;
   const text=(input.value||"").trim(); if(!text)return;
   if(!CHAT_API_URL){toast("⚠️ Chat backend not set yet — deploy the proxy & set CHAT_API_URL (see CHAT-SETUP.md)");return;}
-  if(CHAT.busy){toast("Claude is still working…");return;}
+  if(CHAT.busy){ if(CHAT.busyAt && (Date.now()-CHAT.busyAt)>240000){ chatRelease(); } else { toast("Claude is still working… give it a moment, then resend."); return; } }
   // The user is answering the clarifying questions → now build the deliverable WITH their context (or "go" to build as-is).
-  if(CHAT.pendingClarify){ const pc=CHAT.pendingClarify; CHAT.pendingClarify=null; input.value=""; return chatSendDeep(slug, /^\s*(go|proceed|just build( it)?|build it|do it|yes|yep|ok|okay)\s*$/i.test(text)?pc.request:(pc.request+"\n\n[Extra context / answers from "+actor()+": "+text+"]")); }
+  if(CHAT.pendingClarify){ const pc=CHAT.pendingClarify; const stale=pc.ts&&(Date.now()-pc.ts)>600000; if(isExplicitBuild(text)||stale){ CHAT.pendingClarify=null; } else { CHAT.pendingClarify=null; input.value=""; return chatSendDeep(slug, /^\s*(go|proceed|just build( it)?|build it|do it|yes|yep|ok|okay)\s*$/i.test(text)?pc.request:(pc.request+"\n\n[Extra context / answers from "+actor()+": "+text+"]")); } }
   // FIRST: a transform of the EXISTING last doc wins over auto-Deep — "make this bilingual / shorten it" must never silently regenerate from scratch.
-  { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksTransform(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one)\b/i.test(text)||text.length<90)){ input.value=""; return chatTransformDoc(slug,text,_doc.h,_doc.n); } }   // translate/rewrite/shorten an EXISTING doc — transform it directly, never re-research
+  { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksTransform(text) && !isExplicitBuild(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one)\b/i.test(text)||text.length<90)){ input.value=""; return chatTransformDoc(slug,text,_doc.h,_doc.n); } }   // translate/rewrite/shorten an EXISTING doc — transform it directly, never re-research (but an explicit NEW sectioned build wins → falls through to Deep)
   // 1.5: ADD a visual (image / chart / table) INTO the existing last doc — never regenerate, never just show it in a chat bubble. Sits AFTER transform, BEFORE Deep so a short "add a chart" isn't intercepted by deepNeedsClarify.
-  { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksAugment(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one|here|section)\b/i.test(text)||text.length<90)){ input.value=""; return chatAugmentDoc(slug,text,_doc.h,_doc.n); } }
+  { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksAugment(text) && !isExplicitBuild(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one|here|section)\b/i.test(text)||text.length<90)){ input.value=""; return chatAugmentDoc(slug,text,_doc.h,_doc.n); } }
   // SECOND: a genuine new, multi-section deliverable still goes to Deep.
   if(CHAT.deep|| /^\/deep\b/i.test(text)){ input.value=""; const dtext=text.replace(/^\/deep\s*/i,"").trim()||text; if(deepNeedsClarify(dtext)){ return chatClarifyAsk(slug,dtext); } return chatSendDeep(slug, dtext); }   // big deliverable — but ask 2-3 scoping questions first when the request is thin
   if(looksDeep(text)){   // SUGGEST deep mode for a big ask (never auto-run) — so the user doesn't have to know when
@@ -3048,7 +3056,7 @@ async function chatSend(slug){
   const prior=(CHAT.msgs||[]).slice();
   chatPush(slug,{role:"user",who,text,ts:nowStamp()});
   logEvent("question","💬 asked AI · "+((l&&l.name)||slug)+": “"+text.slice(0,90)+(text.length>90?"…":"")+"”",{card:slug});
-  CHAT.busy=true; CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
+  CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
   try{ clearInterval(CHAT.tick); }catch(e){} CHAT.tick=setInterval(()=>{ if(CHAT.busy)renderChatBody(); else { try{clearInterval(CHAT.tick);}catch(e){} } },1000);  // live elapsed-time tick
   renderChatBody();
   let messages=[];
@@ -3072,7 +3080,7 @@ async function chatSend(slug){
         tus.forEach(tu=>CHAT.steps.push({head:chatStepLabel(tu.name),sub:chatStepSub(tu.name,tu.input||{})})); CHAT.phase="acting"; renderChatBody();
         for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out.summary)actions.push(out.summary); if(out.att)atts.push(out.att); trace.push({name:tu.name,inputStr:JSON.stringify(tu.input||{}).slice(0,1500),route:chatRoute(tu.name),result:(out.text||"").slice(0,2000)}); results.push({type:"tool_result",tool_use_id:tu.id,content:(out.text||"").slice(0,tu.name==="find_images"?1500:6000)}); }  // cap what's REPLAYED to Claude each hop (gallery/att is UI-only, untouched) — prevents the 9-hop accumulation that trips the 180s abort
         messages.push({role:"user",content:results}); CHAT.phase="thinking"; renderChatBody(); continue;
-      } else { chatPush(slug,{role:"assistant",who:"Claude",text:txt||(atts.length?"":"(done)"),actions:actions.slice(),attachments:atts.slice(),meta:mkMeta(hop+1),ts:nowStamp()}); answered=true; break; }
+      } else { var _safe=txt||(atts.length?"Here's what I put together — see the attachment below.":"I finished, but didn't have anything to add — re-send with a bit more detail and I'll take another pass."); chatPush(slug,{role:"assistant",who:"Claude",text:_safe,actions:actions.slice(),attachments:atts.slice(),meta:mkMeta(hop+1),ts:nowStamp()}); answered=true; break; }
     }
     if(!answered){   // ran out of research steps while still calling tools — force ONE final written answer, no more tools
       CHAT.phase="thinking"; renderChatBody();
@@ -3083,7 +3091,7 @@ async function chatSend(slug){
       chatPush(slug,{role:"assistant",who:"Claude",text:txt||"I pulled all the research but ran out of steps before writing it up. Re-send, or split it into parts (e.g. ‘marketing brief + competitor table’ first, then ‘personas + ad concepts’) and I’ll deliver each in full.",actions:actions.slice(),attachments:atts.slice(),meta:mkMeta(MAXHOP),ts:nowStamp()});
     }
   }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ "+((e&&e.message)||"The chat backend didn't respond after a few tries — please wait a moment and send again."),ts:nowStamp()}); }
-  CHAT.busy=false; CHAT.wake=false; try{clearInterval(CHAT.tick);}catch(e){} renderChatBody();
+  finally{ chatRelease(); }
 }
 /* ========== DEEP MODE — big multi-section deliverables, generated section-by-section so no single call
    can time out or truncate. Gather → Plan → write each section (bounded, continue-on-cap) → assemble (pure JS)
@@ -3267,21 +3275,21 @@ function deepNeedsClarify(t){ t=String(t||"").trim();
 async function chatClarifyAsk(slug,request){
   const l=L(slug);
   chatPush(slug,{role:"user",who:actor(),text:request,ts:nowStamp()});
-  CHAT.busy=true; renderChatBody();
+  CHAT.busy=true; CHAT.busyAt=Date.now(); renderChatBody();
   let qs="";
   try{ const r=await chatFetch({model:chatModel(),system:"You are scoping a document for a Black Voyage team member BEFORE it is generated. From their short request, ask the 2-3 SHORT questions that would most improve the result (e.g. who it's for, the single goal, must-include points, length/format). Do NOT answer them or write any of the document. Output one brief intro line, then a numbered list of the questions, then on its own final line exactly: 'And — English, 繁體中文, or bilingual?'",messages:[{role:"user",content:"Card: "+((l&&l.name)||slug)+"\nTheir request: "+request}],tools:undefined,think:false},{timeout:60000,tries:1});
     if(r&&!r.error){ if(r.usage){} qs=(r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim(); }
   }catch(e){}
-  CHAT.busy=false;
+  finally{ CHAT.busy=false; CHAT.busyAt=0; try{clearInterval(CHAT.tick);}catch(e){} }
   if(!qs) qs="Quick context so I build the right thing:\n1. Who is it for?\n2. What's the one goal?\n3. Anything that must be included?\nAnd — English, 繁體中文, or bilingual?";
-  CHAT.pendingClarify={slug,request};
+  CHAT.pendingClarify={slug,request,ts:Date.now()};
   chatPush(slug,{role:"assistant",who:"Claude",text:qs+"\n\n_(Reply with the answers and I'll build it — or just say \"go\" to proceed as-is.)_",ts:nowStamp()});
 }
 async function chatSendDeep(slug,text){
   const l=L(slug); if(!l)return;
   const leaseRef=(FB.ready?chatRef(slug):null);
-  if(leaseRef){ try{ const snap=await leaseRef.get(); const d=(snap&&snap.data())||{}; if(d.deepRunAt&&(Date.now()-d.deepRunAt)<300000&&d.deepRunUid&&ME&&d.deepRunUid!==ME.uid){ toast("🔬 A deep run is already in progress on this card ("+(d.deepRunBy||"someone")+"). Try again in a few minutes."); return; } await leaseRef.set({deepRunAt:Date.now(),deepRunUid:(ME&&ME.uid)||"local",deepRunBy:actor()},{merge:true}); }catch(e){} }
-  CHAT.busy=true; CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
+  if(leaseRef){ try{ const snap=await leaseRef.get(); const d=(snap&&snap.data())||{}; if(d.deepRunAt&&(Date.now()-d.deepRunAt)<300000&&d.deepRunUid&&ME&&d.deepRunUid!==ME.uid){ chatPush(slug,{role:"assistant",who:"Claude",text:"🔬 A deep run started by "+(d.deepRunBy||"a teammate")+" is still in progress on this card, so I won't start a second one. It frees up within a few minutes — resend then, or ask me a normal (non-deep) question now.",ts:nowStamp()}); return; } await leaseRef.set({deepRunAt:Date.now(),deepRunUid:(ME&&ME.uid)||"local",deepRunBy:actor()},{merge:true}); }catch(e){} }
+  CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
   try{ clearInterval(CHAT.tick); }catch(e){} CHAT.tick=setInterval(()=>{ if(CHAT.busy)renderChatBody(); else { try{clearInterval(CHAT.tick);}catch(e){} } },1000);
   chatPush(slug,{role:"user",who:actor(),text:"🔬 "+text,ts:nowStamp()});
   logEvent("question","🔬 deep deliverable · "+(l.name||slug)+": “"+text.slice(0,80)+(text.length>80?"…":"")+"”",{card:slug});
@@ -3367,7 +3375,7 @@ async function chatSendDeep(slug,text){
     // 4) ASSEMBLE + file (or show inline) — shared path, used by success and the catch
     fileIt(null);
   }catch(e){ if(parts.length||plan){ try{ fileIt("stopped: "+((e&&e.message)||e)); }catch(_){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Deep run hit an error after some sections: "+((e&&e.message)||e)+".",ts:nowStamp()}); } } else { chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Deep run couldn't start: "+((e&&e.message)||e)+". Please try again.",ts:nowStamp()}); } }
-  finally{ CHAT.busy=false; CHAT.wake=false; CHAT.deep=false; try{clearInterval(CHAT.tick);}catch(e){} if(leaseRef){try{leaseRef.set({deepRunAt:0},{merge:true});}catch(e){}} const b=document.getElementById("deepBtn"); if(b)b.classList.remove("on"); renderChatBody(); }
+  finally{ CHAT.deep=false; if(leaseRef){try{leaseRef.set({deepRunAt:0},{merge:true});}catch(e){}} var _b=document.getElementById("deepBtn"); if(_b)_b.classList.remove("on"); chatRelease(); }
 }
 function render(){
   const sel=document.getElementById("roleSel"), vaLab=document.getElementById("vaLab");
