@@ -2682,12 +2682,61 @@ async function chatFetch(body,opts){   // resilient to backend cold starts: retr
   }
   throw new Error(lastErr||"unreachable");
 }
+/* ===== TRANSFORM AN EXISTING DOC (translate / bilingual / rewrite / shorten) — no research, section-by-section, fast ===== */
+function looksTransform(text){ const t=String(text||"");
+  const verb=/\b(translat\w*|bilingual|tradu\w*|rewrite|reword|re-?write|shorten|condense|tighten|summar[iy]\w*|tl;?dr|make it (shorter|longer|tighter)|in (chinese|mandarin|cantonese|traditional|simplified|spanish|french|german|japanese|korean|english))\b/i;
+  const cjk=/[一-鿿]|繁體|简体|中文|翻譯|翻译/;
+  return verb.test(t)||cjk.test(t); }
+function lastChatDoc(){ const ms=CHAT.msgs||[]; for(let i=ms.length-1;i>=0;i--){ const a=((ms[i].attachments)||[]).find(x=>x&&x.type==="code"&&x.h); if(a)return {h:a.h,n:a.n}; } return null; }
+// pull plain section content out of an already-assembled brief: strip the swap-figure + feedback chrome so we transform only the words/images
+function stripDocChrome(doc){ const d=String(doc||"");
+  const tm=d.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)||d.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const title=tm?tm[1].replace(/<[^>]+>/g,"").trim():"";
+  const unwrap=h=>String(h).replace(/<figure class="bvfig"[^>]*>[\s\S]*?(<img\b[^>]*>)[\s\S]*?<\/figure>/gi,"$1");
+  const secs=[]; const re=/<section\b[^>]*>([\s\S]*?)<\/section>/gi; let m;
+  while((m=re.exec(d))){ let inner=m[1];
+    const cut=inner.indexOf('<div class="bvfb"'); if(cut>=0) inner=inner.slice(0,cut);   // drop the per-section feedback UI
+    inner=unwrap(inner).trim();
+    const hm=inner.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+    const heading=hm?hm[1].replace(/<[^>]+>/g,"").trim():("Section "+(secs.length+1));
+    if(inner) secs.push({heading,html:inner}); }
+  if(!secs.length){ let body=(d.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)||d.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i)||[,d])[1]||d;
+    body=unwrap(body).replace(/<script[\s\S]*?<\/script>/gi,"").replace(/<style[\s\S]*?<\/style>/gi,"").replace(/<div class="bvctl"[\s\S]*?<\/div>/gi,"").trim();
+    if(body) secs.push({heading:title||"Document",html:body}); }
+  return {title,sections:secs}; }
+async function transformFragment(instruction,heading,htmlFrag,acc){ const en=String(htmlFrag||""); if(!en.trim())return en;
+  const sys="You transform ONE section of an EXISTING HTML document exactly per the user's instruction. Do NOT research, look anything up, or add new facts — only transform the GIVEN content. Preserve ALL HTML tags and every <img> URL. Keep every brand name and product/model name (Black Voyage, Vesper, Aero, Apex, Zephyr, AirCabin) and all numbers, specs and dimensions UNCHANGED in English. Output ONLY the transformed HTML fragment — no code fences, no preamble.";
+  try{ const r=await chatFetch({model:chatModel(),system:sys,messages:[{role:"user",content:"INSTRUCTION: "+instruction+"\n\nSECTION (“"+heading+"”) to transform:\n"+en}],tools:undefined,think:false},{timeout:120000,tries:1,toobigMsg:"section too long — ask for it on its own"});
+    if(r&&!r.error){ if(r.usage&&acc)acc({in:r.usage.input_tokens||0,out:r.usage.output_tokens||0}); const o=(r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(""); const c=sanitizeFragment(o); if(c&&c.trim().length>8)return c; }
+  }catch(e){} return en; }
+async function chatTransformDoc(slug,instruction,doc,docName){
+  const l=L(slug);
+  CHAT.busy=true; CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
+  try{clearInterval(CHAT.tick);}catch(e){} CHAT.tick=setInterval(()=>{ if(CHAT.busy)renderChatBody(); else { try{clearInterval(CHAT.tick);}catch(e){} } },1000);
+  chatPush(slug,{role:"user",who:actor(),text:instruction,ts:nowStamp()});
+  logEvent("question","🌐 transform doc · "+((l&&l.name)||slug)+": “"+instruction.slice(0,80)+"”",{card:slug});
+  const clean=stripDocChrome(doc); const t0=clean.title||docName||((l&&l.name)||"Document");
+  let tIn=0,tOut=0; const acc=d=>{tIn+=d.in||0;tOut+=d.out||0;}; const parts=[];
+  try{
+    CHAT.steps.push({head:"📄 Transforming the existing document (no re-research)",sub:clean.sections.length+" section"+(clean.sections.length===1?"":"s")}); renderChatBody();
+    for(let i=0;i<clean.sections.length;i++){ const sec=clean.sections[i]; CHAT.phase="acting"; CHAT.hop=i+1;
+      CHAT.steps.push({head:"🌐 Section "+(i+1)+"/"+clean.sections.length+": "+sec.heading,sub:instruction.slice(0,46)}); renderChatBody();
+      parts.push(await transformFragment(instruction,sec.heading,sec.html,acc)); }
+    const plan={title:t0,sections:clean.sections.map(s=>({heading:s.heading}))};
+    const fullHtml=assembleDeepDoc(t0,plan,parts,{who:actor(),card:slug,cardName:(l&&l.name)||slug});
+    let v=0; try{ v=briefSave(slug,t0,fullHtml,"marketing"); }catch(e){}
+    chatPush(slug,{role:"assistant",who:"Claude",text:"🌐 Done — transformed **"+t0+"** ("+parts.length+" section"+(parts.length===1?"":"s")+") straight from the existing document, no re-research"+(v?(" · filed to 📋 Briefs as v"+v):"")+". Full document below.",actions:(v?["📋 filed to Briefs"]:[]),attachments:[{type:"code",n:t0,h:fullHtml}],meta:{model:chatModel(),in:tIn,out:tOut,cost:chatCost(chatModel(),tIn,tOut),hops:parts.length,trace:[],reasoning:""},ts:nowStamp()});
+  }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Couldn't transform the document: "+((e&&e.message)||e)+". Try asking for one section at a time.",ts:nowStamp()}); }
+  finally{ CHAT.busy=false; CHAT.wake=false; try{clearInterval(CHAT.tick);}catch(e){} renderChatBody(); }
+}
+
 async function chatSend(slug){
   const input=document.getElementById("chatInput"); if(!input)return;
   const text=(input.value||"").trim(); if(!text)return;
   if(!CHAT_API_URL){toast("⚠️ Chat backend not set yet — deploy the proxy & set CHAT_API_URL (see CHAT-SETUP.md)");return;}
   if(CHAT.busy){toast("Claude is still working…");return;}
   if(CHAT.deep|| /^\/deep\b/i.test(text)){ input.value=""; return chatSendDeep(slug, text.replace(/^\/deep\s*/i,"").trim()||text); }   // big multi-section deliverable path
+  { const _doc=lastChatDoc(); if(_doc && looksTransform(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one)\b/i.test(text)||text.length<140)){ input.value=""; return chatTransformDoc(slug,text,_doc.h,_doc.n); } }   // translate/rewrite/shorten an EXISTING doc — transform it directly, never re-research
   if(looksDeep(text)){   // SUGGEST deep mode for a big ask (never auto-run) — so the user doesn't have to know when
     const go=(typeof confirm!=="undefined")&&confirm("This looks like a big, multi-part deliverable.\n\nRun it in 🔬 Deep mode? It builds the whole thing section-by-section (~7–10 min, live progress) and files it as a Brief — instead of trying to write it all at once (which can time out).\n\nOK = Deep mode   ·   Cancel = just answer normally");
     if(go){ input.value=""; return chatSendDeep(slug,text); }
