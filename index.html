@@ -2024,7 +2024,7 @@ function chatMsgHTML(m,mi){
   const atts=(m.attachments||[]).map((a,ai)=>a.type==="link"
     ?`<a class="catt" href="${esc(a.u)}" target="_blank">🔗 ${esc(a.n)}</a>`
     :`<span class="catt" title="open the HTML — preview / source / full page" onclick="openMsgAtt(${mi},${ai})">📄 &lt;/&gt; ${esc(a.n)}</span>`).join("");
-  return `<div class="cmsg ${cls}"><div class="av">${av}</div><div><div class="who">${esc(m.who||(m.role==="assistant"?"Claude":"User"))}${m.ts?" · "+esc(m.ts):""}${m.role==="assistant"?`<span class="cmsg-report" title="report an answer-quality issue (logged to BV Second Brain)" onclick="reportAnswer(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.55;font-size:11px">⚑ report</span>`:""}<span class="cmsg-del" title="delete this message (for everyone)" onclick="deleteChatMsg(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.5;font-size:11px">✕</span></div>${m.text?`<div class="bub">${esc(m.text)}</div>`:""}${atts?`<div class="catts">${atts}</div>`:""}${(m.actions&&m.actions.length)?`<div class="acts">⚡ ${m.actions.map(esc).join(" · ")}</div>`:""}${m.meta?chatMetaHTML(m.meta):""}</div></div>`;
+  return `<div class="cmsg ${cls}"><div class="av">${av}</div><div><div class="who">${esc(m.who||(m.role==="assistant"?"Claude":"User"))}${m.ts?" · "+esc(m.ts):""}${m.role==="assistant"?`<span class="cmsg-report" title="report an answer-quality issue (logged to BV Second Brain)" onclick="reportAnswer(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.55;font-size:11px">⚑ report</span>`:""}<span class="cmsg-del" title="delete this message (for everyone)" onclick="deleteChatMsg(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.5;font-size:11px">✕</span></div>${m.text?`<div class="bub">${esc(m.text)}</div>`:""}${(m.log&&m.log.length)?`<details style="margin-top:6px;font-size:12px"><summary style="cursor:pointer;opacity:.65;user-select:none">▸ Section log (${m.log.length})</summary><div style="margin-top:5px;padding:6px 9px;background:rgba(127,127,127,.07);border-radius:7px;line-height:1.75">${m.log.map(esc).join("<br>")}</div></details>`:""}${atts?`<div class="catts">${atts}</div>`:""}${(m.actions&&m.actions.length)?`<div class="acts">⚡ ${m.actions.map(esc).join(" · ")}</div>`:""}${m.meta?chatMetaHTML(m.meta):""}</div></div>`;
 }
 function openMsgAtt(mi,ai){const a=(((CHAT.msgs||[])[mi]||{}).attachments||[])[ai]; if(!a)return; if(a.type==="link")window.open(a.u,"_blank"); else codeModal({readOnly:true,label:a.n,html:a.h});}
 function deleteChatMsg(slug,mi){ const arr=(CHAT.msgs||[]).slice(); if(mi<0||mi>=arr.length)return; if(typeof confirm!=="undefined"&&!confirm("Delete this message for everyone?"))return; arr.splice(mi,1); if(FB.ready){try{chatRef(slug).set({messages:arr,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){}} CHAT.msgs=arr; renderChatBody(); toast("🗑 Message deleted"); }
@@ -2043,6 +2043,46 @@ function reportAnswer(slug,mi){
   if(!db){ toast("⚠️ Not connected — can't file report"); return; }
   try{ db.collection("quality_reports").add(rep); }catch(e){ toast("⚠️ Report failed"); return; }
   toast("⚑ Issue reported to BV Second Brain — thank you");
+}
+// Write one issue to the Core's quality_reports collection (the BV Second Brain "Quality" review dashboard).
+function fileQualityReport(rep){
+  const db=(FB.coreDb||(typeof firebase!=="undefined"&&firebase.firestore?firebase.firestore():null));
+  if(!db)return false;
+  try{ db.collection("quality_reports").add(Object.assign({app:"superpm",status:"open",reportedAt:Date.now(),ts:Date.now()},rep)); return true; }catch(e){ return false; }
+}
+// Bridge CALLED BY a generated brief (opened same-origin) so per-section feedback lands in the BV Second Brain.
+// Returns {ok} synchronously; the brief shows its own confirmation from that.
+window.bvBriefFeedback=function(p){
+  p=p||{}; const isC=!!p.contradiction;
+  const ok=fileQualityReport({ card:p.card||"", cardName:p.cardName||p.card||"",
+    question:("Brief: "+(p.title||"")+" — §"+(p.section||"")).slice(0,2000),
+    answer:(p.sectionText||"").slice(0,4000),
+    kind:isC?"contradiction":"brief-feedback", source:"deep-brief",
+    reason:((isC?"[CONTRADICTION] ":"")+(p.reason||"")).slice(0,1000),
+    who:p.who||actor() });
+  if(ok){ try{ logEvent(isC?"contradiction":"feedback",(isC?"⚠️ contradiction":"💬 brief feedback")+" · §"+(p.section||"")+(p.reason?": “"+String(p.reason).slice(0,80)+"”":""),{card:p.card||""}); }catch(_){} }
+  return {ok:ok};
+};
+// After a deep brief, fact-check its claims against the Core canonical data; auto-file any contradiction to the Second Brain.
+async function detectContradictions(l,slug,plan,parts,researchPack,acc){
+  const draft=plan.sections.map((s,i)=>("## "+s.heading+"\n"+String(parts[i]||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim())).join("\n\n").slice(0,12000);
+  if(draft.trim().length<40)return [];
+  const sys="You are a meticulous fact-checker for Black Voyage. The CANONICAL DATA below (the BV catalog, product specs and saved facts) is the SINGLE SOURCE OF TRUTH. Find ONLY places where the DRAFT brief states something that CONTRADICTS the canonical data — a wrong spec, number, price, material, dimension, or factual claim. Do NOT flag style, opinion, missing detail, or anything the canonical data does not cover. Output ONLY a JSON object: {\"contradictions\":[{\"section\":\"<heading>\",\"claim\":\"<what the brief says>\",\"canonical\":\"<what the data says>\",\"note\":\"<one line>\"}]} — empty array if none.";
+  const msg="CANONICAL DATA (source of truth):\n"+String(researchPack||"").slice(0,12000)+"\n\n---\nDRAFT BRIEF to check:\n"+draft;
+  let out="";
+  try{ const r=await chatFetch({model:chatModel(),system:sys,messages:[{role:"user",content:msg}],tools:undefined,think:false},{timeout:90000,tries:1,toobigMsg:"contradiction check too long"});
+    if(r&&!r.error){ if(r.usage&&acc)acc({in:r.usage.input_tokens||0,out:r.usage.output_tokens||0}); out=(r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(""); }
+  }catch(e){ return []; }
+  let list=[];
+  try{ const m=out.match(/\{[\s\S]*\}/); if(m){ const o=JSON.parse(m[0]); list=Array.isArray(o.contradictions)?o.contradictions:[]; } }catch(e){ return []; }
+  list=list.filter(c=>c&&(c.claim||c.note)).slice(0,12);
+  list.forEach(c=>fileQualityReport({ card:slug, cardName:(l&&l.name)||slug,
+    question:("Auto contradiction check — Brief: "+(plan.title||"")+" — §"+(c.section||"")).slice(0,2000),
+    answer:("CLAIM: "+(c.claim||"")+"\nCANONICAL: "+(c.canonical||"")).slice(0,4000),
+    kind:"contradiction", source:"auto-detect",
+    reason:("[AUTO-CONTRADICTION] "+(c.note||((c.claim||"")+" vs "+(c.canonical||"")))).slice(0,1000),
+    who:"Auto fact-check" }));
+  return list;
 }
 function clearChat(slug){ if(typeof confirm!=="undefined"&&!confirm("Start a new chat? This clears the shared conversation for this card (for everyone)."))return; if(FB.ready){try{chatRef(slug).set({messages:[],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){}} CHAT.msgs=[]; renderChatBody(); toast("🆕 New chat started"); }
 /* ===== BRIEFS — collaborative, versioned documents · Marketing + Ben sign-off · one Confirmed source of truth ===== */
@@ -2386,13 +2426,21 @@ function decorateImages(html,folders){ return String(html||"").replace(/<img\b[^
     folders[prod]=fol;
     return '<figure class="bvfig" data-prod="'+escAll(prod)+'"><span class="bvtag">'+escAll(prod)+'</span>'+tag+'<button class="bvswap" type="button" onclick="bvOpen(this)">⇄ Swap image</button></figure>';
   }); }
-function assembleDeepDoc(title,plan,parts){
-  const folders={};
+function assembleDeepDoc(title,plan,parts,meta){
+  meta=meta||{}; const folders={};
   // pick the real primary logo/wordmark; skip endorsement/badge/award/"best"/map junk that just happens to be tagged a logo
   const junk=/endors|affiliat|badge|award|best|certif|partner|press|media|stamp|seal|map|coordinate|review|rating|star|sticker/i;
   const logo=(KNOWLEDGE.brandAssets||[]).find(a=>{ if(!a.url)return false; const s=String(a.type||"")+" "+String(a.name||"")+" "+String(a.path||""); return /logo|wordmark|lockup/i.test(s)&&!junk.test(s); });
   const toc=plan.sections.map((s,i)=>'<li><a href="#sec'+i+'">'+escAll(s.heading)+'</a></li>').join("");
-  const body=parts.map((p,i)=>'<section id="sec'+i+'">'+decorateImages(balanceFragment(p),folders)+'</section>').join("\n");
+  const body=parts.map((p,i)=>'<section id="sec'+i+'">'+decorateImages(balanceFragment(p),folders)
+    +'<div class="bvfb"><button class="bvfb-btn" type="button" onclick="bvFb('+i+')">💬 Feedback</button>'
+    +'<div class="bvfb-box" id="fb'+i+'" hidden><textarea placeholder="What should improve in this section? (be specific)"></textarea>'
+    +'<label class="bvfb-c"><input type="checkbox" id="fbc'+i+'"> ⚠️ This is a contradiction — flag for review</label>'
+    +'<div class="bvfb-act"><button type="button" class="bvfb-send" onclick="bvFbSend('+i+')">Send to BV Second Brain</button><button type="button" class="bvfb-x" onclick="bvFb('+i+')">Cancel</button></div></div>'
+    +'<div class="bvfb-done" id="fbd'+i+'" hidden></div></div>'
+    +'</section>').join("\n");
+  const fbsec=JSON.stringify(plan.sections.map((s,i)=>({h:s.heading,t:String(parts[i]||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().slice(0,1400)}))).replace(/</g,"\\u003c");
+  const fbmeta=JSON.stringify({title:title,who:meta.who||"",card:meta.card||"",cardName:meta.cardName||""}).replace(/</g,"\\u003c");
   const data=JSON.stringify(folders).replace(/</g,"\\u003c");   // escape every '<' so no closing-script-tag can hide in a caption
   const CSS=":root{--ac:#E2552E;--ink:#16181C;--gr:#5b6470;--ln:#e8e8ee}"
    +"*{box-sizing:border-box}body{font-family:'Inter','Aeonik',-apple-system,'Segoe UI',sans-serif;max-width:860px;margin:0 auto;padding:0 24px 72px;color:#202227;line-height:1.65;background:#fff}body.wide{max-width:1240px}"
@@ -2408,12 +2456,18 @@ function assembleDeepDoc(title,plan,parts){
    +".bvpick{position:fixed;inset:0;background:rgba(16,17,20,.66);display:none;align-items:center;justify-content:center;z-index:50;padding:24px}.bvpick.show{display:flex}.bvpbox{background:#fff;border-radius:14px;max-width:960px;width:100%;max-height:86vh;display:flex;flex-direction:column;overflow:hidden}"
    +".bvphead{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #eee;font-size:15px;color:var(--ink)}.bvphead button{border:0;background:#f1f1f4;width:30px;height:30px;border-radius:8px;cursor:pointer}"
    +".bvpgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;padding:18px;overflow:auto}.bvthumb{cursor:pointer;border:2px solid transparent;border-radius:10px;overflow:hidden;background:#f6f6f8}.bvthumb.sel{border-color:var(--ac)}.bvthumb img{width:100%;height:140px;object-fit:cover;display:block;border-radius:0}.bvthumb span{display:block;font:500 11px/1.3 'Inter';color:#555;padding:5px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
-   +"@media print{.bvctl,.bvswap,.bvtag{display:none!important}.bvfig{display:block}}";
+   +".bvfb{margin:14px 0 4px}.bvfb-btn{background:none;border:1px solid var(--ln);color:var(--gr);font:600 12px/1 'Inter';padding:6px 12px;border-radius:8px;cursor:pointer}.bvfb-btn:hover{border-color:var(--ac);color:var(--ac)}"
+   +".bvfb-box{margin-top:10px;border:1px solid var(--ln);border-left:3px solid var(--ac);border-radius:10px;padding:12px;background:#fcfbfa}.bvfb-box textarea{width:100%;min-height:64px;border:1px solid var(--ln);border-radius:8px;padding:9px;font:400 13.5px/1.5 'Inter';resize:vertical}.bvfb-c{display:flex;align-items:center;gap:7px;margin:9px 0;font:500 12.5px/1.3 'Inter';color:#444;cursor:pointer}.bvfb-act{display:flex;gap:8px}.bvfb-send{background:var(--ac);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:600 12.5px/1 'Inter';cursor:pointer}.bvfb-x{background:#f1f1f4;color:#555;border:0;border-radius:8px;padding:8px 12px;font:600 12.5px/1 'Inter';cursor:pointer}"
+   +".bvfb-done{margin-top:8px;font:600 12.5px/1.45 'Inter';color:#15803d;background:#f0fbf3;border:1px solid #cdeccf;border-radius:8px;padding:8px 11px}.bvfb-done.contra{color:#9a3412;background:#fff5ef;border-color:#f3d6c4}"
+   +"@media print{.bvctl,.bvswap,.bvtag,.bvfb{display:none!important}.bvfig{display:block}}";
   const JS="var PF="+data+";var CUR=null;"
    +"function bvWide(){var w=document.body.classList.toggle('wide');var b=document.getElementById('bvwide');if(b)b.textContent=w?'▣ Normal width':'⛶ Wide view';}"
    +"function bvOpen(btn){var fig=btn.parentNode;CUR=fig;var prod=fig.getAttribute('data-prod');var fol=PF[prod]||[];var ti=document.getElementById('bvptitle');if(ti)ti.textContent=prod+' — '+fol.length+' images · click one to replace';var g=document.getElementById('bvpgrid');g.innerHTML='';var ci=fig.querySelector('img');var cur=ci?ci.getAttribute('src'):'';fol.forEach(function(it){var d=document.createElement('div');d.className='bvthumb'+(it.u===cur?' sel':'');var im=document.createElement('img');im.src=it.u;im.loading='lazy';var sp=document.createElement('span');sp.textContent=it.c||'';d.appendChild(im);d.appendChild(sp);d.onclick=function(){bvPick(it.u)};g.appendChild(d)});document.getElementById('bvpick').classList.add('show');}"
    +"function bvPick(u){if(!CUR)return;var im=CUR.querySelector('img');if(im)im.src=u;bvClose();}"
-   +"function bvClose(){var p=document.getElementById('bvpick');if(p)p.classList.remove('show');CUR=null;}";
+   +"function bvClose(){var p=document.getElementById('bvpick');if(p)p.classList.remove('show');CUR=null;}"
+   +"var FBSEC="+fbsec+";var FBMETA="+fbmeta+";"
+   +"function bvFb(i){var b=document.getElementById('fb'+i);if(b)b.hidden=!b.hidden;}"
+   +"function bvFbSend(i){var box=document.getElementById('fb'+i);if(!box)return;var ta=box.querySelector('textarea');var cb=document.getElementById('fbc'+i);var txt=(ta&&ta.value||'').trim();var contra=!!(cb&&cb.checked);if(!txt&&!contra){alert('Write a note, or tick the contradiction box, first.');return;}var s=FBSEC[i]||{};var payload={title:FBMETA.title,who:FBMETA.who,card:FBMETA.card,cardName:FBMETA.cardName,section:s.h||('Section '+(i+1)),sectionText:s.t||'',reason:txt,contradiction:contra};var res=null;try{if(window.opener&&window.opener.bvBriefFeedback)res=window.opener.bvBriefFeedback(payload);}catch(e){res={ok:false,err:String(e)};}var done=document.getElementById('fbd'+i);if(res&&res.ok){box.hidden=true;if(ta)ta.value='';if(cb)cb.checked=false;if(done){done.hidden=false;done.className='bvfb-done'+(contra?' contra':'');done.textContent=(contra?'\\u26a0\\ufe0f Contradiction flagged':'\\u2713 Feedback sent')+' to BV Second Brain'+(txt?' \\u2014 \"'+txt+'\"':'');}}else{alert('Could not reach BV Second Brain. Open this brief from the SuperPM dashboard (so it can connect to the Core) and try again.'+(res&&res.err?'\\n\\n('+res.err+')':''));}}";
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+escAll(title)+'</title>'
    +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
    +'<style>'+CSS+'</style></head><body>'
@@ -2491,19 +2545,19 @@ async function chatSendDeep(slug,text){
   renderChatBody();
   const sys0=chatSystemPrompt(l); let tIn=0,tOut=0; const acc=d=>{tIn+=d.in||0;tOut+=d.out||0;};
   const note=t=>chatPush(slug,{role:"assistant",who:"Claude",text:t,ts:nowStamp()});
-  let plan=null; const parts=[], gaps=[];
+  let plan=null; const parts=[], gaps=[], seclog=[];   // seclog: per-section progress, shown collapsed on the final message (not as separate chat lines)
   // assemble whatever sections completed and either file a Brief (≥40% real) or show inline — called from BOTH
   // the success path AND the catch, so a deep run ALWAYS ends with a document, never a bare "error, nothing produced".
   function fileIt(reason){
     const p=plan||defaultPlan(text,true);
     const built=p.sections.map((s,i)=>{ let frag=parts[i]; if(!frag||frag.trim().length<20){ gaps[i]=true; frag="<h2>"+escAll(s.heading)+"</h2><p><i>[This section couldn't be generated this run — ask for it on its own and I'll write it in full.]</i></p>"; } return frag; });
-    const real=built.length-gaps.filter(Boolean).length, title=p.title||("Deliverable — "+(l.name||slug)), fullHtml=assembleDeepDoc(title,p,built);
+    const real=built.length-gaps.filter(Boolean).length, title=p.title||("Deliverable — "+(l.name||slug)), fullHtml=assembleDeepDoc(title,p,built,{who:actor(),card:slug,cardName:(l.name||slug)});
     const ok=real>=Math.ceil(built.length*0.4)&&real>=1; let v=0; if(ok){ try{ v=briefSave(slug,title,fullHtml,"marketing"); }catch(e){} }
     const gapN=gaps.filter(Boolean).length;
     const head = !ok ? ("🔬 I could only complete "+real+"/"+built.length+" sections"+(reason?(" ("+reason+")"):"")+", so I'm showing the draft below rather than filing a thin Brief — re-run, or ask for the missing sections one at a time.")
       : (gapN===0 ? ("🔬 Done — assembled **"+title+"** ("+built.length+" sections)"+(v?(" and filed it to the 📋 Briefs panel as v"+v+" for Marketing + Ben sign-off"):"")+". Full document below.")
         : ("🔬 Assembled **"+title+"** — "+real+"/"+built.length+" sections"+(reason?(" before it stopped ("+reason+")"):"")+(v?(", filed as v"+v):"")+". Missing sections are marked inside; ask for them individually. Document below."));
-    chatPush(slug,{role:"assistant",who:"Claude",text:head,actions:(v?["📋 filed to Briefs"]:[]),attachments:[{type:"code",n:title,h:fullHtml}],meta:{model:chatModel(),in:tIn,out:tOut,cost:chatCost(chatModel(),tIn,tOut),hops:built.length,trace:[],reasoning:""},ts:nowStamp()});
+    chatPush(slug,{role:"assistant",who:"Claude",text:head,actions:(v?["📋 filed to Briefs"]:[]),log:seclog.slice(),attachments:[{type:"code",n:title,h:fullHtml}],meta:{model:chatModel(),in:tIn,out:tOut,cost:chatCost(chatModel(),tIn,tOut),hops:built.length,trace:[],reasoning:""},ts:nowStamp()});
   }
   try{
     // 1) GATHER — deterministic skill-driven route (tools run instantly client-side → NO LLM hops, NO 180s crash).
@@ -2557,8 +2611,14 @@ async function chatSendDeep(slug,text){
       CHAT.steps.push({head:"✍️ Section "+(i+1)+"/"+plan.sections.length+": "+sec.heading,sub:"writing…"}); renderChatBody();
       const frag=sanitizeFragment(await writeSection(l,sys0,researchPack,plan,sec,doneHeads,acc));
       parts.push(frag); doneHeads.push(sec.heading);
-      note((frag&&frag.trim().length>=20?"✓":"⚠️")+" Section "+(i+1)+"/"+plan.sections.length+" — "+sec.heading);
+      seclog.push((frag&&frag.trim().length>=20?"✓":"⚠️")+" Section "+(i+1)+"/"+plan.sections.length+" — "+sec.heading);
     }
+    // 3b) FACT-CHECK — compare the draft to the Core canonical data; auto-file contradictions to the BV Second Brain
+    try{ CHAT.steps.push({head:"🔎 Checking for contradictions vs the catalog",sub:"fact-check → BV Second Brain"}); renderChatBody();
+      const contra=await detectContradictions(l,slug,plan,parts,researchPack,acc);
+      if(contra&&contra.length)note("⚠️ "+contra.length+" possible contradiction"+(contra.length>1?"s":"")+" vs the catalog — auto-filed to the BV Second Brain Quality dashboard for review.");
+      else note("✓ Fact-check done — no contradictions vs the catalog found.");
+    }catch(e){}
     // 4) ASSEMBLE + file (or show inline) — shared path, used by success and the catch
     fileIt(null);
   }catch(e){ if(parts.length||plan){ try{ fileIt("stopped: "+((e&&e.message)||e)); }catch(_){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Deep run hit an error after some sections: "+((e&&e.message)||e)+".",ts:nowStamp()}); } } else { chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Deep run couldn't start: "+((e&&e.message)||e)+". Please try again.",ts:nowStamp()}); } }
