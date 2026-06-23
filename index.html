@@ -1994,7 +1994,7 @@ function progressChatSystem(){
 function pchatMsgsHTML(){ return PCHAT.msgs.map(m=>`<div class="pcmsg ${m.role==="user"?"user":"assistant"}"><b>${m.role==="user"?esc(m.who||"You"):"🏭 Progress AI"}</b><div>${esc(m.text)}</div></div>`).join("")+(PCHAT.busy?`<div class="pcmsg assistant"><b>🏭 Progress AI</b><div class="sub">thinking…</div></div>`:""); }
 function renderPChat(){ const el=document.getElementById("pchatMsgs"); if(!el)return; el.innerHTML=pchatMsgsHTML(); el.scrollTop=el.scrollHeight; }
 function progressChatHTML(){
-  const open=!!S.pchatOpen;
+  const open=(S.pchatOpen!==false);   // default OPEN so it's discoverable; collapses only when the user explicitly hides it
   const intro=`<div class="sub">Ask about where products stand — manufacturing stage, supplier / MO, due dates, what's next, specs, quantities. <span style="opacity:.8">e.g. “Which products are stuck in Sample?” · “What's overdue?” · “What stage is the Aero at and what's next?”</span></div>`;
   const body=open?`<div class="pcbody"><div id="pchatMsgs" class="pcmsgs">${PCHAT.msgs.length?pchatMsgsHTML():intro}</div>
       <div class="chatinput"><textarea id="pchatInput" placeholder="Ask about product progress, manufacturing, specs, quantity… (Enter to send)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();progressChatSend()}"></textarea><button class="btn" onclick="progressChatSend()">Send</button></div></div>`:"";
@@ -2014,9 +2014,9 @@ async function progressChatSend(){
 
 function viewProgress(){
   const t=pjToday();
-  if(!PROJ_LOADED) return `<h2>Active Projects</h2><div class="panel"><div class="sub">Loading projects from Google Sheet…</div></div>`;
-  if(PROJ_ERR)     return `<h2>Active Projects</h2><div class="panel"><div class="sub" style="color:var(--red)">Could not load projects — ${esc(PROJ_ERR)}</div></div>`;
-  if(!PROJECTS.length) return `<h2>Active Projects</h2><div class="panel"><div class="sub">No project data yet — create the Sheet tabs and run /sync-projects.</div></div>`;
+  if(!PROJ_LOADED) return `<h2>Active Projects</h2>${progressChatHTML()}<div class="panel"><div class="sub">Loading projects from Google Sheet…</div></div>`;
+  if(PROJ_ERR)     return `<h2>Active Projects</h2>${progressChatHTML()}<div class="panel"><div class="sub" style="color:var(--red)">Could not load projects — ${esc(PROJ_ERR)}</div></div>`;
+  if(!PROJECTS.length) return `<h2>Active Projects</h2>${progressChatHTML()}<div class="panel"><div class="sub">No project data yet — create the Sheet tabs and run /sync-projects.</div></div>`;
   const mode=S.pjMode==="next"?"next":"progress";
   const activeCount=PROJECTS.filter(p=>!pjFinished(p)).length;
   const overdueCount=PROJECTS.filter(p=>pjTier(p,t)===0).length;
