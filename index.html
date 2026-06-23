@@ -342,7 +342,7 @@
 let TEAM = [
  {name:"Product",  role:"Owns the product: intake form, market research, concept, prototyping, costing, design freeze, pre-production sample + BOM, mass production."},
  {name:"Design",   role:"Packaging / insert / manual, model name, infographic & A+ assets, listing imagery, Amazon store visuals."},
- {name:"Catalog",  role:"Competitor analysis, Amazon & Shopify SKU creation, ops sheet, product data filing, publishing listings live."},
+ {name:"Catalog",  role:"Amazon & Shopify SKU creation, ops sheet, product data filing, publishing listings live."},
  {name:"Content",  role:"Pre-production, hero / lifestyle shoot, post-production, content export (instruction · lifestyle · social clips)."},
  {name:"Social",   role:"Channel posts: IG / YouTube / TikTok."},
  {name:"Marketing",role:"Product marketing brief, KOL / influencer engine (MOAT · ASMR · Cinematic · Authority · Reach · Seed · UGC · Pro), evaluation loop."},
@@ -373,7 +373,7 @@ const FLOW = {
  "Product":[
   {l:"Form (intake)",s:"Concept",t:"Form (intake)"},
   {l:"Understand WHY",s:"Concept"},
-  {l:"Market research",s:"Concept",t:"Market research"},
+  {l:"Market research",s:"Concept",t:"Market research",sub:["Competitor analysis","Product strengths"]},
   {l:"Create concept definition document",s:"Concept",t:"Concept definition"},
   {l:"Concept brainstorming meeting (Figma)",s:"Concept",url:FIGMA},
   {l:"Product info: spec · look · material · price",s:"Concept"},
@@ -395,7 +395,6 @@ const FLOW = {
   {l:"Listing imagery / A+ upload",s:"Listing creation",t:"Listing imagery / A+ uploaded"},
   {l:"Update Amazon store / posts",s:"Live"}],
  "Catalog":[
-  {l:"Competitor analysis",s:"Concept",t:"Competitor analysis"},
   {l:"Amazon SKU creation",s:"Listing creation",t:"Amazon SKU created"},
   {l:"Shopify SKU creation",s:"Listing creation",t:"Shopify SKU created"},
   {l:"Shipbob SKU creation",s:"Listing creation",t:"Shipbob SKU created"},
@@ -447,8 +446,7 @@ const FLOW = {
    so the DRI knows exactly which departments to reach out to.
    Nodes without an entry get a vertical path down their own lane. */
 const XROUTES={
-"Product|Market research":[["Product","Market research"],["Catalog","Competitor analysis"],["Product","Create concept definition document"]],
-"Catalog|Competitor analysis":[["Catalog","Competitor analysis"],["Product","Market research"]],
+"Product|Market research":[["Product","Market research"],["Product","Create concept definition document"]],
 "Product|Create concept definition document":[["Product","Create concept definition document"],["Product","Concept brainstorming meeting (Figma)"],["Design","Concept: look · color · material"],["Product","Product info: spec · look · material · price"],["Product","Concept definition doc FINAL"]],
 "Product|Ben validation":[["Product","Ben validation"],["Product","Costing & profit"],["Design","Packaging · insert · manual"],["Design","Model name"]],
 "Product|Design freeze":[["Product","Design freeze"],["Marketing","Marketing brief rough draft"],["Product","Department requirements collected"]],
@@ -483,7 +481,7 @@ function toggleRouteFor(d,i){
 }
 const CROSS = [ // [fromDept, fromIdx, toDept, toIdx] — key hand-offs from the PDF
  ["Product",12,"Content",0],["Product",11,"Logistics",0],["Content",3,"Social",0],
- ["Content",3,"Design",3],["Catalog",4,"Marketing",0],["Marketing",1,"Ads",0],["CRM",0,"Email",0]];
+ ["Content",3,"Design",3],["Catalog",3,"Marketing",0],["Marketing",1,"Ads",0],["CRM",0,"Email",0]];
 
 /* ================= PLANNED STAGE DURATIONS (days) — drives the Timeline view ================= */
 const PLAN={"Concept":21,"Build":35,"Production":45,"Content":21,"Listing creation":14,"Live":10,"Marketing":30};
@@ -492,7 +490,6 @@ const PLAN={"Concept":21,"Build":35,"Production":45,"Content":21,"Listing creati
 function allTasks(overrides){
   const list=[];
   for(const s of STAGES) for(const c of GATES[s]) list.push({t:c.t,d:c.d,st:"o",gate:!!c.ben,stage:s,links:[],codes:[],assignee:"",urg:"med",notes:[]});
-  list.push({t:"Competitor analysis",d:"Catalog",st:"o",stage:"Concept",links:[],codes:[],assignee:"",urg:"med",notes:[]});
   for(const [title,st] of Object.entries(overrides||{})){const x=list.find(k=>k.t===title); if(x)x.st=st;}
   return list;
 }
@@ -505,16 +502,16 @@ const LAUNCHES = [
   checkins:[{d:"2026-06-08",a:"Product",txt:"Card created from template. Next: fill the intake form — everything else unlocks after it."}]},
  {name:"Apex",slug:"apex",dri:"Product",stage:"Build",target:"2026-08-12",
   history:[{stage:"Concept",start:"2026-03-02",delayBy:["Product"]},{stage:"Build",start:"2026-04-06"}],
-  tasks:allTasks({...doneThrough("Build"),"Competitor analysis":"x","Prototype 1-2-3 approved":"x","Costing & profit signed off":"x","Packaging / insert / manual locked":"x","Model name set":"x"}),
+  tasks:allTasks({...doneThrough("Build"),"Prototype 1-2-3 approved":"x","Costing & profit signed off":"x","Packaging / insert / manual locked":"x","Model name set":"x"}),
   checkins:[{d:"2026-06-09",a:"Product",txt:"Prototype v3 approved, costing signed. Waiting only on Ben validation ◆. Ask: 15-min review."},
             {d:"2026-06-02",a:"Design",txt:"Factory sample QC passed. Packaging dieline locked."}]},
  {name:"Cyclone",slug:"cyclone",dri:"Content",stage:"Content",target:"2026-09-30",
   history:[{stage:"Concept",start:"2026-02-02",delayBy:["Catalog"]},{stage:"Build",start:"2026-02-25",delayBy:["Design"]},{stage:"Production",start:"2026-04-10"},{stage:"Content",start:"2026-05-18"}],
-  tasks:allTasks({...doneThrough("Content"),"Competitor analysis":"x","Hero / lifestyle shoot done":"x","Post-production done":"p","A+ / infographic assets ready":"b"}),
+  tasks:allTasks({...doneThrough("Content"),"Hero / lifestyle shoot done":"x","Post-production done":"p","A+ / infographic assets ready":"b"}),
   checkins:[{d:"2026-06-09",a:"Content",txt:"Shoot wrapped, edit 70%. Blocker: A+ assets stuck — waiting on final brand fonts. Ask: Design to confirm font license."}]},
  {name:"Zephyr",slug:"zephyr",dri:"Marketing",stage:"Marketing",target:"2026-04-15",complete:true,
   history:[{stage:"Concept",start:"2025-11-03"},{stage:"Build",start:"2025-11-24"},{stage:"Production",start:"2025-12-29"},{stage:"Content",start:"2026-02-09"},{stage:"Listing creation",start:"2026-03-02"},{stage:"Live",start:"2026-03-16"},{stage:"Marketing",start:"2026-03-26",end:"2026-04-20"}],
-  tasks:allTasks(Object.fromEntries([].concat(...STAGES.map(s=>GATES[s].map(c=>[c.t,"x"]))).concat([["Competitor analysis","x"]]))),
+  tasks:allTasks(Object.fromEntries([].concat(...STAGES.map(s=>GATES[s].map(c=>[c.t,"x"]))))),
   checkins:[{d:"2026-04-20",a:"Marketing",txt:"Launch complete — ads live, KOL wave 1 posted, email sequence done. Reference card."}]},
 ];
 // seed some document links (tracker links out to Drive — never duplicates)
@@ -1214,7 +1211,6 @@ const DOD={"Form (intake)":"Intake complete: why, spec, look, material, customer
  "Model name set":"Name confirmed with Ben; brand check done.",
  "A+ / infographic assets ready":"All A+ modules + infographics exported to spec.",
  "Listing imagery / A+ uploaded":"Imagery live in Amazon/Shopify backends.",
- "Competitor analysis":"Competitor listings analyzed: pricing, reviews, keywords.",
  "Marketing brief rough draft":"Rough draft by Marketing at design freeze — guides content & listing prep.",
  "Department requirements collected":"Each department's sample/photo/data needs gathered before dispatch.",
  "Dispatch details & tracking filed":"Sample dispatch details + tracking numbers on the card.",
@@ -1362,6 +1358,7 @@ const ZH={
  "Amazon SKU created":"Amazon SKU 已建立",
  "Shopify SKU created":"Shopify SKU 已建立",
  "Competitor analysis":"競品分析",
+ "Product strengths":"產品優點",
  "Concept definition":"概念定義",
  "Post-production done":"後製完成",
  "Post-production":"後製",
@@ -1709,8 +1706,13 @@ const cardHTML=l=>{const g=gateState(l),[h,cls]=health(l);const si=STAGES.indexO
 function flowSVG(l){
   const depts=Object.keys(FLOW).filter(d=>DEPTS().includes(d)||FLOW[d]);
   const CW=158,GAP=14,NH=46,VG=66,TOP=56;
-  const W=depts.length*(CW+GAP)+GAP, H=TOP+Math.max(...depts.map(d=>FLOW[d].length))*VG+30;
-  const pos=(d,i)=>{const c=depts.indexOf(d);return {x:GAP+c*(CW+GAP),y:TOP+i*VG};};
+  const SUBH=21,SUBGAP=6,HEAD=24,PADB=10;            // nested sub-item metrics (a node with .sub renders as a taller container)
+  const nodeH=n=>(n.sub&&n.sub.length)?HEAD+n.sub.length*SUBH+(n.sub.length-1)*SUBGAP+PADB:NH;
+  const LY={};                                        // per-lane cumulative Y — supports variable node heights
+  depts.forEach(d=>{let yy=TOP;LY[d]=FLOW[d].map(n=>{const o=yy;yy+=nodeH(n)+(VG-NH);return o;});});
+  const pos=(d,i)=>({x:GAP+depts.indexOf(d)*(CW+GAP),y:LY[d][i]});
+  const hgt=(d,i)=>nodeH(FLOW[d][i]);
+  const W=depts.length*(CW+GAP)+GAP, H=Math.max(...depts.map(d=>{const a=FLOW[d];return a.length?LY[d][a.length-1]+nodeH(a[a.length-1]):TOP;}))+34;
   const FT=THEME==="light"
     ?{colBg:"#FFFFFF",colLine:"#DDE3EE",arrow:"#9AA6BA",
       fill:{x:"#E9F7EC",p:"#FFF3E0",b:"#FDEAEA",o:"#EEF1F7",fut:"#F7F9FC"},
@@ -1738,10 +1740,10 @@ function flowSVG(l){
     <text x="${x+CW/2}" y="34" text-anchor="middle" fill="${DCOLOR(d)}" font-size="13" font-weight="700">${esc(d)}</text>`;});
   // in-column arrows
   depts.forEach(d=>FLOW[d].forEach((n,i)=>{ if(i<FLOW[d].length-1){const a=pos(d,i),b=pos(d,i+1);
-    svg+=`<line x1="${a.x+CW/2}" y1="${a.y+NH}" x2="${b.x+CW/2}" y2="${b.y-3}" stroke="${FT.arrow}" stroke-width="1.3" marker-end="url(#ar)"/>`;}}));
+    svg+=`<line x1="${a.x+CW/2}" y1="${a.y+hgt(d,i)}" x2="${b.x+CW/2}" y2="${b.y-3}" stroke="${FT.arrow}" stroke-width="1.3" marker-end="url(#ar)"/>`;}}));
   // cross links
   CROSS.forEach(([fd,fi,td,ti])=>{ if(!FLOW[fd]||!FLOW[td])return; const a=pos(fd,fi),b=pos(td,ti);
-    const ax=a.x+CW, ay=a.y+NH/2, bx=b.x, by=b.y+NH/2, mx=(ax+bx)/2;
+    const ax=a.x+CW, ay=a.y+hgt(fd,fi)/2, bx=b.x, by=b.y+hgt(td,ti)/2, mx=(ax+bx)/2;
     svg+=`<path d="M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx-4} ${by}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar)"/>`;});
   // nodes
   depts.forEach(d=>FLOW[d].forEach((n,i)=>{const {x,y}=pos(d,i);const st=stateOf(n,d,i);
@@ -1750,16 +1752,24 @@ function flowSVG(l){
     const key=d+"|"+n.l, inR=rset.has(key);
     const click=n.url?` style="cursor:pointer" onclick="window.open('${n.url}','_blank')"`
                      :` style="cursor:pointer" onclick="toggleRouteFor('${d}',${i})"`;
-    const lines=wrap(n.l,24);
+    const h=hgt(d,i);
     const body=n.d
       ?`<polygon points="${x+CW/2},${y-2} ${x+CW+4},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-4},${y+NH/2}" fill="${fill[st]}" stroke="${isHere?"#EE3124":strk[st]}" stroke-width="${isHere?2.5:1.4}"/>`
-      :`<rect x="${x}" y="${y}" width="${CW}" height="${NH}" rx="2" fill="${fill[st]}" stroke="${isHere?"#EE3124":strk[st]}" stroke-width="${isHere?2.5:1.4}"/>`;
+      :`<rect x="${x}" y="${y}" width="${CW}" height="${h}" rx="2" fill="${fill[st]}" stroke="${isHere?"#EE3124":strk[st]}" stroke-width="${isHere?2.5:1.4}"/>`;
     const tcol=FT.txt[st]||FT.txt.o;
-    svg+=`<g${click}${rsteps&&!inR?' opacity="0.22"':""}>${body}${inR?`<rect class="glownode" x="${x-4}" y="${y-4}" width="${CW+8}" height="${NH+8}" rx="3" fill="none" stroke="#EE3124" stroke-width="3"/>`:""}${lines.map((ln,k)=>`<text x="${x+CW/2}" y="${y+NH/2+(k-(lines.length-1)/2)*12+4}" text-anchor="middle" fill="${tcol}" font-size="9.5">${esc(ln)}</text>`).join("")}
+    let labelSVG;
+    if(n.sub&&n.sub.length){                            // parent header + nested sub-item boxes
+      labelSVG=`<text x="${x+CW/2}" y="${y+16}" text-anchor="middle" fill="${tcol}" font-size="10" font-weight="700">${esc(n.l)}</text>`
+        +n.sub.map((s,k)=>{const sy=y+HEAD+k*(SUBH+SUBGAP);return `<rect x="${x+10}" y="${sy}" width="${CW-20}" height="${SUBH}" rx="2" fill="${FT.colBg}" stroke="${strk[st]}" stroke-width="1"/><text x="${x+CW/2}" y="${sy+SUBH/2+3.5}" text-anchor="middle" fill="${tcol}" font-size="9">${esc(s)}</text>`;}).join("");
+    }else{
+      const lines=wrap(n.l,24);
+      labelSVG=lines.map((ln,k)=>`<text x="${x+CW/2}" y="${y+NH/2+(k-(lines.length-1)/2)*12+4}" text-anchor="middle" fill="${tcol}" font-size="9.5">${esc(ln)}</text>`).join("");
+    }
+    svg+=`<g${click}${rsteps&&!inR?' opacity="0.22"':""}>${body}${inR?`<rect class="glownode" x="${x-4}" y="${y-4}" width="${CW+8}" height="${h+8}" rx="3" fill="none" stroke="#EE3124" stroke-width="3"/>`:""}${labelSVG}
     ${n.d?`<text x="${x+CW/2}" y="${y-6}" text-anchor="middle" fill="#c084fc" font-size="9">◆ decision</text>`:""}${n.url?`<text x="${x+CW/2}" y="${y-6}" text-anchor="middle" fill="#60a5fa" font-size="9">🔗 Figma</text>`:""}
-    ${isHere?`<text x="${x+CW/2}" y="${y+NH+14}" text-anchor="middle" fill="#EE3124" font-size="10" font-weight="700">📍 ${l.name} is here</text>`:""}
+    ${isHere?`<text x="${x+CW/2}" y="${y+h+14}" text-anchor="middle" fill="#EE3124" font-size="10" font-weight="700">📍 ${l.name} is here</text>`:""}
     <title>${esc(n.l)} — stage: ${n.s}${ti>=0?" · click to open this task on the card":""}${st==="fut"&&ti>=0?" · 🔒 locked until previous step is done":""}</title></g>`;}));
-  if(rsteps){const rpts=rsteps.map(([dd,ll])=>{const ii=FLOW[dd]?FLOW[dd].findIndex(nn=>nn.l===ll):-1; if(ii<0)return null; const p=pos(dd,ii); return [p.x+CW/2,p.y+NH/2];}).filter(Boolean);
+  if(rsteps){const rpts=rsteps.map(([dd,ll])=>{const ii=FLOW[dd]?FLOW[dd].findIndex(nn=>nn.l===ll):-1; if(ii<0)return null; const p=pos(dd,ii); return [p.x+CW/2,p.y+hgt(dd,ii)/2];}).filter(Boolean);
     if(rpts.length>1) svg+=`<path d="M${rpts.map(p=>p.join(" ")).join(" L ")}" fill="none" stroke="#EE3124" stroke-width="2.5" stroke-dasharray="9 7" class="routeline" opacity="0.85"/>`;}
   svg+="</svg>";
   let banner="";
