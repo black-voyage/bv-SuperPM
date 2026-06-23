@@ -2694,6 +2694,8 @@ function looksTransform(text){ const t=String(text||"");
   const verb=/\b(translat\w*|bilingual|tradu\w*|rewrite|reword|re-?write|shorten|condense|tighten|summar[iy]\w*|tl;?dr|make it (shorter|longer|tighter)|in (chinese|mandarin|cantonese|traditional|simplified|spanish|french|german|japanese|korean|english))\b/i;
   const cjk=/[一-鿿]|繁體|简体|中文|翻譯|翻译/;
   return verb.test(t)||cjk.test(t); }
+// bilingual = a clean English version AND a clean Traditional-Chinese version, toggled (NOT a translation, NOT stacked, NOT Simplified)
+function looksBilingual(text){ const t=String(text||""); return /\bbilingual\b|雙語|兩種語言|两种语言|english[^.]{0,14}(and|\+|&|\/|plus)[^.]{0,14}(chinese|mandarin|中文)|(chinese|mandarin|中文)[^.]{0,14}(and|\+|&|\/|plus)[^.]{0,14}english/i.test(t); }
 function lastChatDoc(){ const ms=CHAT.msgs||[]; for(let i=ms.length-1;i>=0;i--){ const a=((ms[i].attachments)||[]).find(x=>x&&x.type==="code"&&x.h); if(a)return {h:a.h,n:a.n}; } return null; }
 // pull plain section content out of an already-assembled brief: strip the swap-figure + feedback chrome so we transform only the words/images
 function stripDocChrome(doc){ const d=String(doc||"");
@@ -2723,16 +2725,23 @@ async function chatTransformDoc(slug,instruction,doc,docName){
   chatPush(slug,{role:"user",who:actor(),text:instruction,ts:nowStamp()});
   logEvent("question","🌐 transform doc · "+((l&&l.name)||slug)+": “"+instruction.slice(0,80)+"”",{card:slug});
   const clean=stripDocChrome(doc); const t0=clean.title||docName||((l&&l.name)||"Document");
-  let tIn=0,tOut=0; const acc=d=>{tIn+=d.in||0;tOut+=d.out||0;}; const parts=[];
+  const wantBi=looksBilingual(instruction);   // bilingual = a clean ENGLISH version + a clean TRADITIONAL-CHINESE version, toggled (never stacked, never Simplified)
+  let tIn=0,tOut=0; const acc=d=>{tIn+=d.in||0;tOut+=d.out||0;}; const parts=[], partsZh=[];
   try{
-    CHAT.steps.push({head:"📄 Transforming the existing document (no re-research)",sub:clean.sections.length+" section"+(clean.sections.length===1?"":"s")}); renderChatBody();
+    CHAT.steps.push({head:wantBi?"📄 Building a bilingual version — English + 繁體中文 (toggle)":"📄 Transforming the existing document (no re-research)",sub:clean.sections.length+" section"+(clean.sections.length===1?"":"s")}); renderChatBody();
     for(let i=0;i<clean.sections.length;i++){ const sec=clean.sections[i]; CHAT.phase="acting"; CHAT.hop=i+1;
-      CHAT.steps.push({head:"🌐 Section "+(i+1)+"/"+clean.sections.length+": "+sec.heading,sub:instruction.slice(0,46)}); renderChatBody();
-      parts.push(await transformFragment(instruction,sec.heading,sec.html,acc)); }
+      if(wantBi){
+        CHAT.steps.push({head:"🌐 §"+(i+1)+"/"+clean.sections.length+" → 繁體中文: "+sec.heading,sub:"English kept · Traditional-Chinese version added"}); renderChatBody();
+        parts.push(sec.html);                               // the English version, unchanged
+        partsZh.push(await translateFragment(sec.html,acc)); // the Traditional-Chinese version
+      } else {
+        CHAT.steps.push({head:"🌐 Section "+(i+1)+"/"+clean.sections.length+": "+sec.heading,sub:instruction.slice(0,46)}); renderChatBody();
+        parts.push(await transformFragment(instruction,sec.heading,sec.html,acc));
+      } }
     const plan={title:t0,sections:clean.sections.map(s=>({heading:s.heading}))};
-    const fullHtml=assembleDeepDoc(t0,plan,parts,{who:actor(),card:slug,cardName:(l&&l.name)||slug});
+    const fullHtml=assembleDeepDoc(t0,plan,parts,{who:actor(),card:slug,cardName:(l&&l.name)||slug,partsZh:wantBi?partsZh:null});
     let v=0; try{ v=briefSave(slug,t0,fullHtml,"marketing"); }catch(e){}
-    chatPush(slug,{role:"assistant",who:"Claude",text:"🌐 Done — transformed **"+t0+"** ("+parts.length+" section"+(parts.length===1?"":"s")+") straight from the existing document, no re-research"+(v?(" · filed to 📋 Briefs as v"+v):"")+". Full document below.",actions:(v?["📋 filed to Briefs"]:[]),attachments:[{type:"code",n:t0,h:fullHtml}],meta:{model:chatModel(),in:tIn,out:tOut,cost:chatCost(chatModel(),tIn,tOut),hops:parts.length,trace:[],reasoning:""},ts:nowStamp()});
+    chatPush(slug,{role:"assistant",who:"Claude",text:(wantBi?"🌐 Done — built a **bilingual** version of **"+t0+"** ("+parts.length+" section"+(parts.length===1?"":"s")+"). Use the **中文 / EN** toggle at the top-right to switch — English stays English, Chinese is 繁體中文.":"🌐 Done — transformed **"+t0+"** ("+parts.length+" section"+(parts.length===1?"":"s")+") straight from the existing document, no re-research.")+(v?(" · filed to 📋 Briefs as v"+v):"")+" Full document below.",actions:(v?["📋 filed to Briefs"]:[]),attachments:[{type:"code",n:t0,h:fullHtml}],meta:{model:chatModel(),in:tIn,out:tOut,cost:chatCost(chatModel(),tIn,tOut),hops:parts.length,trace:[],reasoning:""},ts:nowStamp()});
   }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Couldn't transform the document: "+((e&&e.message)||e)+". Try asking for one section at a time.",ts:nowStamp()}); }
   finally{ CHAT.busy=false; CHAT.wake=false; try{clearInterval(CHAT.tick);}catch(e){} renderChatBody(); }
 }
@@ -2843,13 +2852,22 @@ function decorateImages(html,folders){ return String(html||"").replace(/<img\b[^
     folders[prod]=fol;
     return '<figure class="bvfig" data-prod="'+escAll(prod)+'"><span class="bvtag">'+escAll(prod)+'</span>'+tag+'<button class="bvswap" type="button" onclick="bvOpen(this)">⇄ Swap image</button></figure>';
   }); }
+// translate one HTML fragment to Traditional Chinese, preserving tags/images and keeping brand/model names + numbers in English
+async function translateFragment(enHtml,acc){
+  const en=String(enHtml||""); if(!en.trim())return "";
+  try{ const r=await chatFetch({model:chatModel(),system:"You are a professional zh-Hant (Traditional Chinese, Taiwan) translator for Black Voyage product-marketing documents.",messages:[{role:"user",content:"Translate the human-readable text of this HTML fragment into Traditional Chinese (繁體中文). Keep EVERY HTML tag, attribute and image URL byte-for-byte identical. Keep brand/product/model names (Black Voyage, Vesper, Aero, Apex, Zephyr, AirCabin) and all numbers, specs and dimensions in English. Output ONLY the translated HTML fragment — no code fences, no preamble.\n\n"+en}],tools:undefined,think:false},{timeout:120000,tries:1,toobigMsg:"translation too long"});
+    if(r&&!r.error){ if(r.usage&&acc)acc({in:r.usage.input_tokens||0,out:r.usage.output_tokens||0}); const c=sanitizeFragment((r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("")); if(c&&c.trim().length>8)return c; }
+  }catch(e){} return en;
+}
 function assembleDeepDoc(title,plan,parts,meta){
-  meta=meta||{}; const folders={};
+  meta=meta||{}; const folders={}; const partsZh=meta.partsZh||[]; const bilingual=partsZh.some(Boolean);
   // pick the real primary logo/wordmark; skip endorsement/badge/award/"best"/map junk that just happens to be tagged a logo
   const junk=/endors|affiliat|badge|award|best|certif|partner|press|media|stamp|seal|map|coordinate|review|rating|star|sticker/i;
   const logo=(KNOWLEDGE.brandAssets||[]).find(a=>{ if(!a.url)return false; const s=String(a.type||"")+" "+String(a.name||"")+" "+String(a.path||""); return /logo|wordmark|lockup/i.test(s)&&!junk.test(s); });
   const toc=plan.sections.map((s,i)=>'<li><a href="#sec'+i+'">'+escAll(s.heading)+'</a></li>').join("");
-  const body=parts.map((p,i)=>'<section id="sec'+i+'">'+decorateImages(balanceFragment(p),folders)
+  const body=parts.map((p,i)=>'<section id="sec'+i+'">'
+    +'<div class="bvL bvL-en">'+decorateImages(balanceFragment(p),folders)+'</div>'
+    +(partsZh[i]?'<div class="bvL bvL-zh">'+decorateImages(balanceFragment(partsZh[i]),folders)+'</div>':'')
     +'<div class="bvfb"><button class="bvfb-btn" type="button" onclick="bvFb('+i+')">💬 Feedback</button>'
     +'<div class="bvfb-box" id="fb'+i+'" hidden><textarea placeholder="What should improve in this section? (be specific)"></textarea>'
     +'<label class="bvfb-c"><input type="checkbox" id="fbc'+i+'"> ⚠️ This is a contradiction — flag for review</label>'
@@ -2876,19 +2894,21 @@ function assembleDeepDoc(title,plan,parts,meta){
    +".bvfb{margin:14px 0 4px}.bvfb-btn{background:none;border:1px solid var(--ln);color:var(--gr);font:600 12px/1 'Inter';padding:6px 12px;border-radius:8px;cursor:pointer}.bvfb-btn:hover{border-color:var(--ac);color:var(--ac)}"
    +".bvfb-box{margin-top:10px;border:1px solid var(--ln);border-left:3px solid var(--ac);border-radius:10px;padding:12px;background:#fcfbfa}.bvfb-box textarea{width:100%;min-height:64px;border:1px solid var(--ln);border-radius:8px;padding:9px;font:400 13.5px/1.5 'Inter';resize:vertical}.bvfb-c{display:flex;align-items:center;gap:7px;margin:9px 0;font:500 12.5px/1.3 'Inter';color:#444;cursor:pointer}.bvfb-act{display:flex;gap:8px}.bvfb-send{background:var(--ac);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:600 12.5px/1 'Inter';cursor:pointer}.bvfb-x{background:#f1f1f4;color:#555;border:0;border-radius:8px;padding:8px 12px;font:600 12.5px/1 'Inter';cursor:pointer}"
    +".bvfb-done{margin-top:8px;font:600 12.5px/1.45 'Inter';color:#15803d;background:#f0fbf3;border:1px solid #cdeccf;border-radius:8px;padding:8px 11px}.bvfb-done.contra{color:#9a3412;background:#fff5ef;border-color:#f3d6c4}"
+   +".bvL-zh{display:none}body.lang-zh .bvL-en{display:none}body.lang-zh .bvL-zh{display:block}"
    +"@media print{.bvctl,.bvswap,.bvtag,.bvfb{display:none!important}.bvfig{display:block}}";
   const JS="var PF="+data+";var CUR=null;"
    +"function bvWide(){var w=document.body.classList.toggle('wide');var b=document.getElementById('bvwide');if(b)b.textContent=w?'▣ Normal width':'⛶ Wide view';}"
    +"function bvOpen(btn){var fig=btn.parentNode;CUR=fig;var prod=fig.getAttribute('data-prod');var fol=PF[prod]||[];var ti=document.getElementById('bvptitle');if(ti)ti.textContent=prod+' — '+fol.length+' images · click one to replace';var g=document.getElementById('bvpgrid');g.innerHTML='';var ci=fig.querySelector('img');var cur=ci?ci.getAttribute('src'):'';fol.forEach(function(it){var d=document.createElement('div');d.className='bvthumb'+(it.u===cur?' sel':'');var im=document.createElement('img');im.src=it.u;im.loading='lazy';var sp=document.createElement('span');sp.textContent=it.c||'';d.appendChild(im);d.appendChild(sp);d.onclick=function(){bvPick(it.u)};g.appendChild(d)});document.getElementById('bvpick').classList.add('show');}"
    +"function bvPick(u){if(!CUR)return;var im=CUR.querySelector('img');if(im)im.src=u;bvClose();}"
    +"function bvClose(){var p=document.getElementById('bvpick');if(p)p.classList.remove('show');CUR=null;}"
+   +"function bvLang(){var z=document.body.classList.toggle('lang-zh');var b=document.getElementById('bvlang');if(b)b.textContent=z?'EN':'中文';document.documentElement.lang=z?'zh-Hant':'en';}"
    +"var FBSEC="+fbsec+";var FBMETA="+fbmeta+";"
    +"function bvFb(i){var b=document.getElementById('fb'+i);if(b)b.hidden=!b.hidden;}"
    +"function bvFbSend(i){var box=document.getElementById('fb'+i);if(!box)return;var ta=box.querySelector('textarea');var cb=document.getElementById('fbc'+i);var txt=(ta&&ta.value||'').trim();var contra=!!(cb&&cb.checked);if(!txt&&!contra){alert('Write a note, or tick the contradiction box, first.');return;}var s=FBSEC[i]||{};var payload={title:FBMETA.title,who:FBMETA.who,card:FBMETA.card,cardName:FBMETA.cardName,section:s.h||('Section '+(i+1)),sectionText:s.t||'',reason:txt,contradiction:contra};var res=null;try{if(window.opener&&window.opener.bvBriefFeedback)res=window.opener.bvBriefFeedback(payload);}catch(e){res={ok:false,err:String(e)};}var done=document.getElementById('fbd'+i);if(res&&res.ok){box.hidden=true;if(ta)ta.value='';if(cb)cb.checked=false;if(done){done.hidden=false;done.className='bvfb-done'+(contra?' contra':'');done.textContent=(contra?'\\u26a0\\ufe0f Contradiction flagged':'\\u2713 Feedback sent')+' to BV Second Brain'+(txt?' \\u2014 \"'+txt+'\"':'');}}else{alert('Could not reach BV Second Brain. Open this brief from the SuperPM dashboard (so it can connect to the Core) and try again.'+(res&&res.err?'\\n\\n('+res.err+')':''));}}";
   return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+escAll(title)+'</title>'
    +'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
    +'<style>'+CSS+'</style></head><body>'
-   +'<div class="bvctl"><button id="bvwide" type="button" onclick="bvWide()">⛶ Wide view</button></div>'
+   +'<div class="bvctl">'+(bilingual?'<button id="bvlang" type="button" onclick="bvLang()" title="Toggle English / 繁體中文">中文</button>':'')+'<button id="bvwide" type="button" onclick="bvWide()">⛶ Wide view</button></div>'
    +'<header class="bvhead">'+(logo?'<img class="bvlogo" src="'+escAll(logo.url)+'" alt="Black Voyage">':'<div class="bvword">BLACK VOYAGE</div>')+'</header>'
    +'<main><h1>'+escAll(title)+'</h1><nav class="toc"><b>Contents</b><ul>'+toc+'</ul></nav>'+body+'</main>'
    +'<div id="bvpick" class="bvpick" onclick="if(event.target===this)bvClose()"><div class="bvpbox"><div class="bvphead"><b id="bvptitle">Swap image</b><button onclick="bvClose()">✕</button></div><div id="bvpgrid" class="bvpgrid"></div></div></div>'
@@ -2962,13 +2982,14 @@ async function chatSendDeep(slug,text){
   renderChatBody();
   const sys0=chatSystemPrompt(l); let tIn=0,tOut=0; const acc=d=>{tIn+=d.in||0;tOut+=d.out||0;};
   const note=t=>chatPush(slug,{role:"assistant",who:"Claude",text:t,ts:nowStamp()});
-  let plan=null; const parts=[], gaps=[], seclog=[];   // seclog: per-section progress, shown collapsed on the final message (not as separate chat lines)
+  let plan=null; const parts=[], partsZh=[], gaps=[], seclog=[]; const wantBi=looksBilingual(text);   // wantBi → also build a Traditional-Chinese version (EN|中文 toggle). seclog: per-section progress, shown collapsed on the final message
   // assemble whatever sections completed and either file a Brief (≥40% real) or show inline — called from BOTH
   // the success path AND the catch, so a deep run ALWAYS ends with a document, never a bare "error, nothing produced".
   function fileIt(reason){
     const p=plan||defaultPlan(text,true);
     const built=p.sections.map((s,i)=>{ let frag=parts[i]; if(!frag||frag.trim().length<20){ gaps[i]=true; frag="<h2>"+escAll(s.heading)+"</h2><p><i>[This section couldn't be generated this run — ask for it on its own and I'll write it in full.]</i></p>"; } return frag; });
-    const real=built.length-gaps.filter(Boolean).length, title=p.title||("Deliverable — "+(l.name||slug)), fullHtml=assembleDeepDoc(title,p,built,{who:actor(),card:slug,cardName:(l.name||slug)});
+    const builtZh=wantBi?p.sections.map((s,i)=>partsZh[i]||""):null;
+    const real=built.length-gaps.filter(Boolean).length, title=p.title||("Deliverable — "+(l.name||slug)), fullHtml=assembleDeepDoc(title,p,built,{who:actor(),card:slug,cardName:(l.name||slug),partsZh:builtZh});
     const ok=real>=Math.ceil(built.length*0.4)&&real>=1; let v=0; if(ok){ try{ v=briefSave(slug,title,fullHtml,"marketing"); }catch(e){} }
     const gapN=gaps.filter(Boolean).length;
     const head = !ok ? ("🔬 I could only complete "+real+"/"+built.length+" sections"+(reason?(" ("+reason+")"):"")+", so I'm showing the draft below rather than filing a thin Brief — re-run, or ask for the missing sections one at a time.")
@@ -3028,6 +3049,7 @@ async function chatSendDeep(slug,text){
       CHAT.steps.push({head:"✍️ Section "+(i+1)+"/"+plan.sections.length+": "+sec.heading,sub:"writing…"}); renderChatBody();
       const frag=sanitizeFragment(await writeSection(l,sys0,researchPack,plan,sec,doneHeads,acc));
       parts.push(frag); doneHeads.push(sec.heading);
+      if(wantBi){ CHAT.steps.push({head:"🌐 §"+(i+1)+" → 繁體中文",sub:sec.heading}); renderChatBody(); partsZh.push(await translateFragment(frag,acc)); }
       seclog.push((frag&&frag.trim().length>=20?"✓":"⚠️")+" Section "+(i+1)+"/"+plan.sections.length+" — "+sec.heading);
     }
     // 3b) FACT-CHECK — compare the draft to the Core canonical data; auto-file contradictions to the BV Second Brain
