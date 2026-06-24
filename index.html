@@ -2578,6 +2578,7 @@ function briefCardHTML(b){ const a=b.approvals||{},mk=a.marketing,bn=a.ben,op=S.
       <button class="iconbtn" onclick="briefView('${b.id}')">👁 View</button>
       <button class="iconbtn" onclick="briefToggle('${b.id}')">💬 ${(b.comments||[]).length}</button>
       ${live?`<button class="iconbtn" id="bedit_${b.id}" title="Edit this brief section-by-section — add images, generate a table/chart, then save a new version" onclick="briefEditSections('${b.id}')">✎ Edit</button>`:""}
+      ${live?`<button class="iconbtn" title="Re-render this EXACT brief in the latest format — adds per-paragraph 💬 Feedback + 📊 Graph and keeps your content/images/charts. No AI, no re-research." onclick="briefReskin('${b.id}')">⟳ Latest format</button>`:""}
       ${(live&&(b.comments||[]).length)?`<button class="iconbtn" id="brev_${b.id}" title="Ask Claude to revise the whole brief to address every feedback note above — files a new version" onclick="briefReviseFromFeedback('${b.id}')">↻ Revise from feedback</button>`:""}
       ${live?`<button class="iconbtn" ${mk?"disabled":""} title="${mk?("Marketing ✓ "+esc(mk.by)):"Marketing lead sign-off"}" onclick="briefApprove('${b.id}','marketing')">${mk?"✓ Marketing":"Marketing sign-off"}</button>
       <button class="iconbtn" ${bn?"disabled":""} title="${bn?("Ben ✓ "+esc(bn.by)):"Ben (CEO) sign-off"}" onclick="briefApprove('${b.id}','ben')">${bn?"✓ Ben":"Ben sign-off"}</button>`:""}
@@ -2601,6 +2602,42 @@ function briefsInner(l){ if(!l)return"";
 // Set/clear a busy state on a brief card's action button (revise / edit) with a label, and toast.
 function _briefBtnBusy(id,prefix,busy,label){ const b=document.getElementById(prefix+"_"+id); if(b){ b.disabled=!!busy; if(label!=null)b.textContent=label; } }
 // FEATURE 1 — Revise the whole brief HTML to address every feedback comment, in one Claude call, then file the next version.
+// ===== RE-RENDER an existing brief through the CURRENT template (adds per-paragraph 💬/📊, keeps content/images/charts). NO AI, NO re-research. =====
+// Extract the inner HTML of the first <div class="cls"> by counting div depth (handles nested divs like generated charts).
+function _extractDiv(html,cls){ const s=String(html||""); const re=new RegExp('<div class="'+String(cls).replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+'"[^>]*>',"i"); const mm=re.exec(s); if(!mm)return null;
+  let depth=1; const start=mm.index+mm[0].length; const tagRe=/<\/?div\b[^>]*>/gi; tagRe.lastIndex=start; let t;
+  while((t=tagRe.exec(s))){ if(/^<\/div/i.test(t[0])){ depth--; if(depth===0)return s.slice(start,t.index); } else { depth++; } }
+  return s.slice(start); }
+// Parse a saved brief's HTML back into sections (EN + 繁中 layers preserved) and re-assemble via the current assembleDeepDoc.
+function reskinHtml(doc,card){
+  doc=String(doc||""); const tm=doc.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i); const title=tm?tm[1].replace(/<[^>]+>/g,"").trim():"Brief";
+  const clean=x=>String(x||"").replace(/<figure class="bvfig"[^>]*>[\s\S]*?(<img\b[^>]*>)[\s\S]*?<\/figure>/gi,"$1").replace(/<div class="bvpt">[\s\S]*?<\/div>/gi,"").trim();   // drop old per-paragraph toolbars + unwrap swap-figures; KEEP generated charts (bvgen)
+  const parts=[],partsZh=[]; let bil=false; const secRe=/<section\b[^>]*>([\s\S]*?)<\/section>/gi; let m;
+  while((m=secRe.exec(doc))){ let inner=m[1]; const cut=inner.indexOf('<div class="bvfb"'); if(cut>=0)inner=inner.slice(0,cut);
+    let en=_extractDiv(inner,"bvL bvL-en"); const zh=_extractDiv(inner,"bvL bvL-zh"); if(en==null)en=inner; if(zh!=null)bil=true;
+    parts.push(clean(en)); partsZh.push(zh!=null?clean(zh):""); }
+  if(!parts.length) return null;
+  const plan={title:title,sections:parts.map((p,i)=>({heading:((String(p).match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)||[null,"Section "+(i+1)])[1]||"Section "+(i+1)).replace(/<[^>]+>/g,"").trim()}))};
+  const l=L(card); const html=assembleDeepDoc(title,plan,parts,{who:actor(),card:card,cardName:(l&&l.name)||card,partsZh:bil?partsZh:null});
+  return {title:title,html:html,n:parts.length,bilingual:bil};
+}
+// Brief-card button: re-render this exact brief in the latest format, file a new version. Deterministic, instant, no AI.
+function briefReskin(id){ const b=briefById(id); if(!b){toast("Brief not found");return;} if(!String(b.html||"").trim()){toast("This brief has no content to re-render.");return;}
+  let r=null; try{ r=reskinHtml(b.html,b.card); }catch(e){ toast("⚠️ Re-render failed: "+((e&&e.message)||e)); return; }
+  if(!r||!r.n){ toast("⚠️ Couldn't read this brief's sections — try ✎ Edit instead."); return; }
+  const v=briefSave(b.card,r.title,r.html,b.type);
+  if(v){ try{logEvent("question","⟳ Re-rendered brief in latest format · "+r.title+" → v"+v,{card:b.card});}catch(e){} toast("⟳ Re-rendered “"+r.title+"” in the latest format — filed as v"+v+" with per-paragraph 💬/📊. No AI, no re-research."); }
+  else toast("⚠️ Couldn't file the re-rendered brief (not signed in?).");
+}
+// Does the user want to RE-SKIN the existing brief (same content, new buttons/format) rather than build a fresh one?
+function looksReskin(text){ var t=String(text||""); return /\b(re-?render|re-?skin|latest format|new format|update the (format|template)|same (exact )?(brief|doc|document|html))\b/i.test(t) || (/\b(same|exact|current|existing|this)\b/i.test(t)&&/\b(brief|doc|document|html)\b/i.test(t)&&/\b(new|latest|updated?|add(ing)?)\b[\s\S]{0,24}\b(function|functions|button|buttons|feature|features|format|template|feedback|graph|chart)\b/i.test(t)); }
+async function chatReskinDoc(slug,_doc){
+  const doc=(_doc&&_doc.h)||""; if(!doc){ chatPush(slug,{role:"assistant",who:"Claude",text:"I don't see a brief in this card to re-render yet — generate one first.",ts:nowStamp()}); return; }
+  let r=null; try{ r=reskinHtml(doc,slug); }catch(e){ r=null; }
+  if(!r||!r.n){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ I couldn't re-render that brief into the new format (its sections didn't parse). Open it with ✎ Edit instead.",ts:nowStamp()}); return; }
+  let v=0; try{ v=briefSave(slug,r.title,r.html,"marketing"); }catch(e){}
+  chatPush(slug,{role:"assistant",who:"Claude",text:"⟳ Done — re-rendered **"+r.title+"** ("+r.n+" section"+(r.n===1?"":"s")+") in the latest format, with per-paragraph 💬 Feedback + 📊 Graph on every paragraph. Same content — no re-research."+(v?(" · filed to 📋 Briefs as v"+v):"")+" Open it with ⛶ Full page below.",actions:(v?["📋 filed to Briefs"]:[]),attachments:[{type:"code",n:r.title,h:r.html}],ts:nowStamp()});
+}
 async function briefReviseFromFeedback(id){ const b=briefById(id); if(!b){toast("Brief not found");return;}
   const comments=(b.comments||[]); if(!comments.length){toast("No feedback to revise from yet.");return;}
   if(BRIEF_EDIT&&BRIEF_EDIT.busy)return;
@@ -3068,6 +3105,8 @@ async function chatSend(slug){
   { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksTransform(text) && !isExplicitBuild(text) && !transformIsQuestion(text) && !(looksAugment(text)&&augmentIsImage(text)) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one)\b/i.test(text)||text.length<90)){ input.value=""; return chatTransformDoc(slug,text,_doc.h,_doc.n); } }   // translate/rewrite/shorten an EXISTING doc — never re-research; but an explicit NEW build, a question, or an image-add falls through
   // 1.5: ADD a visual (image / chart / table) INTO the existing last doc — never regenerate, never just show it in a chat bubble. Sits AFTER transform, BEFORE Deep so a short "add a chart" isn't intercepted by deepNeedsClarify.
   { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksAugment(text) && !isExplicitBuild(text) && !transformIsQuestion(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one|here|section|to the|into the)\b/i.test(text)||text.length<90)){ input.value=""; return chatAugmentDoc(slug,text,_doc.h,_doc.n); } }
+  // 1.6: RE-SKIN the existing brief in the latest format (add per-paragraph 💬/📊, keep content) — NO AI, NO re-research, never a full Deep rebuild.
+  { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksReskin(text)){ input.value=""; return chatReskinDoc(slug,_doc); } }
   // SECOND: a genuine new, multi-section deliverable still goes to Deep.
   if(CHAT.deep|| /^\/deep\b/i.test(text)){ input.value=""; const dtext=text.replace(/^\/deep\s*/i,"").trim(); if(!dtext){ if(!CHAT.deep){ try{toggleDeep();}catch(e){} } chatPush(slug,{role:"assistant",who:"Claude",text:"🔬 Deep mode is on — now type the deliverable you want (a sentence or two, ideally with the sections, e.g. \"launch brief for the Vesper Air — sections: positioning, specs, personas\").",ts:nowStamp()}); return; } if(deepNeedsClarify(dtext)){ return chatClarifyAsk(slug,dtext); } return chatSendDeep(slug, dtext); }   // big deliverable — but ask 2-3 scoping questions first when the request is thin (bare /deep just turns the mode on)
   if(looksDeep(text)){   // SUGGEST deep mode for a big ask (never auto-run) — so the user doesn't have to know when
