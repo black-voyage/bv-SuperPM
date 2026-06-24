@@ -1887,8 +1887,8 @@ function viewLaunch(){
     ${DEPTS().map(d=>{const ts=l.tasks.filter(t=>t.d===d);return ts.length?`<div class="panel"><h3>${d.toUpperCase()}</h3>${ts.map(t=>taskRow(l,t,t.stage)).join("")}</div>`:"";}).join("")}
   </div><div>
     ${pend?`<div class="panel" style="border-color:var(--accent);margin-bottom:14px"><h3>◆ Approval needed</h3><div class="sub" style="margin-bottom:8px">${esc(pend.t)} — all other ${l.stage} criteria are done. Approving unblocks the push to <b>${next||"Complete"}</b>.</div><button class="btn" onclick="approve('${l.slug}',${l.tasks.indexOf(pend.task)})">✓ Approve</button></div>`:""}
-    ${renderBriefsPanel(l)}
     ${renderChatPanel(l)}
+    ${renderBriefsPanel(l)}
   </div></div>`;
 }
 function viewDept(){
@@ -3185,7 +3185,7 @@ function assembleDeepDoc(title,plan,parts,meta){
   const toc=plan.sections.map((s,i)=>'<li><a href="#sec'+i+'">'+escAll(s.heading)+'</a></li>').join("");
   // Per-paragraph toolbar: a 💬 Feedback + 📊 Generate-graph control injected after EVERY paragraph in the brief.
   const ptool='<div class="bvpt"><button type="button" title="Comment on this paragraph" onclick="bvPFb(this)">💬 Feedback</button><button type="button" title="Generate a chart or table from this paragraph" onclick="bvPGraph(this)">📊 Graph</button></div>';
-  const withParaTools=h=>String(h||"").replace(/<\/p>/gi,"</p>"+ptool);
+  const withParaTools=h=>String(h||"").replace(/<\/(p|ul|ol|table|blockquote)>/gi,function(m){return m+ptool;});
   const body=parts.map((p,i)=>'<section id="sec'+i+'">'
     +'<div class="bvL bvL-en">'+withParaTools(decorateImages(balanceFragment(p),folders))+'</div>'
     +(partsZh[i]?'<div class="bvL bvL-zh">'+withParaTools(decorateImages(balanceFragment(partsZh[i]),folders))+'</div>':'')
@@ -3215,7 +3215,7 @@ function assembleDeepDoc(title,plan,parts,meta){
    +".bvfb{margin:14px 0 4px}.bvfb-btn{background:none;border:1px solid var(--ln);color:var(--gr);font:600 12px/1 'Inter';padding:6px 12px;border-radius:8px;cursor:pointer}.bvfb-btn:hover{border-color:var(--ac);color:var(--ac)}"
    +".bvfb-box{margin-top:10px;border:1px solid var(--ln);border-left:3px solid var(--ac);border-radius:10px;padding:12px;background:#fcfbfa}.bvfb-box textarea{width:100%;min-height:64px;border:1px solid var(--ln);border-radius:8px;padding:9px;font:400 13.5px/1.5 'Inter';resize:vertical}.bvfb-c{display:flex;align-items:center;gap:7px;margin:9px 0;font:500 12.5px/1.3 'Inter';color:#444;cursor:pointer}.bvfb-act{display:flex;gap:8px}.bvfb-send{background:var(--ac);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:600 12.5px/1 'Inter';cursor:pointer}.bvfb-x{background:#f1f1f4;color:#555;border:0;border-radius:8px;padding:8px 12px;font:600 12.5px/1 'Inter';cursor:pointer}"
    +".bvfb-done{margin-top:8px;font:600 12.5px/1.45 'Inter';color:#15803d;background:#f0fbf3;border:1px solid #cdeccf;border-radius:8px;padding:8px 11px}.bvfb-done.contra{color:#9a3412;background:#fff5ef;border-color:#f3d6c4}"
-   +".bvpt{display:flex;gap:6px;margin:2px 0 12px;opacity:.32;transition:opacity .15s}.bvpt:hover,p:hover+.bvpt{opacity:1}.bvpt button{background:#fff;border:1px solid var(--ln);border-radius:7px;font:600 11.5px/1 'Inter';padding:5px 9px;cursor:pointer;color:var(--gr)}.bvpt button:hover{border-color:var(--ac);color:var(--ac)}.bvpt button:disabled{opacity:.5;cursor:default}.bvgen{margin:6px 0 16px}.bvgen svg,.bvgen table{max-width:100%}"
+   +".bvpt{display:flex;gap:7px;margin:6px 0 16px;opacity:.92;transition:opacity .12s}.bvpt:hover{opacity:1}.bvpt button{background:#faf7f5;border:1px solid #e7d8d1;border-radius:7px;font:600 11.5px/1 'Inter';padding:6px 11px;cursor:pointer;color:#8a5042}.bvpt button:hover{border-color:var(--ac);color:#fff;background:var(--ac)}.bvpt button:disabled{opacity:.5;cursor:default}.bvgen{margin:8px 0 18px;border-left:2px solid var(--ac);padding-left:12px}.bvgen svg,.bvgen table{max-width:100%}"
    +".bvL-zh{display:none}body.lang-zh .bvL-en{display:none}body.lang-zh .bvL-zh{display:block}"
    +"@media print{.bvctl,.bvswap,.bvtag,.bvfb,.bvpt{display:none!important}.bvfig{display:block}}";
   const JS="var PF="+data+";var CUR=null;"
