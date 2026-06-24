@@ -34,6 +34,13 @@
     --accent:#3D8BFF;
   }
   *{box-sizing:border-box;margin:0;padding:0}
+  /* DESIGN.md — keyboard focus visible on every interactive element; mouse focus stays quiet */
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+  button:focus:not(:focus-visible),summary:focus:not(:focus-visible){outline:none}
+  /* DESIGN.md Motion — every animation has a reduced-motion alternative */
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+  }
   body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-head);}
   h2{font-weight:700;letter-spacing:-.01em}
   .panel h3,.col h4,th{font-family:var(--font-mono);font-weight:400;text-transform:uppercase;letter-spacing:.08em}
@@ -72,14 +79,14 @@
   .drawer.openD{right:0}
   .drawer .dh{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center}
   .drawer .db{flex:1;overflow-y:auto;padding:12px 16px}
-  .feeditem{border-left:3px solid var(--line);padding:6px 10px;margin-bottom:8px;font-size:12.5px}
+  .feeditem{border:1px solid var(--line);border-radius:2px;padding:6px 10px;margin-bottom:8px;font-size:12.5px}
   .feeditem .d{color:var(--faint);font-size:11px}
   .pal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:60;display:flex;align-items:flex-start;justify-content:center;padding-top:12vh}
   .palbox{width:560px;max-width:92vw;background:var(--panel);border:1px solid var(--line);overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.5)}
   .palbox input{width:100%;border:none;background:var(--panel2);padding:14px 16px;font-size:15px;border-radius:0}
   .palitem{padding:10px 16px;cursor:pointer;display:flex;gap:10px;align-items:center;font-size:13.5px}
   .palitem:hover,.palitem.sel{background:var(--panel2)}
-  .risk{border:1px solid var(--line);border-left:3px solid var(--red);padding:8px 12px;margin-bottom:8px;font-size:13px;background:var(--panel2)}
+  .risk{border:1px solid rgba(248,113,113,.4);border-radius:2px;padding:8px 12px;margin-bottom:8px;font-size:13px;background:rgba(248,113,113,.08)}
   .autofix{border:1px solid var(--line);padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:center;background:var(--panel2)}
   .autofix .sev{width:8px;height:8px;border-radius:1px;flex:none}
   .ghostnote{color:var(--faint);font-size:11.5px}
@@ -168,7 +175,7 @@
   .btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
   .btn.red{background:#3a1d1d;color:var(--red);border:1px solid #5a2a2a}
   .btn:disabled{background:var(--panel2);color:var(--faint);cursor:not-allowed;border:1px solid var(--line)}
-  .stages{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 16px}
+  .stages{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 16px;position:sticky;top:58px;z-index:9;background:var(--bg);padding:6px 0;border-bottom:1px solid var(--line)}
   .stg{padding:5px 11px;border-radius:2px;font-size:12px;border:1px solid var(--line);color:var(--faint)}
   .stg.past{background:#14331f;color:var(--green);border-color:#1f4a2e}
   .stg.cur{background:var(--accent);color:#fff;font-weight:700;border-color:var(--accent)}
@@ -181,7 +188,7 @@
   .av{width:34px;height:34px;border-radius:2px;flex:none;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff}
   .msg .who{font-weight:700;font-size:13px}.msg .when{color:var(--faint);font-size:11px;margin-left:6px}
   .msg .txt{font-size:13px;color:#d1d5db;margin-top:2px}
-  .appr{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:2px;padding:10px;margin-top:8px;background:#202329}
+  .appr{border:1px solid rgba(238,49,36,.4);border-radius:2px;padding:10px;margin-top:8px;background:rgba(238,49,36,.07)}
   .thr{color:var(--blue);font-size:12px;margin-top:5px;cursor:pointer}
   table{width:100%;border-collapse:collapse;font-size:13px}
   th{color:var(--dim);text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;padding:8px;border-bottom:1px solid var(--line)}
@@ -191,7 +198,7 @@
   textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--text);padding:10px;font:13px/1.5 inherit;resize:vertical;min-height:70px}
   #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;font-weight:600;padding:10px 18px;border-radius:2px;display:none;z-index:50;font-size:13px;max-width:90vw}
   .back{color:var(--blue);cursor:pointer;font-size:13px;margin-bottom:12px;display:inline-block}
-  .checkin{border-left:3px solid var(--line);padding:6px 12px;margin-bottom:8px;font-size:13px}
+  .checkin{border:1px solid var(--line);border-radius:2px;padding:6px 12px;margin-bottom:8px;font-size:13px}
   .checkin .d{color:var(--faint);font-size:11.5px}
   .flowwrap{overflow:auto;border:1px solid var(--line);border-radius:2px;background:#101216}
   .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--dim);margin:10px 0}
@@ -207,7 +214,7 @@
   .taskpanel{background:#13161a;border:1px solid var(--line);border-radius:2px;padding:12px;margin:2px 0 8px 28px;font-size:13px}
   .taskpanel .frow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
   .taskpanel label{color:var(--dim);font-size:12px}
-  .note{border-left:3px solid #2e3640;padding:4px 10px;margin-bottom:6px}
+  .note{border:1px solid var(--line);border-radius:2px;padding:4px 10px;margin-bottom:6px}
   .note .d{color:var(--faint);font-size:11px}
   .tl-row{margin-bottom:22px}
   .tl-head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
@@ -319,6 +326,100 @@
   }
 #chatPresets{margin:2px 0 8px}#chatPresets.collapsed .cprebody{display:none}.cpreh{display:flex;align-items:center;justify-content:space-between;margin:0 0 5px}.cpreh>span{font-size:10.5px;font-weight:700;color:var(--faint);letter-spacing:.05em}.cpretog{background:none;border:0;color:var(--faint);cursor:pointer;font-size:13px;line-height:1;padding:2px 6px}#chatPresets.collapsed .cpretog{transform:rotate(-90deg)}.cpregrp{margin-bottom:7px}.cpregh{font-size:10px;font-weight:600;color:var(--faint);margin:0 0 4px;opacity:.85;text-transform:uppercase;letter-spacing:.04em}.cpregrp.pin .cpregh{color:var(--accent);opacity:1}.cprestar{font-weight:600;font-size:9.5px}.cprechips{display:flex;flex-wrap:wrap;gap:5px}.cpre{background:var(--panel2);border:1px solid var(--line);color:var(--dim);font-size:12px;padding:5px 11px;border-radius:999px;cursor:pointer;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cpre:hover{border-color:var(--accent);color:var(--text)}.cpregrp.pin .cpre{border-color:#EE312455}.cpre.deep{border-style:dashed}.cpd{font-size:10.5px;opacity:.85}.cpreother{margin-top:2px}.cpreother>summary{font-size:10.5px;color:var(--faint);cursor:pointer;padding:3px 0;user-select:none}.cpreother[open]>summary{margin-bottom:6px}
   .pcmsgs{max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:9px;margin:10px 0;padding:2px}.pcmsg{font-size:13px;line-height:1.55}.pcmsg>b{font-size:10.5px;color:var(--faint);display:block;margin-bottom:2px;font-weight:600}.pcmsg.user>div{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:7px 11px}.pcmsg.assistant>div{background:rgba(238,49,36,.06);border:1px solid #EE312433;border-radius:9px;padding:8px 11px;white-space:pre-wrap}
+  /* DESIGN.md Shape — unify to sharp brand radii (pj-* used 8–14px containers / 99px pills) */
+  .pj-hero,.pj-grid,.pj-rail,.pj-drawer,.pj-stages,.pj-cell,.pj-filtergroups,.pj-search,.pj-fbtn,.pj-clear,.pj-row,.pj-row-next,.pj-seg-toggle,.pj-seg-toggle button{border-radius:2px}
+  .pjtag,.pj-health,.pj-chip,.pj-badge,.pj-mo,.pj-stat-btn{border-radius:2px}
+  /* ===== launch-detail lower section: GATE hero · collapsible depts · notes thread · links popover · chat rail ===== */
+  .gateband{border-color:rgba(238,49,36,.35)}
+  .gateband>h3 .stg.cur{vertical-align:middle;text-transform:none;font-weight:700}
+  .gate-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .flow-tie{margin-top:10px;display:flex;align-items:center;flex-wrap:wrap;gap:5px;color:var(--dim)}
+  .secdiv{margin:4px 0 10px}
+  .secdiv h4{font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin-bottom:3px}
+  .ld2{grid-template-columns:1.6fr 1fr}
+  .deptpanel{background:var(--panel);border:1px solid var(--line);border-radius:2px;margin-bottom:8px}
+  .deptpanel>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 14px;font-size:13px}
+  .deptpanel>summary::-webkit-details-marker{display:none}
+  .deptpanel>summary:hover{background:var(--panel2)}
+  .deptpanel-nm{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.06em;font-size:12px;font-weight:600}
+  .deptpanel[open]>summary{border-bottom:1px solid var(--line)}
+  .deptpanel-b{padding:4px 14px 8px}
+  .lnkmenu{display:inline-block;position:relative;margin-left:4px;vertical-align:middle}
+  .lnkmenu>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;background:var(--panel2);border:1px solid var(--line);border-radius:2px;padding:1px 8px;font-size:11px;color:var(--dim)}
+  .lnkmenu>summary::-webkit-details-marker{display:none}
+  .lnkmenu>summary:hover{color:var(--text)}
+  .lnkmenu[open]>summary{border-color:var(--accent);color:var(--text)}
+  .lnkmenu-b{position:absolute;left:100%;top:-4px;margin-left:6px;z-index:31;display:flex;flex-wrap:wrap;gap:5px;align-items:center;width:max-content;max-width:340px;padding:7px;border:1px solid var(--line);border-radius:2px;background:var(--panel);box-shadow:0 2px 8px rgba(0,0,0,.28)}
+  @media(max-width:640px){.lnkmenu-b{left:auto;right:0;top:100%;margin:5px 0 0;max-width:78vw}}
+  .notes .notes-list{display:flex;flex-direction:column}
+  .note-item{border-top:1px solid var(--line);padding:7px 0;font-size:13px}
+  .note-item:first-child{border-top:none}
+  .note-h{display:flex;align-items:flex-start;gap:8px}
+  .note-t{flex:1;min-width:0;line-height:1.4}
+  .note-meta{display:inline-flex;align-items:center;gap:5px;flex:none}
+  .note-sc{font-weight:700;font-family:var(--font-mono);font-size:12px}
+  .note-d{color:var(--faint);font-size:11.5px;margin-top:4px}
+  .notes-add{display:flex;gap:6px;margin-top:10px}
+  .notes-add input{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--text);padding:7px 9px;font-size:13px;font-family:inherit}
+  .chat-badge{position:fixed;right:0;bottom:18px;z-index:55;background:var(--accent);color:#fff;border:none;border-radius:2px 0 0 2px;padding:9px 13px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.28)}
+  .chat-badge:hover{filter:brightness(1.08)}
+  .chat-rail{position:fixed;right:0;bottom:14px;width:340px;max-width:92vw;max-height:calc(100vh - 96px);z-index:55;background:var(--panel);border:1px solid var(--line);border-radius:2px 0 0 2px;box-shadow:0 24px 64px rgba(0,0,0,.5);display:flex;flex-direction:column;overflow:hidden}
+  .chat-rail-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 10px 5px 22px;border-bottom:1px solid var(--line);flex:none}
+  .chat-resize{position:absolute;top:0;left:0;width:18px;height:18px;cursor:nwse-resize;z-index:3;background:linear-gradient(135deg,var(--accent) 0 40%,transparent 40%);opacity:.45;border-radius:2px 0 0 0;touch-action:none}
+  .chat-resize:hover{opacity:.95}
+  .chat-rail-bar .ghostnote{font-family:var(--font-mono);letter-spacing:.08em;font-size:10px}
+  .chat-rail .chatpanel{height:auto;flex:1;min-height:0;border:none;margin:0;border-radius:0}
+  .chat-rail .chatpanel.full{position:fixed;inset:0;height:100vh;z-index:65}
+  @media(max-width:900px){
+    .ld2{grid-template-columns:1fr}
+    .chat-badge{position:static;display:block;width:100%;margin-top:14px;border-radius:2px}
+    .chat-rail{position:static;width:auto;max-width:none;max-height:none;box-shadow:none;margin-top:14px;border-radius:2px}
+  }
+  /* task-row responsibility cluster (right side: responsible · collaborators · ＋) */
+  .ometa{display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+  .o-resp{font-weight:700;font-size:12px}
+  .o-stage{color:var(--faint);font-size:12px}
+  .o-collabs{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
+  .o-collab{font-size:11px;opacity:.78;cursor:pointer;padding:0 6px;border:1px solid var(--line);border-radius:2px;line-height:1.7}
+  .o-collab:hover{opacity:1;border-color:currentColor}
+  .collabmenu{display:inline-block;position:relative;vertical-align:middle}
+  .collabmenu>summary{list-style:none;cursor:pointer;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;background:var(--panel2);border:1px solid var(--line);border-radius:2px;font-size:13px;color:var(--dim)}
+  .collabmenu>summary::-webkit-details-marker{display:none}
+  .collabmenu>summary:hover{color:var(--text);border-color:var(--accent)}
+  .collabmenu[open]>summary{border-color:var(--accent);color:var(--text)}
+  .collabmenu-b{position:absolute;right:0;z-index:30;margin-top:4px;display:flex;flex-direction:column;gap:2px;padding:5px;background:var(--panel);border:1px solid var(--line);border-radius:2px;box-shadow:0 2px 8px rgba(0,0,0,.28)}
+  .collabmenu-b button{background:none;border:none;text-align:left;cursor:pointer;font-size:12px;padding:3px 8px;border-radius:2px;white-space:nowrap}
+  .collabmenu-b button:hover{background:var(--panel2)}
+  /* task-panel notes thread */
+  .tnotes-head{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.06em;font-size:11px;color:var(--faint);margin:4px 0}
+  .tnotes{display:flex;flex-direction:column}
+  .tnote{border-top:1px solid var(--line);padding:6px 0;font-size:13px}
+  .tnote:first-child{border-top:none}
+  .tnote-m{color:var(--faint);font-size:11px;font-family:var(--font-mono);letter-spacing:.03em;margin-bottom:1px}
+  .tnote-t{line-height:1.45}
+  .tnote-add{display:flex;gap:6px;margin-top:8px}
+  .tnote-add input{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--text);padding:7px 9px;font-size:13px;font-family:inherit}
+  .tnote-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .tnote-x{color:var(--red);opacity:.5;font-size:11px;flex:none}
+  .tnote-x:hover{opacity:1}
+  .tnote-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:7px}
+  .tnote-plus{background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--dim);cursor:pointer;font-size:12px;padding:4px 10px}
+  .tnote-plus:hover{color:var(--text);border-color:var(--accent)}
+  .tnote-tool{display:inline-flex;align-items:center;gap:6px}
+  .tnote-tool label{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-mono)}
+  .tnote-tool select{background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--text);padding:4px 6px;font-size:12px;font-family:inherit}
+  /* workflow template (settings → step ownership) */
+  .tpl-stage{margin-bottom:14px}
+  .tpl-tbl{width:100%;border-collapse:collapse}
+  .tpl-tbl th{text-align:left;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.06em;font-size:11px;color:var(--faint);font-weight:400;padding:4px 8px;border-bottom:1px solid var(--line)}
+  .tpl-tbl td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top;font-size:13px}
+  .tpl-tbl tr:last-child td{border-bottom:none}
+  .tpl-step{line-height:1.4}
+  .tpl-resp,.tpl-add{background:var(--panel2);border:1px solid var(--line);border-radius:2px;color:var(--text);padding:5px 7px;font-size:12.5px;font-family:inherit}
+  .tpl-collabs{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+  .collab-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--c,var(--line));color:var(--c,var(--text));border-radius:2px;padding:1px 4px 1px 8px;font-size:12px}
+  .collab-chip button{background:none;border:none;color:inherit;cursor:pointer;opacity:.7;font-size:11px;padding:0 2px;line-height:1}
+  .collab-chip button:hover{opacity:1}
   </style>
 </head>
 <body>
@@ -1253,7 +1354,7 @@ const DOD={"Form (intake)":"Intake complete: why, spec, look, material, customer
  "Launch email sequence sent":"Full launch sequence delivered."};
 
 /* ================= STATE ================= */
-let S={role:"ceo",view:"home",launch:null,dept:"Design",flowLaunch:"apex",open:{},progLaunch:"apex",route:null,q:"",palSel:0,hideFlow:false};
+let S={role:"ceo",view:"home",launch:null,dept:"Design",flowLaunch:"apex",open:{},progLaunch:"apex",route:null,q:"",palSel:0,hideFlow:false,deptOpen:{},chatRailOpen:false,chatW:null,chatH:null};
 
 /* ============ PROJECTS DATA (live from Google Sheet — same source as the bv-Products portal) ============
    Read-only mirror of the portal's src/lib/sheets.ts. The portal pulls these tabs from a PUBLIC gviz CSV
@@ -1421,6 +1522,11 @@ const ZH={
  "Home":"首頁","Portfolio":"總覽看板","Progress":"進度","Timeline":"時間軸","Departments":"部門",
  "Master flow chart":"主流程圖","Master flow":"主流程圖","Campaigns":"行銷活動","Campaign":"行銷活動","Team & departments":"團隊與部門","Team":"團隊",
  "Settings":"設定","People config and the shared change history, in one place.":"人員設定與共享的變更歷史，整合於一處。",
+ // — workflow template / step ownership —
+ "Workflow template — step ownership":"流程模板 — 步驟負責","Workflow template":"流程模板",
+ "Responsible department updated":"負責部門已更新","Responsible":"負責","Collaborators":"協作部門","Collaborator removed":"已移除協作部門","Collaborator added":"已新增協作部門","Collaborator":"協作",
+ "add a collaborating department":"新增協作部門","remove collaborator":"移除協作部門","+ add":"＋ 新增",
+ "No notes yet.":"目前沒有備註。","Add a note…":"新增備註…",
  "CEO lens":"CEO 視角","Director lens":"總監視角","Department lens":"部門視角","Department":"部門","Director":"總監","Head":"主管",
  // — statuses / chips —
  "Awaiting Ben ◆":"等待 Ben ◆","In progress":"進行中","To do":"待辦","Blocked":"受阻","Done":"完成","Complete":"已完成","On track":"進度正常",
@@ -1655,6 +1761,7 @@ function addNote(slug,i){
   const el=document.getElementById(`nt-${slug}-${i}`); const v=(el&&el.value||"").trim(); if(!v)return;
   L(slug).tasks[i].notes.push({d:today,a:S.role==="dept"?S.dept:"Ben",txt:v}); toast("Note added"); render();
 }
+function delTaskNote(slug,i,ni){ const l=L(slug); const t=l&&l.tasks[i]; if(!t||!t.notes||!t.notes[ni])return; t.notes.splice(ni,1); log("🗑 Note removed from "+t.t); save(); render(); toast("Note deleted"); }
 function addLoom(slug,i){
   const u=prompt("Paste Loom / video URL"); if(!u)return;
   L(slug).tasks[i].notes.push({d:today,a:S.role==="dept"?S.dept:"Ben",txt:"Video walkthrough",v:u}); toast("🎥 Video attached"); render();
@@ -1681,34 +1788,44 @@ function delDept(i){ const d=TEAM[i].name;
 /* ================= RENDER HELPERS ================= */
 const codeChips=(task,slug,i)=>(task.codes||[]).map((c,ci)=>`<span class="lnkg"><span class="codechip" title="${c.u?"View / open the linked page":"View / preview HTML"}" onclick="event.stopPropagation();viewCode('${slug}',${i},${ci})">${c.u?"🔗":"&lt;/&gt;"} ${esc(c.n)}</span><button class="lnkb" title="edit code" onclick="event.stopPropagation();editCode('${slug}',${i},${ci})">✎</button><button class="lnkb" title="remove code" onclick="event.stopPropagation();removeCode('${slug}',${i},${ci})">✕</button></span>`).join("");
 const linkChips=(task,slug,i)=>(task.links||[]).map((k,li)=>`<span class="lnkg"><a class="lnk" href="${k.u}" target="_blank" title="${esc(k.u)}">🔗 ${esc(k.n)}</a><button class="lnkb" title="edit link" onclick="event.stopPropagation();editLink('${slug}',${i},${li})">✎</button><button class="lnkb" title="remove link" onclick="event.stopPropagation();removeLink('${slug}',${i},${li})">✕</button></span>`).join("")+codeChips(task,slug,i)+`<button class="addlnk" onclick="event.stopPropagation();addLink('${slug}',${i})">+ link</button><button class="addlnk" title="Create a Google Sheet under hello@blackvoyage.com (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'sheet')">📊 Sheet</button><button class="addlnk" title="Create a Google Doc under hello@blackvoyage.com (anyone-with-link can edit)" onclick="event.stopPropagation();createDriveDoc('${slug}',${i},'doc')">📝 Doc</button><button class="addlnk" title="Paste HTML code OR a link (Claude Code / hosted page) — preview, view source, or open the full page" onclick="event.stopPropagation();addCode('${slug}',${i})">&lt;/&gt; Code/Link</button>`;
-/* ---- Step DRI: responsible department(s) per step, shared across all products. Stored on the GATES template (step.who = array) so it persists via snapshot. Defaults to the step's own department; multi-select & editable like a sheet dropdown. ---- */
-function stepHasDRI(t){ return (GATES[t.stage]||[]).some(x=>x.t===t.t); }
-function stepDRIs(t){ const s=(GATES[t.stage]||[]).find(x=>x.t===t.t); if(!s)return []; if(s.who===undefined||s.who===null) return s.d?[s.d]:[]; return Array.isArray(s.who)?s.who:(String(s.who).trim()?[String(s.who).trim()]:[]); }
-function toggleStepDRIByTask(slug,i,dept){ if(!dept)return; const l=L(slug); const t=l&&l.tasks[i]; if(!t)return; const s=(GATES[t.stage]||[]).find(x=>x.t===t.t); if(!s){toast("This step has no shared DRI slot");return;} let arr=stepDRIs(t).slice(); arr=arr.includes(dept)?arr.filter(d=>d!==dept):arr.concat(dept); s.who=arr; log(`🧭 Step DRI · ${t.t} → ${arr.join(", ")||"(none)"}`); save(); render(); }
-function driChip(d,extra){ return `<span class="asg" style="background:#20242c;color:${DCOLOR(d)};border:1px solid ${DCOLOR(d)}" title="Step DRI — responsible department(s) for this step on every product">🧭 ${esc(d)}${extra||""}</span>`; }
-function stepDRIfield(l,t,i){ if(!stepHasDRI(t))return ""; const sel=stepDRIs(t); const opts=DEPTS().filter(d=>!sel.includes(d)); const chips=sel.map(d=>driChip(d,` <span onclick="toggleStepDRIByTask('${l.slug}',${i},'${esc(d)}')" style="cursor:pointer;font-weight:700" title="remove">✕</span>`)).join(" ")||'<span class="sub">none</span>'; const add=opts.length?`<select title="add a responsible department" onchange="toggleStepDRIByTask('${l.slug}',${i},this.value);this.value=''"><option value="">+ add DRI…</option>${opts.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join("")}</select>`:""; return `<div class="frow"><label>Step DRI</label><div style="flex:1;display:flex;flex-wrap:wrap;gap:5px;align-items:center">${chips} ${add}</div></div>`; }
+/* ---- Step ownership model: each workflow step has ONE responsible department (the GATES owner s.d) plus optional collaborator departments. s.who stores [owner, ...collaborators] (back-compatible with the old multi-select). Shared across every product and configured once in Settings → Workflow template; the launch detail reads it live and offers a lightweight inline ＋ to add a collaborator. ---- */
+function stepSlot(t){ return (GATES[t.stage]||[]).find(x=>x.t===t.t)||null; }
+function stepHasDRI(t){ return !!stepSlot(t); }
+function stepResp(t){ const s=stepSlot(t); return (s&&s.d)||t.d||""; }
+function stepCollabs(t){ const s=stepSlot(t); if(!s)return []; const who=Array.isArray(s.who)?s.who:(s.who?[String(s.who)]:[]); return who.filter(d=>d&&d!==s.d); }
+function setStepWho(s,collabs){ const clean=[...new Set((collabs||[]).filter(d=>d&&d!==s.d))]; if(clean.length) s.who=[s.d,...clean]; else delete s.who; }
+// inline collaborator toggle from a launch task row (edits the shared template)
+function toggleCollab(slug,i,dept){ if(!dept)return; const l=L(slug); const t=l&&l.tasks[i]; if(!t)return; const s=stepSlot(t); if(!s){toast("This step isn't in the workflow template");return;} const cur=stepCollabs(t); const had=cur.includes(dept); setStepWho(s, had?cur.filter(d=>d!==dept):cur.concat(dept)); log(`👥 Collaborators · ${t.t} → ${stepCollabs(t).join(", ")||"(none)"}`); save(); render(); toast(had?"Collaborator removed":"Collaborator added"); }
+// template page: set the single responsible department for a step (propagates to every launch's task copy + campaigns)
+function setStepResp(stage,taskName,dept){ const s=(GATES[stage]||[]).find(x=>x.t===taskName); if(!s||!dept||s.d===dept)return; const old=s.d; if(Array.isArray(s.who)) s.who=s.who.filter(d=>d!==dept); s.d=dept; LAUNCHES.forEach(l=>l.tasks.forEach(t=>{ if(t.t===taskName&&t.stage===stage)t.d=dept; })); CAMPAIGNS.forEach(c=>(c.tasks||[]).forEach(t=>{ if(t.t===taskName)t.d=dept; })); log(`🧭 Responsible · ${taskName} → ${dept} (was ${old})`); save(); render(); toast("Responsible department updated"); }
+// template page: toggle a collaborator on a step
+function tplCollab(stage,taskName,dept){ const s=(GATES[stage]||[]).find(x=>x.t===taskName); if(!s||!dept)return; const cur=(Array.isArray(s.who)?s.who:[]).filter(d=>d&&d!==s.d); const next=cur.includes(dept)?cur.filter(d=>d!==dept):cur.concat(dept); setStepWho(s,next); log(`👥 ${taskName} collaborators → ${next.join(", ")||"(none)"}`); save(); render(); }
 function taskRow(l,t,extra){
   const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
   const vids=t.notes.filter(n=>n.v).length; const lk=taskLocked(l,t);
+  const resp=stepResp(t), collabs=stepCollabs(t);
+  // collaborators are DISPLAY-ONLY here — the responsible/collaborator pattern is configured once in Settings → Workflow template (no inline ＋, so the template stays the single source of truth)
+  const collabChips=collabs.map(d=>`<span class="o-collab" style="color:${DCOLOR(d)}" title="Collaborator — ${esc(d)} (set in Settings → Workflow template)">${esc(d)}</span>`).join("");
+  const lead=extra?`<span class="o-stage" title="stage">${esc(extra)}</span>`:`<span class="o-resp" style="color:${DCOLOR(resp)}" title="Responsible — ${esc(resp)}">${esc(resp)}</span>`;
+  const meta=`<span class="o ometa">${lead}${collabChips?`<span class="o-collabs">${collabChips}</span>`:""}</span>`;
   return `<div id="task-${l.slug}-${i}" style="border-radius:2px"><div class="row" style="${lk?"opacity:.38;filter:grayscale(.6)":""}">
    <span class="st ${lk?"":t.st}" title="${lk?"locked — "+esc(lockReason(l,t)):"click to cycle status"}" onclick="cycle('${l.slug}',${i})">${lk?"🔒":stIcon[t.st]}</span>
    <span>${esc(t.t)}${t.gate?' <span style="color:var(--purple)">◆</span>':""}
-    ${lk?'<span class="urg" style="background:#1d2127;color:var(--faint)">locked</span>':`<span class="urg ${t.urg}" title="urgency">${t.urg}</span>`}${t.assignee?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}${stepDRIs(t).map(d=>driChip(d)).join(" ")}
+    ${lk?'<span class="urg" style="background:#1d2127;color:var(--faint)">locked</span>':`<span class="urg ${t.urg}" title="urgency">${t.urg}</span>`}${t.assignee?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
     ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
-    ${lk?"":linkChips(t,l.slug,i)}
+    ${lk?"":renderLinkMenu(t,l.slug,i)}
     <button class="exp" onclick="toggle('${key}')">${open?"▴ close":"▾ details"}${t.notes.length?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button></span>
-   <span class="o" style="color:${DCOLOR(t.d)}">${extra||t.d}</span></div>
-   ${open?(lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>Locked.</b> ${esc(lockReason(l,t)).replace(/^./,c=>c.toUpperCase())}. ${DOD[t.t]?`<div style="margin-top:6px;color:var(--faint)">Definition of done: ${esc(DOD[t.t])}</div>`:""}${stepDRIfield(l,t,i)}</div>`:taskPanel(l,t,i)):""}</div>`;
+   ${meta}</div>
+   ${open?(lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>Locked.</b> ${esc(lockReason(l,t)).replace(/^./,c=>c.toUpperCase())}. ${DOD[t.t]?`<div style="margin-top:6px;color:var(--faint)">Definition of done: ${esc(DOD[t.t])}</div>`:""}</div>`:taskPanel(l,t,i)):""}</div>`;
 }
 function taskPanel(l,t,i){
+  const notes=t.notes||[]; const tk=l.slug+":tools:"+i; const tools=S.open[tk];
   return `<div class="taskpanel">
    ${DOD[t.t]?`<div style="margin-bottom:8px;color:var(--dim)">✅ <b>Done means:</b> ${esc(DOD[t.t])}${EVID.has(t.t)?' <span style="color:#67e8f9">· evidence link required</span>':""}</div>`:""}
-   ${stepDRIfield(l,t,i)}
-   <div class="frow"><label>Assign</label><input type="text" list="people" value="${esc(t.assignee)}" placeholder="person or team…" onchange="setF('${l.slug}',${i},'assignee',this.value)">
-    <label>Urgency</label><select onchange="setF('${l.slug}',${i},'urg',this.value)">${["low","med","high","urgent"].map(u=>`<option value="${u}" ${u===t.urg?"selected":""}>${u}</option>`).join("")}</select>
-    <button class="btn ghost" onclick="addLoom('${l.slug}',${i})">🎥 Attach Loom / video</button></div>
-   ${t.notes.map(n=>`<div class="note"><div class="d">${fmt(n.d)} — ${esc(n.a)}</div>${esc(n.txt)} ${n.v?`<a class="lnk" href="${n.v}" target="_blank">🎥 watch</a>`:""}</div>`).join("")||'<div class="sub" style="margin-bottom:8px">No notes yet.</div>'}
-   <div class="frow" style="margin-bottom:0"><input type="text" id="nt-${l.slug}-${i}" placeholder="Add a note…" style="flex:1"><button class="btn" onclick="addNote('${l.slug}',${i})">Add note</button></div>
+   <div class="tnotes-head">📝 Notes${notes.length?` <span class="ghostnote">(${notes.length})</span>`:""}</div>
+   <div class="tnotes">${notes.length?notes.slice().reverse().map((n,ri)=>{const ni=notes.length-1-ri;return `<div class="tnote"><div class="tnote-h"><span class="tnote-m">${fmt(n.d)} · ${esc(n.a)}</span><button class="lnkb tnote-x" title="delete note" onclick="delTaskNote('${l.slug}',${i},${ni})">✕</button></div><div class="tnote-t">${esc(n.txt)}${n.v?` <a class="lnk" href="${n.v}" target="_blank">🎥 watch</a>`:""}</div></div>`;}).join(""):'<div class="sub" style="padding:3px 0 6px">No notes yet.</div>'}</div>
+   <div class="tnote-add"><input type="text" id="nt-${l.slug}-${i}" placeholder="Add a note… (auto-signed as you)" onkeydown="if(event.key==='Enter'){event.preventDefault();addNote('${l.slug}',${i})}"><button class="btn" onclick="addNote('${l.slug}',${i})">Add note</button></div>
+   <div class="tnote-tools"><button class="tnote-plus" title="more — urgency &amp; video" onclick="toggle('${tk}')">${tools?"× less":"+ more"}</button>${tools?`<span class="tnote-tool"><label>Urgency</label><select onchange="setF('${l.slug}',${i},'urg',this.value)">${["low","med","high","urgent"].map(u=>`<option value="${u}" ${u===t.urg?"selected":""}>${u}</option>`).join("")}</select></span><button class="btn ghost" style="padding:5px 11px" onclick="addLoom('${l.slug}',${i})">🎥 Attach Loom / video</button>`:""}</div>
   </div>`;
 }
 const cardHTML=l=>{const g=gateState(l),[h,cls]=health(l);const si=STAGES.indexOf(l.stage);
@@ -1862,6 +1979,28 @@ function portfolioBoard(){
   const fq=l=>!S.q||l.name.toLowerCase().includes(S.q.toLowerCase())||l.dri.toLowerCase().includes(S.q.toLowerCase());
   return `<div class="panel"><h3>PORTFOLIO — ALL LAUNCHES BY STAGE${S.q?` <span class="ghostnote">(filtered: “${esc(S.q)}”)</span>`:""}</h3><div class="board">${STAGES.map(s=>{const ls=LAUNCHES.filter(l=>l.stage===s&&fq(l));return `<div class="col"><h4>${s} <span>${ls.length||""}</span></h4>${ls.map(cardHTML).join("")}</div>`;}).join("")}</div></div>`;
 }
+/* ---- launch-detail lower-section helpers ---- */
+const renderLinkMenu=(task,slug,i)=>{const n=(task.links||[]).length+(task.codes||[]).length;return `<details class="lnkmenu" onclick="event.stopPropagation()"><summary>🔗 Links${n?" ("+n+")":""}</summary><div class="lnkmenu-b">${linkChips(task,slug,i)}</div></details>`;};
+function addLaunchNote(slug){ const inp=document.getElementById("note-"+slug); if(!inp)return; const t=(inp.value||"").trim(); if(!t)return; const l=L(slug); if(!l)return; (l.risks=l.risks||[]).push({t,owner:l.dri,sc:5,trigger:"—",d:today}); log("📝 Note added to "+l.name); save(); render(); toast("Note added"); }
+function notesThread(l){ const rs=l.risks||[]; const items=rs.map((r,idx)=>({r,idx})).reverse();
+  return `<div class="panel notes"><h3>📝 NOTES &amp; DECISIONS (${rs.length}) <button class="iconbtn" style="float:right" title="add a detailed risk (score + trigger)" onclick="addRisk('${l.slug}')">+ detailed</button></h3>
+   <div class="notes-list">${items.map(({r,idx})=>{const k=l.slug+":note:"+idx;const op=S.open[k];return `<div class="note-item"><div class="note-h"><span class="note-t">${esc(r.t)}</span><span class="note-meta"><span class="note-sc" style="color:${r.sc>=8?"var(--red)":"var(--amber)"}" title="score">${r.sc}</span><button class="lnkb" title="details" onclick="toggle('${k}')">${op?"▴":"▾"}</button><button class="lnkb" style="color:var(--red)" title="delete note" onclick="delRisk('${l.slug}',${idx})">✕</button></span></div>${op?`<div class="note-d">owner: <span style="color:${DCOLOR(r.owner)}">${esc(r.owner)}</span> · trigger: ${esc(r.trigger)}${r.d?` · ${fmt(r.d)}`:""}</div>`:""}</div>`;}).join("")||'<div class="sub">No notes yet — log the top 3 risks / decisions at every gate push.</div>'}</div>
+   <div class="notes-add"><input type="text" id="note-${l.slug}" placeholder="Add a note or decision…" onkeydown="if(event.key==='Enter'){event.preventDefault();addLaunchNote('${l.slug}')}"><button class="btn" onclick="addLaunchNote('${l.slug}')">Add</button></div>
+  </div>`; }
+function chatRail(l){ if(!S.chatRailOpen) return `<button class="chat-badge" onclick="S.chatRailOpen=true;render()" title="Open launch chat">💬 Chat</button>`;
+  const sz=`${S.chatW?`width:${S.chatW}px;`:""}${S.chatH?`height:${S.chatH}px;max-height:none;`:""}`;
+  return `<div class="chat-rail"${sz?` style="${sz}"`:""}><div class="chat-resize" title="drag to resize" onpointerdown="chatResizeStart(event)"></div><div class="chat-rail-bar"><span class="ghostnote">LAUNCH CHAT</span><button class="iconbtn" style="padding:2px 9px;font-size:12px" onclick="S.chatRailOpen=false;render()" title="minimize">▾ min</button></div>${renderChatPanel(l)}</div>`; }
+// drag the top-left grip to resize the floating chat (anchored bottom-right, so growing left/up enlarges it); size persists in S
+function chatResizeStart(e){
+  e.preventDefault();
+  const rail=document.querySelector(".chat-rail"); if(!rail)return;
+  const sx=e.clientX, sy=e.clientY, r=rail.getBoundingClientRect(), sw=r.width, sh=r.height;
+  rail.style.maxHeight="none"; rail.style.maxWidth="none";
+  const maxW=(window.innerWidth||1200)-20, maxH=(window.innerHeight||800)-30;
+  function mv(ev){ const w=Math.max(280,Math.min(maxW, sw+(sx-ev.clientX))); const h=Math.max(240,Math.min(maxH, sh+(sy-ev.clientY))); rail.style.width=w+"px"; rail.style.height=h+"px"; }
+  function up(){ document.removeEventListener("pointermove",mv); document.removeEventListener("pointerup",up); const rr=rail.getBoundingClientRect(); S.chatW=Math.round(rr.width); S.chatH=Math.round(rr.height); }
+  document.addEventListener("pointermove",mv); document.addEventListener("pointerup",up);
+}
 function viewLaunch(){
   const l=L(S.launch); const g=gateState(l); const idx=STAGES.indexOf(l.stage);
   const next=STAGES[idx+1]; const [h,cls]=health(l);
@@ -1875,21 +2014,23 @@ function viewLaunch(){
   <div class="stages">${STAGES.map((s,i)=>`<span class="stg ${i<idx||l.complete?"past":i===idx?"cur":""}">${s}</span>`).join("")}</div>
   <div class="panel"><h3>Flow chart<button class="iconbtn" style="float:right" onclick="S.hideFlow=!S.hideFlow;render()">${S.hideFlow?"▸ show":"▾ hide"}</button></h3>
     ${S.hideFlow?'<div class="sub" style="margin:4px 0">Flow chart hidden.</div>':`${flowSVG(l)}
-    <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>done</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>in progress</span><span><i style="background:#331414;border:1px solid #f87171"></i>blocked</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>to do (current stage)</span><span><i style="background:#15171b;border:1px solid #262b32"></i>upcoming</span><span style="color:var(--purple)">◆ decision gate</span></div>`}</div>
-  <div class="twocol"><div>
-    <div class="panel"><h3>GATE — ${l.complete?"DONE":l.stage+" → "+(next||"Complete")} (${g.met}/${g.total})</h3>
-      <div style="margin-bottom:10px">${mand.map(d=>`<span class="deptchip ${deptReady(l,d)?"rdy":""}">${deptReady(l,d)?"✓ ":""}${d}${deptReady(l,d)?" ready":" — "+g.cs.filter(c=>c.d===d&&c.task.st!=="x").length+" open"}</span>`).join("")}</div>
-      ${g.cs.map(c=>taskRow(l,c.task)).join("")}
-      <div style="margin-top:10px"><button class="btn" ${pushable&&allowed?"":"disabled"} onclick="push('${l.slug}')">${l.complete?"Launch complete":pushable?(allowed?"🚀 Push to "+(next||"Complete"):"🔒 Ready — push reserved for DRI ("+l.dri+"), mandatory dept heads, or Ben"):"🔒 Push locked — "+(g.total-g.met)+" criteria left"}</button>
-      <div class="sub" style="margin-top:6px">Every department ticks its own items; when all are ✓, the DRI (<b>${l.dri}</b>) or a mandatory department head pushes the card. ◆ items need Ben.</div></div>
-    <div class="panel"><h3>⚠️ RISK REGISTER (${(l.risks||[]).length}) <button class="iconbtn" style="float:right" onclick="addRisk('${l.slug}')">+ add risk</button></h3>
-      ${(l.risks||[]).sort((a,b)=>b.sc-a.sc).map(r=>`<div class="risk"><b>${esc(r.t)}</b><span style="float:right"><span style="color:${r.sc>=8?"var(--red)":"var(--amber)"};font-weight:700">score ${r.sc}</span> <button class="lnkb" title="remove risk" style="color:var(--red)" onclick="delRisk('${l.slug}',${l.risks.indexOf(r)})">✕</button></span><div class="ghostnote">owner: <span style="color:${DCOLOR(r.owner)}">${esc(r.owner)}</span> · trigger: ${esc(r.trigger)}</div></div>`).join("")||'<div class="sub">No risks logged. Add the top 3 at every stage push (pre-mortem).</div>'}</div></div>
-    ${DEPTS().map(d=>{const ts=l.tasks.filter(t=>t.d===d);return ts.length?`<div class="panel"><h3>${d.toUpperCase()}</h3>${ts.map(t=>taskRow(l,t,t.stage)).join("")}</div>`:"";}).join("")}
+    <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>done</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>in progress</span><span><i style="background:#331414;border:1px solid #f87171"></i>blocked</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>to do (current stage)</span><span><i style="background:#15171b;border:1px solid #262b32"></i>upcoming</span><span style="color:var(--purple)">◆ decision gate</span></div>`}
+    ${l.complete?"":`<div class="sub flow-tie">Current stage <span class="stg cur" style="padding:1px 8px">${l.stage}</span> — its exit criteria are in the GATE below. <button class="iconbtn" style="margin-left:6px;padding:2px 9px;font-size:12px" onclick="document.getElementById('gateband').scrollIntoView({behavior:'smooth',block:'start'})">↓ Jump to GATE</button></div>`}</div>
+  <div id="gateband" class="panel gateband"><h3>GATE — ${l.complete?"DONE":`<span class="stg cur" style="padding:1px 8px;vertical-align:middle">${l.stage}</span> → ${next||"Complete"}`} <span style="color:var(--faint)">(${g.met}/${g.total})</span></h3>
+    <div class="sub" style="margin:-2px 0 10px">${l.complete?"All stages complete.":`Exit criteria for <b>${l.stage}</b>. All must be ✓ to push to <b>${next||"Complete"}</b>.`}</div>
+    <div class="gate-chips">${mand.map(d=>`<span class="deptchip ${deptReady(l,d)?"rdy":""}">${deptReady(l,d)?"✓ ":""}${d}${deptReady(l,d)?" ready":" — "+g.cs.filter(c=>c.d===d&&c.task.st!=="x").length+" open"}</span>`).join("")}</div>
+    ${g.cs.map(c=>taskRow(l,c.task)).join("")}
+    <div style="margin-top:10px"><button class="btn" ${pushable&&allowed?"":"disabled"} onclick="push('${l.slug}')">${l.complete?"Launch complete":pushable?(allowed?"🚀 Push to "+(next||"Complete"):"🔒 Ready — push reserved for DRI ("+l.dri+"), mandatory dept heads, or Ben"):"🔒 Push locked — "+(g.total-g.met)+" criteria left"}</button>
+    <div class="sub" style="margin-top:6px">Every department ticks its own items; when all are ✓, the DRI (<b>${l.dri}</b>) or a mandatory department head pushes the card. ◆ items need Ben.</div></div></div>
+  ${pend?`<div class="panel" style="border-color:var(--accent)"><h3>◆ Approval needed</h3><div class="sub" style="margin-bottom:8px">${esc(pend.t)} — all other ${l.stage} criteria are done. Approving unblocks the push to <b>${next||"Complete"}</b>.</div><button class="btn" onclick="approve('${l.slug}',${l.tasks.indexOf(pend.task)})">✓ Approve</button></div>`:""}
+  <div class="twocol ld2"><div>
+    <div class="secdiv"><h4>DEPARTMENTS — CURRENT WORKLOAD</h4><div class="sub">Every task each team owns across all stages — the working backlog behind the gate.</div></div>
+    ${DEPTS().map(d=>{const ts=l.tasks.filter(t=>t.d===d);if(!ts.length)return "";const key=l.slug+":"+d;const def=(d===l.dri)||ts.some(t=>t.st==="b");const op=(key in S.deptOpen)?S.deptOpen[key]:def;return `<details class="deptpanel" ${op?"open":""} ontoggle="S.deptOpen['${key}']=this.open"><summary><span class="deptpanel-nm" style="color:${DCOLOR(d)}">${d}</span> <span class="ghostnote">(${ts.length})</span>${ts.some(t=>t.st==="b")?' <span class="urg urgent" style="margin-left:auto">blocked</span>':""}</summary><div class="deptpanel-b">${ts.map(t=>taskRow(l,t,t.stage)).join("")}</div></details>`;}).join("")}
   </div><div>
-    ${pend?`<div class="panel" style="border-color:var(--accent);margin-bottom:14px"><h3>◆ Approval needed</h3><div class="sub" style="margin-bottom:8px">${esc(pend.t)} — all other ${l.stage} criteria are done. Approving unblocks the push to <b>${next||"Complete"}</b>.</div><button class="btn" onclick="approve('${l.slug}',${l.tasks.indexOf(pend.task)})">✓ Approve</button></div>`:""}
-    ${renderChatPanel(l)}
     ${renderBriefsPanel(l)}
-  </div></div>`;
+    ${notesThread(l)}
+  </div></div>
+  ${chatRail(l)}`;
 }
 function viewDept(){
   const d=S.dept;
@@ -2200,11 +2341,12 @@ function viewSettings(){
   const tab=S.settingsTab||(S.view==="versions"?"history":"team"); // honour old /team /versions deep-links
   const tabs=`<div style="margin:10px 0 16px">
     <button class="btn ${tab==="team"?"":"ghost"}" onclick="S.settingsTab='team';render()">👥 Team &amp; departments</button>
+    <button class="btn ${tab==="tpl"?"":"ghost"}" style="margin-left:6px" onclick="S.settingsTab='tpl';render()">🧭 Workflow template</button>
     <button class="btn ${tab==="dept"?"":"ghost"}" style="margin-left:6px" onclick="S.settingsTab='dept';render()">🏢 Department board</button>
     <button class="btn ${tab==="history"?"":"ghost"}" style="margin-left:6px" onclick="S.settingsTab='history';render()">🕘 History</button>
     <button class="btn ${tab==="usage"?"":"ghost"}" style="margin-left:6px" onclick="S.settingsTab='usage';render()">💸 Spend &amp; usage</button>
   </div>`;
-  return `<h2>Settings</h2><div class="sub">People config, the department board, change history and AI spend, in one place.</div>${tabs}${tab==="history"?viewVersions():tab==="usage"?viewUsage():tab==="dept"?viewDept():viewTeam()}`;
+  return `<h2>Settings</h2><div class="sub">People config, the workflow template, the department board, change history and AI spend, in one place.</div>${tabs}${tab==="history"?viewVersions():tab==="usage"?viewUsage():tab==="dept"?viewDept():tab==="tpl"?viewWorkflowTpl():viewTeam()}`;
 }
 // Aggregate every AI question/answer (with cost, tokens, who, data used) from the shared chats — full history.
 function loadUsage(){
@@ -2257,13 +2399,23 @@ function viewTeam(){
   </table><div style="margin-top:10px"><button class="btn ghost" onclick="addDept()">+ Add department</button></div>
   <div class="sub" style="margin-top:10px">Renaming a department updates every task, gate, DRI and flow-chart lane automatically. Removal is blocked while tasks or gates still reference it. (Prototype: edits live in memory; the real app commits them to the repo.)</div></div>`;
 }
+function viewWorkflowTpl(){
+  return `<h2>Workflow template — step ownership</h2><div class="sub">Who is <b>responsible</b> (one department — the flow-chart lane owner) and who <b>collaborates</b> on each step. This is the shared pattern every product launch follows: set it once here and every launch's detail page reads it live. Changing the responsible department re-files that step across all launches.</div>
+  ${STAGES.map(stage=>{const steps=GATES[stage]||[];if(!steps.length)return "";return `<div class="panel tpl-stage"><h3>${esc(stage)} <span class="ghostnote">(${steps.length})</span></h3>
+   <table class="tpl-tbl"><tr><th>Step</th><th style="width:158px">Responsible</th><th>Collaborators</th></tr>
+   ${steps.map(s=>{const collabs=(Array.isArray(s.who)?s.who:[]).filter(d=>d&&d!==s.d);const opts=DEPTS().filter(d=>d!==s.d&&!collabs.includes(d));const tn=esc(s.t);return `<tr>
+     <td class="tpl-step">${tn}${s.ben?' <span style="color:var(--purple)" title="Ben decision gate">◆</span>':""}</td>
+     <td><select class="tpl-resp" onchange="setStepResp('${esc(stage)}','${tn}',this.value)">${DEPTS().map(d=>`<option value="${esc(d)}" ${d===s.d?"selected":""}>${esc(d)}</option>`).join("")}</select></td>
+     <td><div class="tpl-collabs">${collabs.map(d=>`<span class="collab-chip" style="--c:${DCOLOR(d)}">${esc(d)}<button title="remove collaborator" onclick="tplCollab('${esc(stage)}','${tn}','${esc(d)}')">✕</button></span>`).join("")||'<span class="sub" style="font-size:12px">—</span>'}${opts.length?` <select class="tpl-add" title="add a collaborating department" onchange="tplCollab('${esc(stage)}','${tn}',this.value);this.value=''"><option value="">+ add</option>${opts.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join("")}</select>`:""}</div></td>
+   </tr>`;}).join("")}</table></div>`;}).join("")}`;
+}
 
 function viewVersions(){
   const head=`<h2>Version history${VERSIONS.length?` <span class="pill ok">${VERSIONS.length}</span>`:""} <button class="btn" style="margin-left:8px" onclick="saveCheckpoint()">📌 Save checkpoint</button></h2>
   <div class="sub">Every change from <b>every user</b> is auto-saved here — <b>when</b>, <b>who</b>, and a <b>summary of what changed</b>${fbConfigured()?' <span style="color:var(--green)">· shared live across the team</span>':""}. Restore any earlier version; the restore is itself recorded so you can always go back.</div>`;
   if(!VERSIONS.length) return head+`<div class="panel"><div class="sub">No versions yet — make a change and it'll appear here.</div></div>`;
   return head+`<div class="panel">${VERSIONS.map((v,i)=>`
-    <div style="border:1px solid var(--line,#262b32);border-left:3px solid ${i===0?"var(--green)":"var(--line,#3a414b)"};border-radius:4px;padding:10px 12px;margin-bottom:8px">
+    <div style="border:1px solid ${i===0?"rgba(74,222,128,.45)":"var(--line,#262b32)"};border-radius:2px;padding:10px 12px;margin-bottom:8px">
       <div><b>${esc(v.ts)}</b> · <span style="color:var(--accent)">${esc(v.who)}</span>${i===0?' <span class="pill ok">current</span>':""}
         ${i===0?"":`<button class="btn" style="float:right;padding:4px 10px;font-size:12px" onclick="restoreVersion('${v.id}')">↩ Restore this</button>`}</div>
       <div style="margin:5px 0;color:var(--dim)">${esc(v.summary||"")}</div>
