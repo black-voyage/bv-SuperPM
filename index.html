@@ -2021,8 +2021,9 @@ function progressDigest(){
 }
 function progressSpecDigest(){ const c=(typeof KNOWLEDGE!=="undefined"&&KNOWLEDGE.catalog)||[]; if(!c.length)return "";
   return "\n\nPRODUCT SPECS (catalog — dimensions / materials / hardware / etc.):\n"+c.slice(0,40).map(x=>"• "+(x.name||x.product||x.model||x.sku||x.id||"?")+": "+JSON.stringify(x).replace(/[{}"]/g," ").replace(/\s+/g," ").trim().slice(0,260)).join("\n").slice(0,4500); }
+const ENGLISH_ONLY="OUTPUT LANGUAGE — DEFAULT ENGLISH, NEVER LEAK CHINESE (hard rule). Write entirely in English unless the user EXPLICITLY asks for Chinese or bilingual output. The knowledge base is bilingual: there are Traditional-Chinese strategy documents and a Chinese `_zh` twin for nearly every catalog field. When a tool returns Chinese, TRANSLATE the facts you use into natural English — prefer the English `_en` fields and treat `_zh`/Chinese docs ONLY as a source to translate from. NEVER copy a Chinese/CJK character into a reply, persona, quote, headline, brief, title, or saved document; paraphrase Chinese sources in English. Any CJK character in English output is a defect — re-render it in English before sending.\n";
 function progressChatSystem(){
-  return "You are the Black Voyage PRODUCT PROGRESS assistant for the Active Projects (manufacturing) board. "
+  return ENGLISH_ONLY+"You are the Black Voyage PRODUCT PROGRESS assistant for the Active Projects (manufacturing) board. "
    +"You ONLY help with: product progress, manufacturing status (Design → Sample → PPS → Bulk), suppliers/MOs, due dates and what's next, product specs, and quantities. "
    +"If asked about anything outside that — marketing, ads, copywriting, strategy, finance, or off-topic chit-chat — briefly decline and steer back to product / manufacturing progress. "
    +"Answer ONLY from the PROJECT DATA and PRODUCT SPECS below plus the user's question. NEVER invent a stage, status, date, supplier, MO, spec, or quantity that isn't in the data; if it isn't there, say so plainly and suggest who to ask. Be concise and concrete; use each product's real name.\n\n"
@@ -2358,7 +2359,7 @@ function chatSystemPrompt(l){
    +"- BRAND KNOWLEDGE: core TECH ("+(KNOWLEDGE.tech||[]).length+": Vortex Vacuum Seal™, IPX8, compression), SERIES ("+(KNOWLEDGE.series||[]).length+": Essential/Pro/Pro Lite), MATERIALS ("+(KNOWLEDGE.materials||[]).length+"), HARDWARE ("+(KNOWLEDGE.hardware||[]).length+"), COMPETITORS ("+(KNOWLEDGE.competitors||[]).length+": positioning/strengths/weaknesses/our gap), BRAND GUIDELINES ("+(KNOWLEDGE.brand_docs||[]).length+" sections). Use search_knowledge.\n"
    +"- MEMORY: shared cross-app long-term memory ("+(KNOWLEDGE.memory||[]).length+" facts, shared with every BV app). Call recall before answering; call remember to save durable new insights so they persist across every chat and app.\n"
    +(gloss?("VOICE RULES (approved vs avoided wording — ALWAYS follow when writing any copy):\n"+gloss+"\n"):"");
-  return "You are Claude, embedded in the Black Voyage \"SuperPM\" product dashboard. You help the team manage the product card \""+l.name+"\" (stage: "+l.stage+", DRI: "+l.dri+"). This chat is SHARED — everyone on the team sees it and your actions, for this product only.\n"
+  return ENGLISH_ONLY+"You are Claude, embedded in the Black Voyage \"SuperPM\" product dashboard. You help the team manage the product card \""+l.name+"\" (stage: "+l.stage+", DRI: "+l.dri+"). This chat is SHARED — everyone on the team sees it and your actions, for this product only.\n"
    +kb
    +"ALWAYS DELIVER SOMETHING — NEVER reply with only questions. The people here type short prompts, so your job is: (1) pull all the context you can from the tools/data + reasonable assumptions, (2) PRODUCE your best answer or first draft NOW, clearly labelling any assumptions you made, and (3) THEN, after the work, ask 2–4 sharp questions that would make the NEXT version sharper (goal/outcome, audience/avatar, which variant, format & length, tone, where it'll run). Put them at the end as 'To sharpen this, tell me: …'. Do NOT withhold the deliverable waiting for answers, and do NOT apologise for asking. The ONLY time to ask BEFORE producing is when proceeding would be genuinely wasteful or harmful (e.g. you truly cannot tell which product or which of several very different directions they mean) — then ask 1–2 quick questions first, but still offer to proceed on a stated default. Always pair this with your tools: gather from the DB (read_card_doc, search_strategy / search_catalog / search_knowledge / search_documents / find_images, recall), then deliver, then refine.\n"
    +"You CAN see everything already attached to this card: the full inventory of links and files the team has uploaded (including ones pasted on individual tasks) is listed below under ATTACHMENTS. When asked what's attached, or to pull/list/collect the links, read them straight from that inventory and give the actual URLs — never say you can't see them.\n"
@@ -3124,6 +3125,7 @@ async function chatSend(slug){
     if(canAsk){ toast("Answering normally — if it falls short, tap 🔬 Deep or type /deep and I'll rebuild it as a full Brief."); }
   }
   input.value=""; const who=actor(), l=L(slug);
+  const wantsCJK=/chinese|mandarin|cantonese|繁體|繁体|简体|中文|bilingual|翻譯|翻译/i.test(text)||_hasCJK(text);   // honor an explicit Chinese/bilingual ask; otherwise enforce English-only on the answer
   const prior=(CHAT.msgs||[]).slice();
   chatPush(slug,{role:"user",who,text,ts:nowStamp()});
   logEvent("question","💬 asked AI · "+((l&&l.name)||slug)+": “"+text.slice(0,90)+(text.length>90?"…":"")+"”",{card:slug});
@@ -3151,14 +3153,14 @@ async function chatSend(slug){
         tus.forEach(tu=>CHAT.steps.push({head:chatStepLabel(tu.name),sub:chatStepSub(tu.name,tu.input||{})})); CHAT.phase="acting"; renderChatBody();
         for(const tu of tus){ const out=runChatTool(slug,tu.name,tu.input||{}); if(out.summary)actions.push(out.summary); if(out.att)atts.push(out.att); trace.push({name:tu.name,inputStr:JSON.stringify(tu.input||{}).slice(0,1500),route:chatRoute(tu.name),result:(out.text||"").slice(0,2000)}); results.push({type:"tool_result",tool_use_id:tu.id,content:(out.text||"").slice(0,tu.name==="find_images"?1500:6000)}); }  // cap what's REPLAYED to Claude each hop (gallery/att is UI-only, untouched) — prevents the 9-hop accumulation that trips the 180s abort
         messages.push({role:"user",content:results}); CHAT.phase="thinking"; renderChatBody(); continue;
-      } else { var _safe=txt||(atts.length?"Here's what I put together — see the attachment below.":"I finished, but didn't have anything to add — re-send with a bit more detail and I'll take another pass."); chatPush(slug,{role:"assistant",who:"Claude",text:_safe,actions:actions.slice(),attachments:atts.slice(),meta:mkMeta(hop+1),ts:nowStamp()}); answered=true; break; }
+      } else { var _safe=txt||(atts.length?"Here's what I put together — see the attachment below.":"I finished, but didn't have anything to add — re-send with a bit more detail and I'll take another pass."); if(!wantsCJK)_safe=await _enOnly(_safe); chatPush(slug,{role:"assistant",who:"Claude",text:_safe,actions:actions.slice(),attachments:atts.slice(),meta:mkMeta(hop+1),ts:nowStamp()}); answered=true; break; }
     }
     if(!answered){   // ran out of research steps while still calling tools — force ONE final written answer, no more tools
       CHAT.phase="thinking"; renderChatBody();
       messages.push({role:"user",content:"You've gathered enough context. Write the COMPLETE final answer NOW using everything above — do not call any more tools. If the ask is large, deliver it in full anyway (e.g. embed the HTML doc)."});
       const resp=await chatFetch({model:chatModel(),system:chatSystemPrompt(l),messages,tools:undefined,think:false});
       if(resp.usage){ usageIn+=resp.usage.input_tokens||0; usageOut+=resp.usage.output_tokens||0; }
-      const txt=(resp&&!resp.error&&(resp.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim())||"";
+      let txt=(resp&&!resp.error&&(resp.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim())||""; if(txt&&!wantsCJK)txt=await _enOnly(txt);
       chatPush(slug,{role:"assistant",who:"Claude",text:txt||"I pulled all the research but ran out of steps before writing it up. Re-send, or split it into parts (e.g. ‘marketing brief + competitor table’ first, then ‘personas + ad concepts’) and I’ll deliver each in full.",actions:actions.slice(),attachments:atts.slice(),meta:mkMeta(MAXHOP),ts:nowStamp()});
     }
   }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ "+((e&&e.message)||"The chat backend didn't respond after a few tries — please wait a moment and send again."),ts:nowStamp()}); }
@@ -3297,13 +3299,13 @@ function assembleDeepDoc(title,plan,parts,meta){
    +'<script>'+JS+'<\/script></body></html>';
 }
 // English-only GUARANTEE for a generated section: if any Chinese/CJK leaked from the spec research, translate it out.
-function _hasCJK(s){ return /[㐀-䶿一-鿿豈-﫿぀-ヿ]/.test(String(s||"")); }
+function _hasCJK(s){ return /[⺀-⿟　-〿぀-ヿ㄀-ㄯㆠ-ㆿ㐀-䶿一-鿿豈-﫿︰-﹏＀-￯]/.test(String(s||"")); }
 async function _enOnly(html,acc){ var h=String(html||""); if(!_hasCJK(h)) return h;   // clean → no extra call
   try{ var r=await chatFetch({model:chatModel(),system:"You repair an ENGLISH marketing-brief HTML fragment that accidentally contains Chinese/CJK characters. Rewrite so it reads as 100% natural English: TRANSLATE every Chinese word or quoted phrase into English — do NOT keep the original characters, romanization, or a parenthetical original. Preserve ALL HTML tags/structure, every number/spec, and brand/model names (Black Voyage, Vesper, Aero, Apex, Zephyr, AirCabin) exactly. Output ONLY the corrected HTML fragment — no preamble, no code fences.",messages:[{role:"user",content:h}],tools:undefined,think:false},{timeout:90000,tries:1,toobigMsg:"section too long"});
     if(r&&!r.error){ if(r.usage&&acc)acc({in:r.usage.input_tokens||0,out:r.usage.output_tokens||0}); var o=sanitizeFragment((r.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("")); if(o&&o.trim().length>20&&!_hasCJK(o)) return o; }
   }catch(e){}
   // last resort: drop stray CJK runs (and any wrapping quotes) so no Chinese ships in the English version
-  return h.replace(/["'“”「」（）]*[㐀-䶿一-鿿豈-﫿぀-ヿ]+[“”「」（）"']*/g," ").replace(/\(\s*\)/g,"").replace(/\s{2,}/g," ");
+  return h.replace(/["'“”「」（）]*[⺀-⿟　-〿぀-ヿ㄀-ㄯㆠ-ㆿ㐀-䶿一-鿿豈-﫿︰-﹏＀-￯]+[“”「」（）"']*/g," ").replace(/\(\s*\)/g,"").replace(/\s{2,}/g," ");
 }
 async function writeSection(l,sys0,researchPack,plan,sec,doneHeads,acc){
   const others=plan.sections.map(s=>s.heading).filter(h=>h!==sec.heading).join(" · ");
