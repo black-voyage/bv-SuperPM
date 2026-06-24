@@ -3029,7 +3029,7 @@ function renderChatPanel(l){
         <select title="model — Sonnet 4.6 is the default; Opus is deepest, Haiku is fastest" onchange="setChatModel(this.value)" style="font-size:11px;padding:3px 6px">${CHAT_MODELS.map(m=>`<option value="${m.id}" ${m.id===chatModel()?"selected":""}>${m.label}</option>`).join("")}</select>
         <button class="iconbtn" id="chatFullBtn" title="${CHAT.full?"close — back to the card (Esc)":"expand to full screen"}" onclick="toggleChatFull()">${CHAT.full?"✕ Close":"⛶ Full"}</button></span></h3>
     <div class="chatmsgs" id="chatMsgs"></div>${chatPresetsHTML(l)}
-    <div class="chatinput"><textarea id="chatInput" placeholder="Ask Claude to attach a link/doc/HTML, add a note, or update a task… (Enter to send · Esc to close)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${l.slug}')}else if(event.key==='Escape'&&CHAT.full){event.preventDefault();toggleChatFull()}"></textarea><button class="iconbtn${CHAT.deep?" on":""}" id="deepBtn" title="Deep mode — for big multi-part deliverables (full brief + product guide + personas + ad concepts + competitor comparison). Builds it section-by-section into one document and files it as a Brief. Takes a few minutes." onclick="toggleDeep()">🔬 Deep</button><button class="btn" onclick="chatSend('${l.slug}')">Send</button><button class="iconbtn" title="reset the chat if it ever gets stuck — clears the working state so you can send again" onclick="chatStop()">⟲ Reset</button></div>
+    <div class="chatinput"><textarea id="chatInput" placeholder="Ask Claude to attach a link/doc/HTML, add a note, or update a task… (Enter to send · Esc to close)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${l.slug}')}else if(event.key==='Escape'&&CHAT.full){event.preventDefault();toggleChatFull()}"></textarea><button class="iconbtn${CHAT.deep?" on":""}" id="deepBtn" title="Deep mode — for big multi-part deliverables (full brief + product guide + personas + ad concepts + competitor comparison). Builds it section-by-section into one document and files it as a Brief. Takes a few minutes." onclick="toggleDeep()">🔬 Deep</button><button class="iconbtn" id="micBtn" title="Dictate — speak and it types into the box for you" onclick="chatMic('${l.slug}')">🎤</button><button class="btn" onclick="chatSend('${l.slug}')">Send</button><button class="iconbtn" title="Stop / reset — halts any running build and unsticks the chat" onclick="chatStop()">⟲ Reset</button></div>
     <div style="display:flex;justify-content:flex-end;padding:5px 2px 0"><button class="iconbtn" style="font-size:11px;opacity:.55" title="erase this card's entire conversation for everyone (cannot be undone)" onclick="clearChat('${l.slug}')">🗑 Clear conversation</button></div></div>`;
 }
 const TOOL_STEP={search_catalog:"🔎 Searching the product catalog",get_product:"🔎 Looking up the product",search_knowledge:"📚 Searching brand & tech knowledge",search_product_spec:"📐 Checking the product spec",search_documents:"📄 Reading strategy / research docs",search_strategy:"🎯 Pulling customer & strategy insights",read_card_doc:"📄 Reading this card's intake / concept",find_images:"🖼 Finding product images",recall:"🧠 Recalling saved decisions",remember:"🧠 Saving to shared memory",add_link:"🔗 Attaching a link",add_html:"</> Building an HTML document",add_note:"📝 Adding a note",set_task_status:"☑ Updating a task",save_skill:"📘 Saving a skill",save_brief:"📋 Filing the brief for sign-off"};
@@ -3039,7 +3039,12 @@ const TOOL_SRC={search_catalog:"BV Data Core › catalog",get_product:"BV Data C
 function chatStepSub(name,input){ const src=TOOL_SRC[name]||""; const q=(input&&(input.query||input.task||input.name||input.title||input.label||input.fact)||"").toString().trim(); const qs=q?("“"+q.slice(0,44)+(q.length>44?"…":"")+"”"):""; return [src&&("→ "+src),qs].filter(Boolean).join("  ·  "); }
 // ===== Chat fail-safes: ONE guaranteed release path + a user-visible reset, so the chat can NEVER wedge permanently =====
 function chatRelease(){ CHAT.busy=false; CHAT.wake=false; CHAT.busyAt=0; try{clearInterval(CHAT.tick);}catch(e){} renderChatBody(); }
-function chatStop(){ try{ if(CHAT.abort)CHAT.abort.abort(); }catch(e){} CHAT.pendingClarify=null; if(CHAT.slug&&CHAT.deepRunId){ try{ chatRef(CHAT.slug).set({deepRunAt:0,deepRunId:""},{merge:true}); }catch(e){} } CHAT.deepRunId=null; chatRelease(); toast("⟲ Chat reset — you can send again."); }
+function chatStop(){ CHAT.cancel=true; try{ if(CHAT.abort)CHAT.abort.abort(); }catch(e){} CHAT.pendingClarify=null; if(CHAT.slug&&CHAT.deepRunId){ try{ chatRef(CHAT.slug).set({deepRunAt:0,deepRunId:""},{merge:true}); }catch(e){} } CHAT.deepRunId=null; chatRelease(); toast("⏹ Stopped — you can send again."); }
+// Voice dictation → fills the chat box (Web Speech API; Chrome/Edge/Safari).
+function chatMic(slug){ var SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR){ toast("🎤 Voice typing isn't supported in this browser — use Chrome or Edge."); return; } var ta=document.getElementById("chatInput"); if(!ta)return; if(CHAT._rec){ try{CHAT._rec.stop();}catch(e){} return; } var rec; try{rec=new SR();}catch(e){ toast("🎤 Couldn't start the mic."); return; } rec.lang="en-US"; rec.interimResults=true; rec.continuous=true; var base=ta.value?ta.value.replace(/\s+$/,"")+" ":""; rec.onresult=function(e){ var fin="",intr=""; for(var i=e.resultIndex;i<e.results.length;i++){ var tr=e.results[i][0].transcript; if(e.results[i].isFinal)fin+=tr; else intr+=tr; } if(fin)base=base+fin+" "; ta.value=base+intr; }; rec.onerror=function(e){ if(!e||e.error!=="aborted")toast("🎤 "+((e&&e.error)||"voice error")); }; rec.onend=function(){ CHAT._rec=null; var b=document.getElementById("micBtn"); if(b){b.textContent="🎤";b.style.color="";} }; try{ rec.start(); CHAT._rec=rec; var b=document.getElementById("micBtn"); if(b){b.textContent="🔴";b.style.color="#EE3124";} toast("🎤 Listening — click 🔴 to stop, then Send."); }catch(e){ toast("🎤 Couldn't start the mic."); } }
+// Clarify-question picks (clickable options instead of typing).
+function bvPickClarify(qi,oi){ var pc=CHAT.pendingClarify; if(!pc||!pc.qs)return; pc.picks=pc.picks||{}; var q=pc.qs[qi]; if(!q)return; var o=(q.options||[])[oi]; if(o==null)return; pc.picks[qi]=(pc.picks[qi]===o?null:o); renderChatBody(); }
+function bvClarifyBuild(){ var pc=CHAT.pendingClarify; if(!pc||!pc.qs)return; var ans=pc.qs.map(function(q,qi){ var a=(pc.picks&&pc.picks[qi])?pc.picks[qi]:""; return a?(q.q+" "+a):null; }).filter(Boolean).join("; "); var slug=pc.slug, request=pc.request; CHAT.pendingClarify=null; renderChatBody(); return chatSendDeep(slug, request+(ans?("\n\n[Scoping picks: "+ans+"]"):"")); }
 function renderChatBody(){
   const m=document.getElementById("chatMsgs"); if(!m)return;
   let busyHTML="";
@@ -3048,10 +3053,12 @@ function renderChatBody(){
     const meterTxt=(CHAT.hop?(" · step "+CHAT.hop):"")+(secs?(" · "+secs+"s"):"")+(secs>=25?" · big request, still working…":"");
     const head=CHAT.wake?"…waking the backend":((CHAT.phase==="acting"?"Working":"Thinking")+meterTxt);
     const steps=(CHAT.steps&&CHAT.steps.length)?`<div style="margin-top:6px;font-size:11.5px;line-height:1.5">${CHAT.steps.map((s,i)=>{const running=(i===CHAT.steps.length-1&&CHAT.phase==="acting");const mark=running?"⏳ ":"✓ ";return `<div style="opacity:${running?1:.8}">${mark}${esc(s.head||s)}${s.sub?`<div style="opacity:.6;margin:0 0 3px 16px;font-size:10.5px">${esc(s.sub)}</div>`:""}</div>`;}).join("")}</div>`:"";
-    busyHTML=`<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub"><span class="bvthink">${head}<span class="bvdots">…</span></span><div class="bvbar"></div>${steps}</div></div></div>`;
+    busyHTML=`<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub"><span class="bvthink">${head}<span class="bvdots">…</span></span><div class="bvbar"></div>${steps}<div style="margin-top:9px"><button class="iconbtn" style="border:1px solid var(--red,#d9483b);color:var(--red,#d9483b);font-weight:600" onclick="chatStop()">⏹ Stop</button></div></div></div></div>`;
   }
   var bodyHTML=""; try{ bodyHTML=(CHAT.msgs||[]).map((mm,i)=>chatMsgHTML(mm,i)).join(""); }catch(err){ bodyHTML='<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub">⚠️ Couldn\'t render the full chat history (a stored message looks malformed). Your messages are safe — try ⟲ Reset or reload.</div></div></div>'; }
-  m.innerHTML=bodyHTML+busyHTML; m.scrollTop=m.scrollHeight;
+  var clarHTML="";
+  if(CHAT.pendingClarify&&CHAT.pendingClarify.qs&&CHAT.pendingClarify.qs.length){ var pc=CHAT.pendingClarify; var qh=pc.qs.map(function(q,qi){ var opts=(q.options||[]).map(function(o,oi){ var on=pc.picks&&pc.picks[qi]===o; return '<button onclick="bvPickClarify('+qi+','+oi+')" style="border-radius:999px;padding:5px 12px;font-size:12px;cursor:pointer;'+(on?"background:#EE3124;color:#fff;border:1px solid #EE3124":"background:transparent;color:inherit;border:1px solid var(--line,#ccc)")+'">'+esc(o)+'</button>'; }).join(" "); return '<div style="margin:10px 0"><div style="font-size:12.5px;font-weight:600;margin-bottom:6px">'+esc(q.q)+'</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+opts+'</div></div>'; }).join(""); clarHTML='<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub"><div style="font-weight:600;margin-bottom:2px">A few quick picks so I build the right thing 👇</div>'+qh+'<div style="display:flex;gap:8px;margin-top:10px;align-items:center"><button class="btn" onclick="bvClarifyBuild()">Build it →</button><span class="ghostnote" style="font-size:11px">or just type your answer below</span></div></div></div></div>'; }
+  m.innerHTML=bodyHTML+clarHTML+busyHTML; m.scrollTop=m.scrollHeight;
 }
 function toggleChatFull(){CHAT.full=!CHAT.full; const p=document.getElementById("chatPanel"); if(p){p.classList.toggle("full",CHAT.full); const b=document.getElementById("chatFullBtn"); if(b){b.textContent=CHAT.full?"✕ Close":"⛶ Full"; b.title=CHAT.full?"close — back to the card (Esc)":"expand to full screen";}}}
 try{ if(!window._bvEscBound){ window._bvEscBound=true; document.addEventListener("keydown",function(e){ if(e.key==="Escape"&&typeof CHAT!=="undefined"&&CHAT.full)toggleChatFull(); }); } }catch(e){}
@@ -3227,7 +3234,7 @@ async function transformFragment(instruction,heading,htmlFrag,acc){ const en=Str
   }catch(e){} return en; }
 async function chatTransformDoc(slug,instruction,doc,docName){
   const l=L(slug);
-  CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
+  CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.cancel=false; CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
   try{clearInterval(CHAT.tick);}catch(e){} CHAT.tick=setInterval(()=>{ if(CHAT.busy)renderChatBody(); else { try{clearInterval(CHAT.tick);}catch(e){} } },1000);
   chatPush(slug,{role:"user",who:actor(),text:instruction,ts:nowStamp()});
   logEvent("question","🌐 transform doc · "+((l&&l.name)||slug)+": “"+instruction.slice(0,80)+"”",{card:slug});
@@ -3265,7 +3272,7 @@ function _augPickSection(sections,instruction){
 // ADD an image (from the Core) or a generated chart/table INTO the existing doc — reuses the editor's insertion + reassembly so it's identical to ✎ Edit. Never re-researches, never regenerates the whole brief.
 async function chatAugmentDoc(slug,instruction,doc,docName){
   const l=L(slug);
-  CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.steps=[]; CHAT.phase="acting"; CHAT.startedAt=Date.now(); CHAT.hop=0;
+  CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.cancel=false; CHAT.steps=[]; CHAT.phase="acting"; CHAT.startedAt=Date.now(); CHAT.hop=0;
   try{clearInterval(CHAT.tick);}catch(e){} CHAT.tick=setInterval(()=>{ if(CHAT.busy)renderChatBody(); else { try{clearInterval(CHAT.tick);}catch(e){} } },1000);
   chatPush(slug,{role:"user",who:actor(),text:instruction,ts:nowStamp()});
   logEvent("question","🖼 add to doc · "+((l&&l.name)||slug)+": “"+instruction.slice(0,80)+"”",{card:slug});
@@ -3329,7 +3336,7 @@ async function chatSend(slug){
   const prior=(CHAT.msgs||[]).slice();
   chatPush(slug,{role:"user",who,text,ts:nowStamp()});
   logEvent("question","💬 asked AI · "+((l&&l.name)||slug)+": “"+text.slice(0,90)+(text.length>90?"…":"")+"”",{card:slug});
-  CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
+  CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.cancel=false; CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
   try{ clearInterval(CHAT.tick); }catch(e){} CHAT.tick=setInterval(()=>{ if(CHAT.busy)renderChatBody(); else { try{clearInterval(CHAT.tick);}catch(e){} } },1000);  // live elapsed-time tick
   renderChatBody();
   let messages=[];
@@ -3339,6 +3346,7 @@ async function chatSend(slug){
   const mkMeta=hops=>({model:chatModel(),in:usageIn,out:usageOut,cost:chatCost(chatModel(),usageIn,usageOut),hops,trace:trace.slice(),reasoning:reasoning});
   try{
     for(let hop=0;hop<MAXHOP;hop++){
+      if(CHAT.cancel){ chatPush(slug,{role:"assistant",who:"Claude",text:"⏹ Stopped.",ts:nowStamp()}); answered=true; break; }
       CHAT.hop=hop+1; CHAT.phase="thinking"; renderChatBody();
       const lastHop=(hop===MAXHOP-1);   // on the final hop, take tools away (and thinking budget) so it MUST write the answer
       { let _sz=JSON.stringify(messages).length; while(_sz>1200000 && messages.length>4){ messages.splice(1,2); _sz=JSON.stringify(messages).length; } }  // guard: drop oldest tool round-trips so the running conversation can never grow large enough to trip the 180s abort
@@ -3593,22 +3601,22 @@ function deepNeedsClarify(t){ t=String(t||"").trim();
 async function chatClarifyAsk(slug,request){
   const l=L(slug);
   chatPush(slug,{role:"user",who:actor(),text:request,ts:nowStamp()});
-  CHAT.busy=true; CHAT.busyAt=Date.now(); renderChatBody();
-  let qs="";
-  try{ const r=await chatFetch({model:chatModel(),system:"You are scoping a document for a Black Voyage team member BEFORE it is generated. From their short request, ask the 2-3 SHORT questions that would most improve the result (e.g. who it's for, the single goal, must-include points, length/format). Do NOT answer them or write any of the document. Output one brief intro line, then a numbered list of the questions, then on its own final line exactly: 'And — English, 繁體中文, or bilingual?'",messages:[{role:"user",content:"Card: "+((l&&l.name)||slug)+"\nTheir request: "+request}],tools:undefined,think:false},{timeout:60000,tries:1});
-    if(r&&!r.error){ if(r.usage){} qs=(r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim(); }
+  CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.cancel=false; renderChatBody();
+  let qs=null;
+  try{ const r=await chatFetch({model:chatModel(),system:"You are scoping a Black Voyage document BEFORE it is generated. From their request, produce 2-3 SHORT scoping questions, EACH with 3-5 SHORT pickable options (a few words each — concrete, mutually distinct). Output ONLY JSON, no prose: {\"questions\":[{\"q\":\"...\",\"options\":[\"...\",\"...\"]}]}. Make the FINAL question exactly {\"q\":\"Language?\",\"options\":[\"English\",\"繁體中文\",\"Bilingual\"]}.",messages:[{role:"user",content:"Card: "+((l&&l.name)||slug)+"\nTheir request: "+request}],tools:undefined,think:false},{timeout:60000,tries:1});
+    if(r&&!r.error){ var t=(r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(""); var mt=t.match(/\{[\s\S]*\}/); if(mt){ var o=JSON.parse(mt[0]); if(o&&Array.isArray(o.questions))qs=o.questions.filter(function(q){return q&&q.q&&Array.isArray(q.options)&&q.options.length;}).slice(0,4); } }
   }catch(e){}
   finally{ CHAT.busy=false; CHAT.busyAt=0; try{clearInterval(CHAT.tick);}catch(e){} }
-  if(!qs) qs="Quick context so I build the right thing:\n1. Who is it for?\n2. What's the one goal?\n3. Anything that must be included?\nAnd — English, 繁體中文, or bilingual?";
-  CHAT.pendingClarify={slug,request,ts:Date.now()};
-  chatPush(slug,{role:"assistant",who:"Claude",text:qs+"\n\n_(Reply with the answers and I'll build it — or just say \"go\" to proceed as-is.)_",ts:nowStamp()});
+  if(!qs||!qs.length){ qs=[{q:"Who is it for?",options:["The team","Leadership / Ben","Customers","Retail / partners"]},{q:"What's the single goal?",options:["Align the team","A launch decision","Sell / convert","Reference doc"]},{q:"Language?",options:["English","繁體中文","Bilingual"]}]; }
+  CHAT.pendingClarify={slug,request,ts:Date.now(),qs:qs,picks:{}};
+  renderChatBody();
 }
 async function chatSendDeep(slug,text){
   const l=L(slug); if(!l)return;
   const leaseRef=(FB.ready?chatRef(slug):null);
   var _runId=String(Date.now())+"-"+Math.random().toString(36).slice(2,8); CHAT.deepRunId=_runId;   // per-run lease id → blocks a SECOND run (even same user / another tab) and only the owner clears it
   if(leaseRef){ try{ const snap=await leaseRef.get(); const d=(snap&&snap.data())||{}; if(d.deepRunAt&&(Date.now()-d.deepRunAt)<300000&&d.deepRunId&&d.deepRunId!==_runId){ chatPush(slug,{role:"assistant",who:"Claude",text:"🔬 A deep run started by "+(d.deepRunBy||"someone")+" is still in progress on this card, so I won't start a second one. It frees up within a few minutes — resend then, or ask me a normal (non-deep) question now.",ts:nowStamp()}); CHAT.deepRunId=null; return; } await leaseRef.set({deepRunAt:Date.now(),deepRunUid:(ME&&ME.uid)||"local",deepRunBy:actor(),deepRunId:_runId},{merge:true}); }catch(e){} }
-  CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
+  CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.cancel=false; CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
   try{ clearInterval(CHAT.tick); }catch(e){} CHAT.tick=setInterval(()=>{ if(CHAT.busy)renderChatBody(); else { try{clearInterval(CHAT.tick);}catch(e){} } },1000);
   chatPush(slug,{role:"user",who:actor(),text:"🔬 "+text,ts:nowStamp()});
   logEvent("question","🔬 deep deliverable · "+(l.name||slug)+": “"+text.slice(0,80)+(text.length>80?"…":"")+"”",{card:slug});
@@ -3678,6 +3686,7 @@ async function chatSendDeep(slug,text){
     // 3) SECTION LOOP — push each fragment into the hoisted `parts`; fileIt() fills any gaps
     const doneHeads=[];
     for(let i=0;i<plan.sections.length;i++){
+      if(CHAT.cancel)break;
       const sec=plan.sections[i]; CHAT.phase="acting"; CHAT.hop=i+1;
       CHAT.steps.push({head:"✍️ Section "+(i+1)+"/"+plan.sections.length+": "+sec.heading,sub:"writing…"}); renderChatBody();
       const frag=sanitizeFragment(await writeSection(l,sys0,researchPack,plan,sec,doneHeads,acc));
@@ -3685,6 +3694,7 @@ async function chatSendDeep(slug,text){
       if(wantBi){ CHAT.steps.push({head:"🌐 §"+(i+1)+" → 繁體中文",sub:sec.heading}); renderChatBody(); partsZh.push(await translateFragment(frag,acc)); }
       seclog.push((frag&&frag.trim().length>=20?"✓":"⚠️")+" Section "+(i+1)+"/"+plan.sections.length+" — "+sec.heading);
     }
+    if(CHAT.cancel){ chatPush(slug,{role:"assistant",who:"Claude",text:"⏹ Stopped — nothing was filed. Re-send when you're ready.",ts:nowStamp()}); return; }
     // 3b) FACT-CHECK — compare the draft to the Core canonical data; auto-file contradictions to the BV Second Brain
     try{ CHAT.steps.push({head:"🔎 Checking for contradictions vs the catalog",sub:"fact-check → BV Second Brain"}); renderChatBody();
       const contra=await detectContradictions(l,slug,plan,parts,researchPack,acc);
