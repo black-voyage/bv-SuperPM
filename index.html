@@ -1046,6 +1046,21 @@ function delRisk(slug,i){ const l=L(slug); if(!l||!l.risks||!l.risks[i])return;
 /* ----- persistence (guarded): autosave, export, reset ----- */
 function snapshot(){return JSON.stringify({v:2,TEAM,LAUNCHES,CAMPAIGNS,LOG,GATES,FLOW,XROUTES});}
 function save(){try{if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot());}catch(e){} recordVersion(); fbSchedule();}
+/* Keep every launch's task list in sync with the workflow template: drop any launch task
+   whose title no longer exists in GATES. These orphans appear when a step is removed/renamed
+   in code or in Settings → Workflow template — the change updates GATES + the code seed, but a
+   board persisted to Firestore BEFORE the change still carries the old task in its tasks array,
+   and onSnapshot loads that verbatim (e.g. the legacy Concept-stage "Competitor analysis" task
+   owned by Catalog, removed in code by 4a062f9 but stranded in the shared board). Reconciling on
+   every load heals the stored board and prevents removed steps from ever lingering again.
+   Only touches LAUNCHES — CAMPAIGNS tasks are intentionally free-form and not template-bound. */
+function reconcileLaunchTasks(){
+  const valid=new Set(); Object.values(GATES).forEach(arr=>(arr||[]).forEach(c=>{if(c&&c.t)valid.add(c.t);}));
+  if(!valid.size) return 0;                 // safety: if GATES is somehow empty, strip nothing
+  let removed=0;
+  LAUNCHES.forEach(l=>{ if(!Array.isArray(l.tasks))return; const n=l.tasks.length; l.tasks=l.tasks.filter(t=>t&&valid.has(t.t)); removed+=n-l.tasks.length; });
+  return removed;
+}
 function applySnapshot(d){
   if(!d)return;
   TEAM.length=0;(d.TEAM||[]).forEach(x=>TEAM.push(x));
@@ -1055,6 +1070,7 @@ function applySnapshot(d){
   if(d.GATES){Object.keys(GATES).forEach(k=>delete GATES[k]);Object.entries(d.GATES).forEach(([k,v])=>GATES[k]=v);}
   if(d.FLOW){Object.keys(FLOW).forEach(k=>delete FLOW[k]);Object.entries(d.FLOW).forEach(([k,v])=>FLOW[k]=v);}
   if(d.XROUTES){Object.keys(XROUTES).forEach(k=>delete XROUTES[k]);Object.entries(d.XROUTES).forEach(([k,v])=>XROUTES[k]=v);}
+  reconcileLaunchTasks();                    // strip orphan tasks left by removed/renamed template steps
 }
 function loadSaved(){try{
   if(typeof localStorage==="undefined")return;
@@ -1244,9 +1260,11 @@ function startBoardSync(){
       FB.applying=true;
       recordRemoteVersion(data.updatedBy,data.state);        // log who changed what, before applying
       try{ applySnapshot(JSON.parse(data.state)); }catch(e){}
-      FB.lastWritten=data.state; _lastVerKey=verSnap();      // already captured above as a remote version
+      const cleaned=verSnap();                               // applySnapshot may have stripped orphan tasks (reconcileLaunchTasks)
+      FB.lastWritten=data.state; _lastVerKey=cleaned;        // already captured above as a remote version
       try{ if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot()); }catch(e){}
       render(); FB.applying=false;
+      if(cleaned!==data.state) fbWriteNow(true);             // self-heal: persist the reconciled board so the shared doc is clean for everyone (the echo equals verSnap() and is ignored, so no write loop)
       if(data.updatedBy&&data.updatedBy!==actor()) toast("🔄 "+data.updatedBy+" updated the board");
     }, err=>{ fbStatus("● offline","var(--red)"); });
     FB.versRef.orderBy("createdAt","desc").limit(120).onSnapshot(qs=>{   // shared version history (History tab)
