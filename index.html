@@ -176,7 +176,8 @@
   .btn.red{background:#3a1d1d;color:var(--red);border:1px solid #5a2a2a}
   .btn:disabled{background:var(--panel2);color:var(--faint);cursor:not-allowed;border:1px solid var(--line)}
   .stages{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 16px;position:sticky;top:58px;z-index:9;background:var(--bg);padding:6px 0;border-bottom:1px solid var(--line)}
-  .stg{padding:5px 11px;border-radius:2px;font-size:12px;border:1px solid var(--line);color:var(--faint)}
+  .stg{padding:5px 11px;border-radius:2px;font-size:12px;border:1px solid var(--line);color:var(--faint);cursor:pointer}
+  .stages .stg.sel{outline:2px solid var(--accent);outline-offset:1px}
   .stg.past{background:#14331f;color:var(--green);border-color:#1f4a2e}
   .stg.cur{background:var(--accent);color:#fff;font-weight:700;border-color:var(--accent)}
   .twocol{display:grid;grid-template-columns:1.5fr 1fr;gap:18px}
@@ -1086,6 +1087,8 @@ function nowStamp(){try{const d=new Date(),p=n=>String(n).padStart(2,"0");return
 let USERNAME=(typeof localStorage!=="undefined"&&localStorage.getItem("bv-username"))||"";
 function roleLabel(){return S.role==="ceo"?"Ben (CEO)":S.role==="director"?"Director":(S.dept+" (head)");}
 function actor(){return USERNAME?USERNAME:roleLabel();}  // version-history "who" = the real person (falls back to role)
+// who a note/comment is attributed to: the REAL signed-in person (their set name or Google account), never the "Viewing as" role — so accountability is tied to identity, not the lens you're browsing in.
+function noteAuthor(){ return USERNAME || (ME&&ME.name) || (ME&&ME.email&&ME.email.split("@")[0]) || roleLabel(); }
 function setUsername(){const n=prompt("Your name — shown next to your questions and completed milestones in the shared activity feed (change it anytime):",USERNAME||"");if(n===null)return;USERNAME=(n||"").trim();try{localStorage.setItem("bv-username",USERNAME);}catch(e){} saveUserProfile(); renderWhoami(); toast(USERNAME?("👤 You are "+USERNAME):"Name cleared");}
 function renderWhoami(){const el=document.getElementById("whoami");if(!el)return;
   const name=USERNAME||(ME&&ME.name)||"";
@@ -1372,7 +1375,7 @@ const DOD={"Form (intake)":"Intake complete: why, spec, look, material, customer
  "Launch email sequence sent":"Full launch sequence delivered."};
 
 /* ================= STATE ================= */
-let S={role:"ceo",view:"home",launch:null,dept:"Design",flowLaunch:"apex",open:{},progLaunch:"apex",route:null,q:"",palSel:0,hideFlow:false,deptOpen:{},chatRailOpen:false,chatW:null,chatH:null};
+let S={role:"ceo",view:"home",launch:null,dept:"Design",flowLaunch:"apex",open:{},progLaunch:"apex",route:null,q:"",palSel:0,hideFlow:false,deptOpen:{},chatRailOpen:false,chatW:null,chatH:null,noteUrg:{},gateStage:null};
 
 /* ============ PROJECTS DATA (live from Google Sheet — same source as the bv-Products portal) ============
    Read-only mirror of the portal's src/lib/sheets.ts. The portal pulls these tabs from a PUBLIC gviz CSV
@@ -1632,7 +1635,7 @@ function setLang(){LANG=LANG==="en"?"zh":"en";
 function toast(m){const t=document.getElementById("toast");t.textContent=LANG==="zh"?zhText(m):m;t.style.display="block";setTimeout(()=>t.style.display="none",3000);}
 function setRole(v){ if(!isCEO()){toast("Only the CEO can switch views — you're signed in as "+roleLabel()+".");return;} if(v==="ceo"||v==="director"){S.role=v;} else {S.role="dept";S.dept=v.slice(5);} S.view="home";S.launch=null;render(); }
 function go(v){S.view=v;S.launch=null;render();}
-function openL(slug){S.view="launch";S.launch=slug;render();}
+function openL(slug){S.view="launch";S.launch=slug;S.gateStage=null;render();}
 const L=slug=>LAUNCHES.find(x=>x.slug===slug);
 
 /* ================= ACTIONS (all by task index — mock commits) ================= */
@@ -1777,12 +1780,13 @@ function toggle(key){S.open[key]=!S.open[key];render();}
 function setF(slug,i,f,v){ L(slug).tasks[i][f]=v; toast(f==="urg"?"Urgency set to "+v:"Assignee updated"); render(); }
 function addNote(slug,i){
   const el=document.getElementById(`nt-${slug}-${i}`); const v=(el&&el.value||"").trim(); if(!v)return;
-  L(slug).tasks[i].notes.push({d:today,a:S.role==="dept"?S.dept:"Ben",txt:v}); toast("Note added"); render();
+  const urg=(S.noteUrg&&S.noteUrg[slug+":"+i])||"med";
+  L(slug).tasks[i].notes.push({d:today,a:noteAuthor(),txt:v,urg}); toast("Note added"); render();
 }
 function delTaskNote(slug,i,ni){ const l=L(slug); const t=l&&l.tasks[i]; if(!t||!t.notes||!t.notes[ni])return; t.notes.splice(ni,1); log("🗑 Note removed from "+t.t); save(); render(); toast("Note deleted"); }
 function addLoom(slug,i){
   const u=prompt("Paste Loom / video URL"); if(!u)return;
-  L(slug).tasks[i].notes.push({d:today,a:S.role==="dept"?S.dept:"Ben",txt:"Video walkthrough",v:u}); toast("🎥 Video attached"); render();
+  L(slug).tasks[i].notes.push({d:today,a:noteAuthor(),txt:"Video walkthrough",v:u}); toast("🎥 Video attached"); render();
 }
 /* team editing */
 function teamEdit(i,f,v){ if(f==="name"){renameDept(TEAM[i].name,v);} else TEAM[i][f]=v; render(); }
@@ -1818,7 +1822,7 @@ function toggleCollab(slug,i,dept){ if(!dept)return; const l=L(slug); const t=l&
 function setStepResp(stage,taskName,dept){ const s=(GATES[stage]||[]).find(x=>x.t===taskName); if(!s||!dept||s.d===dept)return; const old=s.d; if(Array.isArray(s.who)) s.who=s.who.filter(d=>d!==dept); s.d=dept; LAUNCHES.forEach(l=>l.tasks.forEach(t=>{ if(t.t===taskName&&t.stage===stage)t.d=dept; })); CAMPAIGNS.forEach(c=>(c.tasks||[]).forEach(t=>{ if(t.t===taskName)t.d=dept; })); log(`🧭 Responsible · ${taskName} → ${dept} (was ${old})`); save(); render(); toast("Responsible department updated"); }
 // template page: toggle a collaborator on a step
 function tplCollab(stage,taskName,dept){ const s=(GATES[stage]||[]).find(x=>x.t===taskName); if(!s||!dept)return; const cur=(Array.isArray(s.who)?s.who:[]).filter(d=>d&&d!==s.d); const next=cur.includes(dept)?cur.filter(d=>d!==dept):cur.concat(dept); setStepWho(s,next); log(`👥 ${taskName} collaborators → ${next.join(", ")||"(none)"}`); save(); render(); }
-function taskRow(l,t,extra){
+function taskRow(l,t,extra,ro){
   const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
   const vids=t.notes.filter(n=>n.v).length; const lk=taskLocked(l,t);
   const resp=stepResp(t), collabs=stepCollabs(t);
@@ -1829,21 +1833,21 @@ function taskRow(l,t,extra){
   return `<div id="task-${l.slug}-${i}" style="border-radius:2px"><div class="row" style="${lk?"opacity:.38;filter:grayscale(.6)":""}">
    <span class="st ${lk?"":t.st}" title="${lk?"locked — "+esc(lockReason(l,t)):"click to cycle status"}" onclick="cycle('${l.slug}',${i})">${lk?"🔒":stIcon[t.st]}</span>
    <span>${esc(t.t)}${t.gate?' <span style="color:var(--purple)">◆</span>':""}
-    ${lk?'<span class="urg" style="background:#1d2127;color:var(--faint)">locked</span>':`<span class="urg ${t.urg}" title="urgency">${t.urg}</span>`}${t.assignee?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
+    ${lk?'<span class="urg" style="background:#1d2127;color:var(--faint)">locked</span>':""}${t.assignee?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
     ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
     ${lk?"":renderLinkMenu(t,l.slug,i)}
     <button class="exp" onclick="toggle('${key}')">${open?"▴ close":"▾ details"}${t.notes.length?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button></span>
    ${meta}</div>
-   ${open?(lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>Locked.</b> ${esc(lockReason(l,t)).replace(/^./,c=>c.toUpperCase())}. ${DOD[t.t]?`<div style="margin-top:6px;color:var(--faint)">Definition of done: ${esc(DOD[t.t])}</div>`:""}</div>`:taskPanel(l,t,i)):""}</div>`;
+   ${open?(lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>Locked.</b> ${esc(lockReason(l,t)).replace(/^./,c=>c.toUpperCase())}. ${DOD[t.t]?`<div style="margin-top:6px;color:var(--faint)">Definition of done: ${esc(DOD[t.t])}</div>`:""}</div>`:taskPanel(l,t,i,ro)):""}</div>`;
 }
-function taskPanel(l,t,i){
-  const notes=t.notes||[]; const tk=l.slug+":tools:"+i; const tools=S.open[tk];
+function taskPanel(l,t,i,ro){
+  const notes=t.notes||[]; const tk=l.slug+":tools:"+i; const tools=S.open[tk]; const nk=l.slug+":"+i; const pend=(S.noteUrg&&S.noteUrg[nk])||"med";
   return `<div class="taskpanel">
    ${DOD[t.t]?`<div style="margin-bottom:8px;color:var(--dim)">✅ <b>Done means:</b> ${esc(DOD[t.t])}${EVID.has(t.t)?' <span style="color:#67e8f9">· evidence link required</span>':""}</div>`:""}
-   <div class="tnotes-head">📝 Notes${notes.length?` <span class="ghostnote">(${notes.length})</span>`:""}</div>
-   <div class="tnotes">${notes.length?notes.slice().reverse().map((n,ri)=>{const ni=notes.length-1-ri;return `<div class="tnote"><div class="tnote-h"><span class="tnote-m">${fmt(n.d)} · ${esc(n.a)}</span><button class="lnkb tnote-x" title="delete note" onclick="delTaskNote('${l.slug}',${i},${ni})">✕</button></div><div class="tnote-t">${esc(n.txt)}${n.v?` <a class="lnk" href="${n.v}" target="_blank">🎥 watch</a>`:""}</div></div>`;}).join(""):'<div class="sub" style="padding:3px 0 6px">No notes yet.</div>'}</div>
-   <div class="tnote-add"><input type="text" id="nt-${l.slug}-${i}" placeholder="Add a note… (auto-signed as you)" onkeydown="if(event.key==='Enter'){event.preventDefault();addNote('${l.slug}',${i})}"><button class="btn" onclick="addNote('${l.slug}',${i})">Add note</button></div>
-   <div class="tnote-tools"><button class="tnote-plus" title="more — urgency &amp; video" onclick="toggle('${tk}')">${tools?"× less":"+ more"}</button>${tools?`<span class="tnote-tool"><label>Urgency</label><select onchange="setF('${l.slug}',${i},'urg',this.value)">${["low","med","high","urgent"].map(u=>`<option value="${u}" ${u===t.urg?"selected":""}>${u}</option>`).join("")}</select></span><button class="btn ghost" style="padding:5px 11px" onclick="addLoom('${l.slug}',${i})">🎥 Attach Loom / video</button>`:""}</div>
+   <div class="tnotes-head">📝 Notes${notes.length?` <span class="ghostnote">(${notes.length})</span>`:""}${ro?' <span class="ghostnote" style="font-weight:400">· from GATE · read-only</span>':""}</div>
+   <div class="tnotes">${notes.length?notes.slice().reverse().map((n,ri)=>{const ni=notes.length-1-ri;return `<div class="tnote"><div class="tnote-h"><span class="tnote-m">${fmt(n.d)} · ${esc(n.a)}${n.urg&&n.urg!=="med"?` <span class="urg ${n.urg}" title="comment urgency">${n.urg}</span>`:""}</span>${ro?"":`<button class="lnkb tnote-x" title="delete note" onclick="delTaskNote('${l.slug}',${i},${ni})">✕</button>`}</div><div class="tnote-t">${esc(n.txt)}${n.v?` <a class="lnk" href="${n.v}" target="_blank">🎥 watch</a>`:""}</div></div>`;}).join(""):'<div class="sub" style="padding:3px 0 6px">No notes yet.</div>'}</div>
+   ${ro?'<div class="sub" style="font-size:11.5px;padding-top:2px">Notes are added in the GATE section above.</div>':`<div class="tnote-add"><input type="text" id="nt-${l.slug}-${i}" placeholder="Add a note… (auto-signed as you)" onkeydown="if(event.key==='Enter'){event.preventDefault();addNote('${l.slug}',${i})}"><button class="btn" onclick="addNote('${l.slug}',${i})">Add note</button></div>
+   <div class="tnote-tools"><button class="tnote-plus" title="more — comment urgency &amp; video" onclick="toggle('${tk}')">${tools?"× less":"+ more"}</button>${tools?`<span class="tnote-tool"><label>Comment urgency</label><select title="urgency of the note you post next" onchange="(S.noteUrg=S.noteUrg||{})['${nk}']=this.value">${["low","med","high","urgent"].map(u=>`<option value="${u}" ${u===pend?"selected":""}>${u}</option>`).join("")}</select></span><button class="btn ghost" style="padding:5px 11px" onclick="addLoom('${l.slug}',${i})">🎥 Attach Loom / video</button>`:""}</div>`}
   </div>`;
 }
 const cardHTML=l=>{const g=gateState(l),[h,cls]=health(l);const si=STAGES.indexOf(l.stage);
@@ -2025,25 +2029,31 @@ function viewLaunch(){
   const pend=g.cs.find(c=>c.ben&&c.task.st!=="x"&&g.cs.filter(o=>!o.ben).every(o=>o.task.st==="x"));
   const mand=mandatory(l);
   const pushable=allMet(l), allowed=canPushRole(l);
+  // the stage bar drives which stage's GATE is shown; default = the launch's current stage. Non-current = read-only review of that gate.
+  const gateStage=(S.gateStage&&STAGES.includes(S.gateStage))?S.gateStage:l.stage;
+  const isCur=gateStage===l.stage&&!l.complete;
+  const gsel=(GATES[gateStage]||[]).map(c=>({...c,task:l.tasks.find(t=>t.t===c.t)})).filter(c=>c.task);
+  const gmet=gsel.filter(c=>c.task.st==="x").length, gtot=gsel.length, gnext=STAGES[STAGES.indexOf(gateStage)+1];
+  const gmand=[...new Set(gsel.map(c=>c.d))], gdReady=d=>gsel.filter(c=>c.d===d).every(c=>c.task.st==="x");
   return `<span class="back" onclick="go('portfolio')">← Portfolio</span>
   <h2>${l.name} <span class="pill ${cls}">${h}</span><button class="btn ghost" style="margin-left:10px;padding:6px 12px" title="Edit this launch's name and target date" onclick="editLaunch('${l.slug}')">✏️ Edit</button>${l.driveFolderUrl?`<a class="btn ghost" style="margin-left:8px;padding:6px 12px" href="${l.driveFolderUrl}" target="_blank" title="Open this launch's folder in the shared BV SuperPM Drive folder">📁 Open folder</a>`:`<button class="btn ghost" style="margin-left:8px;padding:6px 12px" title="Create a folder for this launch inside the shared BV SuperPM Drive folder (existing files stay where they are; new ones go here)" onclick="createLaunchFolder('${l.slug}')">📁 Create folder</button>`}<button class="btn ghost" style="margin-left:8px;padding:6px 12px;color:var(--red)" title="Delete this launch (and optionally its Drive folder)" onclick="deleteLaunch('${l.slug}')">🗑️ Delete</button></h2>
   <div class="sub">DRI: <select onchange="setDRI('${l.slug}',this.value)" title="change DRI">${DEPTS().map(d=>`<option value="${d}" ${d===l.dri?"selected":""}>${d}</option>`).join("")}</select>
    · target ${fmt(l.target)} · stage <b>${l.complete?"Complete":l.stage}</b>${l.complete?"":` · float <b style="color:${floatDays(l)<0?"var(--red)":"var(--green)"}">${floatDays(l)}d</b> · velocity ${velocity(l).toFixed(1)}/wk · forecast <b>${fmt(forecastDate(l))}</b>`}</div>
-  <div class="stages">${STAGES.map((s,i)=>`<span class="stg ${i<idx||l.complete?"past":i===idx?"cur":""}">${s}</span>`).join("")}</div>
+  <div class="stages">${STAGES.map((s,i)=>`<span class="stg ${i<idx||l.complete?"past":i===idx?"cur":""}${s===gateStage?" sel":""}" title="${esc(s)} — click to view this stage's GATE" onclick="S.gateStage='${s}';render();var gb=document.getElementById('gateband');if(gb)gb.scrollIntoView({behavior:'smooth',block:'start'})">${s}</span>`).join("")}</div>
   <div class="panel"><h3>Flow chart<button class="iconbtn" style="float:right" onclick="S.hideFlow=!S.hideFlow;render()">${S.hideFlow?"▸ show":"▾ hide"}</button></h3>
     ${S.hideFlow?'<div class="sub" style="margin:4px 0">Flow chart hidden.</div>':`${flowSVG(l)}
     <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>done</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>in progress</span><span><i style="background:#331414;border:1px solid #f87171"></i>blocked</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>to do (current stage)</span><span><i style="background:#15171b;border:1px solid #262b32"></i>upcoming</span><span style="color:var(--purple)">◆ decision gate</span></div>`}
     ${l.complete?"":`<div class="sub flow-tie">Current stage <span class="stg cur" style="padding:1px 8px">${l.stage}</span> — its exit criteria are in the GATE below. <button class="iconbtn" style="margin-left:6px;padding:2px 9px;font-size:12px" onclick="document.getElementById('gateband').scrollIntoView({behavior:'smooth',block:'start'})">↓ Jump to GATE</button></div>`}</div>
-  <div id="gateband" class="panel gateband"><h3>GATE — ${l.complete?"DONE":`<span class="stg cur" style="padding:1px 8px;vertical-align:middle">${l.stage}</span> → ${next||"Complete"}`} <span style="color:var(--faint)">(${g.met}/${g.total})</span></h3>
-    <div class="sub" style="margin:-2px 0 10px">${l.complete?"All stages complete.":`Exit criteria for <b>${l.stage}</b>. All must be ✓ to push to <b>${next||"Complete"}</b>.`}</div>
-    <div class="gate-chips">${mand.map(d=>`<span class="deptchip ${deptReady(l,d)?"rdy":""}">${deptReady(l,d)?"✓ ":""}${d}${deptReady(l,d)?" ready":" — "+g.cs.filter(c=>c.d===d&&c.task.st!=="x").length+" open"}</span>`).join("")}</div>
-    ${g.cs.map(c=>taskRow(l,c.task)).join("")}
-    <div style="margin-top:10px"><button class="btn" ${pushable&&allowed?"":"disabled"} onclick="push('${l.slug}')">${l.complete?"Launch complete":pushable?(allowed?"🚀 Push to "+(next||"Complete"):"🔒 Ready — push reserved for DRI ("+l.dri+"), mandatory dept heads, or Ben"):"🔒 Push locked — "+(g.total-g.met)+" criteria left"}</button>
-    <div class="sub" style="margin-top:6px">Every department ticks its own items; when all are ✓, the DRI (<b>${l.dri}</b>) or a mandatory department head pushes the card. ◆ items need Ben.</div></div></div>
+  <div id="gateband" class="panel gateband"><h3>GATE — ${l.complete?"DONE":`<span class="stg cur" style="padding:1px 8px;vertical-align:middle">${gateStage}</span>${gnext?` → ${gnext}`:" → Complete"}`} <span style="color:var(--faint)">(${gmet}/${gtot})</span>${(isCur||l.complete)?"":' <span class="ghostnote" style="font-weight:400">· viewing only</span>'}</h3>
+    <div class="sub" style="margin:-2px 0 10px">${l.complete?"All stages complete.":isCur?`Exit criteria for <b>${gateStage}</b>. All must be ✓ to push to <b>${gnext||"Complete"}</b>.`:`Viewing the <b>${gateStage}</b> gate — current stage is <b>${l.stage}</b>. <span onclick="S.gateStage=null;render()" style="cursor:pointer;color:var(--accent)">→ back to current</span>`}</div>
+    <div class="gate-chips">${gmand.map(d=>`<span class="deptchip ${gdReady(d)?"rdy":""}">${gdReady(d)?"✓ ":""}${d}${gdReady(d)?" ready":" — "+gsel.filter(c=>c.d===d&&c.task.st!=="x").length+" open"}</span>`).join("")}</div>
+    ${gsel.map(c=>taskRow(l,c.task)).join("")}
+    ${l.complete?`<div class="sub" style="margin-top:10px">Launch complete.</div>`:isCur?`<div style="margin-top:10px"><button class="btn" ${pushable&&allowed?"":"disabled"} onclick="push('${l.slug}')">${pushable?(allowed?"🚀 Push to "+(gnext||"Complete"):"🔒 Ready — push reserved for DRI ("+l.dri+"), mandatory dept heads, or Ben"):"🔒 Push locked — "+(gtot-gmet)+" criteria left"}</button>
+    <div class="sub" style="margin-top:6px">Every department ticks its own items; when all are ✓, the DRI (<b>${l.dri}</b>) or a mandatory department head pushes the card. ◆ items need Ben.</div></div>`:`<div class="sub" style="margin-top:10px">${gmet===gtot?"✓ This gate is fully met.":(gtot-gmet)+" of "+gtot+" criteria still open."} Switch back to <b>${l.stage}</b> to push.</div>`}</div>
   ${pend?`<div class="panel" style="border-color:var(--accent)"><h3>◆ Approval needed</h3><div class="sub" style="margin-bottom:8px">${esc(pend.t)} — all other ${l.stage} criteria are done. Approving unblocks the push to <b>${next||"Complete"}</b>.</div><button class="btn" onclick="approve('${l.slug}',${l.tasks.indexOf(pend.task)})">✓ Approve</button></div>`:""}
   <div class="twocol ld2"><div>
     <div class="secdiv"><h4>DEPARTMENTS — CURRENT WORKLOAD</h4><div class="sub">Every task each team owns across all stages — the working backlog behind the gate.</div></div>
-    ${DEPTS().map(d=>{const ts=l.tasks.filter(t=>t.d===d);if(!ts.length)return "";const key=l.slug+":"+d;const def=(d===l.dri)||ts.some(t=>t.st==="b");const op=(key in S.deptOpen)?S.deptOpen[key]:def;return `<details class="deptpanel" ${op?"open":""} ontoggle="S.deptOpen['${key}']=this.open"><summary><span class="deptpanel-nm" style="color:${DCOLOR(d)}">${d}</span> <span class="ghostnote">(${ts.length})</span>${ts.some(t=>t.st==="b")?' <span class="urg urgent" style="margin-left:auto">blocked</span>':""}</summary><div class="deptpanel-b">${ts.map(t=>taskRow(l,t,t.stage)).join("")}</div></details>`;}).join("")}
+    ${DEPTS().map(d=>{const ts=l.tasks.filter(t=>t.d===d);if(!ts.length)return "";const key=l.slug+":"+d;const def=(d===l.dri)||ts.some(t=>t.st==="b");const op=(key in S.deptOpen)?S.deptOpen[key]:def;return `<details class="deptpanel" ${op?"open":""} ontoggle="S.deptOpen['${key}']=this.open"><summary><span class="deptpanel-nm" style="color:${DCOLOR(d)}">${d}</span> <span class="ghostnote">(${ts.length})</span>${ts.some(t=>t.st==="b")?' <span class="urg urgent" style="margin-left:auto">blocked</span>':""}</summary><div class="deptpanel-b">${ts.map(t=>taskRow(l,t,t.stage,true)).join("")}</div></details>`;}).join("")}
   </div><div>
     ${renderBriefsPanel(l)}
     ${notesThread(l)}
