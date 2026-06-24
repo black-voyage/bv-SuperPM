@@ -2003,7 +2003,7 @@ function pjDrawer(p,t){
 
 /* ============ PROJECTS — the view (replaces the old burn-up Progress) ============ */
 /* ===== PROGRESS CHAT — scoped assistant for the Active Projects board: ONLY product progress, manufacturing, specs, quantity ===== */
-let PCHAT={msgs:(function(){try{return JSON.parse((typeof localStorage!=="undefined"&&localStorage.getItem("bv-pchat"))||"[]")||[];}catch(e){return [];}})(),busy:false};   // persists across refresh (per-user, localStorage)
+let PCHAT={msgs:(function(){try{return JSON.parse((typeof localStorage!=="undefined"&&localStorage.getItem("bv-pchat"))||"[]")||[];}catch(e){return [];}})(),busy:false,busyAt:0};   // persists across refresh (per-user, localStorage)
 function pchatSave(){ try{ localStorage.setItem("bv-pchat",JSON.stringify((PCHAT.msgs||[]).slice(-40))); }catch(e){} }
 function progressDigest(){
   if(!(typeof PROJECTS!=="undefined"&&PROJECTS.length)) return "(no project data loaded yet)";
@@ -2038,15 +2038,17 @@ function progressChatHTML(){
   return `<div class="panel" style="margin-bottom:18px"><h3 style="cursor:pointer;margin:0" onclick="S.pchatOpen=!S.pchatOpen;render()">🏭 Ask about progress <span style="font-size:11px">${open?"▾":"▸"}</span> <span class="ghostnote" style="font-weight:400">· manufacturing · specs · quantity</span></h3>${body}</div>`;
 }
 async function progressChatSend(){
-  const ta=document.getElementById("pchatInput"); if(!ta)return; const text=(ta.value||"").trim(); if(!text||PCHAT.busy)return;
-  ta.value=""; PCHAT.msgs.push({role:"user",who:actor(),text}); PCHAT.busy=true; pchatSave(); renderPChat();
+  const ta=document.getElementById("pchatInput"); if(!ta)return; const text=(ta.value||"").trim(); if(!text)return;
+  if(PCHAT.busy){ if(PCHAT.busyAt&&(Date.now()-PCHAT.busyAt)>240000){ PCHAT.busy=false; } else { toast("Still working on the last question — one sec, then ask again."); return; } }
+  ta.value=""; PCHAT.msgs.push({role:"user",who:actor(),text}); PCHAT.busy=true; PCHAT.busyAt=Date.now(); pchatSave(); renderPChat();
   const messages=PCHAT.msgs.slice(-12).map(m=>({role:m.role==="user"?"user":"assistant",content:String(m.text||"")}));
   let answer="";
   try{ const r=await chatFetch({model:chatModel(),system:progressChatSystem(),messages,tools:undefined,think:false},{timeout:120000,tries:2,toobigMsg:"That took too long — try asking about one product at a time."});
     if(r&&!r.error){ answer=(r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim(); }
-    else { answer="⚠️ "+((r&&r.error&&r.error.message)||"backend error"); }
-  }catch(e){ answer="⚠️ "+String((e&&e.message)||e); }
-  PCHAT.busy=false; PCHAT.msgs.push({role:"assistant",text:answer||"(no answer)"}); pchatSave(); renderPChat();
+    else { answer="⚠️ "+((r&&r.error&&r.error.message)||"the assistant backend hiccuped — please ask again."); }
+  }catch(e){ answer="⚠️ "+String((e&&e.message)||"that didn't go through — please ask again."); }
+  finally{ PCHAT.busy=false; PCHAT.busyAt=0; }
+  PCHAT.msgs.push({role:"assistant",text:answer||"I didn't get an answer back — please ask again."}); pchatSave(); renderPChat();
 }
 
 function viewProgress(){
@@ -2303,7 +2305,7 @@ let CHAT={slug:null,unsub:null,msgs:[],busy:false,busyAt:0,full:false};
 let BRIEFS=[];  // collaborative versioned briefs (bv/superpm/briefs) — real-time, shared
 function chatRef(slug){return firebase.firestore().collection("bv").doc("superpm").collection("chats").doc(slug);}
 // If the tab closes mid-deep-run, best-effort clear the lease so the card isn't blocked for 5 minutes.
-try{ if(!window._bvLeaseUnbind){ window._bvLeaseUnbind=true; window.addEventListener("beforeunload",function(){ if(CHAT.slug){ try{ chatRef(CHAT.slug).set({deepRunAt:0},{merge:true}); }catch(e){} } }); } }catch(e){}
+try{ if(!window._bvLeaseUnbind){ window._bvLeaseUnbind=true; window.addEventListener("beforeunload",function(){ if(CHAT.slug&&CHAT.deepRunId){ try{ chatRef(CHAT.slug).set({deepRunAt:0,deepRunId:""},{merge:true}); }catch(e){} } }); } }catch(e){}
 let _chatKnLoaded=false;
 function loadChatKnowledge(){   // lazy: only when a chat actually opens (saves ~2,300 Firestore reads on board-only page views)
   if(_chatKnLoaded||!FB.coreDb)return; _chatKnLoaded=true; const cdb=FB.coreDb;
@@ -2616,6 +2618,7 @@ async function briefReviseFromFeedback(id){ const b=briefById(id); if(!b){toast(
     const r=await chatFetch({model:chatModel(),system:sys,messages:[{role:"user",content:usr}],tools:undefined,think:false},{timeout:175000,tries:2,toobigMsg:"This brief is large — revising it timed out. Try revising one section at a time with the ✎ Edit tool instead."});
     if(!r||r.error){ toast("⚠️ Revise failed — "+((r&&r.error)||"no response")+". Old version kept."); _briefBtnBusy(id,"brev",false,"↻ Revise from feedback"); return; }
     let out=(r.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("");
+    if(r.stop_reason==="max_tokens"){ toast("⚠️ The brief was too long to finish in one pass — the previous version is kept. Revise one section at a time with ✎ Edit."); _briefBtnBusy(id,"brev",false,"↻ Revise from feedback"); return; }   // never let a truncated revision supersede the good version
     out=balanceFragment(sanitizeFragment(out));
     if(!out||out.trim().length<60){ toast("⚠️ Revise came back empty — old version kept."); _briefBtnBusy(id,"brev",false,"↻ Revise from feedback"); return; }
     const v=briefSave(b.card,b.title,out,b.type);
@@ -2795,7 +2798,7 @@ const TOOL_SRC={search_catalog:"BV Data Core › catalog",get_product:"BV Data C
 function chatStepSub(name,input){ const src=TOOL_SRC[name]||""; const q=(input&&(input.query||input.task||input.name||input.title||input.label||input.fact)||"").toString().trim(); const qs=q?("“"+q.slice(0,44)+(q.length>44?"…":"")+"”"):""; return [src&&("→ "+src),qs].filter(Boolean).join("  ·  "); }
 // ===== Chat fail-safes: ONE guaranteed release path + a user-visible reset, so the chat can NEVER wedge permanently =====
 function chatRelease(){ CHAT.busy=false; CHAT.wake=false; CHAT.busyAt=0; try{clearInterval(CHAT.tick);}catch(e){} renderChatBody(); }
-function chatStop(){ try{ if(CHAT.abort)CHAT.abort.abort(); }catch(e){} CHAT.pendingClarify=null; chatRelease(); if(CHAT.slug){ try{ chatRef(CHAT.slug).set({deepRunAt:0},{merge:true}); }catch(e){} } toast("⟲ Chat reset — you can send again."); }
+function chatStop(){ try{ if(CHAT.abort)CHAT.abort.abort(); }catch(e){} CHAT.pendingClarify=null; if(CHAT.slug&&CHAT.deepRunId){ try{ chatRef(CHAT.slug).set({deepRunAt:0,deepRunId:""},{merge:true}); }catch(e){} } CHAT.deepRunId=null; chatRelease(); toast("⟲ Chat reset — you can send again."); }
 function renderChatBody(){
   const m=document.getElementById("chatMsgs"); if(!m)return;
   let busyHTML="";
@@ -2865,7 +2868,7 @@ function runChatTool(slug,name,input){
         return "["+h.t+"] "+clip(Object.values(x).join(" "),200);};
       return {summary:"🎯 strategy ("+hits.length+")",text:"Customer & strategy intelligence (ground avatars / positioning / objections / our edge in this REAL data):\n\n"+hits.map(fmt).join("\n\n")}; }
     if(name==="save_skill"){ const nm=(input.name||"").trim(), content=(input.content||"").trim(); if(!nm||!content)return {text:"Need both a name and content to save a skill."};
-      try{firebase.firestore().collection("skills").add({name:nm,trigger:input.trigger||"",content:content,app:"superpm",who:actor(),ts:Date.now()});}catch(e){} return {summary:"📘 skill saved",text:"Saved the playbook “"+nm+"” — it's now loaded into every future chat."}; }
+      var _sk=true; try{firebase.firestore().collection("skills").add({name:nm,trigger:input.trigger||"",content:content,app:"superpm",who:actor(),ts:Date.now()}).catch(function(e){ toast("⚠️ Couldn't save the playbook \""+nm+"\" — try again"); });}catch(e){_sk=false;} if(!_sk)return {text:"Couldn't save the playbook (not connected) — try again."}; return {summary:"📘 skill saved",text:"Saved the playbook “"+nm+"” — it's now loaded into every future chat."}; }
     if(name==="save_brief"){ if(!(input.html||"").trim())return {text:"No HTML provided for the brief."}; const ttl=(input.title||"Marketing Brief").trim(); const v=briefSave(slug,ttl,input.html,"marketing"); if(!v)return {text:"Couldn't file the brief (not connected)."}; return {summary:"📋 brief v"+v,text:"Filed “"+ttl+"” as Brief v"+v+" in this card's BRIEFS panel — status In Review. The team can now read it, leave feedback, and give Marketing + Ben sign-off to confirm it as the single source of truth. To revise after feedback, I'll call save_brief with the same title (new version)."}; }
     if(name==="search_catalog"){ const q=(input.query||"").toLowerCase().split(/\s+/).filter(Boolean);
       const hits=(KNOWLEDGE.catalog||[]).map(p=>{const b=[p.SKU,p.Parent_Model,p.Variant,p.Material,p.Size,p.Feature,p.spec].join(" ").toLowerCase(); return {p,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,8).map(x=>x.p);
@@ -2897,7 +2900,7 @@ function runChatTool(slug,name,input){
       const hits=(KNOWLEDGE.memory||[]).map(m=>{const b=(((m.text||m.fact||"")+" "+(m.tags||"")+" "+(m.app||"")).toLowerCase()); return {m,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,12).map(x=>x.m);
       if(!hits.length)return {summary:"🧠 recall",text:"No memories matched. ("+(KNOWLEDGE.memory||[]).length+" in shared memory.)"};
       return {summary:"🧠 recall ("+hits.length+")",text:"Recalled from shared memory:\n"+hits.map(m=>"• "+(m.text||m.fact||"")+(m.tags?"  ["+m.tags+"]":"")+(m.app?"  ("+m.app+")":"")).join("\n")}; }
-    if(name==="remember"){ const fact=(input.fact||"").trim(); if(!fact)return {text:"Nothing to remember."}; try{fetch("https://bv-second-brain--bv-second-brain.us-east4.hosted.app/api/memory",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:fact,tags:input.tags||"",app:"superpm",entities:[slug],who:actor()})}).catch(()=>{});}catch(e){} return {summary:"🧠 remembered",text:"Saved to shared long-term memory (BV Data Core)."}; }
+    if(name==="remember"){ const fact=(input.fact||"").trim(); if(!fact)return {text:"Nothing to remember."}; try{fetch("https://bv-second-brain--bv-second-brain.us-east4.hosted.app/api/memory",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:fact,tags:input.tags||"",app:"superpm",entities:[slug],who:actor()})}).then(function(r){ if(!r||!r.ok){ toast("⚠️ Couldn't save to shared memory — try again"); } }).catch(function(){ toast("⚠️ Couldn't save to shared memory — try again"); });}catch(e){} return {summary:"🧠 remembered",text:"Saved to shared long-term memory (BV Data Core)."}; }
     if(name==="add_link"){ if(!(input.url||"").trim())return {text:"No url provided — include the full url."}; const nm=input.label||"Link"; return {summary:"🔗 "+nm,text:"Shared link “"+nm+"” in the chat.",att:{type:"link",n:nm,u:input.url}}; }
     if(name==="add_html"){ if(!(input.html||"").trim())return {text:"No HTML content was provided — put the FULL html document in the html argument and try once."}; const nm=input.label||"HTML"; return {summary:"</> "+nm,text:"Created HTML “"+nm+"” ("+input.html.length+" chars) — shown inline in the chat.",att:{type:"code",n:nm,h:input.html}}; }
     if(name==="add_note"){ (l.checkins=l.checkins||[]).unshift({d:today,a:actor(),txt:input.text||""}); save(); return {summary:"📝 note",text:"Note added to the log."}; }
@@ -2912,7 +2915,7 @@ async function chatFetch(body,opts){   // resilient to backend cold starts: retr
   opts=opts||{}; const TIMEOUT=opts.timeout||180000, TRIES=opts.tries||3, TOOBIG=opts.toobigMsg||"That request took too long (over 3 minutes) and was stopped — it was almost certainly too large. Ask for it in smaller parts (e.g. the brief first, then personas + ad concepts).";
   let lastErr="";
   for(let a=0;a<TRIES;a++){
-    const ctrl=(typeof AbortController!=="undefined")?new AbortController():null;
+    const ctrl=(typeof AbortController!=="undefined")?new AbortController():null; CHAT.abort=ctrl;   // expose so ⟲ Reset / chatStop can cancel the in-flight request (no ghost answer after reset)
     let timedOut=false;
     const to=ctrl?setTimeout(()=>{timedOut=true;try{ctrl.abort();}catch(e){}},TIMEOUT):null;   // HARD cap per attempt — never hang forever
     try{
@@ -3066,10 +3069,11 @@ async function chatSend(slug){
   // 1.5: ADD a visual (image / chart / table) INTO the existing last doc — never regenerate, never just show it in a chat bubble. Sits AFTER transform, BEFORE Deep so a short "add a chart" isn't intercepted by deepNeedsClarify.
   { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksAugment(text) && !isExplicitBuild(text) && !transformIsQuestion(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one|here|section|to the|into the)\b/i.test(text)||text.length<90)){ input.value=""; return chatAugmentDoc(slug,text,_doc.h,_doc.n); } }
   // SECOND: a genuine new, multi-section deliverable still goes to Deep.
-  if(CHAT.deep|| /^\/deep\b/i.test(text)){ input.value=""; const dtext=text.replace(/^\/deep\s*/i,"").trim()||text; if(deepNeedsClarify(dtext)){ return chatClarifyAsk(slug,dtext); } return chatSendDeep(slug, dtext); }   // big deliverable — but ask 2-3 scoping questions first when the request is thin
+  if(CHAT.deep|| /^\/deep\b/i.test(text)){ input.value=""; const dtext=text.replace(/^\/deep\s*/i,"").trim(); if(!dtext){ if(!CHAT.deep){ try{toggleDeep();}catch(e){} } chatPush(slug,{role:"assistant",who:"Claude",text:"🔬 Deep mode is on — now type the deliverable you want (a sentence or two, ideally with the sections, e.g. \"launch brief for the Vesper Air — sections: positioning, specs, personas\").",ts:nowStamp()}); return; } if(deepNeedsClarify(dtext)){ return chatClarifyAsk(slug,dtext); } return chatSendDeep(slug, dtext); }   // big deliverable — but ask 2-3 scoping questions first when the request is thin (bare /deep just turns the mode on)
   if(looksDeep(text)){   // SUGGEST deep mode for a big ask (never auto-run) — so the user doesn't have to know when
-    const go=(typeof confirm!=="undefined")&&confirm("This looks like a big, multi-part deliverable.\n\nRun it in 🔬 Deep mode? It builds the whole thing section-by-section (~7–10 min, live progress) and files it as a Brief — instead of trying to write it all at once (which can time out).\n\nOK = Deep mode   ·   Cancel = just answer normally");
+    const canAsk=(typeof confirm!=="undefined"); const go=canAsk&&confirm("This looks like a big, multi-part deliverable.\n\nRun it in 🔬 Deep mode? It builds the whole thing section-by-section (~7–10 min, live progress) and files it as a Brief — instead of trying to write it all at once (which can time out).\n\nOK = Deep mode   ·   Cancel = just answer normally");
     if(go){ input.value=""; return chatSendDeep(slug,text); }
+    if(canAsk){ toast("Answering normally — if it falls short, tap 🔬 Deep or type /deep and I'll rebuild it as a full Brief."); }
   }
   input.value=""; const who=actor(), l=L(slug);
   const prior=(CHAT.msgs||[]).slice();
@@ -3313,7 +3317,8 @@ async function chatClarifyAsk(slug,request){
 async function chatSendDeep(slug,text){
   const l=L(slug); if(!l)return;
   const leaseRef=(FB.ready?chatRef(slug):null);
-  if(leaseRef){ try{ const snap=await leaseRef.get(); const d=(snap&&snap.data())||{}; if(d.deepRunAt&&(Date.now()-d.deepRunAt)<300000&&d.deepRunUid&&ME&&d.deepRunUid!==ME.uid){ chatPush(slug,{role:"assistant",who:"Claude",text:"🔬 A deep run started by "+(d.deepRunBy||"a teammate")+" is still in progress on this card, so I won't start a second one. It frees up within a few minutes — resend then, or ask me a normal (non-deep) question now.",ts:nowStamp()}); return; } await leaseRef.set({deepRunAt:Date.now(),deepRunUid:(ME&&ME.uid)||"local",deepRunBy:actor()},{merge:true}); }catch(e){} }
+  var _runId=String(Date.now())+"-"+Math.random().toString(36).slice(2,8); CHAT.deepRunId=_runId;   // per-run lease id → blocks a SECOND run (even same user / another tab) and only the owner clears it
+  if(leaseRef){ try{ const snap=await leaseRef.get(); const d=(snap&&snap.data())||{}; if(d.deepRunAt&&(Date.now()-d.deepRunAt)<300000&&d.deepRunId&&d.deepRunId!==_runId){ chatPush(slug,{role:"assistant",who:"Claude",text:"🔬 A deep run started by "+(d.deepRunBy||"someone")+" is still in progress on this card, so I won't start a second one. It frees up within a few minutes — resend then, or ask me a normal (non-deep) question now.",ts:nowStamp()}); CHAT.deepRunId=null; return; } await leaseRef.set({deepRunAt:Date.now(),deepRunUid:(ME&&ME.uid)||"local",deepRunBy:actor(),deepRunId:_runId},{merge:true}); }catch(e){} }
   CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.steps=[]; CHAT.phase="thinking"; CHAT.startedAt=Date.now(); CHAT.hop=0;
   try{ clearInterval(CHAT.tick); }catch(e){} CHAT.tick=setInterval(()=>{ if(CHAT.busy)renderChatBody(); else { try{clearInterval(CHAT.tick);}catch(e){} } },1000);
   chatPush(slug,{role:"user",who:actor(),text:"🔬 "+text,ts:nowStamp()});
@@ -3401,7 +3406,7 @@ async function chatSendDeep(slug,text){
     // 4) ASSEMBLE + file (or show inline) — shared path, used by success and the catch
     fileIt(null);
   }catch(e){ if(parts.length||plan){ try{ fileIt("stopped: "+((e&&e.message)||e)); }catch(_){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Deep run hit an error after some sections: "+((e&&e.message)||e)+".",ts:nowStamp()}); } } else { chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Deep run couldn't start: "+((e&&e.message)||e)+". Please try again.",ts:nowStamp()}); } }
-  finally{ CHAT.deep=false; if(leaseRef){try{leaseRef.set({deepRunAt:0},{merge:true});}catch(e){}} var _b=document.getElementById("deepBtn"); if(_b)_b.classList.remove("on"); chatRelease(); }
+  finally{ CHAT.deep=false; if(leaseRef){ try{ leaseRef.get().then(function(s){ var dd=(s&&s.data())||{}; if(!dd.deepRunId||dd.deepRunId===_runId){ leaseRef.set({deepRunAt:0,deepRunId:""},{merge:true}); } }).catch(function(){}); }catch(e){} } CHAT.deepRunId=null; var _b=document.getElementById("deepBtn"); if(_b)_b.classList.remove("on"); chatRelease(); }
 }
 function render(){
   const sel=document.getElementById("roleSel"), vaLab=document.getElementById("vaLab");
