@@ -2319,16 +2319,16 @@ function chatSub(slug){
   if(CHAT.unsub){try{CHAT.unsub();}catch(e){} CHAT.unsub=null;}
   CHAT.slug=slug; CHAT.msgs=[];
   if(!FB.ready){renderChatBody();return;}
-  CHAT.unsub=chatRef(slug).onSnapshot(snap=>{const d=snap.data(); CHAT.msgs=(d&&d.messages)||[]; renderChatBody();},e=>{});
+  CHAT.unsub=chatRef(slug).onSnapshot(function(snap){ var d=snap.data(); var server=(d&&d.messages)||[]; var keep=(CHAT.msgs||[]).filter(function(m){ return m&&m._lo&&!server.some(function(s){ return s&&s.ts===m.ts&&(s.text||"")===(m.text||""); }); }); CHAT.msgs=server.concat(keep); renderChatBody(); }, function(e){ try{ CHAT.unsub=null; CHAT.msgs=(CHAT.msgs||[]); CHAT.msgs.push({role:"assistant",who:"Claude",text:"⚠️ Lost the live connection to this card's chat ("+((e&&e.message)||e)+"). Messages may be out of sync — reload the page or hit ⟲ Reset to reconnect.",ts:nowStamp()}); renderChatBody(); toast("⚠️ Chat connection dropped — reload to reconnect."); }catch(_){} });
 }
 function chatPush(slug,msg){
   if(FB.ready){
     // Guard the Firestore 1MB/doc cap: a single full-HTML brief attachment can be large. If this message is heavy,
     // keep it locally (so lastChatDoc + the on-screen render still see it) instead of letting arrayUnion fail silently.
     let heavy=false; try{ heavy=JSON.stringify(msg).length>700000; }catch(e){ heavy=true; }
-    if(heavy){ CHAT.msgs.push(msg); renderChatBody(); toast("⚠️ Document too large to share via chat — saved locally for you. The Brief in 📋 Briefs is the shared copy."); return; }
+    if(heavy){ msg._lo=1; CHAT.msgs.push(msg); renderChatBody(); toast("⚠️ Document too large to share via chat — saved locally for you. The Brief in 📋 Briefs is the shared copy."); return; }
     chatRef(slug).set({messages:firebase.firestore.FieldValue.arrayUnion(msg),updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true})
-      .catch(()=>{ CHAT.msgs.push(msg); renderChatBody(); toast("⚠️ Couldn't sync to the shared chat — saved locally for you."); });
+      .catch(()=>{ msg._lo=1; CHAT.msgs.push(msg); renderChatBody(); toast("⚠️ Couldn't sync to the shared chat — saved locally for you."); });
   }
   else { CHAT.msgs.push(msg); renderChatBody(); }
 }
@@ -2406,7 +2406,7 @@ function chatMetaHTML(meta){
 function chatMsgHTML(m,mi){
   const cls=m.role==="assistant"?"assistant":"user";
   const av=m.role==="assistant"?"AI":esc(((m.who||"?")[0]||"?").toUpperCase());
-  const atts=(m.attachments||[]).map((a,ai)=>a.type==="link"
+  const atts=(Array.isArray(m.attachments)?m.attachments:[]).map((a,ai)=>a.type==="link"
     ?`<a class="catt" href="${esc(a.u)}" target="_blank">🔗 ${esc(a.n)}</a>`
     :`<span class="catt" title="open the HTML — preview / source / full page" onclick="openMsgAtt(${mi},${ai})">📄 &lt;/&gt; ${esc(a.n)}</span>`).join("");
   return `<div class="cmsg ${cls}"><div class="av">${av}</div><div><div class="who">${esc(m.who||(m.role==="assistant"?"Claude":"User"))}${m.ts?" · "+esc(m.ts):""}${m.role==="assistant"?`<span class="cmsg-report" title="report an answer-quality issue (logged to BV Second Brain)" onclick="reportAnswer(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.55;font-size:11px">⚑ report</span>`:""}<span class="cmsg-del" title="delete this message (for everyone)" onclick="deleteChatMsg(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.5;font-size:11px">✕</span></div>${m.text?`<div class="bub">${esc(m.text)}</div>`:""}${(m.log&&m.log.length)?`<details style="margin-top:6px;font-size:12px"><summary style="cursor:pointer;opacity:.65;user-select:none">▸ Section log (${m.log.length})</summary><div style="margin-top:5px;padding:6px 9px;background:rgba(127,127,127,.07);border-radius:7px;line-height:1.75">${m.log.map(esc).join("<br>")}</div></details>`:""}${atts?`<div class="catts">${atts}</div>`:""}${(m.actions&&m.actions.length)?`<div class="acts">⚡ ${m.actions.map(esc).join(" · ")}</div>`:""}${m.meta?chatMetaHTML(m.meta):""}</div></div>`;
@@ -2482,9 +2482,10 @@ async function detectContradictions(l,slug,plan,parts,researchPack,acc){
   let out="";
   try{ const r=await chatFetch({model:chatModel(),system:sys,messages:[{role:"user",content:msg}],tools:undefined,think:false},{timeout:90000,tries:1,toobigMsg:"contradiction check too long"});
     if(r&&!r.error){ if(r.usage&&acc)acc({in:r.usage.input_tokens||0,out:r.usage.output_tokens||0}); out=(r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(""); }
-  }catch(e){ return []; }
+  }catch(e){ return null; }   // null = the check could NOT complete (don't claim "clean")
+  if(!out||!out.trim())return null;
   let list=[];
-  try{ const m=out.match(/\{[\s\S]*\}/); if(m){ const o=JSON.parse(m[0]); list=Array.isArray(o.contradictions)?o.contradictions:[]; } }catch(e){ return []; }
+  try{ const m=out.match(/\{[\s\S]*\}/); if(!m)return null; const o=JSON.parse(m[0]); list=Array.isArray(o.contradictions)?o.contradictions:[]; }catch(e){ return null; }
   list=list.filter(c=>c&&(c.claim||c.note)).slice(0,12);
   list.forEach(c=>fileQualityReport({ card:slug, cardName:(l&&l.name)||slug,
     question:("Auto contradiction check — Brief: "+(plan.title||"")+" — §"+(c.section||"")).slice(0,2000),
@@ -2508,10 +2509,13 @@ function canBenSign(){return myRole()==="ceo";}
 function canMktSign(){const r=myRole();return r==="ceo"||r==="marketing";}
 function bts(t){return t?new Date(t).toLocaleDateString(undefined,{month:"short",day:"numeric"}):"";}
 function briefSave(card,title,html,type){ if(!FB.ready||!card)return 0; title=(title||"Marketing Brief").trim();
-  const ex=(BRIEFS||[]).filter(b=>b.card===card&&(b.title||"").toLowerCase()===title.toLowerCase());
-  const version=ex.reduce((m,b)=>Math.max(m,b.version||0),0)+1;
-  try{briefsCol().add({card,title,type:type||"marketing",version,status:"review",html:html||"",author:actor(),createdAt:Date.now(),updatedAt:Date.now(),approvals:{marketing:null,ben:null},comments:[]});}catch(e){}
-  return version;
+  try{
+    const ex=(BRIEFS||[]).filter(b=>b.card===card&&(b.title||"").toLowerCase()===title.toLowerCase());
+    const version=ex.reduce((m,b)=>Math.max(m,b.version||0),0)+1;
+    briefsCol().add({card,title,type:type||"marketing",version,status:"review",html:html||"",author:actor(),createdAt:Date.now(),updatedAt:Date.now(),approvals:{marketing:null,ben:null},comments:[]})
+      .catch(function(e){ try{ if(CHAT&&CHAT.slug===card) chatPush(card,{role:"assistant",who:"Claude",text:"⚠️ The brief \""+title+"\" didn't actually save to 📋 Briefs ("+((e&&e.code)||(e&&e.message)||"write failed")+"). Nothing was filed — please try again.",ts:nowStamp()}); }catch(_){ } toast("⚠️ Brief not saved — try again"); });
+    return version;   // optimistic; the .catch above surfaces a real write failure instead of lying
+  }catch(e){ toast("⚠️ Brief not saved — try again"); return 0; }
 }
 function briefMd(b){ return String(b&&b.html||"")
   .replace(/<(style|script)[\s\S]*?<\/\1>/gi,"")
@@ -2555,8 +2559,9 @@ function briefApprove(id,slot){ const b=briefById(id); if(!b||b.status==="confir
   if(upd.status==="confirmed"){ toast("✓ Brief confirmed — it's now the single source of truth."); logEvent("signoff","✓ CONFIRMED brief · "+b.title+" — now the single source of truth",{card:b.card}); promoteBriefToCore(Object.assign({},b,{approvals:a,status:"confirmed"})); }
 }
 function briefComment(id){ const inp=document.getElementById("bc_"+id), text=inp?inp.value.trim():""; if(!text)return; const b=briefById(id); if(!b)return;
+  if(!FB.ready){ toast("⚠️ Not connected — comment not saved, try again"); return; }
   const comments=(b.comments||[]).concat([{who:actor(),role:roleLabel(),text,at:Date.now()}]);
-  try{briefsCol().doc(id).set({comments,updatedAt:Date.now()},{merge:true});}catch(e){} if(inp)inp.value="";
+  try{ briefsCol().doc(id).set({comments,updatedAt:Date.now()},{merge:true}).catch(function(e){ toast("⚠️ Couldn't save your comment — try again"); }); if(inp)inp.value=""; toast("💬 Feedback added"); }catch(e){ toast("⚠️ Couldn't save your comment — try again"); }
 }
 function briefView(id){ const b=briefById(id); if(b)codeModal({readOnly:true,label:b.title+" · v"+b.version,html:b.html}); }
 function briefToggle(id){ S.open=S.open||{}; S.open["brief_"+id]=!S.open["brief_"+id]; renderBriefs(); }
@@ -2801,7 +2806,8 @@ function renderChatBody(){
     const steps=(CHAT.steps&&CHAT.steps.length)?`<div style="margin-top:6px;font-size:11.5px;line-height:1.5">${CHAT.steps.map((s,i)=>{const running=(i===CHAT.steps.length-1&&CHAT.phase==="acting");const mark=running?"⏳ ":"✓ ";return `<div style="opacity:${running?1:.8}">${mark}${esc(s.head||s)}${s.sub?`<div style="opacity:.6;margin:0 0 3px 16px;font-size:10.5px">${esc(s.sub)}</div>`:""}</div>`;}).join("")}</div>`:"";
     busyHTML=`<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub"><span class="bvthink">${head}<span class="bvdots">…</span></span><div class="bvbar"></div>${steps}</div></div></div>`;
   }
-  m.innerHTML=(CHAT.msgs||[]).map((mm,i)=>chatMsgHTML(mm,i)).join("")+busyHTML; m.scrollTop=m.scrollHeight;
+  var bodyHTML=""; try{ bodyHTML=(CHAT.msgs||[]).map((mm,i)=>chatMsgHTML(mm,i)).join(""); }catch(err){ bodyHTML='<div class="cmsg assistant"><div class="av">AI</div><div><div class="bub">⚠️ Couldn\'t render the full chat history (a stored message looks malformed). Your messages are safe — try ⟲ Reset or reload.</div></div></div>'; }
+  m.innerHTML=bodyHTML+busyHTML; m.scrollTop=m.scrollHeight;
 }
 function toggleChatFull(){CHAT.full=!CHAT.full; const p=document.getElementById("chatPanel"); if(p){p.classList.toggle("full",CHAT.full); const b=document.getElementById("chatFullBtn"); if(b){b.textContent=CHAT.full?"✕ Close":"⛶ Full"; b.title=CHAT.full?"close — back to the card (Esc)":"expand to full screen";}}}
 try{ if(!window._bvEscBound){ window._bvEscBound=true; document.addEventListener("keydown",function(e){ if(e.key==="Escape"&&typeof CHAT!=="undefined"&&CHAT.full)toggleChatFull(); }); } }catch(e){}
@@ -2937,15 +2943,17 @@ function augmentIsImage(text){ const t=String(text||"");
 // bilingual = a clean English version AND a clean Traditional-Chinese version, toggled (NOT a translation, NOT stacked, NOT Simplified)
 function looksBilingual(text){ const t=String(text||""); return /\bbilingual\b|雙語|兩種語言|两种语言|english[^.]{0,14}(and|\+|&|\/|plus)[^.]{0,14}(chinese|mandarin|中文)|(chinese|mandarin|中文)[^.]{0,14}(and|\+|&|\/|plus)[^.]{0,14}english/i.test(t); }
 // An EXPLICIT new, sectioned deliverable — must build FRESH, never be hijacked into transform/augment of an old doc.
-function isExplicitBuild(text){ var t=String(text||""); var hasSecs=/\bsections?\s*[:：]/i.test(t); var newVerb=/\b(new|newest|fresh|another|from scratch|build|create|generate|draft|write|put together|make me a|give me)\b/i.test(t); var deliverable=/\b(brief|guide|persona|personas|one[- ]?pager|deck|report|landing page|campaign|playbook|strategy|launch (brief|plan)|positioning|comparison|teardown|whitepaper|white ?paper)\b/i.test(t); return hasSecs || (newVerb && deliverable); }
+function isExplicitBuild(text){ var t=String(text||""); var hasSecs=/\bsections?\s*[:：]/i.test(t); var newVerb=/\b(new|newest|fresh|another|from scratch|make|turn|build|create|generate|draft|write|put together|give me)\b/i.test(t); var deliverable=/\b(brief|guide|persona|personas|one[- ]?pager|deck|report|landing page|campaign|playbook|strategy|launch (brief|plan)|positioning|comparison|teardown|timeline|breakdown|matrix|roadmap|whitepaper|white ?paper)\b/i.test(t); return hasSecs || (newVerb && deliverable); }
+// A QUESTION about a translation/summary ("what does this say in Chinese?") must NOT trigger a rebuild — only an imperative verb does.
+function transformIsQuestion(text){ var t=String(text||""); var strong=/\b(translat\w*|tradu\w*|bilingual|rewrite|reword|re-?write|shorten|condense|tighten|tl;?dr|make it (shorter|longer|tighter))\b/i; var isQ=/^\s*(what|who|whom|whose|why|where|when|which|is|are|am|do|does|did|can|could|should|would|mean|explain|tell me)\b/i.test(t)||/\?\s*$/.test(t); return isQ&&!strong.test(t); }
 function lastChatDoc(slug){
-  // 1) Fast path: the most recent inline HTML attachment in this chat.
-  const ms=CHAT.msgs||[];
-  for(let i=ms.length-1;i>=0;i--){ const a=((ms[i].attachments)||[]).find(x=>x&&x.type==="code"&&x.h); if(a)return {h:a.h,n:a.n}; }
-  // 2) Reliable fallback: the newest SAVED BRIEF for THIS card (separate collection, not subject to the chat doc's 1MB cap).
-  //    BRIEFS is already orderBy("createdAt","desc"); skip superseded so we never transform a retired version.
+  // 1) AUTHORITATIVE: the newest SAVED BRIEF for THIS card wins — it captures panel edits, added images, and revisions
+  //    that a stale chat attachment would silently revert. BRIEFS is orderBy("createdAt","desc"); skip superseded.
   const recent=(BRIEFS||[]).filter(b=>b&&b.card===slug&&b.html&&b.status!=="superseded")[0];
   if(recent) return {h:recent.html, n:recent.title||"Brief", briefId:recent.id, version:recent.version};
+  // 2) Fallback: the most recent inline HTML attachment in this chat (a doc not yet filed as a Brief).
+  const ms=CHAT.msgs||[];
+  for(let i=ms.length-1;i>=0;i--){ const a=((ms[i].attachments)||[]).find(x=>x&&x.type==="code"&&x.h); if(a)return {h:a.h,n:a.n}; }
   return null;
 }
 // pull plain section content out of an already-assembled brief: strip the swap-figure + feedback chrome so we transform only the words/images
@@ -2978,6 +2986,7 @@ async function chatTransformDoc(slug,instruction,doc,docName){
   const clean=stripDocChrome(doc); const t0=clean.title||docName||((l&&l.name)||"Document");
   if(!clean.sections.length){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ I couldn't read any sections out of the existing document to transform. Say 'build a new brief' (or turn on 🔬 Deep) and I'll generate a fresh one with your sections.",ts:nowStamp()}); chatRelease(); return; }
   const wantBi=looksBilingual(instruction);   // bilingual = a clean ENGLISH version + a clean TRADITIONAL-CHINESE version, toggled (never stacked, never Simplified)
+  { var srcIsBi=/class=["']bvL bvL-zh["']/.test(String(doc||"")); if(srcIsBi&&!wantBi){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ This brief is bilingual (English + 繁體中文 with a toggle). Running a plain \""+instruction.slice(0,40)+"\" would collapse both languages and drop the toggle. Use ✎ Edit to revise it in place, or ask me to rebuild it bilingual.",ts:nowStamp()}); chatRelease(); return; } }
   let tIn=0,tOut=0; const acc=d=>{tIn+=d.in||0;tOut+=d.out||0;}; const parts=[], partsZh=[];
   try{
     CHAT.steps.push({head:wantBi?"📄 Building a bilingual version — English + 繁體中文 (toggle)":"📄 Transforming the existing document (no re-research)",sub:clean.sections.length+" section"+(clean.sections.length===1?"":"s")}); renderChatBody();
@@ -3051,11 +3060,11 @@ async function chatSend(slug){
   if(!CHAT_API_URL){toast("⚠️ Chat backend not set yet — deploy the proxy & set CHAT_API_URL (see CHAT-SETUP.md)");return;}
   if(CHAT.busy){ if(CHAT.busyAt && (Date.now()-CHAT.busyAt)>240000){ chatRelease(); } else { toast("Claude is still working… give it a moment, then resend."); return; } }
   // The user is answering the clarifying questions → now build the deliverable WITH their context (or "go" to build as-is).
-  if(CHAT.pendingClarify){ const pc=CHAT.pendingClarify; const stale=pc.ts&&(Date.now()-pc.ts)>600000; if(isExplicitBuild(text)||stale){ CHAT.pendingClarify=null; } else { CHAT.pendingClarify=null; input.value=""; return chatSendDeep(slug, /^\s*(go|proceed|just build( it)?|build it|do it|yes|yep|ok|okay)\s*$/i.test(text)?pc.request:(pc.request+"\n\n[Extra context / answers from "+actor()+": "+text+"]")); } }
+  if(CHAT.pendingClarify){ const pc=CHAT.pendingClarify; const stale=pc.ts&&(Date.now()-pc.ts)>600000; const goFast=/^\s*(go|proceed|just build( it)?|build it|do it|yes|yep|ok|okay)\s*$/i.test(text); const bail=!goFast&&(isExplicitBuild(text)||looksTransform(text)||looksAugment(text)||/\b(never ?mind|cancel|forget it|scratch that|instead|actually|different (thing|question)|new question)\b/i.test(text)); if(stale||bail){ CHAT.pendingClarify=null; } else { CHAT.pendingClarify=null; input.value=""; return chatSendDeep(slug, goFast?pc.request:(pc.request+"\n\n[Extra context / answers from "+actor()+": "+text+"]")); } }
   // FIRST: a transform of the EXISTING last doc wins over auto-Deep — "make this bilingual / shorten it" must never silently regenerate from scratch.
-  { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksTransform(text) && !isExplicitBuild(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one)\b/i.test(text)||text.length<90)){ input.value=""; return chatTransformDoc(slug,text,_doc.h,_doc.n); } }   // translate/rewrite/shorten an EXISTING doc — transform it directly, never re-research (but an explicit NEW sectioned build wins → falls through to Deep)
+  { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksTransform(text) && !isExplicitBuild(text) && !transformIsQuestion(text) && !(looksAugment(text)&&augmentIsImage(text)) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one)\b/i.test(text)||text.length<90)){ input.value=""; return chatTransformDoc(slug,text,_doc.h,_doc.n); } }   // translate/rewrite/shorten an EXISTING doc — never re-research; but an explicit NEW build, a question, or an image-add falls through
   // 1.5: ADD a visual (image / chart / table) INTO the existing last doc — never regenerate, never just show it in a chat bubble. Sits AFTER transform, BEFORE Deep so a short "add a chart" isn't intercepted by deepNeedsClarify.
-  { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksAugment(text) && !isExplicitBuild(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one|here|section)\b/i.test(text)||text.length<90)){ input.value=""; return chatAugmentDoc(slug,text,_doc.h,_doc.n); } }
+  { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksAugment(text) && !isExplicitBuild(text) && !transformIsQuestion(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one|here|section|to the|into the)\b/i.test(text)||text.length<90)){ input.value=""; return chatAugmentDoc(slug,text,_doc.h,_doc.n); } }
   // SECOND: a genuine new, multi-section deliverable still goes to Deep.
   if(CHAT.deep|| /^\/deep\b/i.test(text)){ input.value=""; const dtext=text.replace(/^\/deep\s*/i,"").trim()||text; if(deepNeedsClarify(dtext)){ return chatClarifyAsk(slug,dtext); } return chatSendDeep(slug, dtext); }   // big deliverable — but ask 2-3 scoping questions first when the request is thin
   if(looksDeep(text)){   // SUGGEST deep mode for a big ask (never auto-run) — so the user doesn't have to know when
@@ -3385,7 +3394,8 @@ async function chatSendDeep(slug,text){
     // 3b) FACT-CHECK — compare the draft to the Core canonical data; auto-file contradictions to the BV Second Brain
     try{ CHAT.steps.push({head:"🔎 Checking for contradictions vs the catalog",sub:"fact-check → BV Second Brain"}); renderChatBody();
       const contra=await detectContradictions(l,slug,plan,parts,researchPack,acc);
-      if(contra&&contra.length)note("⚠️ "+contra.length+" possible contradiction"+(contra.length>1?"s":"")+" vs the catalog — auto-filed to the BV Second Brain Quality dashboard for review.");
+      if(contra===null)note("⚠️ Couldn't complete the contradiction check this run (it timed out or returned an unreadable response) — please review the specs against the catalog manually.");
+      else if(contra.length)note("⚠️ "+contra.length+" possible contradiction"+(contra.length>1?"s":"")+" vs the catalog — auto-filed to the BV Second Brain Quality dashboard for review.");
       else note("✓ Fact-check done — no contradictions vs the catalog found.");
     }catch(e){}
     // 4) ASSEMBLE + file (or show inline) — shared path, used by success and the catch
