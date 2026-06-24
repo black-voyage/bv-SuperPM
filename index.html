@@ -3167,8 +3167,8 @@ async function chatSend(slug){
 /* ========== DEEP MODE — big multi-section deliverables, generated section-by-section so no single call
    can time out or truncate. Gather → Plan → write each section (bounded, continue-on-cap) → assemble (pure JS)
    → file as a Brief. Ships app-only; reuses chatFetch/runChatTool/briefSave/chatPush. See deep-output workflow. */
-const JOB_PLANNER="DEEP-DELIVERABLE PLANNER: The user wants a large, multi-part document. Output ONLY a fenced ```json block — NO prose — shaped {\"title\":\"…\",\"sections\":[{\"id\":\"s1\",\"heading\":\"…\",\"instructions\":\"what this section must cover (keep terse)\",\"image_urls\":[\"https://…\"],\"budget_words\":1500}]}. Rules: 5–7 self-contained sections that cover what the user asked for (do NOT pad with extra sections they didn't request); each ≤ ~1800 words; keep instructions terse; pull the most relevant find_images URLs from the research into each section's image_urls; SPLIT any section likely to exceed ~1800 words (e.g. one section per competitor); do NOT write the document content here — only the plan JSON.";
-const SECTION_WRITER="SECTION WRITER: You are writing ONE section of a larger HTML document. Use ONLY the provided RESEARCH as your source of facts. Embed any given image URLs as <img>. Output a clean HTML fragment using only h2/h3/p/ul/ol/li/table/tr/td/th/strong/em/img (NO <html>/<head>/<body>, NO markdown, NO code fences, NO preamble or sign-off). STAY UNDER the word target and FINISH CLEANLY — a section cut off mid-sentence is worse than a shorter complete one. Be specific and grounded — never invent specs, prices, or competitor facts; if the research lacks a fact, say so plainly rather than inventing it; trust catalog figures and never restate them differently. Write in Black Voyage's confident, plain-spoken brand voice.";
+const JOB_PLANNER="DEEP-DELIVERABLE PLANNER: The user wants a large, multi-part document. Output ONLY a fenced ```json block — NO prose — shaped {\"title\":\"…\",\"sections\":[{\"id\":\"s1\",\"heading\":\"…\",\"instructions\":\"what this section must cover (keep terse)\",\"image_urls\":[\"https://…\"],\"budget_words\":1500}]}. Rules: 5–7 self-contained sections that cover what the user asked for (do NOT pad with extra sections they didn't request); each ≤ ~1800 words; keep instructions terse; pull the most relevant find_images URLs from the research into each section's image_urls; SPLIT any section likely to exceed ~1800 words (e.g. one section per competitor); do NOT write the document content here — only the plan JSON. ALL headings and instructions in ENGLISH only (translate any Chinese from the research — no CJK characters).";
+const SECTION_WRITER="SECTION WRITER: You are writing ONE section of a larger HTML document. Use ONLY the provided RESEARCH as your source of facts. ENGLISH ONLY — write the ENTIRE section in natural, fluent English. The RESEARCH is often in Traditional Chinese (spec sheets, use-cases — e.g. 技術規格/功能/想用同一個包…); you MUST TRANSLATE any Chinese into clean English and NEVER copy Chinese/CJK characters or quote the source language verbatim into the output (no 中文 in the English version, not even inside quotes or parentheses). Keep brand/model names (Black Voyage, Vesper, Aero, Apex, Zephyr, AirCabin) in English. Embed any given image URLs as <img>. Output a clean HTML fragment using only h2/h3/p/ul/ol/li/table/tr/td/th/strong/em/img (NO <html>/<head>/<body>, NO markdown, NO code fences, NO preamble or sign-off). STAY UNDER the word target and FINISH CLEANLY — a section cut off mid-sentence is worse than a shorter complete one. Be specific and grounded — never invent specs, prices, or competitor facts; if the research lacks a fact, say so plainly rather than inventing it; trust catalog figures and never restate them differently. Write in Black Voyage's confident, plain-spoken brand voice.";
 // Heuristic: does this request look like a big multi-part deliverable? Used ONLY to SUGGEST deep mode
 // (never to auto-run it), so normal quick questions are never hijacked.
 function looksDeep(text){
@@ -3296,6 +3296,15 @@ function assembleDeepDoc(title,plan,parts,meta){
    +'<div id="bvpick" class="bvpick" onclick="if(event.target===this)bvClose()"><div class="bvpbox"><div class="bvphead"><b id="bvptitle">Swap image</b><button onclick="bvClose()">✕</button></div><div id="bvpgrid" class="bvpgrid"></div></div></div>'
    +'<script>'+JS+'<\/script></body></html>';
 }
+// English-only GUARANTEE for a generated section: if any Chinese/CJK leaked from the spec research, translate it out.
+function _hasCJK(s){ return /[㐀-䶿一-鿿豈-﫿぀-ヿ]/.test(String(s||"")); }
+async function _enOnly(html,acc){ var h=String(html||""); if(!_hasCJK(h)) return h;   // clean → no extra call
+  try{ var r=await chatFetch({model:chatModel(),system:"You repair an ENGLISH marketing-brief HTML fragment that accidentally contains Chinese/CJK characters. Rewrite so it reads as 100% natural English: TRANSLATE every Chinese word or quoted phrase into English — do NOT keep the original characters, romanization, or a parenthetical original. Preserve ALL HTML tags/structure, every number/spec, and brand/model names (Black Voyage, Vesper, Aero, Apex, Zephyr, AirCabin) exactly. Output ONLY the corrected HTML fragment — no preamble, no code fences.",messages:[{role:"user",content:h}],tools:undefined,think:false},{timeout:90000,tries:1,toobigMsg:"section too long"});
+    if(r&&!r.error){ if(r.usage&&acc)acc({in:r.usage.input_tokens||0,out:r.usage.output_tokens||0}); var o=sanitizeFragment((r.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("")); if(o&&o.trim().length>20&&!_hasCJK(o)) return o; }
+  }catch(e){}
+  // last resort: drop stray CJK runs (and any wrapping quotes) so no Chinese ships in the English version
+  return h.replace(/["'“”「」（）]*[㐀-䶿一-鿿豈-﫿぀-ヿ]+[“”「」（）"']*/g," ").replace(/\(\s*\)/g,"").replace(/\s{2,}/g," ");
+}
 async function writeSection(l,sys0,researchPack,plan,sec,doneHeads,acc){
   const others=plan.sections.map(s=>s.heading).filter(h=>h!==sec.heading).join(" · ");
   const mk=(b)=>"You are writing ONE section of an HTML document titled “"+(plan.title||"")+"”.\n"+SECTION_WRITER
@@ -3313,9 +3322,11 @@ async function writeSection(l,sys0,researchPack,plan,sec,doneHeads,acc){
       if(resp.stop_reason==="max_tokens"&&c<2){ messages.push({role:"assistant",content:resp.content||[]}); messages.push({role:"user",content:"Continue EXACTLY where you stopped — emit only the continuation HTML, no preamble, do not re-open tags already opened."}); continue; }
       break;
     } return out; };
-  try{ const r=await attempt(sec.budget_words||1800); if(r&&r.trim().length>20)return r; }catch(e){}
-  try{ const r2=await attempt(Math.round((sec.budget_words||1800)/2)); if(r2&&r2.trim().length>20)return r2; }catch(e){}
-  return "";
+  let out="";
+  try{ const r=await attempt(sec.budget_words||1800); if(r&&r.trim().length>20)out=r; }catch(e){}
+  if(!out){ try{ const r2=await attempt(Math.round((sec.budget_words||1800)/2)); if(r2&&r2.trim().length>20)out=r2; }catch(e){} }
+  if(!out)return "";
+  return await _enOnly(out,acc);   // English-only guarantee: translate out any Chinese that leaked from the spec research
 }
 // ===== DEEP-MODE QUERY ROUTES: the data tools run INSTANTLY client-side, so a deliverable's data needs are
 // pre-declared as a deterministic "route" (run directly, no LLM hops) instead of an LLM loop choosing tools
