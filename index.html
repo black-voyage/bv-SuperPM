@@ -309,6 +309,7 @@
   .pj-rail h4.lead{color:var(--text)}
   .pj-listhead h3{font-family:var(--font-mono);font-weight:400;text-transform:uppercase;letter-spacing:.07em;font-size:13px;color:var(--dim)}
   .pj-listsub{font-size:11.5px;color:var(--faint);margin-top:3px;text-wrap:pretty}
+  @media(max-width:600px){.pchat-tags{display:none}}
   .pj-item{padding:7px 0;border-top:1px solid var(--line);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
   .pj-item:first-of-type{border-top:none}
   .pj-next{display:flex;gap:8px;align-items:flex-start;min-width:0;padding:2px 0}
@@ -1654,7 +1655,7 @@ const ZH={
  "Progression —":"進度 —","Timeline —":"時間軸 —","posts to the card + its Slack channel":"發布到卡片＋對應的 Slack 頻道",
  "gates":"關卡","next":"下一階段","weekly":"每週","Viewing as":"檢視身分",
  /* ---- Active Projects board (ported from bv-Products); longest-first ZHRE sort makes the multi-word keys win over their substrings ---- */
- "Active Projects":"進行中專案","Stage Progress":"階段進度","Next Actions":"下一動作",
+ "Active Projects":"進行中專案","Where every active product stands — by manufacturing stage and urgency.":"每個進行中產品的製造進度 — 依製造階段與緊急度。","Stage Progress":"階段進度","Next Actions":"下一動作",
  "Project status":"專案狀態","Grouped by urgency — switch the view for manufacturing stages or next steps.":"依緊急度分組 — 切換檢視可看製造階段或下一步。",
  "Data Updated":"資料更新","projects":"專案",
  "Loading projects from Google Sheet…":"正在從 Google Sheet 載入專案…",
@@ -2194,7 +2195,7 @@ const PJ_STAGE_LBL=["Design","Sample","PPS","Bulk"];
 const PJ_URGENCY_ICON={hot:"🔥",soon:"⏰",prod:"🏭",wait:"⏳",plan:"📅",none:""};
 const PJ_URGENCY_LBL={hot:"Urgent",soon:"This week",prod:"In production",wait:"Waiting",plan:"Planned",none:"—"};
 const PJ_TIER_LBL=["🔴 Overdue","🔥 Urgent","⏰ This Week","🏭 Bulk in Production / Transit","⏳ Waiting","📅 To Schedule","— Unsorted","✅ Completed"];
-const PJ_TIER_BAR=["var(--red)","var(--red)","var(--amber)","var(--blue)","var(--line)","var(--line)","var(--line)","var(--green)"];
+const PJ_TIER_BAR=["var(--red)","var(--red)","var(--amber)","var(--blue)","#4b5563","#5b6678","#6b7789","var(--green)"];
 // Stage cells: done/in-progress carry their semantic fill (the prominent green/amber the team scans for); pending/na stay quiet. A status glyph is added so it isn't color-only.
 const PJ_SEG={done:"background:rgba(74,222,128,.15);color:var(--green)",progress:"background:rgba(251,191,36,.15);color:var(--amber)",pending:"color:var(--faint)",na:"color:var(--faint)"};
 const PJ_SEG_ICON={done:"✓",progress:"●",pending:"○",na:"—"};
@@ -2305,7 +2306,7 @@ function progressChatHTML(){
   const intro=`<div class="sub">Ask about where products stand — manufacturing stage, supplier / MO, due dates, what's next, specs, quantities. <span style="opacity:.8">e.g. “Which products are stuck in Sample?” · “What's overdue?” · “What stage is the Aero at and what's next?”</span></div>`;
   const body=open?`<div class="pcbody"><div id="pchatMsgs" class="pcmsgs" role="log" aria-live="polite">${PCHAT.msgs.length?pchatMsgsHTML():intro}</div>
       <div class="chatinput"><textarea id="pchatInput" placeholder="Ask about product progress, manufacturing, specs, quantity… (Enter to send)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();progressChatSend()}"></textarea><div class="cin-acts"><span class="cin-spacer"></span><button class="btn" onclick="progressChatSend()">Send</button></div></div></div>`:"";
-  return `<div class="panel" style="margin-bottom:18px"><h3 style="cursor:pointer;margin:0" onclick="S.pchatOpen=!S.pchatOpen;render()">🏭 Ask about progress <span style="font-size:11px">${open?"▾":"▸"}</span> <span class="ghostnote" style="font-weight:400">· manufacturing · specs · quantity</span></h3>${body}</div>`;
+  return `<div class="panel" style="margin-bottom:18px"><h3 style="cursor:pointer;margin:0" onclick="S.pchatOpen=!S.pchatOpen;render()">🏭 Ask about progress <span style="font-size:11px">${open?"▾":"▸"}</span> <span class="ghostnote pchat-tags" style="font-weight:400">· manufacturing · specs · quantity</span></h3>${body}</div>`;
 }
 async function progressChatSend(){
   const ta=document.getElementById("pchatInput"); if(!ta)return; const text=(ta.value||"").trim(); if(!text)return;
@@ -2381,10 +2382,9 @@ function viewProgress(){
   </div>`:""}`;
   const openP=S.pjOpen?PROJECTS.find(p=>(p.id||p.name)===S.pjOpen):null;
   const drawer=openP?pjDrawer(openP,t):"";
-  return `<div class="pj-wrap">${progressChatHTML()}
+  return `<div class="pj-wrap"><h2>Active Projects</h2><div class="sub">Where every active product stands — by manufacturing stage and urgency.</div>${progressChatHTML()}
     <div class="pj-hero">
-      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center">
-        <h2 style="margin:0">Active Projects</h2>
+      <div style="display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:2px">
         <span class="pj-fresh"><span style="color:var(--green)">●</span> Data Updated <span style="font-family:monospace">${esc(fresh)}</span></span>
       </div>
       <div class="pj-health" role="img" aria-label="Project distribution — ${pjA(healthLabel)}">${health}</div>
