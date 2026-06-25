@@ -758,6 +758,8 @@ function forecastDate(l){ if(l.complete) return l.target;
   const rem=l.tasks.filter(t=>t.st!=="x").length; const vpd=Math.max(velocity(l)/7,0.05);
   return new Date(D(today).getTime()+Math.ceil(rem/vpd)*864e5).toISOString().slice(0,10); }
 function criticalNext(l){ const g=gateState(l); const c=g.cs.find(c=>c.task.st!=="x"); return c?{t:c.t,d:c.d}:null; }
+// which department progress is currently sitting with — derived from the next unmet gate criterion, NOT a manually-chosen DRI
+function progressDept(l){ if(l.complete)return ""; const cn=criticalNext(l); return cn?cn.d:""; }
 const wip=d=>LAUNCHES.filter(l=>!l.complete).reduce((a,l)=>a+l.tasks.filter(t=>t.d===d&&t.st==="p").length,0);
 const decisionAge=(l,t)=>{const d=(l.decisionRequested||{})[t]; return d?dayDiff(d,today):0;};
 
@@ -1582,7 +1584,7 @@ const ZH={
  "Cross-department flow: where work piles up, which team blocks which gate.":"跨部門流程：工作堆積在哪裡、哪個團隊卡住哪個關卡。",
  "gate criteria":"關卡條件","tasks overall":"項任務","exit criteria":"出口條件","Exit criteria":"出口條件",
  "Weekly digest:":"每週摘要：","Approval needed:":"需要批准：","discuss in thread":"在討論串中討論","replies — discuss in thread":"則回覆 — 在討論串中討論",
- "Pushed to":"已推進至","DRI:":"負責部門 (DRI)：","DRI changed":"DRI 已變更","target":"目標日期","stage":"階段","thread":"討論串",
+ "Pushed to":"已推進至","DRI:":"負責部門 (DRI)：","DRI changed":"DRI 已變更","Now at:":"目前進度在 ","target":"目標日期","stage":"階段","thread":"討論串",
  "Done means:":"完成的定義：","Definition of done:":"完成定義：","Locked.":"已鎖定。",
  "fill the intake Form first":"請先填寫產品需求表","unlocks at the":"解鎖階段：","finish":"請先完成","first":"",
  "is here":"目前位置","decision":"決策","done":"完成","in progress":"進行中","to do (current stage)":"待辦（目前階段）","upcoming":"後續",
@@ -1858,7 +1860,7 @@ function taskPanel(l,t,i,ro){
 const cardHTML=l=>{const g=gateState(l),[h,cls]=health(l);const si=STAGES.indexOf(l.stage);
   const dots=STAGES.map((s,i)=>`<span title="${s}" style="display:inline-block;width:9px;height:9px;border-radius:1px;margin-right:4px;background:${l.complete||i<si?"#4ade80":i===si?"var(--accent)":"#2a2f37"};${i===si&&!l.complete?"box-shadow:0 0 6px var(--accent)":""}"></span>`).join("");
   const done=l.tasks.filter(t=>t.st==="x").length;
-  return `<div class="card" style="position:relative" onclick="openL('${l.slug}')"><button class="lnkb" title="Delete this launch" style="position:absolute;top:8px;right:8px;color:var(--red);font-size:14px;line-height:1" onclick="event.stopPropagation();deleteLaunch('${l.slug}')">✕</button><div class="nm">${l.name}</div><div class="meta">DRI: <b style="color:${DCOLOR(l.dri)}">${l.dri}</b> · 🎯 ${fmt(l.target)}</div>
+  return `<div class="card" style="position:relative" onclick="openL('${l.slug}')"><button class="lnkb" title="Delete this launch" style="position:absolute;top:8px;right:8px;color:var(--red);font-size:14px;line-height:1" onclick="event.stopPropagation();deleteLaunch('${l.slug}')">✕</button><div class="nm">${l.name}</div><div class="meta">${l.complete?`<b style="color:var(--green)">✓ Complete</b>`:`Now at: <b style="color:${DCOLOR(progressDept(l))}">${esc(progressDept(l)||"—")}</b>`} · 🎯 ${fmt(l.target)}</div>
   <div style="margin:7px 0 5px">${dots}</div>
   <div class="bar"><i style="width:${Math.round(done/l.tasks.length*100)}%"></i></div>
   <div class="meta">${g.met}/${g.total} gate criteria · ${done}/${l.tasks.length} tasks overall</div>
@@ -2048,8 +2050,7 @@ function viewLaunch(){
   const gmand=[...new Set(gsel.map(c=>c.d))], gdReady=d=>gsel.filter(c=>c.d===d).every(c=>c.task.st==="x");
   return `<span class="back" onclick="go('portfolio')">← Portfolio</span>
   <h2>${l.name} <span class="pill ${cls}">${h}</span><button class="btn ghost" style="margin-left:10px;padding:6px 12px" title="Edit this launch's name and target date" onclick="editLaunch('${l.slug}')">✏️ Edit</button>${l.driveFolderUrl?`<a class="btn ghost" style="margin-left:8px;padding:6px 12px" href="${l.driveFolderUrl}" target="_blank" title="Open this launch's folder in the shared BV SuperPM Drive folder">📁 Open folder</a>`:`<button class="btn ghost" style="margin-left:8px;padding:6px 12px" title="Create a folder for this launch inside the shared BV SuperPM Drive folder (existing files stay where they are; new ones go here)" onclick="createLaunchFolder('${l.slug}')">📁 Create folder</button>`}<button class="btn ghost" style="margin-left:8px;padding:6px 12px;color:var(--red)" title="Delete this launch (and optionally its Drive folder)" onclick="deleteLaunch('${l.slug}')">🗑️ Delete</button></h2>
-  <div class="sub">DRI: <select onchange="setDRI('${l.slug}',this.value)" title="change DRI">${DEPTS().map(d=>`<option value="${d}" ${d===l.dri?"selected":""}>${d}</option>`).join("")}</select>
-   · target ${fmt(l.target)} · stage <b>${l.complete?"Complete":l.stage}</b>${l.complete?"":` · float <b style="color:${floatDays(l)<0?"var(--red)":"var(--green)"}">${floatDays(l)}d</b> · velocity ${velocity(l).toFixed(1)}/wk · forecast <b>${fmt(forecastDate(l))}</b>`}</div>
+  <div class="sub">${l.complete?"":`Now at: <b style="color:${DCOLOR(progressDept(l))}">${esc(progressDept(l)||"—")}</b> · `}target ${fmt(l.target)} · stage <b>${l.complete?"Complete":l.stage}</b>${l.complete?"":` · float <b style="color:${floatDays(l)<0?"var(--red)":"var(--green)"}">${floatDays(l)}d</b> · velocity ${velocity(l).toFixed(1)}/wk · forecast <b>${fmt(forecastDate(l))}</b>`}</div>
   <div class="panel"><h3>Flow chart<button class="iconbtn" style="float:right" onclick="S.hideFlow=!S.hideFlow;render()">${S.hideFlow?"▸ show":"▾ hide"}</button></h3>
     ${S.hideFlow?'<div class="sub" style="margin:4px 0">Flow chart hidden.</div>':`${flowSVG(l)}
     <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>done</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>in progress</span><span><i style="background:#331414;border:1px solid #f87171"></i>blocked</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>to do (current stage)</span><span><i style="background:#15171b;border:1px solid #262b32"></i>upcoming</span><span style="color:var(--purple)">◆ decision gate</span></div>`}
