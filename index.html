@@ -2800,6 +2800,7 @@ function briefCardHTML(b){ const a=b.approvals||{},mk=a.marketing,pr=a.product,b
       <button class="iconbtn" onclick="briefToggle('${b.id}')">💬 ${(b.comments||[]).length}</button>
       ${live?`<button class="iconbtn" id="bedit_${b.id}" title="Edit this brief section-by-section — add images, generate a table/chart, then save a new version" onclick="briefEditSections('${b.id}')">✎ Edit</button>`:""}
       ${live?`<button class="iconbtn" title="Re-render this EXACT brief in the latest format — adds per-paragraph 💬 Feedback + 📊 Graph and keeps your content/images/charts. No AI, no re-research." onclick="briefReskin('${b.id}')">⟳ Latest format</button>`:""}
+      ${(live&&!/class="bvL bvL-zh"/.test(b.html||""))?`<button class="iconbtn" id="btr_${b.id}" title="Translate this brief to 繁體中文 — adds an EN/中文 toggle (AI translation; takes a moment)" onclick="briefTranslate('${b.id}')">🌐 中文</button>`:""}
       ${(live&&(b.comments||[]).length)?`<button class="iconbtn" id="brev_${b.id}" title="Ask Claude to revise the whole brief to address every feedback note above — files a new version" onclick="briefReviseFromFeedback('${b.id}')">↻ Revise from feedback</button>`:""}
       ${live?`<button class="iconbtn" ${mk?"disabled":""} title="${mk?("Marketing ✓ "+esc(mk.by)):"Marketing lead sign-off"}" onclick="briefApprove('${b.id}','marketing')">${mk?"✓ Marketing":"Marketing sign-off"}</button>
       <button class="iconbtn" ${pr?"disabled":""} title="${pr?("Product ✓ "+esc(pr.by)):"Product lead sign-off"}" onclick="briefApprove('${b.id}','product')">${pr?"✓ Product":"Product sign-off"}</button>
@@ -2845,6 +2846,23 @@ function reskinHtml(doc,card){
   return {title:title,html:html,n:parts.length,bilingual:bil};
 }
 // Brief-card button: re-render this exact brief in the latest format, file a new version. Deterministic, instant, no AI.
+async function briefTranslate(id){ const b=briefById(id); if(!b){toast("Brief not found");return;} if(!String(b.html||"").trim()){toast("This brief has no content to translate.");return;}
+  if(/class="bvL bvL-zh"/.test(b.html)){ toast("This brief already has a 中文 version — open it and use the 🌐 toggle."); return; }
+  const btn=document.getElementById("btr_"+id), ot=btn?btn.textContent:""; const doc=String(b.html);
+  const tm=doc.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i); const title=tm?tm[1].replace(/<[^>]+>/g,"").trim():(b.title||"Brief");
+  const clean=x=>String(x||"").replace(/<figure class="bvfig"[^>]*>[\s\S]*?(<img\b[^>]*>)[\s\S]*?<\/figure>/gi,"$1").replace(/<div class="bvpt">[\s\S]*?<\/div>/gi,"").trim();
+  const parts=[]; const secRe=/<section\b[^>]*>([\s\S]*?)<\/section>/gi; let m;
+  while((m=secRe.exec(doc))){ let inner=m[1]; const cut=inner.indexOf('<div class="bvfb"'); if(cut>=0)inner=inner.slice(0,cut); let en=_extractDiv(inner,"bvL bvL-en"); if(en==null)en=inner; parts.push(clean(en)); }
+  if(!parts.length){ toast("Couldn't find sections to translate."); return; }
+  if(btn){btn.disabled=true;} const partsZh=[];
+  try{ for(let i=0;i<parts.length;i++){ if(btn)btn.textContent="🌐 "+(i+1)+"/"+parts.length+"\u2026"; let zh=""; try{ zh=await translateFragment(parts[i],null); }catch(e){ zh=""; } partsZh.push(zh||parts[i]); } }
+  catch(e){ if(btn){btn.disabled=false;btn.textContent=ot;} toast("\u26a0\ufe0f Translation failed — try again."); return; }
+  const plan={title:title,sections:parts.map((pp,i)=>({heading:((String(pp).match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)||[null,"Section "+(i+1)])[1]||"Section "+(i+1)).replace(/<[^>]+>/g,"").trim()}))};
+  const l=L(b.card); const html=assembleDeepDoc(title,plan,parts,{who:actor(),card:b.card,cardName:(l&&l.name)||b.card,partsZh:partsZh});
+  if(btn){btn.disabled=false;btn.textContent="🌐 中文";}
+  if(!FB.ready){ toast("\u26a0\ufe0f Not connected — translation not saved"); return; }
+  try{ briefsCol().doc(id).set({html:html,updatedAt:Date.now()},{merge:true}).then(function(){ toast("🌐 中文 added — open the brief and use the EN/中文 toggle."); }).catch(function(){ toast("\u26a0\ufe0f Couldn't save the 中文 version — try again."); }); }catch(e){ toast("\u26a0\ufe0f Couldn't save — try again."); }
+}
 function briefReskin(id){ const b=briefById(id); if(!b){toast("Brief not found");return;} if(!String(b.html||"").trim()){toast("This brief has no content to re-render.");return;}
   let r=null; try{ r=reskinHtml(b.html,b.card); }catch(e){ toast("⚠️ Re-render failed: "+((e&&e.message)||e)); return; }
   if(!r||!r.n){ toast("⚠️ Couldn't read this brief's sections — try ✎ Edit instead."); return; }
