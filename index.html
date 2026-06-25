@@ -1076,6 +1076,7 @@ function applySnapshot(d){
   if(d.FLOW){Object.keys(FLOW).forEach(k=>delete FLOW[k]);Object.entries(d.FLOW).forEach(([k,v])=>FLOW[k]=v);}
   if(d.XROUTES){Object.keys(XROUTES).forEach(k=>delete XROUTES[k]);Object.entries(d.XROUTES).forEach(([k,v])=>XROUTES[k]=v);}
   reconcileLaunchTasks();                    // strip orphan tasks left by removed/renamed template steps
+  applyDeptLens();                           // re-lock a signed-in non-CEO to their team once the shared TEAM email map has loaded
 }
 function loadSaved(){try{
   if(typeof localStorage==="undefined")return;
@@ -1113,7 +1114,7 @@ function signInUser(){
 function signOutUser(){ try{ firebase.auth().signOut(); }catch(e){} }
 function onUser(u){
   if(u){ ME={uid:u.uid,email:u.email||"",name:u.displayName||"",photo:u.photoURL||""};
-    authGate(false); startBoardSync(); firstRunName(u); saveUserProfile(); applyMyRoleToView(); renderWhoami(); renderGAuth(); try{render();}catch(e){}
+    authGate(false); startBoardSync(); firstRunName(u); saveUserProfile(); applyMyRoleToView(); applyDeptLens(); renderWhoami(); renderGAuth(); try{render();}catch(e){}
   } else { ME=null; const b=document.getElementById("authgateBtn"); if(b){b.disabled=false;b.textContent="Sign in with Google";} authGate(true,""); renderWhoami(); }
 }
 function firstRunName(u){
@@ -1804,7 +1805,7 @@ function renameDept(o,n){ n=n.trim(); if(!n||o===n)return;
     if(k.startsWith(o+"|")){XROUTES[n+k.slice(o.length)]=XROUTES[k]; delete XROUTES[k];}});
   if(S.dept===o)S.dept=n; toast(`Department renamed ${o} → ${n} everywhere`);
 }
-function addDept(){ TEAM.push({name:"New Department",role:"Describe this team's responsibility…",head:"",members:""}); render(); }
+function addDept(){ TEAM.push({name:"New Department",role:"Describe this team's responsibility…",head:"",members:"",emails:""}); render(); }
 function delDept(i){ const d=TEAM[i].name;
   const used=LAUNCHES.some(l=>l.dri===d||l.tasks.some(t=>t.d===d))||Object.values(GATES).some(cs=>cs.some(c=>c.d===d));
   if(used){toast(`Cannot remove ${d} — tasks or gates still reference it`);return;}
@@ -2427,15 +2428,17 @@ function viewUsage(){
 function usageOpen(i){ const r=(USAGE||[])[i]; if(r)codeModal({readOnly:true,label:"Answer · "+(r.who||"")+" · "+usageMoney(r.cost),html:"<div style='white-space:pre-wrap;font-family:system-ui,sans-serif;padding:16px;line-height:1.5'><b>Q:</b> "+esc(r.question)+"<hr style='opacity:.2'>"+esc(r.answer||"")+"</div>"}); }
 function viewTeam(){
   return `<h2>Team & departments</h2><div class="sub">This is the tracker's <b>people config</b> (the future <code>config/people.yaml</code>). Edit roles, heads and members here — DRI pickers, task owners, gate logic and lenses all read from this list. No personal names required; departments are the unit of ownership.</div>
-  <div class="panel"><table><tr><th style="width:140px">Department</th><th>Role / responsibility</th><th style="width:150px">Head (optional)</th><th style="width:170px">Members (optional)</th><th style="width:40px"></th></tr>
+  <div class="panel"><table><tr><th style="width:128px">Department</th><th>Role / responsibility</th><th style="width:120px">Head</th><th style="width:130px">Members</th><th style="width:186px">Sign-in emails → auto-lens</th><th style="width:40px"></th></tr>
   ${TEAM.map((t,i)=>`<tr>
     <td><input type="text" value="${esc(t.name)}" onchange="teamEdit(${i},'name',this.value)"></td>
     <td><input type="text" value="${esc(t.role)}" onchange="teamEdit(${i},'role',this.value)"></td>
     <td><input type="text" placeholder="—" value="${esc(t.head)}" onchange="teamEdit(${i},'head',this.value)"></td>
     <td><input type="text" placeholder="—" value="${esc(t.members)}" onchange="teamEdit(${i},'members',this.value)"></td>
+    <td><input type="text" placeholder="a@bv.com, b@bv.com" value="${esc(t.emails||"")}" onchange="teamEdit(${i},'emails',this.value)"></td>
     <td><button class="btn red" style="padding:4px 9px" title="remove" onclick="delDept(${i})">✕</button></td></tr>`).join("")}
   </table><div style="margin-top:10px"><button class="btn ghost" onclick="addDept()">+ Add department</button></div>
-  <div class="sub" style="margin-top:10px">Renaming a department updates every task, gate, DRI and flow-chart lane automatically. Removal is blocked while tasks or gates still reference it. (Prototype: edits live in memory; the real app commits them to the repo.)</div></div>`;
+  <div class="sub" style="margin-top:10px"><b>Sign-in emails → auto-lens:</b> when someone signs in with a Google account listed here, they're automatically locked to that department's lens (they can't switch — only the CEO can). <b>CEO accounts</b> (full switchable view): <code>ben@blackvoyage.com</code>, <code>hello@blackvoyage.com</code>. An unlisted account falls back to the default lens — add their email above to map them.</div>
+  <div class="sub" style="margin-top:6px">Renaming a department updates every task, gate, DRI and flow-chart lane automatically. Removal is blocked while tasks or gates still reference it.</div></div>`;
 }
 function viewWorkflowTpl(){
   return `<h2>Workflow template — step ownership</h2><div class="sub">Who is <b>responsible</b> (one department — the flow-chart lane owner) and who <b>collaborates</b> on each step. This is the shared pattern every product launch follows: set it once here and every launch's detail page reads it live. Changing the responsible department re-files that step across all launches.</div>
@@ -2706,10 +2709,13 @@ function briefsCol(){return firebase.firestore().collection("bv").doc("superpm")
 function briefById(id){return (BRIEFS||[]).find(b=>b.id===id);}
 // Sign-off authority is tied to the SIGNED-IN Google account, NOT the "Viewing as" view selector.
 // Add the Marketing lead / directors here anytime (email → role). Until then the CEO can cover Marketing.
-const ROLE_BY_EMAIL={ "ben@blackvoyage.com":"ceo" /* , "marketing@blackvoyage.com":"marketing", "someone@blackvoyage.com":"director" */ };
+const ROLE_BY_EMAIL={ "ben@blackvoyage.com":"ceo", "hello@blackvoyage.com":"ceo" /* department lenses are mapped per-team via the "Sign-in emails" column in Settings → Team; add directors/special roles here */ };
 function myRole(){ return ME?(ROLE_BY_EMAIL[(ME.email||"").toLowerCase()]||"dept"):S.role; }  // signed in → role from login; not signed in (local dev) → fall back to the view
 function isCEO(){ return myRole()==="ceo"; }
 function applyMyRoleToView(){ const r=myRole(); if(r==="ceo")S.role="ceo"; else if(r==="director")S.role="director"; else if(r==="marketing"){S.role="dept";S.dept="Marketing";} else S.role="dept"; }
+// department lens from the signed-in email, mapped per-team via Settings → Team (TEAM[].emails). Runs after applyMyRoleToView: CEO/director keep their full/role lens; everyone else is auto-locked to their team's lens (setRole already blocks non-CEOs from switching).
+function deptByEmail(email){ email=(email||"").toLowerCase().trim(); if(!email)return ""; for(const t of TEAM){ if(String(t.emails||"").toLowerCase().split(/[,;\s]+/).filter(Boolean).includes(email)) return t.name; } return ""; }
+function applyDeptLens(){ if(!ME)return; const r=myRole(); if(r==="ceo"||r==="director")return; const d=deptByEmail(ME.email); if(d){ S.role="dept"; S.dept=d; } }
 function canBenSign(){return myRole()==="ceo";}
 function canMktSign(){const r=myRole();return r==="ceo"||r==="marketing";}
 function canProdSign(){const r=myRole();return r==="ceo"||r==="product"||r==="director";}
