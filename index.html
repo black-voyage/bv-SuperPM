@@ -294,7 +294,7 @@
   .pj-name.overdue{color:var(--red)}
   .pj-mo{font-size:10px;font-weight:600;background:var(--panel2);color:var(--dim);padding:1px 6px;border-radius:var(--r-xs);margin-left:6px}
   .pj-sub{font-size:11px;color:var(--dim);margin-top:2px}
-  .pj-stages{display:grid;grid-template-columns:repeat(4,1fr);height:40px;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:var(--panel)}
+  .pj-stages{display:grid;grid-template-columns:repeat(4,1fr);height:40px;border:1px solid var(--line);border-radius:3px;overflow:hidden;background:var(--panel)}
   .pj-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 4px;min-width:0;border-right:1px solid var(--line)}
   .pj-cell:last-child{border-right:none}
   .pj-cell .k{font-size:8px;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
@@ -2195,8 +2195,8 @@ const PJ_URGENCY_ICON={hot:"🔥",soon:"⏰",prod:"🏭",wait:"⏳",plan:"📅",
 const PJ_URGENCY_LBL={hot:"Urgent",soon:"This week",prod:"In production",wait:"Waiting",plan:"Planned",none:"—"};
 const PJ_TIER_LBL=["🔴 Overdue","🔥 Urgent","⏰ This Week","🏭 Bulk in Production / Transit","⏳ Waiting","📅 To Schedule","— Unsorted","✅ Completed"];
 const PJ_TIER_BAR=["var(--red)","var(--red)","var(--amber)","var(--blue)","var(--line)","var(--line)","var(--line)","var(--green)"];
-// Signal-only stage cells: only the CURRENT (in-progress) stage carries a fill; done/pending/na stay quiet (status shown by a colored glyph, not a full block).
-const PJ_SEG={done:"color:var(--dim)",progress:"background:rgba(251,191,36,.16);color:var(--amber)",pending:"color:var(--faint)",na:"color:var(--faint)"};
+// Stage cells: done/in-progress carry their semantic fill (the prominent green/amber the team scans for); pending/na stay quiet. A status glyph is added so it isn't color-only.
+const PJ_SEG={done:"background:rgba(74,222,128,.15);color:var(--green)",progress:"background:rgba(251,191,36,.15);color:var(--amber)",pending:"color:var(--faint)",na:"background:var(--panel2);color:var(--faint)"};
 const PJ_SEG_ICON={done:"✓",progress:"●",pending:"○",na:"—"};
 const PJ_SEG_ICOLOR={done:"var(--green)",progress:"var(--amber)",pending:"var(--faint)",na:"var(--faint)"};
 const PJ_TAG={hot:"background:rgba(248,113,113,.14);color:var(--red);border-color:rgba(248,113,113,.5)",soon:"background:rgba(251,191,36,.14);color:var(--amber);border-color:rgba(251,191,36,.5)",prod:"background:rgba(96,165,250,.14);color:var(--blue);border-color:rgba(96,165,250,.5)",wait:"color:var(--dim);border-color:var(--line)",plan:"color:var(--dim);border-color:var(--line)",none:"color:var(--faint);border-color:var(--line)",overdue:"background:rgba(248,113,113,.14);color:var(--red);border-color:rgba(248,113,113,.5)"};
