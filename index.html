@@ -2741,7 +2741,7 @@ window.bvCompetitorBlock=function(){ try{ return buildCompetitorComparison({}); 
 window.bvTranslateOne=function(html){ try{ return translateFragment(String(html||""),null); }catch(e){ return Promise.resolve(String(html||"")); } };
 window.bvGenVisual=async function(text){
   var t=String(text||"").replace(/\s+/g," ").trim(); if(t.length<20) return "";
-  var sys="From a paragraph of a Black Voyage marketing brief, produce EITHER a clean HTML <table> OR a self-contained inline <svg> infographic — whichever better summarizes the content. "
+  var sys="From a paragraph of a Black Voyage marketing brief, produce EITHER a clean HTML <table> OR a self-contained inline <svg> infographic — whichever better summarizes the content. Use ONLY numbers, specs, prices and labels that appear VERBATIM in the supplied content — never add, round, infer, compute or fill a value that is not present; if a cell has no source value leave it blank or a dash. Introduce ZERO figures not in the input. "
     +"Output ONLY the HTML/SVG fragment: no prose, no code fences, no <html>/<head>/<body>. Use Black Voyage's clean monochrome style (ink #16181C, accent #E2552E, light grey lines), keep it under ~700px wide, and make any <svg> fully self-contained (inline styles/attributes, a width/viewBox, no external refs).";
   try{ var r=await chatFetch({model:chatModel(),system:sys,messages:[{role:"user",content:"PARAGRAPH to summarize as a table or SVG:\n"+t}],tools:undefined,think:false},{timeout:120000,tries:1,toobigMsg:"paragraph too long"});
     if(!r||r.error) return ""; var out=_briefSanitizeVisual((r.content||[]).filter(function(x){return x.type==="text";}).map(function(x){return x.text;}).join("")); return (out&&out.trim().length>12)?out:"";
@@ -2979,9 +2979,9 @@ async function briefReviseFromFeedback(id){ const b=briefById(id); if(!b){toast(
   const bilingual=/class=["']bvL bvL-zh["']/.test(src)||/bvLang\(\)/.test(src);   // a Deep doc with an EN + 繁中 toggle
   _briefBtnBusy(id,"brev",true,"↻ Revising…");
   const fb=comments.map((c,i)=>(i+1)+". "+(c.who||"?")+(c.role?(" ("+c.role+")"):"")+": "+(c.text||"")).join("\n");
-  const sys="You REVISE a complete HTML marketing/launch brief for Black Voyage to address EVERY piece of team feedback given. "
+  const sys=FACTS_ONLY+"You REVISE a complete HTML marketing/launch brief for Black Voyage to address EVERY piece of team feedback given. "
     +"Output the FULL revised HTML document — same overall structure, same <section>/<h2>/<h3> layout, the SAME brand voice, and EVERY existing <img> tag with its src URL preserved byte-for-byte (do not drop, swap, or invent image URLs). "
-    +"Keep all product/model names (Black Voyage, Vesper, Aero, Apex, Zephyr, AirCabin) and every number, spec and dimension EXACTLY as given unless a feedback note explicitly corrects one. "
+    +"Keep all product/model names (Black Voyage, Vesper, Aero, Apex, Zephyr, AirCabin) and every number, spec and dimension EXACTLY as given. You have NO tools and NO data here, so you may NEVER introduce or change a spec, number or price: if a feedback note asks to change a number, apply it ONLY when the note states the exact corrected value verbatim; otherwise add a [needs verification] marker and KEEP the original number. "
     +(bilingual?"This brief is BILINGUAL (English + 繁體中文, toggled). Keep BOTH languages: revise the English content AND its matching Traditional-Chinese content, and preserve the bilingual structure (the bvL-en / bvL-zh blocks and the toggle) intact. ":"")
     +"Make only the changes the feedback calls for — do not rewrite sections the feedback didn't mention. Output ONLY the HTML document — no code fences, no preamble, no commentary.";
   const usr="CURRENT BRIEF (v"+(b.version||1)+") — “"+(b.title||"")+"”:\n"+src+"\n\nTEAM FEEDBACK TO ADDRESS (every point):\n"+fb;
@@ -3104,7 +3104,7 @@ async function briefGenSectionVisual(i){ const E=BRIEF_EDIT; if(!E||E.busy)retur
   const text=String(sec.html||"").replace(/<[^>]+>/g," ").replace(/&nbsp;/gi," ").replace(/\s+/g," ").trim();
   if(text.length<20){ toast("Not enough text in this section to summarize."); return; }
   E.busy=true; _briefBtnBusy(i,"bedgen",true,"⚡ Generating…");
-  const sys="From a section of a Black Voyage marketing brief, produce EITHER a clean HTML <table> OR a self-contained inline <svg> infographic — whichever better summarizes the content. "
+  const sys="From a section of a Black Voyage marketing brief, produce EITHER a clean HTML <table> OR a self-contained inline <svg> infographic — whichever better summarizes the content. Use ONLY numbers, specs, prices and labels that appear VERBATIM in the supplied content — never add, round, infer, compute or fill a value that is not present; if a cell has no source value leave it blank or a dash. Introduce ZERO figures not in the input. "
     +"Output ONLY the HTML/SVG fragment: no prose, no explanation, no code fences, no <html>/<head>/<body>. Use Black Voyage's clean monochrome style (ink #16181C, accent #E2552E, light grey lines), keep it under ~700px wide, and make any <svg> fully self-contained (inline styles/attributes, a width/viewBox, no external refs).";
   try{
     const r=await chatFetch({model:chatModel(),system:sys,messages:[{role:"user",content:"SECTION (“"+_briefSecHeading(sec.html,i)+"”) content to summarize as a table or SVG:\n"+text}],tools:undefined,think:false},{timeout:120000,tries:1,toobigMsg:"section too long — trim it first"});
@@ -3229,7 +3229,7 @@ function runChatTool(slug,name,input){
       const hits=(KNOWLEDGE.docs||[]).map(d=>{const b=((d.name||"")+" "+(d.folderPath||"")+" "+(d.snippet||"")).toLowerCase(); return {d,s:q.reduce((a,t)=>a+(b.includes(t)?1:0),0)};}).filter(x=>q.length?x.s>0:true).sort((a,b)=>b.s-a.s).slice(0,6).map(x=>x.d);
       if(!hits.length)return {summary:"📄 docs",text:"No strategy/research documents matched “"+(input.query||"")+"”. ("+(KNOWLEDGE.docs||[]).length+" docs indexed — note: financial docs are excluded.)"};
       return {summary:"📄 docs ("+hits.length+")",text:"Document matches (real BV strategy/research text — quote then cite the source link):\n\n"+hits.map(d=>"### "+(d.name||"?")+(d.folderPath?(" — "+d.folderPath):"")+"\n"+(d.snippet||"")+(d.url?("\n→ source: "+d.url):"")).join("\n\n———\n\n")}; }
-    if(name==="search_strategy"){ const q=(input.query||"").toLowerCase().split(/\s+/).filter(Boolean); const clip=(s,n)=>(s==null?"":s).toString().replace(/\s+/g," ").trim().slice(0,n);
+    if(name==="search_strategy"){ const q=(input.query||"").toLowerCase().split(/\s+/).filter(Boolean); const clip=(s,n)=>{var t=(s==null?"":s).toString().replace(/\s+/g," ").trim();if(t.length<=n)return t;var u=t.slice(0,n),sp=u.lastIndexOf(" ");return (sp>n*0.6?u.slice(0,sp):u)+"\u2026";};
       const SRC=[["PERSONA",KNOWLEDGE.personas],["INSIGHT",KNOWLEDGE.insights],["JTBD",KNOWLEDGE.jobs_to_be_done],["DIFFERENTIATION",KNOWLEDGE.differentiation],["AUDIENCE",KNOWLEDGE.audience_segments],["CEP",KNOWLEDGE.category_entry_points],["REVIEW+",KNOWLEDGE.review_praise],["REVIEW-",KNOWLEDGE.review_objections],["BRAND",KNOWLEDGE.brand_elements]];
       let hits=[]; SRC.forEach(([t,arr])=>(arr||[]).forEach(x=>{const b=Object.values(x).join(" ").toLowerCase(); const s=q.reduce((a,w)=>a+(b.includes(w)?1:0),0); if(q.length?s>0:false)hits.push({t,x,s});}));
       hits=hits.sort((a,b)=>b.s-a.s).slice(0,12);
@@ -3361,7 +3361,7 @@ function stripDocChrome(doc){ const d=String(doc||"");
 async function transformFragment(instruction,heading,htmlFrag,acc){ const en=String(htmlFrag||""); if(!en.trim())return en;
   const sys="You transform ONE section of an EXISTING HTML document exactly per the user's instruction. Do NOT research, look anything up, or add new facts — only transform the GIVEN content. Preserve ALL HTML tags and every <img> URL. Keep every brand name and product/model name (Black Voyage, Vesper, Aero, Apex, Zephyr, AirCabin) and all numbers, specs and dimensions UNCHANGED in English. Output ONLY the transformed HTML fragment — no code fences, no preamble.";
   try{ const r=await chatFetch({model:chatModel(),system:sys,messages:[{role:"user",content:"INSTRUCTION: "+instruction+"\n\nSECTION (“"+heading+"”) to transform:\n"+en}],tools:undefined,think:false},{timeout:120000,tries:1,toobigMsg:"section too long — ask for it on its own"});
-    if(r&&!r.error){ if(r.usage&&acc)acc({in:r.usage.input_tokens||0,out:r.usage.output_tokens||0}); const o=(r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(""); const c=sanitizeFragment(o); if(c&&c.trim().length>8)return c; }
+    if(r&&!r.error){ if(r.usage&&acc)acc({in:r.usage.input_tokens||0,out:r.usage.output_tokens||0}); const o=(r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(""); const c=sanitizeFragment(o); if(c&&c.trim().length>8)return _numGuard(en,c); }
   }catch(e){} return en; }
 async function chatTransformDoc(slug,instruction,doc,docName){
   const l=L(slug);
@@ -3422,7 +3422,7 @@ async function chatAugmentDoc(slug,instruction,doc,docName){
       const secText=String(sections[target].html||"").replace(/<[^>]+>/g," ").replace(/&nbsp;/gi," ").replace(/\s+/g," ").trim();
       const baseText=secText.length>40?secText:String(doc).replace(/<[^>]+>/g," ").replace(/&nbsp;/gi," ").replace(/\s+/g," ").trim().slice(0,4000);
       CHAT.steps.push({head:"⚡ Generating a "+(/\btable\b/i.test(instruction)?"table":"visual"),sub:t0}); renderChatBody();
-      const sys="From a section of a Black Voyage marketing brief, produce EITHER a clean HTML <table> OR a self-contained inline <svg> infographic — whichever better summarizes the content. "
+      const sys="From a section of a Black Voyage marketing brief, produce EITHER a clean HTML <table> OR a self-contained inline <svg> infographic — whichever better summarizes the content. Use ONLY numbers, specs, prices and labels that appear VERBATIM in the supplied content — never add, round, infer, compute or fill a value that is not present; if a cell has no source value leave it blank or a dash. Introduce ZERO figures not in the input. "
         +"Output ONLY the HTML/SVG fragment: no prose, no explanation, no code fences, no <html>/<head>/<body>. Use Black Voyage's clean monochrome style (ink #16181C, accent #E2552E, light grey lines), keep it under ~700px wide, and make any <svg> fully self-contained (inline styles/attributes, a width/viewBox, no external refs).";
       const r=await chatFetch({model:chatModel(),system:sys,messages:[{role:"user",content:"USER ASK: "+instruction+"\n\nSECTION content to summarize as a table or SVG:\n"+baseText}],tools:undefined,think:false},{timeout:120000,tries:1,toobigMsg:"section too long"});
       if(r&&r.usage){tIn+=r.usage.input_tokens||0;tOut+=r.usage.output_tokens||0;}
@@ -3576,7 +3576,7 @@ function _briefEnsureImages(parts,partsZh,plan,l,routeImages){ try{
 async function translateFragment(enHtml,acc){
   const en=String(enHtml||""); if(!en.trim())return "";
   try{ const r=await chatFetch({model:chatModel(),system:"You are a professional zh-Hant (Traditional Chinese, Taiwan) translator for Black Voyage product-marketing documents.",messages:[{role:"user",content:"Translate the human-readable text of this HTML fragment into Traditional Chinese (繁體中文). Keep EVERY HTML tag, attribute and image URL byte-for-byte identical. Keep brand/product/model names (Black Voyage, Vesper, Aero, Apex, Zephyr, AirCabin) and all numbers, specs and dimensions in English. Output ONLY the translated HTML fragment — no code fences, no preamble.\n\n"+en}],tools:undefined,think:false},{timeout:120000,tries:1,toobigMsg:"translation too long"});
-    if(r&&!r.error){ if(r.usage&&acc)acc({in:r.usage.input_tokens||0,out:r.usage.output_tokens||0}); const c=sanitizeFragment((r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("")); if(c&&c.trim().length>8)return c; }
+    if(r&&!r.error){ if(r.usage&&acc)acc({in:r.usage.input_tokens||0,out:r.usage.output_tokens||0}); const c=sanitizeFragment((r.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("")); if(c&&c.trim().length>8)return _numGuard(en,c); }
   }catch(e){} return en;
 }
 
@@ -3729,9 +3729,10 @@ function assembleDeepDoc(title,plan,parts,meta){
 }
 // English-only GUARANTEE for a generated section: if any Chinese/CJK leaked from the spec research, translate it out.
 function _hasCJK(s){ s=String(s||""); return /[⺀-⿟　-〿぀-ヿ㄀-ㄯㆠ-ㆿ㐀-䶿一-鿿豈-﫿︰-﹏＀-￯]/.test(s)||/[\uD840-\uD87F][\uDC00-\uDFFF]/.test(s); }
+function _numGuard(orig,out){ try{ var have={}; (String(orig||"").match(/\d+/g)||[]).forEach(function(d){have[d]=1;}); var introduced=(String(out||"").match(/\d+/g)||[]).some(function(d){return !have[d];}); return introduced?String(orig||""):String(out||""); }catch(e){ return String(out||""); } }
 async function _enOnly(html,acc){ var h=String(html||""); if(!_hasCJK(h)) return h;   // clean → no extra call
   try{ var r=await chatFetch({model:chatModel(),system:"You repair an ENGLISH marketing-brief HTML fragment that accidentally contains Chinese/CJK characters. Rewrite so it reads as 100% natural English: TRANSLATE every Chinese word or quoted phrase into English — do NOT keep the original characters, romanization, or a parenthetical original. Preserve ALL HTML tags/structure, every number/spec, and brand/model names (Black Voyage, Vesper, Aero, Apex, Zephyr, AirCabin) exactly. Output ONLY the corrected HTML fragment — no preamble, no code fences.",messages:[{role:"user",content:h}],tools:undefined,think:false},{timeout:90000,tries:1,toobigMsg:"section too long"});
-    if(r&&!r.error){ if(r.usage&&acc)acc({in:r.usage.input_tokens||0,out:r.usage.output_tokens||0}); var o=sanitizeFragment((r.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("")); if(o&&o.trim().length>20&&!_hasCJK(o)) return o; }
+    if(r&&!r.error){ if(r.usage&&acc)acc({in:r.usage.input_tokens||0,out:r.usage.output_tokens||0}); var o=sanitizeFragment((r.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("")); if(o&&o.trim().length>20&&!_hasCJK(o)&&_numGuard(h,o)===o) return o; }
   }catch(e){}
   // last resort: drop stray CJK runs (and any wrapping quotes) so no Chinese ships in the English version
   return h.replace(/["'“”「」（）]*[⺀-⿟　-〿぀-ヿ㄀-ㄯㆠ-ㆿ㐀-䶿一-鿿豈-﫿︰-﹏＀-￯]+[“”「」（）"']*/g," ").replace(/(?:[\uD840-\uD87F][\uDC00-\uDFFF])+/g," ").replace(/\(\s*\)/g,"").replace(/\s{2,}/g," ");
@@ -3739,7 +3740,7 @@ async function _enOnly(html,acc){ var h=String(html||""); if(!_hasCJK(h)) return
 function extractAngles(req){ var t=String(req||"").replace(/\s+/g," ").trim(); if(!t)return []; var parts=t.split(/(?:[.;]|,\s*(?=(?:position|find|show|make|focus|highlight|emphasi|where|with|include|put|add|so that|but|and)\b))/i).map(function(x){return x.trim();}).filter(function(x){return x.length>=8;}); return parts.slice(0,12); }
 async function writeSection(l,sys0,researchPack,plan,sec,doneHeads,acc,userRequest){
   const others=plan.sections.map(s=>s.heading).filter(h=>h!==sec.heading).join(" · ");
-  const directive="\n\n=== STRATEGIC DIRECTIVE (the CEO's exact request \u2014 honor it literally in THIS section, even where it overrides the generic section job) ===\n"+String(userRequest||"").trim()+"\n\nKEY ANGLES TO ENFORCE (every claim must serve these; do not drift to generic content):\n"+(extractAngles(userRequest).map(function(a){return "\u2022 "+a;}).join("\n")||"\u2022 (follow the request above precisely)")+"\n=== end directive ===";
+  const directive="\n\n=== STRATEGIC DIRECTIVE (the CEO's exact request \u2014 honor its ANGLE/TONE/EMPHASIS literally in THIS section — but it can NEVER make an unverified number or competitor spec true: if it asserts a spec/price/weight not in the RESEARCH, frame it as the user\u2019s stated positioning or write [not in data], never a confirmed fact) ===\n"+String(userRequest||"").trim()+"\n\nKEY ANGLES TO ENFORCE (every claim must serve these; do not drift to generic content):\n"+(extractAngles(userRequest).map(function(a){return "\u2022 "+a;}).join("\n")||"\u2022 (follow the request above precisely)")+"\n=== end directive ===";
   const mk=(b)=>"You are writing ONE section of an HTML document titled “"+(plan.title||"")+"”.\n"+SECTION_WRITER+directive
     +"\n\nSECTION: "+sec.heading+"\nTHIS SECTION'S JOB: "+(sec.instructions||sec.heading)+"\nCEILING: ≤"+b+" words — use the FEWEST you can. Lead with the takeaway; bullets/table over prose."
     +"\nEMBED THESE IMAGE URLS (as <img src=\"…\" style=\"max-width:100%;border-radius:8px\">): "+((sec.image_urls||[]).join("  ,  ")||"(none provided — only embed images that appear in the research)")
