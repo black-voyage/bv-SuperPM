@@ -23,7 +23,9 @@
       "**/*.json",
       "**/*.sh",
       "**/*.txt",
-      "**/*.template"
+      "**/*.template",
+      "_preview_*",
+      "**/_preview_*"
     ],
     "headers": [
       { "source": "**", "headers": [ { "key": "Cache-Control", "value": "no-cache" } ] }

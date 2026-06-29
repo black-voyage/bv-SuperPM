@@ -13,3 +13,6 @@ chat-proxy/.env
 ingest/_catalog-prepurge-backup.json
 node_modules/
 ingest/node_modules/
+
+# Local seeded preview/screenshot scratch files — never commit or deploy
+_preview_*
