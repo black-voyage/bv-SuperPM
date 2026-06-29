@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Black Voyage — Brief</title>
+<style>
+  html,body{margin:0;height:100%;background:#0f1115;color:#d6dae1;font:15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif}
+  .wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;text-align:center;padding:28px}
+  .sp{width:34px;height:34px;border:3px solid #2a2f38;border-top-color:#EE3124;border-radius:50%;animation:spin .9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .msg{font-size:14px;color:#9aa0ab;max-width:460px}
+  .ttl{font:700 13px/1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase;color:#EE3124}
+  button{margin-top:6px;border:1px solid #EE3124;background:#EE3124;color:#fff;border-radius:9px;padding:9px 16px;font:600 13px Inter,sans-serif;cursor:pointer}
+  button.ghost{background:transparent;color:#cfd3da;border-color:#2a2f38}
+  a{color:#ff7a52}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <div class="ttl">Black Voyage</div>
+  <div class="sp" id="sp"></div>
+  <div class="msg" id="msg">Loading the brief…</div>
+</div>
+<script>
+  var FIREBASE_CONFIG={apiKey:"AIzaSyACM71vycT4OeKxxoT6vL5MCK7H6g592vQ",authDomain:"bv-superpm.firebaseapp.com",projectId:"bv-superpm",storageBucket:"bv-superpm.firebasestorage.app",messagingSenderId:"864428735438",appId:"1:864428735438:web:d353709e716410fecf899f"};
+  function qs(k){try{return new URLSearchParams(location.search).get(k)||"";}catch(e){return "";}}
+  function show(spinner,html){var w=document.getElementById("wrap");if(!w)return;document.getElementById("sp").style.display=spinner?"block":"none";document.getElementById("msg").innerHTML=html;}
+  function fail(html,btn){show(false,html+(btn?('<br><br>'+btn):''));}
+  function renderBrief(html){ try{ document.open(); document.write(html); document.close(); }catch(e){ fail("Couldn't render this brief. ("+(e&&e.message||e)+")"); } }
+  var ID=qs("id");
+  if(!ID){ fail("No brief id in the link. Open a brief from the SuperPM dashboard's 📋 Briefs panel."); }
+  else {
+    try{ if(!firebase.apps||!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG); }catch(e){}
+    var db=firebase.firestore();
+    function load(){
+      show(true,"Loading the brief…");
+      db.collection("bv").doc("superpm").collection("briefs").doc(ID).get().then(function(snap){
+        if(!snap.exists){ fail("That brief was deleted, or the link is wrong. It may still be in the SuperPM 📋 Briefs panel."); return; }
+        var b=snap.data()||{};
+        if(b.html && String(b.html).trim()){ document.title=(b.title||"Brief")+" — Black Voyage"; renderBrief(b.html); }
+        else { fail("This brief has no saved content."); }
+      }).catch(function(err){
+        var code=(err&&err.code)||"";
+        if(code==="permission-denied"){ fail("You need to be signed in to view this brief.",'<button onclick="signIn()">Sign in with Google</button>'); }
+        else { fail("Couldn't load the brief ("+(code||err&&err.message||"error")+"). Try again, or open it from the SuperPM 📋 Briefs panel.",'<button class="ghost" onclick="load()">Retry</button>'); }
+      });
+    }
+    window.signIn=function(){ try{ var p=new firebase.auth.GoogleAuthProvider(); firebase.auth().signInWithPopup(p).then(function(){ load(); }).catch(function(e){ fail("Sign-in failed: "+(e&&e.message||e)); }); }catch(e){ fail("Sign-in unavailable here — open the SuperPM dashboard, sign in, then reload this link."); } };
+    // Wait for the (shared, same-origin) auth session, then load. If it never resolves, try anyway.
+    var loaded=false, go=function(){ if(loaded)return; loaded=true; load(); };
+    try{ firebase.auth().onAuthStateChanged(function(){ go(); }); }catch(e){ go(); }
+    setTimeout(go, 2500);
+  }
+</script>
+</body>
+</html>
