@@ -3438,7 +3438,7 @@ function renderChatPanel(l){
         <button class="iconbtn" id="chatFullBtn" title="${CHAT.full?"close — back to the card (Esc)":"expand to full screen"}" onclick="toggleChatFull()">${CHAT.full?"✕ Close":"⛶ Full"}</button></span></h3>
     <div class="chatmsgs" id="chatMsgs"></div>${chatPresetsHTML(l)}
     <div class="chatinput"><textarea id="chatInput" placeholder="Ask Claude to attach a link/doc/HTML, add a note, or update a task… (Enter to send · Esc to close)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${l.slug}')}else if(event.key==='Escape'&&CHAT.full){event.preventDefault();toggleChatFull()}"></textarea>
-      <div class="cin-acts"><button class="iconbtn${CHAT.deep?" on":""}" id="deepBtn" title="Deep mode — for big multi-part deliverables (full brief + product guide + personas + ad concepts + competitor comparison). Builds it section-by-section into one document and files it as a Brief. Takes a few minutes." onclick="toggleDeep()">🔬 Deep</button><button class="iconbtn" id="stormBtn" title="STORM deep-research — queues a 5-lens (Practitioner · Academic · Skeptic · Economist · Historian), CITATION-VERIFIED research briefing on whatever topic is in the box. Runs in the research runtime and posts back to the Core in a few minutes; recall it here when ready." onclick="stormResearch('${l.slug}')">🌪 STORM</button><button class="iconbtn" id="micBtn" title="Dictate — speak and it types into the box for you" onclick="chatMic('${l.slug}')">🎤</button><span class="cin-spacer"></span><button class="iconbtn" title="Stop / reset — halts any running build and unsticks the chat" onclick="chatStop()">⟲ Reset</button><button class="btn" onclick="chatSend('${l.slug}')">Send</button></div></div>
+      <div class="cin-acts"><button class="iconbtn${CHAT.deep?" on":""}" id="deepBtn" title="Deep mode — for big multi-part deliverables (full brief + product guide + personas + ad concepts + competitor comparison). Builds it section-by-section into one document and files it as a Brief. Takes a few minutes." onclick="toggleDeep()">🔬 Deep</button><button class="iconbtn" id="stormBtn" title="STORM deep-research — queues a 5-lens (Practitioner · Academic · Skeptic · Economist · Historian), CITATION-VERIFIED research briefing on whatever topic is in the box. Runs in the research runtime and posts back to the Core in a few minutes; recall it here when ready." onclick="stormResearch('${l.slug}')">🌪 STORM</button><button class="iconbtn" id="micBtn" title="Dictate — speak and it types into the box for you" onclick="chatMic('${l.slug}')">🎤</button><span class="cin-spacer"></span><button class="iconbtn" title="Stop / reset — halts any running build and unsticks the chat" onclick="chatStop()">⟲ Reset</button><button class="btn" id="chatSendBtn" onclick="chatSend('${l.slug}')">Send</button></div></div>
     <div style="display:flex;justify-content:flex-end;padding:5px 2px 0"><button class="iconbtn" style="font-size:11px;opacity:.55" title="erase this card's entire conversation for everyone (cannot be undone)" onclick="clearChat('${l.slug}')">🗑 Clear conversation</button></div></div>`;
 }
 const TOOL_STEP={search_catalog:"🔎 Searching the product catalog",get_product:"🔎 Looking up the product",search_knowledge:"📚 Searching brand & tech knowledge",search_product_spec:"📐 Checking the product spec",search_documents:"📄 Reading strategy / research docs",search_strategy:"🎯 Pulling customer & strategy insights",read_card_doc:"📄 Reading this card's intake / concept",find_images:"🖼 Finding product images",recall:"🧠 Recalling saved decisions",remember:"🧠 Saving to shared memory",add_link:"🔗 Attaching a link",add_html:"</> Building an HTML document",add_note:"📝 Adding a note",set_task_status:"☑ Updating a task",save_skill:"📘 Saving a skill",save_brief:"📋 Filing the brief for sign-off"};
@@ -3455,7 +3455,8 @@ function chatMic(slug){ var SR=window.SpeechRecognition||window.webkitSpeechReco
 function bvPickClarify(qi,oi){ var pc=CHAT.pendingClarify; if(!pc||!pc.qs)return; pc.picks=pc.picks||{}; var q=pc.qs[qi]; if(!q)return; var o=(q.options||[])[oi]; if(o==null)return; pc.picks[qi]=(pc.picks[qi]===o?null:o); renderChatBody(); }
 function bvClarifyBuild(){ var pc=CHAT.pendingClarify; if(!pc||!pc.qs)return; var ans=pc.qs.map(function(q,qi){ var a=(pc.picks&&pc.picks[qi])?pc.picks[qi]:""; return a?(q.q+" "+a):null; }).filter(Boolean).join("; "); var slug=pc.slug, request=pc.request; CHAT.pendingClarify=null; renderChatBody(); return chatSendDeep(slug, request+(ans?("\n\n[Scoping picks: "+ans+"]"):"")); }
 function renderChatBody(){
-  const m=document.getElementById("chatMsgs"); if(!m)return;
+  const m=document.getElementById("chatMsgs"); if(!m){ try{chatSyncSend();}catch(e){} return; }
+  chatSyncSend();
   let busyHTML="";
   if(CHAT.busy){
     const secs=CHAT.startedAt?Math.round((Date.now()-CHAT.startedAt)/1000):0;
@@ -3721,11 +3722,11 @@ async function chatAugmentDoc(slug,instruction,doc,docName){
 
 // 🌪 STORM button — deterministically QUEUE a deep-research request (Stage 1 capture) from the topic in the box.
 // No LLM routing: writes a research-request to the live Core; the operator-run storm-queue skill fulfills it.
-async function stormResearch(slug){
+async function stormResearch(slug,topicArg){
   const input=document.getElementById("chatInput");
   const btn=document.getElementById("stormBtn");
   if(btn){ btn.classList.add("on"); setTimeout(function(){ if(btn)btn.classList.remove("on"); }, 1800); }  // red flash = press confirmed (mirrors 🔬 Deep's active state)
-  const topic=((input&&input.value)||"").trim();
+  const topic=(topicArg||((input&&input.value)||"")).trim();
   if(!topic){ toast("🌪 Type a research topic in the box, then press STORM."); if(input)input.focus(); return; }
   try{ if(FB.docRef) FB.docRef.collection("research").add({card:slug,topic:topic,status:"queued",by:actor(),createdAt:firebase.firestore.FieldValue.serverTimestamp()}); }catch(e){}  // → 🌪 Storm Research panel (real-time)
   loadResearchReports(true);
@@ -3737,6 +3738,8 @@ async function stormResearch(slug){
     chatPush(slug,{role:"assistant",who:"Claude",text:"🌪 STORM deep-research queued on “"+topic+"”. The 5-lens (Practitioner · Academic · Skeptic · Economist · Historian), citation-verified briefing runs in the research runtime and posts back to the Core — a few minutes. When it's ready you can pull it up here: “recall the research on "+topic+"”.",ts:nowStamp()});
   }catch(e){ toast("⚠️ Couldn't queue the research — try again."); }
 }
+function looksResearch(text){ var t=String(text||""); return /^\s*\ud83c\udf2a|\bstorm\b|deep[- ]?(research|dive)|research (report|briefing)|multi[- ]?perspective|5[- ]?lens|devil'?s advocate|citation[- ]?verified|(compile|synthesi[sz]e|consolidate)[\s\S]{0,50}research/i.test(t); }
+function chatSyncSend(){ try{ var b=document.getElementById("chatSendBtn"), i=document.getElementById("chatInput"); if(b){ b.disabled=!!CHAT.busy; b.textContent=CHAT.busy?"\u23f3 Working\u2026":"Send"; b.style.opacity=CHAT.busy?".5":""; b.style.cursor=CHAT.busy?"not-allowed":""; b.title=CHAT.busy?"Claude is working \u2014 press \u27f2 Reset to stop, or wait":""; } if(i){ i.disabled=!!CHAT.busy; } }catch(e){} }
 async function chatSend(slug){
   const input=document.getElementById("chatInput"); if(!input)return;
   const text=(input.value||"").trim(); if(!text)return;
@@ -3744,10 +3747,12 @@ async function chatSend(slug){
   if(CHAT.busy){ if(CHAT.busyAt && (Date.now()-CHAT.busyAt)>240000){ chatRelease(); } else { toast("Claude is still working… give it a moment, then resend."); return; } }
   // The user is answering the clarifying questions → now build the deliverable WITH their context (or "go" to build as-is).
   if(CHAT.pendingClarify){ const pc=CHAT.pendingClarify; const stale=pc.ts&&(Date.now()-pc.ts)>600000; const goFast=/^\s*(go|proceed|just build( it)?|build it|do it|yes|yep|ok|okay)\s*$/i.test(text); const bail=!goFast&&(isExplicitBuild(text)||looksTransform(text)||looksAugment(text)||/\b(never ?mind|cancel|forget it|scratch that|instead|actually|different (thing|question)|new question)\b/i.test(text)); if(stale||bail){ CHAT.pendingClarify=null; } else { CHAT.pendingClarify=null; input.value=""; return chatSendDeep(slug, goFast?pc.request:(pc.request+"\n\n[Extra context / answers from "+actor()+": "+text+"]")); } }
+  // RESEARCH FIRST: a STORM / deep-research / "compile my research" / devil's-advocate ask must QUEUE a STORM run — never be hijacked into transform/augment of the last doc.
+  if(looksResearch(text) && !isExplicitBuild(text)){ input.value=""; return stormResearch(slug,text); }
   // FIRST: a transform of the EXISTING last doc wins over auto-Deep — "make this bilingual / shorten it" must never silently regenerate from scratch.
   { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksTransform(text) && !isExplicitBuild(text) && !transformIsQuestion(text) && !(looksAugment(text)&&augmentIsImage(text)) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one)\b/i.test(text)||text.length<90)){ input.value=""; return chatTransformDoc(slug,text,_doc.h,_doc.n); } }   // translate/rewrite/shorten an EXISTING doc — never re-research; but an explicit NEW build, a question, or an image-add falls through
   // 1.5: ADD a visual (image / chart / table) INTO the existing last doc — never regenerate, never just show it in a chat bubble. Sits AFTER transform, BEFORE Deep so a short "add a chart" isn't intercepted by deepNeedsClarify.
-  { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksAugment(text) && !isExplicitBuild(text) && !transformIsQuestion(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one|here|section|to the|into the)\b/i.test(text)||text.length<90)){ input.value=""; return chatAugmentDoc(slug,text,_doc.h,_doc.n); } }
+  { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksAugment(text) && !isExplicitBuild(text) && !transformIsQuestion(text) && !looksResearch(text) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one|here|section)\b/i.test(text)||text.length<90)){ input.value=""; return chatAugmentDoc(slug,text,_doc.h,_doc.n); } }
   // 1.6: RE-SKIN the existing brief in the latest format (add per-paragraph 💬/📊, keep content) — NO AI, NO re-research, never a full Deep rebuild.
   { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksReskin(text)){ input.value=""; return chatReskinDoc(slug,_doc); } }
   // SECOND: a genuine new, multi-section deliverable still goes to Deep.
