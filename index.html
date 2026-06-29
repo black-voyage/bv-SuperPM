@@ -3044,11 +3044,42 @@ function canBenSign(){return myRole()==="ceo";}
 function canMktSign(){const r=myRole();return r==="ceo"||r==="marketing";}
 function canProdSign(){const r=myRole();return r==="ceo"||r==="product"||r==="director";}
 function bts(t){return t?new Date(t).toLocaleDateString(undefined,{month:"short",day:"numeric"}):"";}
+// Save a report/brief HTML to Google Drive (inside the launch's own Drive folder), best-effort + SILENT (no popup).
+// Returns {id,url} on success or null (Google not connected / no Drive scope / failure). Firebase save is never blocked by this.
+async function _briefToDrive(card,title,html,version){
+  try{
+    if(!(GOOGLE_CLIENT_ID && gReady())) return null;
+    let tok; try{ tok=await gGetToken(false); }catch(e){ return null; }
+    if(!tok || !gHasDrive()) return null;
+    var l=(typeof L==="function")?L(card):null;
+    var parent=(l&&l.driveFolderId)?l.driveFolderId:GOOGLE_FOLDER_ID;
+    var safe=String(title||"Report").replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim().slice(0,80);
+    var meta={name:"BV-Report - "+safe+" v"+(version||1)+".html",mimeType:"text/html",description:"Black Voyage SuperPM report (auto-saved)"}; if(parent)meta.parents=[parent];
+    var bnd="bvrep"+Date.now();
+    var body="--"+bnd+"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"+JSON.stringify(meta)+"\r\n--"+bnd+"\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n"+String(html||"")+"\r\n--"+bnd+"--";
+    var r=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink",{method:"POST",headers:{"Authorization":"Bearer "+tok,"Content-Type":"multipart/related; boundary="+bnd},body:body});
+    var d=await r.json(); if(!d||!d.id) return null;
+    try{ await fetch("https://www.googleapis.com/drive/v3/files/"+d.id+"/permissions",{method:"POST",headers:{"Authorization":"Bearer "+tok,"Content-Type":"application/json"},body:JSON.stringify({role:"reader",type:"anyone"})}); }catch(e){}
+    return {id:d.id,url:d.webViewLink||("https://drive.google.com/open?id="+d.id)};
+  }catch(e){ return null; }
+}
+// Delete-sync: when a report is deleted on the dashboard, remove its Drive file too (best-effort).
+async function _briefDriveDelete(fileId){
+  try{
+    if(!fileId || !(GOOGLE_CLIENT_ID && gReady())) return false;
+    let tok; try{ tok=await gGetToken(false); }catch(e){ return false; }
+    if(!tok || !gHasDrive()) return false;
+    var r=await fetch("https://www.googleapis.com/drive/v3/files/"+fileId,{method:"DELETE",headers:{"Authorization":"Bearer "+tok}});
+    if(r.ok||r.status===404){ try{toast("🗑 Report also removed from Google Drive");}catch(e){} return true; }
+    return false;
+  }catch(e){ return false; }
+}
 function briefSave(card,title,html,type){ if(!FB.ready||!card)return 0; title=(title||"Marketing Brief").trim();
   try{
     const ex=(BRIEFS||[]).filter(b=>b.card===card&&(b.title||"").toLowerCase()===title.toLowerCase());
     const version=ex.reduce((m,b)=>Math.max(m,b.version||0),0)+1;
     briefsCol().add({card,title,type:type||"marketing",version,status:"review",html:html||"",author:actor(),createdAt:Date.now(),updatedAt:Date.now(),approvals:{marketing:null,product:null,ben:null},comments:[]})
+      .then(function(ref){ try{ _briefToDrive(card,title,html,version).then(function(g){ if(g&&g.id&&ref&&ref.set){ try{ ref.set({driveFileId:g.id,driveUrl:g.url},{merge:true}); }catch(e){} } }); }catch(e){} })
       .catch(function(e){ try{ if(CHAT&&CHAT.slug===card) chatPush(card,{role:"assistant",who:"Claude",text:"⚠️ The brief \""+title+"\" didn't actually save to 📋 Briefs ("+((e&&e.code)||(e&&e.message)||"write failed")+"). Nothing was filed — please try again.",ts:nowStamp()}); }catch(_){ } toast("⚠️ Brief not saved — try again"); });
     return version;   // optimistic; the .catch above surfaces a real write failure instead of lying
   }catch(e){ toast("⚠️ Brief not saved — try again"); return 0; }
@@ -3103,7 +3134,7 @@ function briefComment(id){ const inp=document.getElementById("bc_"+id), text=inp
 function briefView(id){ const b=briefById(id); if(b)codeModal({readOnly:true,label:b.title+" · v"+b.version,html:b.html}); }
 function briefToggle(id){ S.open=S.open||{}; S.open["brief_"+id]=!S.open["brief_"+id]; renderBriefs(); }
 function briefReopen(id){ const b=briefById(id); if(!b)return; if(typeof confirm!=="undefined"&&!confirm("Start a new revision round? Creates a new draft version for re-confirmation. The current confirmed brief stays the source of truth until the new one is confirmed by Marketing + Product + Ben."))return; const v=briefSave(b.card,b.title,b.html,b.type); if(v)toast("Opened revision v"+v+" for review."); }
-function briefDelete(id){ if(typeof confirm!=="undefined"&&!confirm("Delete this brief version (for everyone)?"))return; try{briefsCol().doc(id).delete();}catch(e){} }
+function briefDelete(id){ if(typeof confirm!=="undefined"&&!confirm("Delete this brief version (for everyone)? It is also removed from Google Drive."))return; var _b=(typeof briefById==="function")?briefById(id):null; try{ if(_b&&_b.driveFileId)_briefDriveDelete(_b.driveFileId); }catch(e){} try{briefsCol().doc(id).delete();}catch(e){} }
 function statusBadge(s){const m={draft:["Draft","#999"],review:["In Review","var(--amber)"],confirmed:["✓ CONFIRMED","var(--green)"],superseded:["superseded","#777"]},x=m[s]||m.review;return `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;border:1px solid ${x[1]};color:${x[1]}">${x[0]}</span>`;}
 // Rename a brief (the display title). Persists to Firestore.
 function briefRename(id){ const b=briefById(id); if(!b){toast("Brief not found");return;}
