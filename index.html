@@ -849,6 +849,8 @@ function taskLocked(l,task){
 /* flow-node click → jump to the matching task card below */
 function jumpTask(slug,i){
   S.route=null;                                         // dismiss the flow popover when we jump to the card
+  const l=L(slug), t=l&&l.tasks[i];
+  if(t)(S.stageOpen=S.stageOpen||{})[slug+":stl:"+t.stage]=true;   // expand the stage section so a collapsed task is actually reachable + scrollable
   S.view="launch"; S.launch=slug; S.open[slug+":"+i]=true; render();
   setTimeout(()=>{const el=document.getElementById("task-"+slug+"-"+i);
     if(el&&el.scrollIntoView){el.scrollIntoView({behavior:"smooth",block:"center"});
