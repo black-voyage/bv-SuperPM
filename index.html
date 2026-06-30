@@ -433,6 +433,19 @@
   .ld-advance-k{font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
   .ld-approval{background:var(--panel2);border:1px solid rgba(238,49,36,.45);border-radius:var(--r-sm);padding:9px 12px;margin-bottom:10px;font-size:12.5px;line-height:1.5;color:var(--dim)}
   .ld-approval .btn{margin-top:8px}
+  /* advance/push control moved inline, directly under the current stage card (no more scroll-to-bottom) */
+  .ld-advance-inline{margin:2px 0 14px 42px;padding-top:12px;border-top:1px dashed var(--line)}
+  @media(max-width:640px){.ld-advance-inline{margin-left:0}}
+  /* Ben ◆ decision gate — a prominent decision button (NOT a checkbox), styled like the advance button since Ben is the decision-maker */
+  .row.gaterow{background:rgba(192,132,252,.07);box-shadow:inset 2px 0 0 var(--purple)}
+  .gatebtn{display:inline-flex;align-items:center;gap:6px;border:1px solid transparent;border-radius:var(--r-sm);padding:5px 12px;font-weight:700;font-size:12px;font-family:inherit;cursor:pointer;flex:none;line-height:1.1;white-space:nowrap}
+  .gatebtn.ready{background:var(--purple);color:#1a1430;border-color:var(--purple)}
+  .gatebtn.ready:hover{filter:brightness(1.08)}
+  .gatebtn.done{background:rgba(192,132,252,.16);color:var(--purple);border-color:rgba(192,132,252,.55)}
+  .gatebtn.locked{background:var(--panel2);color:var(--faint);border-color:var(--line);cursor:not-allowed}
+  /* Links button: a SOLID fill (not a faint "(1)") makes "has files" obvious at a glance */
+  .lnkmenu>summary.has{background:var(--blue);border-color:var(--blue);color:#08213d;font-weight:700}
+  .lnkmenu>summary.has:hover,.lnkmenu[open]>summary.has{color:#08213d;border-color:var(--blue)}
   /* launch-detail header — project identity: title · DRI · grouped actions · scannable stats */
   .ld-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:2px}
   .ld-head-main{min-width:0}
@@ -1861,7 +1874,7 @@ const ZH={
  "OWES THE CURRENT GATES":"目前尚欠的關卡條件","WHAT":"","POST A CHECK-IN":"發布進度回報","WEEKLY CHECK-IN":"每週進度回報","MY OPEN TASKS":"我的待辦任務",
  // — buttons / actions —
  "Approve":"批准","Reject":"駁回","Open card":"開啟卡片","mark done":"標記完成","Add note":"新增備註","Post check-in":"發布進度回報",
- "Attach Loom / video":"附加 Loom／影片","+ link":"＋連結","+ Add department":"＋ 新增部門","Push to":"推進至","Push locked —":"推進鎖定 —",
+ "Attach Loom / video":"附加 Loom／影片","+ link":"＋連結","+ Add department":"＋ 新增部門","Push to":"推進至","Push locked —":"推進鎖定 —","Approved":"已批准",
  "criteria left":"項條件未完成","Launch complete":"上市已完成","Ready — push reserved for DRI":"已就緒 — 推進權限：DRI",
  "mandatory dept heads, or Ben":"必要部門主管或 Ben","ready":"就緒","open":"項未完成",
  // — common words / sentences —
@@ -1964,10 +1977,13 @@ function confirmFrozenStepEdit(l,t){
 }
 // resolve a launch task by (slug,i) and run the freeze guard — returns true to PROCEED, false to abort. Campaign (__camp) tasks pass through.
 function frozenStepGuard(slug,i){ const l=(typeof L==="function")?L(slug):null; return confirmFrozenStepEdit(l, l&&l.tasks&&l.tasks[i]); }
-function cycle(slug,i){ // checkbox click cycles status: todo → in progress → done → blocked → todo
+function cycle(slug,i){ stepStatus(slug,i,1); }      // left-click advances the status loop
+function cycleBack(slug,i){ stepStatus(slug,i,-1); }  // right-click steps it back (so you don't have to wrap all the way around)
+function stepStatus(slug,i,dir){ // status loop: todo → in progress → done → blocked → todo (dir<0 walks it backward)
   const l=L(slug), t=l.tasks[i];
+  if(taskLocked(l,t)) return;               // locked rows are read-only (left button is disabled; ignore right-clicks silently)
   if(!confirmFrozenStepEdit(l,t)) return;   // post-design-freeze guard for 概念/開發 steps
-  const nx={o:"p",p:"x",x:"b",b:"o"}[t.st];
+  const nx=(dir<0?{p:"o",x:"p",b:"x",o:"b"}:{o:"p",p:"x",x:"b",b:"o"})[t.st]; // backward map is the exact inverse of forward
   const r=applyTaskStatus(l,t,nx); if(!r.ok){toast(r.reason);return;}
   if(nx==="x"){const lane=FLOW[t.d]; const ii=lane?lane.findIndex(n=>n.t===t.t):-1;
     if(ii>=0){const key=t.d+"|"+lane[ii].l; const others=[...new Set(routeSteps(key,t.d,ii).map(p=>p[0]))].filter(x=>x!==t.d);
@@ -1991,6 +2007,13 @@ function approve(slug,i){
   if(l.decisionRequested) delete l.decisionRequested[t.t];
   log("✓ Ben approved ◆ on "+l.name);
   toast("✓ Approved — committed to repo, Slack message updated"); render();
+}
+function unapprove(slug,i){ // revert a Ben ◆ sign-off — kept Ben-only so the gate is fully his to control
+  const l=L(slug), t=l.tasks[i];
+  if(S.role!=="ceo"){toast("◆ gates can only be changed by Ben (CEO)");return;}
+  t.st="o"; l.checkins.unshift({d:today,a:"Ben",txt:`Reverted approval on “${t.t}”.`});
+  log("↩ Ben reverted ◆ on "+l.name);
+  toast("↩ Approval reverted"); render();
 }
 function addLink(slug,i){
   if(!frozenStepGuard(slug,i))return;        // post-design-freeze guard for 概念/開發 steps
@@ -2166,6 +2189,11 @@ function flowMetaFor(taskTitle,ownerDept){
 }
 const flowTaskName=t=>{ const m=flowMetaFor(t.t,t.d); return m?flowTL(m.label):t.t; };   // what the by-stage row shows (mirrors the chart node)
 const flowTaskOrd=t=>{ const m=flowMetaFor(t.t,t.d); return m?m.ord:1e9; };                 // sort key = flow-chart sequence
+function gateControl(l,t,i,lk){ // Ben ◆ decision gate → a prominent button (like the advance button), not a tick-box, because Ben is the decision-maker
+  if(lk) return `<button type="button" class="gatebtn locked" disabled title="locked — ${esc(lockReason(l,t))}" aria-label="Ben decision — locked, ${esc(lockReason(l,t))}">🔒</button>`;
+  if(t.st==="x") return `<button type="button" class="gatebtn done" title="Ben approved this gate — click to revert" aria-label="Ben approved this gate — click to revert" onclick="unapprove('${l.slug}',${i})">✓ Approved</button>`;
+  return `<button type="button" class="gatebtn ready" title="Ben's decision — approve to unblock the next stage" aria-label="Ben decision — approve" onclick="approve('${l.slug}',${i})">◆ Approve</button>`;
+}
 function taskRow(l,t,extra,ro){
   const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
   const vids=t.notes.filter(n=>n.v).length; const lk=taskLocked(l,t);
@@ -2175,10 +2203,10 @@ function taskRow(l,t,extra,ro){
   const collabPlus=(!ro&&!extra)?collabAddMenu(l,t,i,resp,collabs):"";
   const lead=extra?`<span class="o-stage" title="stage">${esc(extra)}</span>`:`<span class="o-resp" style="color:${DCOLOR(resp)}" title="Responsible — ${esc(resp)}">${esc(resp)}</span>`;
   const meta=`<span class="o ometa">${lead}${collabChips?`<span class="o-collabs">${collabChips}</span>`:""}${collabPlus}</span>`;
-  return `<div id="task-${l.slug}-${i}" style="border-radius:2px"><div class="row" style="${lk?"opacity:.38;filter:grayscale(.6)":""}">
-   <button type="button" class="st ${lk?"":t.st}" ${lk?"disabled":""} aria-label="${lk?"locked — "+esc(lockReason(l,t)):"status: "+stWord(t.st)+" — click to advance"}" title="${lk?"locked — "+esc(lockReason(l,t)):"click to cycle status"}" onclick="cycle('${l.slug}',${i})">${lk?"🔒":stIcon[t.st]}</button>
+  return `<div id="task-${l.slug}-${i}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${lk?"opacity:.38;filter:grayscale(.6)":""}">
+   ${t.gate?gateControl(l,t,i,lk):`<button type="button" class="st ${lk?"":t.st}" ${lk?"disabled":""} aria-label="${lk?"locked — "+esc(lockReason(l,t)):"status: "+stWord(t.st)+" — left-click to advance, right-click to step back"}" title="${lk?"locked — "+esc(lockReason(l,t)):"left-click: advance · right-click: step back"}" onclick="cycle('${l.slug}',${i})" oncontextmenu="cycleBack('${l.slug}',${i});return false">${lk?"🔒":stIcon[t.st]}</button>`}
    <span>${esc(flowTaskName(t))}${t.gate?' <span style="color:var(--purple)">◆</span>':""}
-    ${lk?'<span class="urg" style="background:#1d2127;color:var(--faint)">locked</span>':""}${t.assignee?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
+    ${lk?'<span class="urg" style="background:#1d2127;color:var(--faint)">locked</span>':""}${t.assignee&&t.assignee.trim()!==resp&&!collabs.includes(t.assignee.trim())?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
     ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
     ${lk?"":renderLinkMenu(t,l.slug,i)}
     <button class="exp" onclick="toggle('${key}')">${open?"▴ close":"▾ details"}${t.notes.length?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button></span>
@@ -2212,11 +2240,23 @@ function readinessPop(l){
     +rows.map(r=>`<div class="ld-rd-row ${r.ready?"rdy":"open"}"><span class="d" style="--dc:${DCOLOR(r.d)}">${esc(r.d)}</span><span class="v">${r.ready?"✓ ready":r.o+" open"}</span></div>`).join("")
     +`</span></span>`;
 }
+// the advance control (dept-ready summary · ◆ approval · push) — rendered inline under the CURRENT stage so it's right where you're working, not buried at the page bottom
+function advanceBar(l){
+  if(l.complete) return `<div class="ld-advance ld-advance-inline"><div class="sub">✓ All stages complete.</div></div>`;
+  const g=gateState(l); const idx=STAGES.indexOf(l.stage); const next=STAGES[idx+1];
+  const mand=mandatory(l); const pushable=allMet(l), allowed=canPushRole(l);
+  // the ◆ Ben sign-off is approved on its own prominent gate row above — no duplicate approval box here
+  return `<div class="ld-advance ld-advance-inline">
+    <div class="ld-advance-top"><span class="ld-advance-k">Advance to ${esc(next||"Complete")}</span>${mand.length?readinessPop(l):""}</div>
+    <button class="btn" ${g.total===0||!(pushable&&allowed)?"disabled":""} onclick="push('${l.slug}')">${g.total===0?"🔒 No exit criteria — set them in Settings → Workflow template":pushable?(allowed?"🚀 Push to "+(next||"Complete"):"🔒 Ready — push reserved for DRI ("+l.dri+"), mandatory dept heads, or Ben"):"🔒 Push locked — "+(g.total-g.met)+" criteria left"}</button>
+    <div class="sub" style="margin-top:6px">Every department ticks its own items; when all are ✓, the DRI (<b>${l.dri}</b>) or a mandatory department head pushes the card. ◆ items need Ben.</div>
+  </div>`;
+}
 // vertical stage-progress timeline (replaces the flat dept accordion): the whole launch path, lit by progress
 function stageTimeline(l){
   const idx=STAGES.indexOf(l.stage);
   // single home for stage progress: every stage's exit criteria live here. The current stage is interactive
-  // (tick criteria inline); the advance control (push/approve) sits in the .ld-advance bar below the timeline.
+  // (tick criteria inline); the advance control (push/approve) is rendered inline under the current stage by advanceBar().
   return `<div class="stagetl">${STAGES.map((s,i)=>{
     const ts=l.tasks.filter(t=>t.stage===s).sort((a,b)=>flowTaskOrd(a)-flowTaskOrd(b));   // mirror the flow-chart sequence
     const met=ts.filter(t=>t.st==="x").length, tot=ts.length;
@@ -2228,6 +2268,7 @@ function stageTimeline(l){
     const key=l.slug+":stl:"+s;
     const op=(S.stageOpen&&key in S.stageOpen)?S.stageOpen[key]:(isCur||blocked); // current + blocked auto-open; the current stage shows its live, tickable criteria
     const glyph=frozen?"❄":{done:"✓",now:"▶",blocked:"!",up:""}[state];
+    const showAdv=l.complete?(i===STAGES.length-1):isCur;   // advance/push control sits directly under the current stage (last stage once complete)
     return `<div class="stl-item stl-${state}${frozen?" stl-frozen":""}">
       <div class="stl-rail"><span class="stl-node" aria-hidden="true">${glyph}</span></div>
       <details class="stl-card"${op?" open":""} ontoggle="(S.stageOpen=S.stageOpen||{})['${key}']=this.open">
@@ -2237,7 +2278,7 @@ function stageTimeline(l){
         </summary>
         <div class="stl-body">${tot?ts.map(t=>taskRow(l,t,"",!isCur)).join(""):'<div class="sub" style="padding:6px 2px">No exit criteria for this stage yet — add them in Settings → Workflow template.</div>'}</div>
       </details>
-    </div>`;
+    </div>${showAdv?advanceBar(l):""}`;
   }).join("")}</div>`;
 }
 const cardHTML=l=>{const g=gateState(l),[h,cls]=health(l);const si=STAGES.indexOf(l.stage);
@@ -2532,7 +2573,7 @@ function homeDept(){
    ${pb.map(t=>`<div class="row"><span style="color:${DCOLOR(d)}">▸</span><span><b>${esc(t)}</b>${DOD[t]?` — <span style="color:var(--dim)">${esc(DOD[t])}</span>`:""}${EVID.has(t)?' <span class="urg" style="background:#13262e;color:#67e8f9">📎 evidence required</span>':""}</span></div>`).join("")}
    <div class="sub" style="margin-top:8px">Full version (definitions, evidence types, estimates, dependencies) lives in <b>BV-Task-Playbook.xlsx</b> — your team edits the ${d} tab and the tracker adopts your rules.</div></div>
   ${driOf.length?`<div class="panel"><h3>CARDS WHERE ${d.toUpperCase()} IS DRI</h3><div class="board">${driOf.map(l=>`<div class="col">${cardHTML(l)}</div>`).join("")}</div></div>`:""}
-  <div class="panel"><h3>WHAT ${d.toUpperCase()} OWES THE CURRENT GATES</h3>${owed.length?owed.map(({l,c})=>`<div class="row"><button type="button" class="st ${c.task.st}" aria-label="status: ${stWord(c.task.st)} — click to advance" onclick="cycle('${l.slug}',${l.tasks.indexOf(c.task)})">${stIcon[c.task.st]}</button><span><b>${l.name}</b> · ${esc(c.t)}</span><span class="o">gates ${l.stage} → next</span></div>`).join(""):'<div class="sub">Nothing owed — no gate is waiting on this team.</div>'}</div>
+  <div class="panel"><h3>WHAT ${d.toUpperCase()} OWES THE CURRENT GATES</h3>${owed.length?owed.map(({l,c})=>`<div class="row"><button type="button" class="st ${c.task.st}" aria-label="status: ${stWord(c.task.st)} — left-click to advance, right-click to step back" onclick="cycle('${l.slug}',${l.tasks.indexOf(c.task)})" oncontextmenu="cycleBack('${l.slug}',${l.tasks.indexOf(c.task)});return false">${stIcon[c.task.st]}</button><span><b>${l.name}</b> · ${esc(c.t)}</span><span class="o">gates ${l.stage} → next</span></div>`).join(""):'<div class="sub">Nothing owed — no gate is waiting on this team.</div>'}</div>
   <div class="twocol">${[["b","Blocked"],["p","In progress"],["o","To do"]].map(([s,lbl])=>`<div class="panel"><h3>${lbl.toUpperCase()} (${grp(s).length})</h3>${grp(s).map(({l,t})=>taskRow(l,t,l.name)).join("")||'<div class="sub">None.</div>'}</div>`).join("")}</div>
   <div class="panel"><h3>POST A CHECK-IN</h3><select id="ciL">${LAUNCHES.filter(l=>!l.complete).map(l=>`<option value="${l.slug}">${l.name}</option>`).join("")}</select><div style="margin-top:8px"><textarea id="ci" placeholder="Progress: …  Blockers: …  Asks: …"></textarea></div><div style="margin-top:8px"><button class="btn" onclick="addCheckin(document.getElementById('ciL').value)">Post check-in</button> <span class="sub" style="display:inline">posts to the card + its Slack channel</span></div></div>`;
 }
@@ -2541,7 +2582,7 @@ function portfolioBoard(){
   return `<div class="panel"><h3>PORTFOLIO — ALL LAUNCHES BY STAGE${S.q?` <span class="ghostnote">(filtered: “${esc(S.q)}”)</span>`:""}</h3><div class="board">${STAGES.map(s=>{const ls=LAUNCHES.filter(l=>l.stage===s&&fq(l));return `<div class="col"><h4>${s} <span>${ls.length||""}</span></h4>${ls.map(cardHTML).join("")}</div>`;}).join("")}</div></div>`;
 }
 /* ---- launch-detail lower-section helpers ---- */
-const renderLinkMenu=(task,slug,i)=>{const n=(task.links||[]).length+(task.codes||[]).length;return `<details class="lnkmenu" onclick="event.stopPropagation()"><summary>🔗 Links${n?" ("+n+")":""}</summary><div class="lnkmenu-b">${linkChips(task,slug,i)}</div></details>`;};
+const renderLinkMenu=(task,slug,i)=>{const n=(task.links||[]).length+(task.codes||[]).length;const cnt=n>1?" ("+n+")":"";return `<details class="lnkmenu" onclick="event.stopPropagation()"><summary class="${n?"has":""}" title="${n?n+" attached":"attach a link, sheet, doc, or code"}">🔗 Links${cnt}</summary><div class="lnkmenu-b">${linkChips(task,slug,i)}</div></details>`;};
 function addLaunchNote(slug){ const inp=document.getElementById("note-"+slug); if(!inp)return; const t=(inp.value||"").trim(); if(!t)return; const l=L(slug); if(!l)return; (l.risks=l.risks||[]).push({t,a:noteAuthor(),owner:l.dri,d:today}); log("📝 Note added to "+l.name); save(); render(); toast("Note added"); }
 function delLaunchNote(slug,idx){ const l=L(slug); if(!l||!l.risks||!l.risks[idx])return; l.risks.splice(idx,1); log("🗑 Note removed from "+l.name); save(); render(); toast("Note deleted"); }
 // Launch-level notes: SAME note model + row component as per-task notes (author · date · optional urgency · delete). One notes system; the old risk score/owner/trigger fields degrade gracefully.
@@ -2569,14 +2610,8 @@ function chatResizeStart(e){
   document.addEventListener("pointermove",mv); document.addEventListener("pointerup",up);
 }
 function viewLaunch(){
-  const l=L(S.launch); const g=gateState(l); const idx=STAGES.indexOf(l.stage);
-  const next=STAGES[idx+1]; const [h,cls]=health(l);
-  // GATE folded into the LAUNCH PROGRESS column: the current stage's criteria are tickable inline in the timeline,
-  // and the advance control below it (dept-ready summary + push + approval) is built from the current-stage gate.
-  const pend=g.cs.find(c=>c.ben&&c.task.st!=="x"&&g.cs.filter(o=>!o.ben).every(o=>o.task.st==="x"));
-  const mand=mandatory(l);
-  const pushable=allMet(l), allowed=canPushRole(l);
-
+  const l=L(S.launch); const [h,cls]=health(l);
+  // The current stage's exit criteria are tickable inline in the timeline; the advance control (dept-ready summary + push + approval) is rendered inline under the current stage by advanceBar().
   return `<span class="back" onclick="go('portfolio')">← Portfolio</span>
   <div class="ld-head">
     <div class="ld-head-main">
@@ -2605,12 +2640,6 @@ function viewLaunch(){
     <div class="twocol ld2"><div>
     <div class="secdiv"><h4>LAUNCH PROGRESS — BY STAGE</h4><div class="sub">Every stage on the path, lit by progress. The current stage is open — tick its exit criteria, then push to advance.</div></div>
     ${stageTimeline(l)}
-    ${l.complete?`<div class="ld-advance"><div class="sub">✓ All stages complete.</div></div>`:`<div class="ld-advance">
-      <div class="ld-advance-top"><span class="ld-advance-k">Advance to ${esc(next||"Complete")}</span>${mand.length?readinessPop(l):""}</div>
-      ${pend?`<div class="ld-approval"><b>◆ ${esc(pend.t)}</b> — all other ${l.stage} criteria are done. Approving unblocks the push to <b>${next||"Complete"}</b>. <button class="btn" onclick="approve('${l.slug}',${l.tasks.indexOf(pend.task)})">✓ Approve</button></div>`:""}
-      <button class="btn" ${g.total===0||!(pushable&&allowed)?"disabled":""} onclick="push('${l.slug}')">${g.total===0?"🔒 No exit criteria — set them in Settings → Workflow template":pushable?(allowed?"🚀 Push to "+(next||"Complete"):"🔒 Ready — push reserved for DRI ("+l.dri+"), mandatory dept heads, or Ben"):"🔒 Push locked — "+(g.total-g.met)+" criteria left"}</button>
-      <div class="sub" style="margin-top:6px">Every department ticks its own items; when all are ✓, the DRI (<b>${l.dri}</b>) or a mandatory department head pushes the card. ◆ items need Ben.</div>
-    </div>`}
   </div><div>
     ${renderBriefsPanel(l)}
     ${renderResearchPanel(l)}
