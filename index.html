@@ -3193,7 +3193,7 @@ function briefsInner(l){ if(!l)return"";
   return `<div class="panel"><h3>📋 Briefs <span class="ghostnote" style="font-weight:400">· ${mine.length}</span></h3>`
     +(conf?`<div class="sub" style="margin-bottom:6px;color:var(--green)">✓ <b>Source of truth:</b> ${esc(conf.title)} v${conf.version} — confirmed by ${esc((conf.approvals.marketing||{}).by||"Marketing")} + ${esc((conf.approvals.product||{}).by||"Product")} + ${esc((conf.approvals.ben||{}).by||"Ben")}</div>`
       :`<div class="sub" style="margin-bottom:6px">No confirmed brief yet. Ask the chat to draft one — it files the brief here for the team to review, leave feedback, and collect <b>Marketing + Product + Ben</b> sign-off.</div>`)
-    +(mine.length?mine.map(briefCardHTML).join(""):"")
+    +(mine.length?((S.briefsAll?mine:mine.slice(0,3)).map(briefCardHTML).join("")+((mine.length>3)?('<div style="text-align:center;margin-top:8px"><button class="iconbtn" style="font-size:11px" onclick="toggleBriefsAll()">'+(S.briefsAll?"▴ Show fewer":("▾ Show all "+mine.length+" briefs"))+'</button></div>'):"")):"")
     +`</div>`;
 }
 /* ===== BRIEF AI ACTIONS — revise-from-feedback, inline per-section editor (+image), per-section visual ===== */
@@ -3414,6 +3414,8 @@ function renderBriefsPanel(l){return `<div id="briefsPanel">${briefsInner(l)}</d
 function renderBriefs(){const el=document.getElementById("briefsPanel"); if(el&&S.launch)el.innerHTML=briefsInner(L(S.launch));}
 function renderResearchPanel(l){return `<div id="researchPanel">${researchInner(l)}</div>`;}
 function renderResearch(){const el=document.getElementById("researchPanel"); if(el&&S.launch)el.innerHTML=researchInner(L(S.launch));}
+function toggleBriefsAll(){ try{S.briefsAll=!S.briefsAll;}catch(e){} renderBriefs(); }
+function toggleResearchAll(){ try{S.researchAll=!S.researchAll;}catch(e){} renderResearch(); }
 function loadResearchReports(force){ if(RESEARCH_REPORTS!==null&&!force)return; if(RESEARCH_REPORTS===null)RESEARCH_REPORTS=[]; fetch("https://bv-second-brain--bv-second-brain.us-east4.hosted.app/api/core/memory?limit=400").then(function(r){return r.json();}).then(function(d){ RESEARCH_REPORTS=(((d&&d.docs)||[]).filter(function(m){return /research-report/.test(m.tags||"")||/^STORM RESEARCH COMPLETE/i.test(m.text||"");})); renderResearch(); }).catch(function(){}); }
 function researchInner(l){ if(!l)return"";
   const mine=(RESEARCH||[]).filter(function(r){return r.card===l.slug;});
@@ -3423,10 +3425,11 @@ function researchInner(l){ if(!l)return"";
   function when(c){ try{ return c&&c.toDate?c.toDate().toLocaleDateString():""; }catch(e){ return ""; } }
   return `<div class="panel"><h3>🌪 Storm Research <span class="ghostnote" style="font-weight:400">· ${mine.length}</span><button class="iconbtn" style="font-size:11px;padding:2px 7px;float:right" title="Refresh briefing status from the Core" onclick="loadResearchReports(true)">↻</button></h3>`
     +(mine.length?"":`<div class="sub">No research yet. Type a topic in the chat box and press 🌪 STORM to queue a 5-lens, citation-verified briefing.</div>`)
-    +mine.map(function(r){ var rep=matchRep(r.topic); var done=!!rep;
+    +(S.researchAll?mine:mine.slice(0,3)).map(function(r){ var rep=matchRep(r.topic); var done=!!rep;
       return `<div class="card" style="padding:10px 12px;margin-top:8px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b style="font-size:13px">🌪 ${esc(r.topic||"(untitled)")}</b><span class="pill" style="${done?"background:rgba(46,125,91,.14);color:var(--green)":"background:rgba(238,49,36,.10);color:var(--accent)"}">${done?"✓ done":"⏳ queued"}</span></div><div class="sub" style="margin-top:3px;font-size:11px">${esc(r.by||"")}${when(r.createdAt)?(" · "+when(r.createdAt)):""}</div>`
-        +(done?`<div class="sub" style="margin-top:6px;white-space:pre-wrap">${esc(String(rep.text||"").replace(/^STORM RESEARCH COMPLETE —\s*/i,""))}</div>`:`<div class="sub" style="margin-top:6px">Running the 5-lens, citation-verified pipeline in the research runtime — the briefing posts back here. Or pull it in chat: "recall the research on ${esc((r.topic||"").slice(0,40))}".</div>`)
+        +(done?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12px;color:var(--accent);user-select:none">▾ View full briefing</summary><div class="sub" style="margin-top:6px;white-space:pre-wrap">${esc(String(rep.text||"").replace(/^STORM RESEARCH COMPLETE —\s*/i,""))}</div></details>`:`<div class="sub" style="margin-top:6px">Running the 5-lens, citation-verified pipeline in the research runtime — the briefing posts back here. Or pull it in chat: "recall the research on ${esc((r.topic||"").slice(0,40))}".</div>`)
         +`</div>`; }).join("")
+    +((mine.length>3)?('<div style="text-align:center;margin-top:8px"><button class="iconbtn" style="font-size:11px" onclick="toggleResearchAll()">'+(S.researchAll?"▴ Show fewer":("▾ Show all "+mine.length))+'</button></div>'):"")
     +`</div>`;
 }
 /* ===== CHAT PRESETS — one-click pre-engineered prompts (Utility -> Department, dept-aware) ===== */
