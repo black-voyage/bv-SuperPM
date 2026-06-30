@@ -293,6 +293,15 @@
   .cmsg .bub{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-md);padding:7px 10px;font-size:13px;line-height:1.5;white-space:pre-wrap;max-width:88%}
   .cmsg .who{font-size:11px;color:var(--faint);margin-bottom:2px}
   .cmsg .acts{margin-top:5px;font-size:11px;color:var(--green)}
+  /* ===== Claude-app chat layout: user messages on the RIGHT, Claude on the LEFT ===== */
+  .cmsg.user{flex-direction:row-reverse}
+  .cmsg.user .av{display:none}
+  .cmsg.user>div{display:flex;flex-direction:column;align-items:flex-end;max-width:85%}
+  .cmsg.user .who{text-align:right}
+  .cmsg.user .bub{background:rgba(127,127,127,.14);border-color:transparent;border-radius:16px 16px 4px 16px;max-width:100%}
+  .cmsg.assistant>div{max-width:90%}
+  .cmsg.assistant .bub-txt{background:transparent;border:none;padding:3px 0;max-width:100%}
+  .cmsg.assistant .bub-txt a{color:var(--blue)}
   .bvthink{font-weight:600} .bvdots{display:inline-block;animation:pulse 1.1s ease-in-out infinite;letter-spacing:1px}
   .iconbtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
   .bvbar{height:3px;border-radius:var(--r-sm);background:var(--line);overflow:hidden;position:relative;margin-top:7px}
@@ -2941,7 +2950,7 @@ function chatMsgHTML(m,mi){
   const atts=(Array.isArray(m.attachments)?m.attachments:[]).map((a,ai)=>a.type==="link"
     ?`<a class="catt" href="${esc(a.u)}" target="_blank">🔗 ${esc(a.n)}</a>`
     :`<span class="catt" title="open the HTML — preview / source / full page" onclick="openMsgAtt(${mi},${ai})">📄 &lt;/&gt; ${esc(a.n)}</span>`).join("");
-  return `<div class="cmsg ${cls}"><div class="av">${av}</div><div><div class="who">${esc(m.who||(m.role==="assistant"?"Claude":"User"))}${m.ts?" · "+esc(m.ts):""}${m.role==="assistant"?`<span class="cmsg-report" title="report an answer-quality issue (logged to BV Second Brain)" onclick="reportAnswer(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.55;font-size:11px">⚑ report</span>`:""}<span class="cmsg-del" title="delete this message (for everyone)" onclick="deleteChatMsg(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.5;font-size:11px">✕</span></div>${m.text?`<div class="bub">${esc(m.text)}</div>`:""}${(m.log&&m.log.length)?`<details style="margin-top:6px;font-size:12px"><summary style="cursor:pointer;opacity:.65;user-select:none">▸ Section log (${m.log.length})</summary><div style="margin-top:5px;padding:6px 9px;background:rgba(127,127,127,.07);border-radius:7px;line-height:1.75">${m.log.map(esc).join("<br>")}</div></details>`:""}${atts?`<div class="catts">${atts}</div>`:""}${(m.actions&&m.actions.length)?`<div class="acts">⚡ ${m.actions.map(esc).join(" · ")}</div>`:""}${m.meta?chatMetaHTML(m.meta):""}</div></div>`;
+  return `<div class="cmsg ${cls}"><div class="av">${av}</div><div><div class="who">${esc(m.who||(m.role==="assistant"?"Claude":"User"))}${m.ts?" · "+esc(m.ts):""}${m.role==="assistant"?`<span class="cmsg-report" title="report an answer-quality issue (logged to BV Second Brain)" onclick="reportAnswer(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.55;font-size:11px">⚑ report</span>`:""}<span class="cmsg-del" title="delete this message (for everyone)" onclick="deleteChatMsg(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.5;font-size:11px">✕</span></div>${m.text?`<div class="bub bub-txt">${esc(m.text)}</div>`:""}${(m.log&&m.log.length)?`<details style="margin-top:6px;font-size:12px"><summary style="cursor:pointer;opacity:.65;user-select:none">▸ Section log (${m.log.length})</summary><div style="margin-top:5px;padding:6px 9px;background:rgba(127,127,127,.07);border-radius:7px;line-height:1.75">${m.log.map(esc).join("<br>")}</div></details>`:""}${atts?`<div class="catts">${atts}</div>`:""}${(m.actions&&m.actions.length)?`<div class="acts">⚡ ${m.actions.map(esc).join(" · ")}</div>`:""}${m.meta?chatMetaHTML(m.meta):""}</div></div>`;
 }
 function openMsgAtt(mi,ai){const a=(((CHAT.msgs||[])[mi]||{}).attachments||[])[ai]; if(!a)return; if(a.type==="link")window.open(a.u,"_blank"); else codeModal({readOnly:true,label:a.n,html:a.h});}
 function deleteChatMsg(slug,mi){ const arr=(CHAT.msgs||[]).slice(); if(mi<0||mi>=arr.length)return; if(typeof confirm!=="undefined"&&!confirm("Delete this message for everyone?"))return; arr.splice(mi,1); if(FB.ready){try{chatRef(slug).set({messages:arr,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){}} CHAT.msgs=arr; renderChatBody(); toast("🗑 Message deleted"); }
