@@ -3740,7 +3740,62 @@ async function stormResearch(slug,topicArg){
     chatPush(slug,{role:"assistant",who:"Claude",text:"🌪 STORM deep-research queued on “"+topic+"”. The 5-lens (Practitioner · Academic · Skeptic · Economist · Historian), citation-verified briefing runs in the research runtime and posts back to the Core — a few minutes. When it's ready you can pull it up here: “recall the research on "+topic+"”.",ts:nowStamp()});
   }catch(e){ toast("⚠️ Couldn't queue the research — try again."); }
 }
-function looksResearch(text){ var t=String(text||""); return /^\s*\ud83c\udf2a|\bstorm\b|deep[- ]?(research|dive)|research (report|briefing)|multi[- ]?perspective|5[- ]?lens|devil'?s advocate|citation[- ]?verified|(compile|synthesi[sz]e|consolidate)[\s\S]{0,50}research/i.test(t); }
+const WEB_SEARCH_TOOL={type:"web_search_20250305",name:"web_search",max_uses:6};  // Anthropic server-side web search (proxy forwards tools verbatim; no proxy change needed)
+// EXPLICIT "queue the heavy async 5-lens run" intent (vs "research this now")
+function wantsStormQueue(text){ var t=String(text||""); return (/\bqueue\b/i.test(t) && /\b(storm|research|deep)\b/i.test(t)) || /\bstorm[- ]?queue\b/i.test(t) || /\brun (the )?storm\b/i.test(t); }
+// INLINE RESEARCH — answer a research-shaped ask NOW: gather Black Voyage's OWN data (grounded) + live web (cited),
+// synthesize a tiered Settled / Contested / Open briefing on Opus. The heavy async 5-lens STORM run stays one button
+// away (🌪). If live web search isn't available on the proxy/key, it falls back to internal-only synthesis. Every
+// claim stays grounded (FACTS_ONLY) — web facts only from results fetched THIS turn, internal facts from the tools.
+async function inlineResearch(slug, topic){
+  const l=(typeof L==="function")?L(slug):null; if(!l)return;
+  const input=document.getElementById("chatInput");
+  topic=String(topic||"").trim(); if(!topic){ toast("Type a research topic, then send."); return; }
+  if(CHAT.busy){ toast("Claude is still working… give it a moment, then resend."); return; }
+  chatPush(slug,{role:"user",who:actor(),text:topic,ts:nowStamp()});
+  CHAT.busy=true; CHAT.busyAt=Date.now(); CHAT.cancel=false; CHAT.steps=[]; CHAT.phase="acting"; CHAT.startedAt=Date.now(); CHAT.hop=0;
+  try{ clearInterval(CHAT.tick); }catch(e){} CHAT.tick=setInterval(function(){ if(CHAT.busy)renderChatBody(); else { try{clearInterval(CHAT.tick);}catch(e){} } },1000);
+  let tIn=0,tOut=0; const acc=function(d){ tIn+=d.in||0; tOut+=d.out||0; };
+  try{
+    var prod=String((l&&l.name)||slug||"").split(/[^A-Za-z0-9]+/).filter(Boolean)[0]||((l&&l.name)||slug||"");
+    // 1) GATHER BV's own data (client-side, instant) — the grounded fuel claude.ai doesn't have
+    var gather=[{tool:"recall",input:{query:topic}},{tool:"search_strategy",input:{query:topic}},{tool:"search_strategy",input:{query:"differentiation competitors objections personas insights"}},{tool:"search_knowledge",input:{query:topic}},{tool:"search_knowledge",input:{query:"competitors positioning strengths weaknesses tech materials"}},{tool:"search_documents",input:{query:topic}},{tool:"search_catalog",input:{query:prod}}];
+    var internal=[]; for(var gi=0;gi<gather.length;gi++){ var g=gather[gi]; if(typeof toolReady==="function"&&!toolReady(g.tool))continue; CHAT.steps.push({head:chatStepLabel(g.tool),sub:chatStepSub(g.tool,g.input)}); renderChatBody(); var out; try{ out=runChatTool(slug,g.tool,g.input); }catch(e){ continue; } if(out&&out.text)internal.push("["+g.tool+(g.input.query?(" — "+g.input.query):"")+"]\n"+String(out.text).slice(0,3000)); }
+    var internalPack=internal.join("\n\n———\n\n").slice(0,24000)||"(no internal Black Voyage data matched this topic — rely on cited web sources, and mark anything you cannot source as Open / Unknown.)";
+    // 2) SYNTHESIZE — Opus + thinking + live web; cite internal as 'BV: <source>', web inline with its URL
+    var webSys="You are Claude doing live RESEARCH for the Black Voyage CEO on the topic below, then writing a tight, decision-useful briefing. You have exactly TWO fact sources and may use NO others: (a) the INTERNAL BV DATA provided below — treat it as ground truth and cite it as 'BV: <source>'; and (b) the web_search tool for anything external or current — cite EVERY web fact inline with its source URL. Do NOT state anything from training-data memory as fact: if it is not in the internal data or a web result you fetched THIS turn, it is not a fact and belongs under Open / Unknown.";
+    var noWebSys="You are Claude doing RESEARCH for the Black Voyage CEO on the topic below, then writing a tight, decision-useful briefing. Your ONLY fact source is the INTERNAL BV DATA provided below — treat it as ground truth and cite it as 'BV: <source>'. You have NO web access this run: for anything external or current, put it under Open / Unknown rather than guessing, and never state a training-data recollection as fact.";
+    var struct=" Structure the briefing as clean HTML (tags only: h2/h3/p/ul/ol/li/strong/em/a/table/tr/td/th): a 2–3 sentence BOTTOM LINE up top; then findings grouped under <h3>Settled</h3> (well-supported), <h3>Contested</h3> (sources disagree — show both sides), and <h3>Open / Unknown</h3> (what no source establishes — name it honestly, never fill it); then <h3>So what for Black Voyage</h3> (2–4 concrete implications grounded in the BV data); then a short numbered <h3>Sources</h3> list. Synthesize across sources — connect findings, don't just list them — but never invent. No preamble, no code fences, no sign-off.";
+    var userMsg="RESEARCH TOPIC:\n"+topic+"\n\nINTERNAL BV DATA (ground truth — cite as 'BV: <source>'):\n"+internalPack;
+    CHAT.steps.push({head:"🌐 Researching the web + synthesizing",sub:"live sources + BV data · Opus"}); renderChatBody();
+    var resp=null, usedWeb=true, sawWeb=false, texts=[], msgs=[{role:"user",content:userMsg}];
+    try{
+      resp=await chatFetch({model:DELIVER_MODEL,system:FACTS_ONLY+ENGLISH_ONLY+WRITING_CRAFT+webSys+struct,messages:msgs,tools:[WEB_SEARCH_TOOL],think:true},{timeout:180000,tries:1});
+      var guard=0;
+      while(resp&&!resp.error&&!CHAT.cancel){
+        (resp.content||[]).forEach(function(b){ if(b.type==="text"&&b.text)texts.push(b.text); if(/web_search/.test(b.type||"")||b.type==="server_tool_use")sawWeb=true; });
+        if(resp.usage)acc({in:resp.usage.input_tokens||0,out:resp.usage.output_tokens||0});
+        if(resp.stop_reason==="pause_turn"&&guard<2){ guard++; msgs.push({role:"assistant",content:resp.content||[]}); CHAT.steps.push({head:"🌐 Continuing the web research…",sub:""}); renderChatBody(); resp=await chatFetch({model:DELIVER_MODEL,system:FACTS_ONLY+ENGLISH_ONLY+WRITING_CRAFT+webSys+struct,messages:msgs,tools:[WEB_SEARCH_TOOL],think:true},{timeout:180000,tries:1}); continue; }
+        break;
+      }
+    }catch(e){ resp=null; }
+    var html=texts.join("\n").trim();
+    if((!resp||resp.error||!html)&&!CHAT.cancel){   // graceful fallback: internal-only synthesis (no web tool)
+      usedWeb=false; CHAT.steps.push({head:"ℹ️ Live web unavailable — synthesizing from BV data",sub:"grounded internal-only briefing"}); renderChatBody();
+      try{ var r2=await chatFetch({model:DELIVER_MODEL,system:FACTS_ONLY+ENGLISH_ONLY+WRITING_CRAFT+noWebSys+struct,messages:[{role:"user",content:userMsg}],tools:undefined,think:true},{timeout:175000,tries:1}); if(r2&&r2.usage)acc({in:r2.usage.input_tokens||0,out:r2.usage.output_tokens||0}); if(r2&&!r2.error)html=((r2.content||[]).filter(function(b){return b.type==="text";}).map(function(b){return b.text;}).join("\n")).trim(); }catch(e){}
+    }
+    if(CHAT.cancel){ chatPush(slug,{role:"assistant",who:"Claude",text:"⏹ Stopped.",ts:nowStamp()}); return; }
+    if(!html){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ The research pass didn't return anything this time. Try again, or press 🌪 STORM to queue the deep multi-lens run.",ts:nowStamp()}); return; }
+    html=balanceFragment(sanitizeFragment(html)); html=await _enOnly(html,acc);
+    var webRan=usedWeb&&sawWeb;
+    var title="Research — "+topic.slice(0,60);
+    var badge=(webRan?"🌐 Live web + BV data":"📚 BV data only"+(usedWeb?" (live web returned nothing this run)":" (live web wasn't available this run)"));
+    chatPush(slug,{role:"assistant",who:"Claude",text:badge+" · researched “"+esc(topic)+"”. Briefing attached below. Want the full 5-lens, citation-verified deep dive? Press 🌪 STORM to queue it.",attachments:[{type:"code",n:title,h:html}],meta:{model:DELIVER_MODEL,in:tIn,out:tOut,cost:chatCost(DELIVER_MODEL,tIn,tOut),hops:1,trace:[],reasoning:((resp&&(resp.content||[]).filter(function(b){return b.type==="thinking";}).map(function(b){return b.thinking||"";}).join("\n\n"))||"")},ts:nowStamp()});
+    if(input)input.value="";
+  }catch(e){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Research error: "+((e&&e.message)||e)+". Try again, or press 🌪 STORM for the deep run.",ts:nowStamp()}); }
+  finally{ CHAT.busy=false; CHAT.wake=false; try{clearInterval(CHAT.tick);}catch(e){} renderChatBody(); }
+}
+function looksResearch(text){ var t=String(text||""); return /^\s*\ud83c\udf2a|\bstorm\b|deep[- ]?(research|dive)|research (report|briefing)|multi[- ]?perspective|5[- ]?lens|devil'?s advocate|citation[- ]?verified|(compile|synthesi[sz]e|consolidate)[\s\S]{0,50}research|^\s*(?:please\s+)?(?:research|look into|investigate|dig into|do (?:some )?research|find out about|give me (?:the )?research)\b/i.test(t); }
 function chatSyncSend(){ try{ var b=document.getElementById("chatSendBtn"), i=document.getElementById("chatInput"); if(b){ b.disabled=!!CHAT.busy; b.textContent=CHAT.busy?"\u23f3 Working\u2026":"Send"; b.style.opacity=CHAT.busy?".5":""; b.style.cursor=CHAT.busy?"not-allowed":""; b.title=CHAT.busy?"Claude is working \u2014 press \u27f2 Reset to stop, or wait":""; } if(i){ i.disabled=!!CHAT.busy; } }catch(e){} }
 async function chatSend(slug){
   const input=document.getElementById("chatInput"); if(!input)return;
@@ -3750,7 +3805,7 @@ async function chatSend(slug){
   // The user is answering the clarifying questions → now build the deliverable WITH their context (or "go" to build as-is).
   if(CHAT.pendingClarify){ const pc=CHAT.pendingClarify; const stale=pc.ts&&(Date.now()-pc.ts)>600000; const goFast=/^\s*(go|proceed|just build( it)?|build it|do it|yes|yep|ok|okay)\s*$/i.test(text); const bail=!goFast&&(isExplicitBuild(text)||looksTransform(text)||looksAugment(text)||/\b(never ?mind|cancel|forget it|scratch that|instead|actually|different (thing|question)|new question)\b/i.test(text)); if(stale||bail){ CHAT.pendingClarify=null; } else { CHAT.pendingClarify=null; input.value=""; return chatSendDeep(slug, goFast?pc.request:(pc.request+"\n\n[Extra context / answers from "+actor()+": "+text+"]")); } }
   // RESEARCH FIRST: a STORM / deep-research / "compile my research" / devil's-advocate ask must QUEUE a STORM run — never be hijacked into transform/augment of the last doc.
-  if(looksResearch(text) && !isExplicitBuild(text)){ input.value=""; return stormResearch(slug,text); }
+  if(looksResearch(text) && !isExplicitBuild(text)){ input.value=""; return wantsStormQueue(text)?stormResearch(slug,text):inlineResearch(slug,text); }
   // FIRST: a transform of the EXISTING last doc wins over auto-Deep — "make this bilingual / shorten it" must never silently regenerate from scratch.
   { const _doc=lastChatDoc(slug); if(_doc && _doc.h && looksTransform(text) && !isExplicitBuild(text) && !transformIsQuestion(text) && !(looksAugment(text)&&augmentIsImage(text)) && (/\b(this|it|that|above|doc|brief|document|version|copy|the one)\b/i.test(text)||text.length<90)){ input.value=""; return chatTransformDoc(slug,text,_doc.h,_doc.n); } }   // translate/rewrite/shorten an EXISTING doc — never re-research; but an explicit NEW build, a question, or an image-add falls through
   // 1.5: ADD a visual (image / chart / table) INTO the existing last doc — never regenerate, never just show it in a chat bubble. Sits AFTER transform, BEFORE Deep so a short "add a chart" isn't intercepted by deepNeedsClarify.
