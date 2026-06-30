@@ -4076,6 +4076,30 @@ async function writeSection(l,sys0,researchPack,plan,sec,priorParts,acc,userRequ
   if(!out)return "";
   return await _enOnly(out,acc);   // English-only guarantee: translate out any Chinese that leaked from the spec research
 }
+// EDITORIAL COHESION PASS — one whole-document read that smooths seams, removes claims that repeat across
+// sections, and unifies voice into a single author (the thing claude.ai gets free from single-pass generation).
+// NUMBER-PRESERVING: the editor is told to add no new fact, and EACH section is re-checked with _numGuard — any
+// section that gained a number falls back to its pre-edit text. FAIL-OPEN everywhere: any problem returns the
+// sections unchanged, so the worst case is exactly today's (already fact-guarded) output.
+async function editorialPass(parts,plan,acc){
+  try{
+    var idx=[]; for(var i=0;i<parts.length;i++){ if(parts[i]&&String(parts[i]).trim().length>20)idx.push(i); }
+    if(idx.length<2)return null;
+    var draft=idx.map(function(i){ return "<!--§"+i+" "+(((plan.sections[i]||{}).heading)||"").replace(/[<>]/g,"")+"-->\n"+String(parts[i]||""); }).join("\n\n");
+    if(draft.length>140000)return null;   // too large for one safe pass
+    var sys=FACTS_ONLY+ENGLISH_ONLY+"You are a senior COPY EDITOR doing the FINAL pass on an already-written multi-section HTML brief so it reads like ONE confident author wrote it in a single sitting. Improve flow, cut claims/sentences that REPEAT across sections, smooth the transitions BETWEEN sections, tighten weak openers, and make the voice consistent. You may ONLY delete, reorder, reword, tighten, and merge sentences that are ALREADY in the draft. You may NOT add any new fact, number, spec, price, name, or date that is not already present, and you must keep every <img> tag (with its src) and every <table> intact. STRUCTURE: keep each <!--§N ...--> marker EXACTLY as given, each at the very start of its section, the same number of markers in the same order; put the edited HTML for each section right after its marker. Output ONLY the full edited HTML with the markers — no preamble, no code fences, no commentary.";
+    var r=await chatFetch({model:DELIVER_MODEL,system:sys,messages:[{role:"user",content:"FINAL EDITORIAL PASS — keep the §N markers, add no facts, return the whole edited document:\n\n"+draft}],tools:undefined,think:true},{timeout:175000,tries:1,toobigMsg:"editorial pass skipped"});
+    if(!r||r.error||r.stop_reason==="max_tokens")return null;   // fail-open
+    if(r.usage&&acc)acc({in:r.usage.input_tokens||0,out:r.usage.output_tokens||0});
+    var out=(r.content||[]).filter(function(x){return x.type==="text";}).map(function(x){return x.text;}).join(""); if(!out||out.trim().length<60)return null;
+    var re=/<!--§(\d+)[^>]*-->([\s\S]*?)(?=<!--§\d+|$)/g, m, bySec={}, n=0;
+    while((m=re.exec(out))){ bySec[parseInt(m[1],10)]=m[2]; n++; }
+    if(n!==idx.length)return null;   // markers drifted — keep the unpolished (well-formed) draft
+    var result=parts.slice();
+    for(var k=0;k<idx.length;k++){ var si=idx[k], seg=bySec[si]; if(seg==null)return null; seg=sanitizeFragment(seg); if(!seg||seg.trim().length<20)continue; result[si]=_numGuard(String(parts[si]||""),seg); }
+    return result;
+  }catch(e){ return null; }
+}
 // ===== DEEP-MODE QUERY ROUTES: the data tools run INSTANTLY client-side, so a deliverable's data needs are
 // pre-declared as a deterministic "route" (run directly, no LLM hops) instead of an LLM loop choosing tools
 // (which was slow AND the 180s-crash surface). Routes come from baked-in defaults + team skills. ==========
@@ -4167,7 +4191,7 @@ async function chatSendDeep(slug,text){
     const head = !ok ? ("🔬 I could only complete "+real+"/"+built.length+" sections"+(reason?(" ("+reason+")"):"")+", so I'm showing the draft below rather than filing a thin Brief — re-run, or ask for the missing sections one at a time.")
       : (gapN===0 ? ("🔬 Done — assembled **"+title+"** ("+built.length+" sections)"+(v?(" and filed it to the 📋 Briefs panel as v"+v+" for Marketing + Product + Ben sign-off"):"")+". Full document below.")
         : ("🔬 Assembled **"+title+"** — "+real+"/"+built.length+" sections"+(reason?(" before it stopped ("+reason+")"):"")+(v?(", filed as v"+v):"")+". Missing sections are marked inside; ask for them individually. Document below."));
-    chatPush(slug,{role:"assistant",who:"Claude",text:head,actions:(v?["📋 filed to Briefs"]:[]),log:seclog.slice(),attachments:[{type:"code",n:title,h:fullHtml}],meta:{model:chatModel(),in:tIn,out:tOut,cost:chatCost(chatModel(),tIn,tOut),hops:built.length,trace:[],reasoning:""},ts:nowStamp()});
+    chatPush(slug,{role:"assistant",who:"Claude",text:head,actions:(v?["📋 filed to Briefs"]:[]),log:seclog.slice(),attachments:[{type:"code",n:title,h:fullHtml}],meta:{model:DELIVER_MODEL,in:tIn,out:tOut,cost:chatCost(DELIVER_MODEL,tIn,tOut),hops:built.length,trace:[],reasoning:""},ts:nowStamp()});
   }
   try{
     // 1) GATHER — deterministic skill-driven route (tools run instantly client-side → NO LLM hops, NO 180s crash).
@@ -4234,6 +4258,10 @@ async function chatSendDeep(slug,text){
       else if(contra.length)note("⚠️ "+contra.length+" possible contradiction"+(contra.length>1?"s":"")+" vs the catalog — auto-filed to the BV Second Brain Quality dashboard for review.");
       else note("✓ Fact-check done — no contradictions vs the catalog found.");
     }catch(e){}
+    // 3c) EDITORIAL COHESION PASS — one whole-document polish so the sections read as one author (facts locked; fail-open).
+    try{ if(!CHAT.cancel){ CHAT.phase="acting"; CHAT.steps.push({head:"✍️ Editorial pass — unifying voice & cutting repetition",sub:"whole-document polish · numbers locked"}); renderChatBody();
+      var _pol=await editorialPass(parts,plan,acc); if(Array.isArray(_pol)&&_pol.length===parts.length){ for(var _pi=0;_pi<parts.length;_pi++){ if(_pol[_pi]&&String(_pol[_pi]).trim().length>=20)parts[_pi]=_pol[_pi]; } CHAT.steps.push({head:"✓ Editorial pass complete",sub:"flow smoothed; every number verified unchanged"}); renderChatBody(); }
+    } }catch(e){}
     // 4) ASSEMBLE + file (or show inline) — shared path, used by success and the catch
     fileIt(null);
   }catch(e){ if(parts.length||plan){ try{ fileIt("stopped: "+((e&&e.message)||e)); }catch(_){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Deep run hit an error after some sections: "+((e&&e.message)||e)+".",ts:nowStamp()}); } } else { chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Deep run couldn't start: "+((e&&e.message)||e)+". Please try again.",ts:nowStamp()}); } }
