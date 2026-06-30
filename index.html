@@ -205,6 +205,19 @@
   .cmfoot{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line)}
   .cmtab{background:none;border:1px solid var(--faint);color:var(--faint);border-radius:var(--r-sm);padding:3px 12px;font-size:12px;cursor:pointer}
   .cmtab.on{border-color:var(--blue);color:var(--blue)}
+  /* ---- brief sign-off strip — three departments: Marketing · Product · Ben ---- */
+  .bv-approvals{margin:6px 0 4px;padding:5px 7px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel2,#16181d)}
+  .bv-appr-h{font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+  .bv-appr-done{color:var(--green);font-weight:700}
+  .bv-appr-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+  .bv-sign{display:flex;align-items:center;gap:4px;padding:3px 6px;border-radius:var(--r-xs);font-size:11px;font-family:inherit;text-align:left;line-height:1.3;width:100%;min-width:0}
+  .bv-sign-l{display:flex;align-items:center;gap:3px;font-weight:700;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .bv-sign.unsigned{border:1px dashed var(--amber,#fbbf24);background:rgba(251,191,36,.07);color:var(--amber,#fbbf24);cursor:pointer}
+  .bv-sign.unsigned:hover{background:rgba(251,191,36,.18)}
+  .bv-sign.signed{border:1px solid var(--green,#4ade80);background:rgba(74,222,128,.1);color:var(--green,#4ade80)}
+  .bv-sign-x{margin-left:auto;background:none;border:0;color:var(--faint);font-size:11px;cursor:pointer;padding:0 2px;line-height:1;border-radius:3px;flex:none}
+  .bv-sign-x:hover{color:var(--red,#f87171);background:rgba(248,113,113,.16)}
+  @media(max-width:520px){.bv-appr-row{grid-template-columns:1fr}}
   /* ---- inline brief section editor (✎ Edit) ---- */
   .bedsec{border:1px solid var(--line);border-radius:var(--r-sm);margin:10px 0;overflow:hidden;background:var(--panel2)}
   .bedbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--panel)}
@@ -493,13 +506,18 @@
   @media(prefers-reduced-motion:reduce){.stl-now .stl-node{animation:none}}
   .stl-card{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md)}
   .stl-now>.stl-card{border-color:rgba(238,49,36,.55)}
+  /* design-frozen stage (概念/開發 after Design freeze) → icy blue */
+  .stl-frozen .stl-node{background:#38bdf8;color:#06283a;box-shadow:0 0 0 3px rgba(56,189,248,.16),0 0 9px rgba(56,189,248,.45)}
+  .stl-frozen>.stl-card{border-color:rgba(56,189,248,.5);background:linear-gradient(180deg,rgba(56,189,248,.07),transparent 60%)}
+  .stl-frozen .stl-stage{color:#7dd3fc}
+  .stl-frozen-tag{font-size:10px;font-weight:700;letter-spacing:.03em;color:#7dd3fc;border:1px solid rgba(56,189,248,.5);background:rgba(56,189,248,.1);border-radius:6px;padding:1px 6px;margin-left:6px}
   .stl-blocked>.stl-card{border-color:rgba(248,113,113,.5)}
   .stl-up>.stl-card{background:transparent;border-style:dashed}
-  .stl-card>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 13px}
+  .stl-card>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 13px;border-radius:var(--r-md)}
   .stl-card>summary::-webkit-details-marker{display:none}
   .stl-card>summary:hover{background:var(--panel2)}
   .stl-up>.stl-card>summary:hover{background:rgba(127,127,127,.06)}
-  .stl-card[open]>summary{border-bottom:1px solid var(--line)}
+  .stl-card[open]>summary{border-bottom:1px solid var(--line);border-radius:var(--r-md) var(--r-md) 0 0}
   .stl-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;min-width:0}
   .stl-stage{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.05em;font-size:12.5px;font-weight:700}
   .stl-up .stl-stage{color:var(--faint)}
@@ -644,13 +662,13 @@ const DEPTS = () => TEAM.map(t=>t.name);
 /* ================= STAGES & GATE MAP (from gate-map v1) ================= */
 const STAGES = ["Concept","Build","Production","Content","Listing creation","Live","Marketing"];
 const GATES = {
-  "Concept":[{t:"Form (intake)",d:"Product"},{t:"Market research",d:"Product"},{t:"Concept definition",d:"Product"},{t:"Ben concept sign-off ◆",d:"Product",ben:1}],
+  "Concept":[{t:"Form (intake)",d:"Product"},{t:"Understand WHY",d:"Product"},{t:"Market research",d:"Product"},{t:"Product info confirmed",d:"Product"},{t:"Concept definition",d:"Product"},{t:"Concept brainstorming meeting",d:"Product"},{t:"Concept definition doc finalized",d:"Product"},{t:"Visual concept confirmed",d:"Design"},{t:"Ben concept sign-off ◆",d:"Product",ben:1}],
   "Build":[{t:"Prototype 1-2-3 approved",d:"Product"},{t:"Ben validation ◆",d:"Product",ben:1},{t:"Costing & profit signed off",d:"Product"},{t:"Packaging / insert / manual locked",d:"Design"},{t:"Model name set",d:"Design"}],
-  "Production":[{t:"Design freeze",d:"Product"},{t:"Marketing brief rough draft",d:"Marketing"},{t:"Department requirements collected",d:"Product"},{t:"Pre-production sample approved + BOM",d:"Product"},{t:"Mass production complete",d:"Product"},{t:"Dispatch details & tracking filed",d:"Logistics"},{t:"Freight booked (sea + air samples)",d:"Logistics"}],
-  "Content":[{t:"Hero / lifestyle shoot done",d:"Content"},{t:"Post-production done",d:"Content"},{t:"Content exported (instruction / lifestyle / social clips / ads)",d:"Content"},{t:"A+ / infographic assets ready",d:"Design"}],
-  "Listing creation":[{t:"Amazon SKU created",d:"Catalog"},{t:"Shopify SKU created",d:"Catalog"},{t:"Shipbob SKU created",d:"Catalog"},{t:"Next Smart Ship SKU created",d:"Catalog"},{t:"All ASINs sheet updated",d:"Catalog"},{t:"Shopify COGS sheet updated",d:"Catalog"},{t:"Shipping labels created (Amazon + Shipbob)",d:"Logistics"},{t:"Product data filed → marketing brief",d:"Catalog"},{t:"Brand language confirmed ◆",d:"Catalog",ben:1},{t:"Listing imagery / A+ uploaded",d:"Design"}],
-  "Live":[{t:"Listings published live (Amazon + Shopify)",d:"Catalog"},{t:"Inventory received (Amazon + Shipbob)",d:"Logistics"},{t:"Marketing brief finalized & ready",d:"Marketing"}],
-  "Marketing":[{t:"KOL / influencer projects live",d:"Marketing"},{t:"Channel posts live (IG / YouTube / TikTok)",d:"Social"},{t:"Launch ads running",d:"Ads"},{t:"Launch email sequence sent",d:"Email"}]
+  "Production":[{t:"Design freeze",d:"Product"},{t:"Marketing brief rough draft",d:"Marketing"},{t:"Pre-production sample approved + BOM",d:"Product"},{t:"Mass production complete",d:"Product"},{t:"Master order sheet updated",d:"Logistics"},{t:"Logistics planning done",d:"Logistics"},{t:"Logistics sheet updated",d:"Logistics"},{t:"Deploy marketing samples",d:"Logistics"},{t:"Dispatch details & tracking filed",d:"Logistics"},{t:"Freight booked (sea + air samples)",d:"Logistics"}],
+  "Content":[{t:"Pre-production complete",d:"Content"},{t:"Hero / lifestyle shoot done",d:"Content"},{t:"Post-production done",d:"Content"},{t:"Content exported (instruction / lifestyle / social clips / ads)",d:"Content"},{t:"A+ / infographic assets ready",d:"Design"}],
+  "Listing creation":[{t:"Amazon SKU created",d:"Catalog"},{t:"Shopify SKU created",d:"Catalog"},{t:"Shipbob SKU created",d:"Catalog"},{t:"Next Smart Ship SKU created",d:"Catalog"},{t:"All ASINs sheet updated",d:"Catalog"},{t:"Ops sheet updated",d:"Catalog"},{t:"Shopify COGS sheet updated",d:"Catalog"},{t:"Shipping labels created (Amazon + Shipbob)",d:"Logistics"},{t:"Labels handed to manufacturer / carriers",d:"Logistics"},{t:"Product data filed → marketing brief",d:"Catalog"},{t:"Brand language confirmed ◆",d:"Catalog",ben:1},{t:"Listing imagery / A+ uploaded",d:"Design"}],
+  "Live":[{t:"Listings published live (Amazon + Shopify)",d:"Catalog"},{t:"Amazon store / posts updated",d:"Design"},{t:"Inventory received (Amazon + Shipbob)",d:"Logistics"},{t:"Amazon pickup / shipped to Shipbob",d:"Logistics"},{t:"Marketing brief finalized & ready",d:"Marketing"}],
+  "Marketing":[{t:"Marketing brief v2 ready",d:"Marketing"},{t:"KOL / influencer projects live",d:"Marketing"},{t:"KOL ideation / sourcing",d:"Marketing"},{t:"KOL negotiation → payment",d:"Marketing"},{t:"KOL evaluation done (Ben + Marketing)",d:"Marketing"},{t:"Usage rights / archive",d:"Marketing"},{t:"Channel posts live (IG / YouTube / TikTok)",d:"Social"},{t:"Launch ads running",d:"Ads"},{t:"Ad post-production (if needed)",d:"Ads"},{t:"Partnerships approved",d:"Ads"},{t:"Launch email sequence sent",d:"Email"},{t:"Influencer DM → email pipeline set",d:"CRM"}]
 };
 
 /* ================= MASTER FLOW CHART (digitized from "BV Team Workflow_v2.pdf") =================
@@ -659,12 +677,12 @@ const FIGMA="https://www.figma.com/design/gURRPHblJh81nDLQPq8po6/%F0%9F%94%B5-Pr
 const FLOW = {
  "Product":[
   {l:"Form (intake)",s:"Concept",t:"Form (intake)"},
-  {l:"Understand WHY",s:"Concept"},
+  {l:"Understand WHY",s:"Concept",t:"Understand WHY"},
   {l:"Market research",s:"Concept",t:"Market research",sub:["Competitor analysis","Product strengths"]},
   {l:"Create concept definition document",s:"Concept",t:"Concept definition"},
-  {l:"Concept brainstorming meeting (Figma)",s:"Concept",url:FIGMA},
-  {l:"Product info: spec · look · material · price",s:"Concept"},
-  {l:"Concept definition doc FINAL",s:"Concept"},
+  {l:"Concept brainstorming meeting (Figma)",s:"Concept",url:FIGMA,t:"Concept brainstorming meeting"},
+  {l:"Product info: spec · look · material · price",s:"Concept",t:"Product info confirmed"},
+  {l:"Concept definition doc FINAL",s:"Concept",t:"Concept definition doc finalized"},
   {l:"Ben confirms concept",s:"Concept",t:"Ben concept sign-off ◆",d:1},
   {l:"Prototyping 1-2-3 + testing",s:"Build",t:"Prototype 1-2-3 approved"},
   {l:"Ben validation",s:"Build",t:"Ben validation ◆",d:1},
@@ -672,28 +690,27 @@ const FLOW = {
   {l:"Design freeze",s:"Production",t:"Design freeze"},
   {l:"Pre-prod sample + BOM → Ben",s:"Production",t:"Pre-production sample approved + BOM"},
   {l:"Mass production",s:"Production",t:"Mass production complete"},
-  {l:"Department requirements collected",s:"Production",t:"Department requirements collected"},
-  {l:"Send samples to teams",s:"Production"}],
+  {l:"Send samples to teams",s:"Production",t:"Deploy marketing samples"}],
  "Design":[
-  {l:"Concept: look · color · material",s:"Concept"},
+  {l:"Concept: look · color · material",s:"Concept",t:"Visual concept confirmed"},
   {l:"Packaging · insert · manual",s:"Build",t:"Packaging / insert / manual locked"},
   {l:"Model name",s:"Build",t:"Model name set"},
   {l:"Infographic / A+ assets",s:"Content",t:"A+ / infographic assets ready"},
   {l:"Listing imagery / A+ upload",s:"Listing creation",t:"Listing imagery / A+ uploaded"},
-  {l:"Update Amazon store / posts",s:"Live"}],
+  {l:"Update Amazon store / posts",s:"Live",t:"Amazon store / posts updated"}],
  "Catalog":[
   {l:"Amazon SKU creation",s:"Listing creation",t:"Amazon SKU created"},
   {l:"Shopify SKU creation",s:"Listing creation",t:"Shopify SKU created"},
   {l:"Shipbob SKU creation",s:"Listing creation",t:"Shipbob SKU created"},
   {l:"Next Smart Ship SKU",s:"Listing creation",t:"Next Smart Ship SKU created"},
   {l:"All ASINs sheet update",s:"Listing creation",t:"All ASINs sheet updated"},
-  {l:"Ops sheet update",s:"Listing creation"},
+  {l:"Ops sheet update",s:"Listing creation",t:"Ops sheet updated"},
   {l:"Shopify COGS sheet update",s:"Listing creation",t:"Shopify COGS sheet updated"},
   {l:"Product data filed → brief",s:"Listing creation",t:"Product data filed → marketing brief"},
   {l:"Brand language confirmed",s:"Listing creation",t:"Brand language confirmed ◆",d:1},
   {l:"Listings published LIVE",s:"Live",t:"Listings published live (Amazon + Shopify)"}],
  "Content":[
-  {l:"Pre-production",s:"Content"},
+  {l:"Pre-production",s:"Content",t:"Pre-production complete"},
   {l:"Hero / lifestyle shoot",s:"Content",t:"Hero / lifestyle shoot done"},
   {l:"Post-production",s:"Content",t:"Post-production done"},
   {l:"Content export: instruction · lifestyle · social · ads",s:"Content",t:"Content exported (instruction / lifestyle / social clips / ads)"}],
@@ -702,29 +719,30 @@ const FLOW = {
  "Marketing":[
   {l:"Marketing brief rough draft",s:"Production",t:"Marketing brief rough draft"},
   {l:"Marketing brief finalized",s:"Live",t:"Marketing brief finalized & ready"},
-  {l:"Marketing brief v2",s:"Marketing"},
+  {l:"Marketing brief v2",s:"Marketing",t:"Marketing brief v2 ready"},
   {l:"KOL projects: MOAT · ASMR · Cinematic · Authority · Reach · Seed · UGC · Pro",s:"Marketing",t:"KOL / influencer projects live"},
-  {l:"Ideation → Sourcing / DM received",s:"Marketing"},
-  {l:"Negotiation → Shipping → Video live → Payment",s:"Marketing"},
-  {l:"Evaluation (Ben + Marketing)",s:"Marketing",d:1},
-  {l:"Usage rights → long-term / archive",s:"Marketing"}],
+  {l:"Ideation → Sourcing / DM received",s:"Marketing",t:"KOL ideation / sourcing"},
+  {l:"Negotiation → Shipping → Video live → Payment",s:"Marketing",t:"KOL negotiation → payment"},
+  {l:"Evaluation (Ben + Marketing)",s:"Marketing",d:1,t:"KOL evaluation done (Ben + Marketing)"},
+  {l:"Usage rights → long-term / archive",s:"Marketing",t:"Usage rights / archive"}],
  "Ads":[
-  {l:"Post-production (if needed)",s:"Marketing"},
-  {l:"Partnerships approval",s:"Marketing"},
+  {l:"Post-production (if needed)",s:"Marketing",t:"Ad post-production (if needed)"},
+  {l:"Partnerships approval",s:"Marketing",t:"Partnerships approved"},
   {l:"Post ad",s:"Marketing",t:"Launch ads running"}],
  "Email":[
   {l:"Launch email sequence",s:"Marketing",t:"Launch email sequence sent"}],
  "CRM":[
-  {l:"Influencer DMs → email pipeline",s:"Marketing"}],
+  {l:"Influencer DMs → email pipeline",s:"Marketing",t:"Influencer DM → email pipeline set"}],
  "Logistics":[
-  {l:"Update master order sheet",s:"Production"},
-  {l:"Logistics planning",s:"Production"},
-  {l:"Update logistics sheet",s:"Production"},
+  {l:"Update master order sheet",s:"Production",t:"Master order sheet updated"},
+  {l:"Logistics planning",s:"Production",t:"Logistics planning done"},
+  {l:"Update logistics sheet",s:"Production",t:"Logistics sheet updated"},
+  {l:"Deploy marketing samples",s:"Production",t:"Deploy marketing samples"},
   {l:"Dispatch details & tracking",s:"Production",t:"Dispatch details & tracking filed"},
   {l:"Freight: sea bulk + air samples",s:"Production",t:"Freight booked (sea + air samples)"},
   {l:"Shipping labels: Amazon + Shipbob",s:"Listing creation",t:"Shipping labels created (Amazon + Shipbob)"},
-  {l:"Labels → manufacturer · carriers · send to USA",s:"Listing creation"},
-  {l:"Amazon pickup / ship to Shipbob",s:"Live"},
+  {l:"Labels → manufacturer · carriers · send to USA",s:"Listing creation",t:"Labels handed to manufacturer / carriers"},
+  {l:"Amazon pickup / ship to Shipbob",s:"Live",t:"Amazon pickup / shipped to Shipbob"},
   {l:"Monitor inventory receiving",s:"Live",t:"Inventory received (Amazon + Shipbob)"}]
 };
 /* ===== dependency ROUTES =====
@@ -736,9 +754,9 @@ const XROUTES={
 "Product|Market research":[["Product","Market research"],["Product","Create concept definition document"]],
 "Product|Create concept definition document":[["Product","Create concept definition document"],["Product","Concept brainstorming meeting (Figma)"],["Design","Concept: look · color · material"],["Product","Product info: spec · look · material · price"],["Product","Concept definition doc FINAL"]],
 "Product|Ben validation":[["Product","Ben validation"],["Product","Costing & profit"],["Design","Packaging · insert · manual"],["Design","Model name"]],
-"Product|Design freeze":[["Product","Design freeze"],["Marketing","Marketing brief rough draft"],["Product","Department requirements collected"]],
-"Marketing|Marketing brief rough draft":[["Marketing","Marketing brief rough draft"],["Product","Department requirements collected"],["Product","Send samples to teams"]],
-"Product|Department requirements collected":[["Product","Department requirements collected"],["Logistics","Dispatch details & tracking"],["Product","Send samples to teams"]],
+"Product|Design freeze":[["Product","Design freeze"],["Marketing","Marketing brief rough draft"],["Logistics","Deploy marketing samples"]],
+"Marketing|Marketing brief rough draft":[["Marketing","Marketing brief rough draft"],["Logistics","Deploy marketing samples"],["Product","Send samples to teams"]],
+"Logistics|Deploy marketing samples":[["Logistics","Deploy marketing samples"],["Logistics","Dispatch details & tracking"],["Product","Send samples to teams"]],
 "Product|Send samples to teams":[["Product","Send samples to teams"],["Content","Pre-production"],["Content","Hero / lifestyle shoot"]],
 "Logistics|Dispatch details & tracking":[["Logistics","Dispatch details & tracking"],["Product","Send samples to teams"]],
 "Product|Mass production":[["Product","Mass production"],["Logistics","Logistics planning"],["Logistics","Freight: sea bulk + air samples"],["Logistics","Shipping labels: Amazon + Shipbob"]],
@@ -1063,6 +1081,7 @@ function renderGAuth(){
   }
 }
 function createDriveDoc(slug,i,kind){
+  if(!frozenStepGuard(slug,i))return;        // post-design-freeze guard for 概念/開發 steps
   if(!GOOGLE_CLIENT_ID){toast("⚠️ Add a Google Client ID in the code first (see GOOGLE-SHEETS-SETUP.md)");return;}
   if(!gReady()){toast("Google still loading — try again in a second");return;}
   const t=_linkTask(slug,i); if(!t){toast("Task not found");return;}
@@ -1101,9 +1120,15 @@ function createDriveDoc(slug,i,kind){
    Called from newLaunch(). Best-effort: if Google isn't configured/signed-in, the card is
    still created locally and we just skip (or surface a hint). The folder id is stored on the
    launch so every Sheet/Doc generated for it lands inside its own folder. */
-function createLaunchFolder(slug){
+function createLaunchFolder(slug,_tries){
   const l=L(slug); if(!l)return;
-  if(!GOOGLE_CLIENT_ID||!gReady())return; // Google not set up / still loading → skip silently, card already created
+  if(!GOOGLE_CLIENT_ID)return;            // Google not configured → skip silently, card already created
+  if(l.driveFolderId)return;             // already has a folder → don't create a duplicate
+  if(!gReady()){                         // the Google sign-in lib loads `async defer`, so on a fresh page it often
+    const n=_tries||0;                   // isn't ready the instant a launch is created → WAIT for it instead of
+    if(n>40){ toast("Google Drive isn't ready yet — open the card and tap 📁 Folder to create it."); return; } // skipping (this was why the folder never got created)
+    setTimeout(()=>createLaunchFolder(slug,n+1),250); return;   // retry every 250ms, up to ~10s
+  }
   if(GAUTH.token&&!gHasDrive())GAUTH.token=null; // drop a stale token lacking Drive access so we re-consent
   const fname="BV-SuperPM-"+l.name; // folder named after the product, matching the Doc/Sheet naming
   toast("Creating Drive folder “"+fname+"”…");
@@ -1226,6 +1251,92 @@ function reconcileLaunchTasks(){
   LAUNCHES.forEach(l=>{ if(!Array.isArray(l.tasks))return; const n=l.tasks.length; l.tasks=l.tasks.filter(t=>t&&valid.has(t.t)); removed+=n-l.tasks.length; });
   return removed;
 }
+/* ---- one-time data migration: "Department requirements collected" (Product) → "Deploy marketing samples" (Logistics),
+   relocated to sit right after "Mass production complete". Idempotent; also absorbs the interim "Logistics execution"
+   name. The template (GATES/FLOW/XROUTES) AND every card's task copy are persisted in the board snapshot, so without
+   this the saved old name would overwrite the code on load and reconcileLaunchTasks would then strip the renamed
+   step from existing cards. ---- */
+function migrateDeptReqToLogistics(){
+  const OLDS=["Department requirements collected","Logistics execution","Send marketing samples"], NEW="Deploy marketing samples";
+  const isOld=x=>x&&OLDS.indexOf(x)>=0; let changed=false;
+  // GATES: rename + re-own to Logistics + reorder so it follows "Mass production complete"
+  Object.keys(GATES).forEach(stage=>{ const arr=GATES[stage]; if(!Array.isArray(arr))return;
+    const i=arr.findIndex(c=>c&&isOld(c.t)); if(i<0)return; const c=arr[i]; c.t=NEW; c.d="Logistics";
+    arr.splice(i,1); const mp=arr.findIndex(c=>c&&c.t==="Mass production complete");
+    if(mp>=0)arr.splice(mp+1,0,c); else arr.push(c); changed=true; });
+  // FLOW: drop the old node from any lane, ensure one lives in the Logistics lane (before Dispatch)
+  Object.keys(FLOW).forEach(d=>{ const lane=FLOW[d]; if(!Array.isArray(lane))return;
+    for(let k=lane.length-1;k>=0;k--){ const n=lane[k]; if(n&&(isOld(n.l)||isOld(n.t))){ lane.splice(k,1); changed=true; } } });
+  if(Array.isArray(FLOW.Logistics)&&!FLOW.Logistics.some(n=>n&&n.t===NEW)){
+    const di=FLOW.Logistics.findIndex(n=>n&&n.t==="Dispatch details & tracking filed");
+    const node={l:NEW,s:"Production",t:NEW}; if(di>=0)FLOW.Logistics.splice(di,0,node); else FLOW.Logistics.push(node); changed=true; }
+  // XROUTES: rename the key and any [dept,label] reference to the new dept + name
+  Object.keys(XROUTES).forEach(key=>{ const steps=XROUTES[key];
+    if(Array.isArray(steps))steps.forEach(p=>{ if(Array.isArray(p)&&isOld(p[1])){ p[0]="Logistics"; p[1]=NEW; changed=true; } });
+    OLDS.forEach(OLD=>{ if(key.endsWith("|"+OLD)){ XROUTES["Logistics|"+NEW]=XROUTES[key]; delete XROUTES[key]; changed=true; } }); });
+  // every card's task copy: rename + re-own + reorder after "Mass production complete"
+  LAUNCHES.forEach(l=>{ if(!Array.isArray(l.tasks))return;
+    const i=l.tasks.findIndex(t=>t&&isOld(t.t)); if(i<0)return; const t=l.tasks[i]; t.t=NEW; t.d="Logistics";
+    l.tasks.splice(i,1); const mp=l.tasks.findIndex(t=>t&&t.t==="Mass production complete");
+    if(mp>=0)l.tasks.splice(mp+1,0,t); else l.tasks.push(t); changed=true; });
+  return changed;
+}
+/* ---- idempotent migration: bring flow-chart steps that now map to a launch task into the
+   tracker. Each entry inserts its GATE (if missing), attaches `t` to its FLOW node, and adds the
+   task to every card. Mirrors migrateDeptReqToLogistics so a board persisted BEFORE this change
+   (whose snapshot GATES/FLOW overwrite the code on load) picks the steps up instead of having
+   reconcileLaunchTasks strip them. `after`:null means "first of its stage". The samples node is a
+   pure re-link (no new gate) → it points at the existing "Deploy marketing samples" gate. ---- */
+const ADDED_STEPS=[
+ {stage:"Concept",t:"Product info confirmed",d:"Product",after:"Market research",fl:["Product","Product info: spec · look · material · price"]},
+ {stage:"Concept",t:"Concept definition doc finalized",d:"Product",after:"Concept definition",fl:["Product","Concept definition doc FINAL"]},
+ {stage:"Concept",t:"Visual concept confirmed",d:"Design",after:"Concept definition doc finalized",fl:["Design","Concept: look · color · material"]},
+ {stage:"Production",t:"Master order sheet updated",d:"Logistics",after:"Mass production complete",fl:["Logistics","Update master order sheet"]},
+ {stage:"Production",t:"Logistics planning done",d:"Logistics",after:"Master order sheet updated",fl:["Logistics","Logistics planning"]},
+ {stage:"Production",t:"Logistics sheet updated",d:"Logistics",after:"Logistics planning done",fl:["Logistics","Update logistics sheet"]},
+ {stage:"Content",t:"Pre-production complete",d:"Content",after:null,fl:["Content","Pre-production"]},
+ {stage:"Listing creation",t:"Ops sheet updated",d:"Catalog",after:"All ASINs sheet updated",fl:["Catalog","Ops sheet update"]},
+ {stage:"Listing creation",t:"Labels handed to manufacturer / carriers",d:"Logistics",after:"Shipping labels created (Amazon + Shipbob)",fl:["Logistics","Labels → manufacturer · carriers · send to USA"]},
+ {stage:"Live",t:"Amazon store / posts updated",d:"Design",after:"Listings published live (Amazon + Shopify)",fl:["Design","Update Amazon store / posts"]},
+ {stage:"Live",t:"Amazon pickup / shipped to Shipbob",d:"Logistics",after:"Inventory received (Amazon + Shipbob)",fl:["Logistics","Amazon pickup / ship to Shipbob"]},
+ {stage:"Marketing",t:"Marketing brief v2 ready",d:"Marketing",after:null,fl:["Marketing","Marketing brief v2"]},
+ {stage:"Marketing",t:"KOL evaluation done (Ben + Marketing)",d:"Marketing",after:"KOL / influencer projects live",fl:["Marketing","Evaluation (Ben + Marketing)"]},
+ {stage:"Marketing",t:"Partnerships approved",d:"Ads",after:"Launch ads running",fl:["Ads","Partnerships approval"]},
+ {stage:"Marketing",t:"Influencer DM → email pipeline set",d:"CRM",after:"Launch email sequence sent",fl:["CRM","Influencer DMs → email pipeline"]},
+ // — round 2: the remaining flow-chart nodes that had no gate, so the by-stage list fully mirrors the chart —
+ {stage:"Concept",t:"Understand WHY",d:"Product",after:"Form (intake)",fl:["Product","Understand WHY"]},
+ {stage:"Concept",t:"Concept brainstorming meeting",d:"Product",after:"Concept definition",fl:["Product","Concept brainstorming meeting (Figma)"]},
+ {stage:"Marketing",t:"KOL ideation / sourcing",d:"Marketing",after:"KOL / influencer projects live",fl:["Marketing","Ideation → Sourcing / DM received"]},
+ {stage:"Marketing",t:"KOL negotiation → payment",d:"Marketing",after:"KOL ideation / sourcing",fl:["Marketing","Negotiation → Shipping → Video live → Payment"]},
+ {stage:"Marketing",t:"Usage rights / archive",d:"Marketing",after:"KOL evaluation done (Ben + Marketing)",fl:["Marketing","Usage rights → long-term / archive"]},
+ {stage:"Marketing",t:"Ad post-production (if needed)",d:"Ads",after:"Launch ads running",fl:["Ads","Post-production (if needed)"]}
+];
+const SAMPLES_LINK={fl:["Product","Send samples to teams"],t:"Deploy marketing samples"};
+function migrateAddTrackedSteps(){
+  let changed=false;
+  const linkFlow=(dept,label,t)=>{ const lane=FLOW[dept]; if(!Array.isArray(lane))return; const n=lane.find(x=>x&&x.l===label); if(n&&n.t!==t){ n.t=t; changed=true; } };
+  ADDED_STEPS.forEach(s=>{
+    const arr=GATES[s.stage];
+    if(Array.isArray(arr)&&!arr.some(c=>c&&c.t===s.t)){            // 1) insert the gate
+      const c={t:s.t,d:s.d};
+      const ai=s.after?arr.findIndex(x=>x&&x.t===s.after):-1;
+      if(ai>=0)arr.splice(ai+1,0,c); else if(s.after===null)arr.unshift(c); else arr.push(c);
+      changed=true;
+    }
+    linkFlow(s.fl[0],s.fl[1],s.t);                                 // 2) attach t to the flow node
+    LAUNCHES.forEach(l=>{ if(!Array.isArray(l.tasks)||l.tasks.some(t=>t&&t.t===s.t))return;  // 3) add task to each card
+      const st=l.complete||STAGES.indexOf(s.stage)<STAGES.indexOf(l.stage)?"x":"o";  // done card / already-passed stage → met (mirrors doneThrough), so we don't regress a complete card's %
+      const task={t:s.t,d:s.d,st,gate:false,stage:s.stage,links:[],codes:[],assignee:"",urg:"med",notes:[]};
+      let ai=s.after?l.tasks.findIndex(t=>t&&t.t===s.after):-1;
+      if(ai>=0)l.tasks.splice(ai+1,0,task);
+      else if(s.after===null){ const fi=l.tasks.findIndex(t=>t&&t.stage===s.stage); if(fi>=0)l.tasks.splice(fi,0,task); else l.tasks.push(task); }
+      else l.tasks.push(task);
+      changed=true;
+    });
+  });
+  linkFlow(SAMPLES_LINK.fl[0],SAMPLES_LINK.fl[1],SAMPLES_LINK.t);  // samples node → existing gate (no new task)
+  return changed;
+}
 function applySnapshot(d){
   if(!d)return;
   TEAM.length=0;(d.TEAM||[]).forEach(x=>TEAM.push(x));
@@ -1235,6 +1346,8 @@ function applySnapshot(d){
   if(d.GATES){Object.keys(GATES).forEach(k=>delete GATES[k]);Object.entries(d.GATES).forEach(([k,v])=>GATES[k]=v);}
   if(d.FLOW){Object.keys(FLOW).forEach(k=>delete FLOW[k]);Object.entries(d.FLOW).forEach(([k,v])=>FLOW[k]=v);}
   if(d.XROUTES){Object.keys(XROUTES).forEach(k=>delete XROUTES[k]);Object.entries(d.XROUTES).forEach(([k,v])=>XROUTES[k]=v);}
+  migrateDeptReqToLogistics();               // rename/relocate the old "Department requirements collected" step BEFORE reconcile strips it
+  migrateAddTrackedSteps();                  // add the newly-tracked flow-chart steps BEFORE reconcile strips them
   reconcileLaunchTasks();                    // strip orphan tasks left by removed/renamed template steps
   applyDeptLens();                           // re-lock a signed-in non-CEO to their team once the shared TEAM email map has loaded
 }
@@ -1519,7 +1632,7 @@ const DOD={"Form (intake)":"Intake complete: why, spec, look, material, customer
  "A+ / infographic assets ready":"All A+ modules + infographics exported to spec.",
  "Listing imagery / A+ uploaded":"Imagery live in Amazon/Shopify backends.",
  "Marketing brief rough draft":"Rough draft by Marketing at design freeze — guides content & listing prep.",
- "Department requirements collected":"Each department's sample/photo/data needs gathered before dispatch.",
+ "Deploy marketing samples":"Logistics ships marketing/content samples to the teams after mass production.",
  "Dispatch details & tracking filed":"Sample dispatch details + tracking numbers on the card.",
  "Shipbob SKU created":"SKU exists in Shipbob.",
  "Next Smart Ship SKU created":"SKU exists in Next Smart Ship.",
@@ -1652,7 +1765,7 @@ const ZH={
  "Amazon SKU creation":"Amazon SKU 建立",
  "Shopify SKU creation":"Shopify SKU 建立",
  "Marketing brief rough draft":"行銷簡報初稿",
- "Department requirements collected":"各部門需求彙整",
+ "Deploy marketing samples":"部署行銷樣品",
  "Dispatch details & tracking filed":"產品發送細節與追蹤",
  "Shipbob SKU created":"Shipbob SKU 已建立",
  "Next Smart Ship SKU created":"Next Smart Ship SKU 已建立",
@@ -1660,6 +1773,15 @@ const ZH={
  "Shopify COGS sheet updated":"Shopify COGS 表已更新",
  "Shipping labels created (Amazon + Shipbob)":"出貨標籤建立（Amazon + Shipbob）",
  "Inventory received (Amazon + Shipbob)":"庫存入庫完成（Amazon + Shipbob）",
+ // — newly-tracked workflow steps (gate titles for the by-stage view) —
+ "Product info confirmed":"產品資訊確認","Concept definition doc finalized":"概念定義書定稿","Visual concept confirmed":"視覺概念確認",
+ "Master order sheet updated":"主訂單表已更新","Logistics planning done":"物流規劃完成","Logistics sheet updated":"物流表已更新",
+ "Pre-production complete":"前期製作完成","Ops sheet updated":"Ops 表已更新","Labels handed to manufacturer / carriers":"標籤交付工廠／承運商",
+ "Amazon store / posts updated":"Amazon 商店／貼文已更新","Amazon pickup / shipped to Shipbob":"Amazon 提貨／送往 Shipbob",
+ "Marketing brief v2 ready":"行銷簡報 v2 完成","KOL evaluation done (Ben + Marketing)":"KOL 成效評估完成（Ben＋行銷）",
+ "Partnerships approved":"合作批准完成","Influencer DM → email pipeline set":"網紅 DM → 郵件流程建立",
+ "Understand WHY":"概念轉化","Concept brainstorming meeting":"腦力激盪","KOL ideation / sourcing":"發想 → 尋找網紅／收到 DM",
+ "KOL negotiation → payment":"議約 → 寄送 → 影片上線 → 付款","Usage rights / archive":"使用權 → 長期合作／歸檔","Ad post-production (if needed)":"後製（如需要）",
  "Update master order sheet":"更新主訂單表","Logistics planning":"物流規劃","Update logistics sheet":"更新物流表",
  "Labels → manufacturer · carriers · send to USA":"標籤交付工廠・安排承運・發往美國",
  "Amazon pickup / ship to Shipbob":"Amazon 提貨／送往 Shipbob",
@@ -1752,6 +1874,7 @@ const ZH={
  "gate criteria":"關卡條件","tasks overall":"項任務","exit criteria":"出口條件","Exit criteria":"出口條件",
  "Weekly digest:":"每週摘要：","Approval needed:":"需要批准：","discuss in thread":"在討論串中討論","replies — discuss in thread":"則回覆 — 在討論串中討論",
  "Pushed to":"已推進至","DRI:":"負責部門 (DRI)：","DRI changed":"DRI 已變更","Now at:":"目前進度在 ","target":"目標日期","stage":"階段","thread":"討論串",
+ "Flow chart":"流程圖","Gate readiness":"關卡就緒度","Briefs":"簡報","NOTES &amp; DECISIONS":"備註與決策",
  "LAUNCH PROGRESS — BY STAGE":"上市進度 — 依階段","Every stage on the path, lit by progress. The current stage is open — tick its exit criteria, then push to advance.":"流程上的每個階段，依進度亮燈。目前階段已展開——勾選其出口條件，完成後即可推進。",
  "Done means:":"完成的定義：","Definition of done:":"完成定義：","Locked.":"已鎖定。",
  "fill the intake Form first":"請先填寫產品需求表","unlocks at the":"解鎖階段：","finish":"請先完成","first":"",
@@ -1825,8 +1948,25 @@ function applyTaskStatus(l,t,nx){
   else if(nx==="b")logEvent("blocked","⛔ blocked · "+l.name+" — "+t.t,{card:l.slug});
   return {ok:true};
 }
+/* ---- Design-freeze guard: once "Design freeze" is ticked, editing the 概念 (Concept) / 開發 (Build) steps is risky → ask first ---- */
+function designFreezeStage(){ return Object.keys(GATES).find(s=>(GATES[s]||[]).some(c=>c.t==="Design freeze"))||"Production"; }
+function isDesignFrozen(l){ const t=l&&(l.tasks||[]).find(x=>x.t==="Design freeze"); return !!(t&&t.st==="x"); }
+// the design phases that lock once design freezes = every stage BEFORE the one Design freeze sits in (Concept + Build)
+function isFrozenDesignStage(stage){ const fi=STAGES.indexOf(designFreezeStage()), si=STAGES.indexOf(stage); return si>=0&&fi>=0&&si<fi; }
+// returns true to PROCEED, false to ABORT the edit (user declined the post-freeze change)
+function confirmFrozenStepEdit(l,t){
+  if(!l||!t||!isDesignFrozen(l)||!isFrozenDesignStage(t.stage)) return true;
+  const zh={Concept:"概念",Build:"開發"}[t.stage]||t.stage;
+  const msg=LANG==="zh"
+    ? "設計已凍結 ❄️\n\n「"+t.t+"」屬於"+zh+"階段。設計凍結後再變更概念／開發步驟（含改狀態、加連結、加備註等）有風險，可能牽動已定案的規格與下游作業。\n\n仍要繼續嗎？"
+    : "Design is frozen ❄️\n\n“"+t.t+"” is a "+t.stage+" step. Changing concept/development steps after design freeze (status, links, notes…) is risky — it can affect locked specs and downstream work.\n\nContinue anyway?";
+  return (typeof confirm==="undefined")||confirm(msg);
+}
+// resolve a launch task by (slug,i) and run the freeze guard — returns true to PROCEED, false to abort. Campaign (__camp) tasks pass through.
+function frozenStepGuard(slug,i){ const l=(typeof L==="function")?L(slug):null; return confirmFrozenStepEdit(l, l&&l.tasks&&l.tasks[i]); }
 function cycle(slug,i){ // checkbox click cycles status: todo → in progress → done → blocked → todo
   const l=L(slug), t=l.tasks[i];
+  if(!confirmFrozenStepEdit(l,t)) return;   // post-design-freeze guard for 概念/開發 steps
   const nx={o:"p",p:"x",x:"b",b:"o"}[t.st];
   const r=applyTaskStatus(l,t,nx); if(!r.ok){toast(r.reason);return;}
   if(nx==="x"){const lane=FLOW[t.d]; const ii=lane?lane.findIndex(n=>n.t===t.t):-1;
@@ -1853,6 +1993,7 @@ function approve(slug,i){
   toast("✓ Approved — committed to repo, Slack message updated"); render();
 }
 function addLink(slug,i){
+  if(!frozenStepGuard(slug,i))return;        // post-design-freeze guard for 概念/開發 steps
   const u=prompt("Paste link URL (Drive doc, Figma, listing…)"); if(!u)return;
   const n=prompt("Short label for this link","Document")||"Link";
   (slug==="__camp"?curCamp().tasks[i]:L(slug).tasks[i]).links.push({n,u});
@@ -1860,6 +2001,7 @@ function addLink(slug,i){
 }
 function _linkTask(slug,i){return slug==="__camp"?((curCamp()||{tasks:[]}).tasks[i]):L(slug).tasks[i];}
 function editLink(slug,i,li){
+  if(!frozenStepGuard(slug,i))return;
   const t=_linkTask(slug,i); const k=(t.links||[])[li]; if(!k)return;
   const u=prompt("Edit link URL (blank = keep current)",k.u); if(u===null)return;
   const n=prompt("Edit link label (blank = keep current)",k.n); if(n===null)return;
@@ -1867,6 +2009,7 @@ function editLink(slug,i,li){
   toast("✏️ Link updated"); render();
 }
 function removeLink(slug,i,li){
+  if(!frozenStepGuard(slug,i))return;
   const t=_linkTask(slug,i); if(!t.links||!t.links[li])return;
   if(typeof confirm!=="undefined"&&!confirm("Remove “"+(t.links[li].n||"this link")+"”?"))return;
   t.links.splice(li,1); toast("🗑 Link removed"); render();
@@ -1918,6 +2061,7 @@ function codeModal({title,label,html,url,onSave,readOnly}){
   }
 }
 function addCode(slug,i){
+  if(!frozenStepGuard(slug,i))return;
   const t=_linkTask(slug,i);
   codeModal({title:"Attach HTML code or link",onSave:(n,obj)=>{(t.codes=t.codes||[]).push(Object.assign({n},obj)); toast("📎 Attached"); render();}});
 }
@@ -1926,10 +2070,12 @@ function viewCode(slug,i,ci){
   codeModal({readOnly:true,label:c.n,html:c.h,url:c.u});
 }
 function editCode(slug,i,ci){
+  if(!frozenStepGuard(slug,i))return;
   const t=_linkTask(slug,i), c=(t.codes||[])[ci]; if(!c)return;
   codeModal({title:"Edit attachment",label:c.n,html:c.h,url:c.u,onSave:(n,obj)=>{c.n=n; delete c.h; delete c.u; Object.assign(c,obj); toast("✏️ Updated"); render();}});
 }
 function removeCode(slug,i,ci){
+  if(!frozenStepGuard(slug,i))return;
   const t=_linkTask(slug,i); if(!t.codes||!t.codes[ci])return;
   if(typeof confirm!=="undefined"&&!confirm("Remove “"+(t.codes[ci].n||"this code")+"”?"))return;
   t.codes.splice(ci,1); toast("🗑 Code removed"); render();
@@ -1956,6 +2102,7 @@ function addCheckin(slug){
 function toggle(key){S.open[key]=!S.open[key];render();}
 function setF(slug,i,f,v){ L(slug).tasks[i][f]=v; toast(f==="urg"?"Urgency set to "+v:"Assignee updated"); render(); }
 function addNote(slug,i){
+  if(!frozenStepGuard(slug,i))return;
   const el=document.getElementById(`nt-${slug}-${i}`); const v=(el&&el.value||"").trim(); if(!v)return;
   const urg=(S.noteUrg&&S.noteUrg[slug+":"+i])||"med";
   L(slug).tasks[i].notes.push({d:today,a:noteAuthor(),txt:v,urg}); toast("Note added"); render();
@@ -1963,6 +2110,7 @@ function addNote(slug,i){
 function delTaskNote(slug,i,ni){ const l=L(slug); const t=l&&l.tasks[i]; if(!t||!t.notes||!t.notes[ni])return; t.notes.splice(ni,1); log("🗑 Note removed from "+t.t); save(); render(); toast("Note deleted"); }
 function setTaskDate(slug,i,field,val){ const l=L(slug); const t=l&&l.tasks[i]; if(!t)return; if(val)t[field]=val; else delete t[field]; const lab=field==="shipDate"?"Ship date":"Est. arrival"; log(`📅 ${lab} · ${t.t} → ${val||"(cleared)"}`); save(); render(); toast(val?lab+" saved":lab+" cleared"); }
 function addLoom(slug,i){
+  if(!frozenStepGuard(slug,i))return;
   const u=prompt("Paste Loom / video URL"); if(!u)return;
   L(slug).tasks[i].notes.push({d:today,a:noteAuthor(),txt:"Video walkthrough",v:u}); toast("🎥 Video attached"); render();
 }
@@ -2003,6 +2151,21 @@ function collabAddMenu(l,t,i,resp,collabs){ if(!stepSlot(t))return ""; const opt
 function setStepResp(stage,taskName,dept){ const s=(GATES[stage]||[]).find(x=>x.t===taskName); if(!s||!dept||s.d===dept)return; const old=s.d; if(Array.isArray(s.who)) s.who=s.who.filter(d=>d!==dept); s.d=dept; LAUNCHES.forEach(l=>l.tasks.forEach(t=>{ if(t.t===taskName&&t.stage===stage)t.d=dept; })); CAMPAIGNS.forEach(c=>(c.tasks||[]).forEach(t=>{ if(t.t===taskName)t.d=dept; })); log(`🧭 Responsible · ${taskName} → ${dept} (was ${old})`); save(); render(); toast("Responsible department updated"); }
 // template page: toggle a collaborator on a step
 function tplCollab(stage,taskName,dept){ const s=(GATES[stage]||[]).find(x=>x.t===taskName); if(!s||!dept)return; const cur=(Array.isArray(s.who)?s.who:[]).filter(d=>d&&d!==s.d); const next=cur.includes(dept)?cur.filter(d=>d!==dept):cur.concat(dept); setStepWho(s,next); log(`👥 ${taskName} collaborators → ${next.join(", ")||"(none)"}`); save(); render(); }
+/* chart↔checklist sync: a gate task's display NAME and sort ORDER come from its OWNING flow-chart node
+   (the node in the task's own lane that links to it via `t`), so the by-stage list is a faithful mirror of
+   the flow chart above — same wording, same sequence. Falls back to any linking node, then the raw title.
+   `ord` = the node's flat position across all lanes (FLOW key order, then array order) → the flow sequence. */
+// ORDER = the chart's department-lane sequence: walk lanes left→right (FLOW key order), each lane top→bottom.
+// This keeps each stage's primary/DRI lane (e.g. Product in 生產) together and first — matching the process spine —
+// rather than pixel-Y interleaving (which would scatter a long lane's later steps below short lanes' early steps).
+function flowMetaFor(taskTitle,ownerDept){
+  let k=0, owner=null, fallback=null;
+  for(const d of Object.keys(FLOW)){ const lane=FLOW[d]; if(!Array.isArray(lane)){continue;}
+    for(const n of lane){ if(n&&n.t===taskTitle){ if(d===ownerDept&&!owner)owner={label:n.l,ord:k}; if(!fallback)fallback={label:n.l,ord:k}; } k++; } }
+  return owner||fallback;
+}
+const flowTaskName=t=>{ const m=flowMetaFor(t.t,t.d); return m?flowTL(m.label):t.t; };   // what the by-stage row shows (mirrors the chart node)
+const flowTaskOrd=t=>{ const m=flowMetaFor(t.t,t.d); return m?m.ord:1e9; };                 // sort key = flow-chart sequence
 function taskRow(l,t,extra,ro){
   const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
   const vids=t.notes.filter(n=>n.v).length; const lk=taskLocked(l,t);
@@ -2014,7 +2177,7 @@ function taskRow(l,t,extra,ro){
   const meta=`<span class="o ometa">${lead}${collabChips?`<span class="o-collabs">${collabChips}</span>`:""}${collabPlus}</span>`;
   return `<div id="task-${l.slug}-${i}" style="border-radius:2px"><div class="row" style="${lk?"opacity:.38;filter:grayscale(.6)":""}">
    <button type="button" class="st ${lk?"":t.st}" ${lk?"disabled":""} aria-label="${lk?"locked — "+esc(lockReason(l,t)):"status: "+stWord(t.st)+" — click to advance"}" title="${lk?"locked — "+esc(lockReason(l,t)):"click to cycle status"}" onclick="cycle('${l.slug}',${i})">${lk?"🔒":stIcon[t.st]}</button>
-   <span>${esc(t.t)}${t.gate?' <span style="color:var(--purple)">◆</span>':""}
+   <span>${esc(flowTaskName(t))}${t.gate?' <span style="color:var(--purple)">◆</span>':""}
     ${lk?'<span class="urg" style="background:#1d2127;color:var(--faint)">locked</span>':""}${t.assignee?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
     ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
     ${lk?"":renderLinkMenu(t,l.slug,i)}
@@ -2055,20 +2218,21 @@ function stageTimeline(l){
   // single home for stage progress: every stage's exit criteria live here. The current stage is interactive
   // (tick criteria inline); the advance control (push/approve) sits in the .ld-advance bar below the timeline.
   return `<div class="stagetl">${STAGES.map((s,i)=>{
-    const ts=l.tasks.filter(t=>t.stage===s);
+    const ts=l.tasks.filter(t=>t.stage===s).sort((a,b)=>flowTaskOrd(a)-flowTaskOrd(b));   // mirror the flow-chart sequence
     const met=ts.filter(t=>t.st==="x").length, tot=ts.length;
     const blocked=!(l.complete||i<idx)&&ts.some(t=>t.st==="b");
     const state=l.complete||i<idx?"done":blocked?"blocked":i===idx?"now":"up";
     const isCur=i===idx&&!l.complete;
+    const frozen=isDesignFrozen(l)&&isFrozenDesignStage(s);   // 概念/開發 stage, locked by design freeze → iced
     const depts=[...new Set((GATES[s]||[]).map(c=>c.d))];
     const key=l.slug+":stl:"+s;
     const op=(S.stageOpen&&key in S.stageOpen)?S.stageOpen[key]:(isCur||blocked); // current + blocked auto-open; the current stage shows its live, tickable criteria
-    const glyph={done:"✓",now:"▶",blocked:"!",up:""}[state];
-    return `<div class="stl-item stl-${state}">
+    const glyph=frozen?"❄":{done:"✓",now:"▶",blocked:"!",up:""}[state];
+    return `<div class="stl-item stl-${state}${frozen?" stl-frozen":""}">
       <div class="stl-rail"><span class="stl-node" aria-hidden="true">${glyph}</span></div>
       <details class="stl-card"${op?" open":""} ontoggle="(S.stageOpen=S.stageOpen||{})['${key}']=this.open">
-        <summary aria-label="${esc(s)} stage — ${state==="done"?"done":state==="now"?"current":state==="blocked"?"blocked":"upcoming"}, ${met} of ${tot} exit criteria met">
-          <span class="stl-head"><span class="stl-stage">${esc(s)}</span>${isCur?'<span class="stl-now">📍 is here</span>':""}<span class="stl-depts">${depts.map(d=>`<span class="stl-dept" style="color:${DCOLOR(d)}">${esc(d)}</span>`).join("")}</span></span>
+        <summary aria-label="${esc(s)} stage — ${frozen?"design frozen, ":""}${state==="done"?"done":state==="now"?"current":state==="blocked"?"blocked":"upcoming"}, ${met} of ${tot} exit criteria met">
+          <span class="stl-head"><span class="stl-stage">${esc(s)}</span>${frozen?`<span class="stl-frozen-tag">❄ ${LANG==="zh"?"已凍結":"frozen"}</span>`:""}${isCur?'<span class="stl-now">📍 is here</span>':""}<span class="stl-depts">${depts.map(d=>`<span class="stl-dept" style="color:${DCOLOR(d)}">${esc(d)}</span>`).join("")}</span></span>
           <span class="stl-meta"><span class="stl-count" title="exit criteria met">${met}/${tot}</span></span>
         </summary>
         <div class="stl-body">${tot?ts.map(t=>taskRow(l,t,"",!isCur)).join(""):'<div class="sub" style="padding:6px 2px">No exit criteria for this stage yet — add them in Settings → Workflow template.</div>'}</div>
@@ -2087,6 +2251,54 @@ const cardHTML=l=>{const g=gateState(l),[h,cls]=health(l);const si=STAGES.indexO
   <span class="pill ${cls}">${h}</span>${l.complete?"":` <span class="pill ${floatDays(l)<0?"bad":"ok"}">float ${floatDays(l)}d</span>`}${l.driveFolderUrl?` <a class="pill" style="cursor:pointer;text-decoration:none;border:1px solid var(--line,#3a414b)" href="${l.driveFolderUrl}" target="_blank" title="Open this launch's Google Drive folder — anyone with the link can open it" onclick="event.stopPropagation()">📁 Drive</a>`:""}</div>`;};
 
 /* ================= MASTER FLOW CHART RENDER (SVG, live-colored per launch) ================= */
+/* ===== flow-chart label i18n (isolated from the global ZH dict) =====
+   The master flow chart renders each node's .l label; long English labels used to
+   wrap across multiple SVG <text> lines and so never matched the substring-replacement
+   ZH dict, staying English in 中文 mode. FLOWZH translates the label BEFORE wrap() so
+   the (short) Chinese shows. Kept SEPARATE from ZH so the chart wording can differ from
+   the gate/task titles other views show — changing a label here has zero cross-view impact.
+   Brand-token-heavy labels deliberately kept English are simply omitted (e.g. Next Smart
+   Ship SKU, Amazon pickup / ship to Shipbob). */
+const FLOWZH={
+ // — lane headers (only overrides; the rest fall back to the global ZH dict) —
+ "Catalog":"商品目錄",
+ // — Product —
+ "Form (intake)":"產品需求表","Understand WHY":"概念轉化","Market research":"市場調查",
+ "Create concept definition document":"整合概念","Concept brainstorming meeting (Figma)":"腦力激盪",
+ "Product info: spec · look · material · price":"產品資訊","Concept definition doc FINAL":"規格確認",
+ "Ben confirms concept":"BEN","Prototyping 1-2-3 + testing":"原型打樣","Ben validation":"BEN",
+ "Costing & profit":"成本與利潤","Design freeze":"設計凍結","Pre-prod sample + BOM → Ben":"產前樣＋BOM → Ben",
+ "Mass production":"大貨生產","Send samples to teams":"寄送樣品給各部門","Deploy marketing samples":"部署行銷樣品",
+ "Competitor analysis":"競品分析","Product strengths":"產品優點",
+ // — Design —
+ "Concept: look · color · material":"視覺設計","Packaging · insert · manual":"包裝設計","Model name":"型號名稱",
+ "Infographic / A+ assets":"A+ 素材","Listing imagery / A+ upload":"A+ 上傳","Update Amazon store / posts":"更新商店／貼文",
+ // — Catalog —
+ "Amazon SKU creation":"Amazon SKU 建立","Shopify SKU creation":"Shopify SKU 建立","Shipbob SKU creation":"Shipbob SKU 建立","Next Smart Ship SKU":"Next Smart Ship SKU 建立",
+ "All ASINs sheet update":"All ASINs 表更新","Ops sheet update":"Ops 表更新","Shopify COGS sheet update":"Shopify COGS 表更新",
+ "Product data filed → brief":"產品資料建檔 → 簡報","Brand language confirmed":"品牌語言確認","Listings published LIVE":"上架正式發佈",
+ // — Content —
+ "Pre-production":"前期製作","Hero / lifestyle shoot":"主圖／生活照拍攝","Post-production":"後製",
+ "Content export: instruction · lifestyle · social · ads":"內容輸出：教學・生活・社群・廣告",
+ // — Social —
+ "IG / YouTube / TikTok posts":"社群貼文",
+ // — Marketing —
+ "Marketing brief rough draft":"簡報初稿","Marketing brief finalized":"簡報定稿","Marketing brief v2":"行銷簡報 v2",
+ "KOL projects: MOAT · ASMR · Cinematic · Authority · Reach · Seed · UGC · Pro":"KOL 專案",
+ "Ideation → Sourcing / DM received":"發想 → 尋找網紅／收到 DM","Negotiation → Shipping → Video live → Payment":"議約 → 寄送 → 影片上線 → 付款",
+ "Evaluation (Ben + Marketing)":"評估（Ben＋行銷）","Usage rights → long-term / archive":"使用權 → 長期合作／歸檔",
+ // — Ads —
+ "Post-production (if needed)":"後製（如需要）","Partnerships approval":"合作批准","Post ad":"投放廣告",
+ // — Email / CRM —
+ "Launch email sequence":"上市郵件序列","Influencer DMs → email pipeline":"網紅 DM → 郵件流程",
+ // — Logistics —
+ "Update master order sheet":"更新主訂單表","Logistics planning":"物流規劃","Update logistics sheet":"更新物流表",
+ "Dispatch details & tracking":"出貨與追蹤","Freight: sea bulk + air samples":"運輸：海運大貨＋空運樣品",
+ "Shipping labels: Amazon + Shipbob":"出貨標籤","Labels → manufacturer · carriers · send to USA":"標籤交付工廠・安排承運・發往美國",
+ "Amazon pickup / ship to Shipbob":"Amazon 提貨／送往 Shipbob","Monitor inventory receiving":"監控庫存入庫"
+};
+const flowTL=s=>LANG==="zh"?(FLOWZH[s]||s):s;          // translate a flow label; fall back to English (then the global tx() pass)
+
 function flowSVG(l){
   S._flowSlug=l.slug;                                  // which launch the popover reads task/links from
   const depts=Object.keys(FLOW).filter(d=>DEPTS().includes(d)||FLOW[d]);
@@ -2102,11 +2314,13 @@ function flowSVG(l){
     ?{colBg:"#FFFFFF",colLine:"#DDE3EE",arrow:"#9AA6BA",
       fill:{x:"#E9F7EC",p:"#FFF3E0",b:"#FDEAEA",o:"#EEF1F7",fut:"#F7F9FC"},
       strk:{x:"#3E9E5B",p:"#D68910",b:"#D64545",o:"#B9C2D4",fut:"#E3E8F1"},
-      txt:{x:"#1E7E3E",p:"#A05A00",b:"#B03030",o:"#3C4452",fut:"#A9B2C2"}}
+      txt:{x:"#1E7E3E",p:"#A05A00",b:"#B03030",o:"#3C4452",fut:"#A9B2C2"},
+      ice:{fill:"#E6F4FB",strk:"#38BDF8",txt:"#0369A1"}}                       // design-frozen step → icy blue
     :{colBg:"#13161A",colLine:"#22262D",arrow:"#4A5260",
       fill:{x:"#14331f",p:"#33260f",b:"#331414",o:"#1d2127",fut:"#15171b"},
       strk:{x:"#4ade80",p:"#fbbf24",b:"#f87171",o:"#3a414b",fut:"#262b32"},
-      txt:{x:"#4ade80",p:"#fbbf24",b:"#f87171",o:"#aab3bd",fut:"#5a626d"}};
+      txt:{x:"#4ade80",p:"#fbbf24",b:"#f87171",o:"#aab3bd",fut:"#5a626d"},
+      ice:{fill:"#0e2a3d",strk:"#38bdf8",txt:"#7dd3fc"}};                       // design-frozen step → icy blue
   const fill=FT.fill, strk=FT.strk;
   const stateOf=(n,d,i)=>{
     if(n.t){const t=l.tasks.find(x=>x.t===n.t); if(t){ if(t.st!=="o")return t.st; return nodeLocked(l,d,i)?"fut":"o"; }}
@@ -2115,6 +2329,7 @@ function flowSVG(l){
     return nodeLocked(l,d,i)?"fut":si===ci?"o":"fut";
   };
   const here=nextUnmet(l);
+  const hereOwner=here?((l.tasks.find(t=>t&&t.t===here)||{}).d||null):null;   // the lane that OWNS the current criterion — so a re-linked node sharing its t (e.g. "Send samples to teams") doesn't double-fire the 📍 marker
   const hintsOn=S.flowHints!==false;                   // route-hint animation toggle (popover); off → calm chart
   const rsteps=(hintsOn&&S.route)?routeSteps(S.route.key,S.route.d,S.route.i):null;
   const rset=new Set(rsteps?rsteps.map(p=>p[0]+"|"+p[1]):[]);
@@ -2123,7 +2338,7 @@ function flowSVG(l){
   // columns + headers
   depts.forEach((d,c)=>{const x=GAP+c*(CW+GAP);
     svg+=`<rect x="${x-6}" y="10" width="${CW+12}" height="${H-20}" rx="2" fill="${FT.colBg}" stroke="${FT.colLine}"/>
-    <text x="${x+CW/2}" y="34" text-anchor="middle" fill="${DCOLOR(d)}" font-size="13" font-weight="700">${esc(d)}</text>`;});
+    <text x="${x+CW/2}" y="34" text-anchor="middle" fill="${DCOLOR(d)}" font-size="13" font-weight="700">${esc(flowTL(d))}</text>`;});
   // in-column arrows
   depts.forEach(d=>FLOW[d].forEach((n,i)=>{ if(i<FLOW[d].length-1){const a=pos(d,i),b=pos(d,i+1);
     svg+=`<line x1="${a.x+CW/2}" y1="${a.y+hgt(d,i)}" x2="${b.x+CW/2}" y2="${b.y-3}" stroke="${FT.arrow}" stroke-width="1.3" marker-end="url(#ar)"/>`;}}));
@@ -2133,25 +2348,27 @@ function flowSVG(l){
     svg+=`<path d="M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx-4} ${by}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar)"/>`;});
   // nodes
   depts.forEach(d=>FLOW[d].forEach((n,i)=>{const {x,y}=pos(d,i);const st=stateOf(n,d,i);
-    const isHere=n.t&&n.t===here;
+    const frozen=isDesignFrozen(l)&&isFrozenDesignStage(n.s)&&st==="x";   // a done 概念/開發 node, locked by design freeze → render it iced
+    const nf=frozen?FT.ice.fill:fill[st], ns=frozen?FT.ice.strk:strk[st];
+    const isHere=n.t&&n.t===here&&(hereOwner==null||d===hereOwner);
     const ti=n.t?l.tasks.findIndex(x=>x.t===n.t):-1;
     const key=d+"|"+n.l, inR=rset.has(key);
     const isSel=S.route&&S.route.d===d&&S.route.i===i;     // currently-open node (drives the popover anchor)
     const click=` style="cursor:pointer" onclick="event.stopPropagation();flowNode('${d}',${i})"`;
     const h=hgt(d,i);
     const body=n.d
-      ?`<polygon id="fn-${d}-${i}" points="${x+CW/2},${y-2} ${x+CW+4},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-4},${y+NH/2}" fill="${fill[st]}" stroke="${isHere?"#EE3124":strk[st]}" stroke-width="${isHere?2.5:1.4}"/>`
-      :`<rect id="fn-${d}-${i}" x="${x}" y="${y}" width="${CW}" height="${h}" rx="2" fill="${fill[st]}" stroke="${isHere?"#EE3124":strk[st]}" stroke-width="${isHere?2.5:1.4}"/>`;
-    const tcol=FT.txt[st]||FT.txt.o;
+      ?`<polygon id="fn-${d}-${i}" points="${x+CW/2},${y-2} ${x+CW+4},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-4},${y+NH/2}" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"/>`
+      :`<rect id="fn-${d}-${i}" x="${x}" y="${y}" width="${CW}" height="${h}" rx="2" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"/>`;
+    const tcol=frozen?FT.ice.txt:(FT.txt[st]||FT.txt.o);
     let labelSVG;
     if(n.sub&&n.sub.length){                            // parent header + nested sub-item boxes
-      labelSVG=`<text x="${x+CW/2}" y="${y+16}" text-anchor="middle" fill="${tcol}" font-size="10" font-weight="700">${esc(n.l)}</text>`
-        +n.sub.map((s,k)=>{const sy=y+HEAD+k*(SUBH+SUBGAP);return `<rect x="${x+10}" y="${sy}" width="${CW-20}" height="${SUBH}" rx="2" fill="${FT.colBg}" stroke="${strk[st]}" stroke-width="1"/><text x="${x+CW/2}" y="${sy+SUBH/2+3.5}" text-anchor="middle" fill="${tcol}" font-size="9">${esc(s)}</text>`;}).join("");
+      labelSVG=`<text x="${x+CW/2}" y="${y+16}" text-anchor="middle" fill="${tcol}" font-size="10" font-weight="700">${esc(flowTL(n.l))}</text>`
+        +n.sub.map((s,k)=>{const sy=y+HEAD+k*(SUBH+SUBGAP);return `<rect x="${x+10}" y="${sy}" width="${CW-20}" height="${SUBH}" rx="2" fill="${FT.colBg}" stroke="${ns}" stroke-width="1"/><text x="${x+CW/2}" y="${sy+SUBH/2+3.5}" text-anchor="middle" fill="${tcol}" font-size="9">${esc(flowTL(s))}</text>`;}).join("");
     }else{
-      const lines=wrap(n.l,24);
+      const lines=wrap(flowTL(n.l),24);
       labelSVG=lines.map((ln,k)=>`<text x="${x+CW/2}" y="${y+NH/2+(k-(lines.length-1)/2)*12+4}" text-anchor="middle" fill="${tcol}" font-size="9.5">${esc(ln)}</text>`).join("");
     }
-    svg+=`<g${click}${rsteps&&!inR?' opacity="0.22"':""}>${body}${isSel&&!rsteps?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="3" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inR?`<rect class="glownode" x="${x-4}" y="${y-4}" width="${CW+8}" height="${h+8}" rx="3" fill="none" stroke="#EE3124" stroke-width="3"/>`:""}${labelSVG}
+    svg+=`<g${click}${rsteps&&!inR?' opacity="0.22"':""}>${body}${isSel&&!rsteps?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="3" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inR?`<rect class="glownode" x="${x-4}" y="${y-4}" width="${CW+8}" height="${h+8}" rx="3" fill="none" stroke="#EE3124" stroke-width="3"/>`:""}${labelSVG}${frozen?`<text x="${x+CW-8}" y="${y+14}" text-anchor="middle" fill="${FT.ice.strk}" font-size="12" font-weight="700" pointer-events="none">❄</text>`:""}
     ${n.d?`<text x="${x+CW/2}" y="${y-6}" text-anchor="middle" fill="#c084fc" font-size="9">◆ decision</text>`:""}${n.url?`<text x="${x+CW/2}" y="${y-6}" text-anchor="middle" fill="#60a5fa" font-size="9">🔗 Figma</text>`:""}
     ${isHere?`<text x="${x+CW/2}" y="${y+h+14}" text-anchor="middle" fill="#EE3124" font-size="10" font-weight="700">📍 ${l.name} is here</text>`:""}
     <title>${esc(n.l)} — stage: ${n.s} · click for route + quick actions${st==="fut"&&ti>=0?" · 🔒 locked until previous step is done":""}</title></g>`;}));
@@ -2208,7 +2425,7 @@ function flowPopHTML(d,i){
   const ph=LANG==="zh"?"貼上連結網址…":"paste a URL…";
   const cls=LANG==="zh"?"關閉":"Close", rm=LANG==="zh"?"移除":"remove";
   const tip=LANG==="zh"?"開啟時，點擊步驟會在流程圖上顯示動態路徑提示；用熟了可關閉":"Show the animated route highlight on the chart when you click a step";
-  let h=`<div class="fp-head"><div class="fp-h-main"><div class="fp-title">${esc(n.l)}</div>`
+  let h=`<div class="fp-head"><div class="fp-h-main"><div class="fp-title">${esc(flowTL(n.l))}</div>`
     +`<div class="fp-meta"><span class="fp-stage">${esc(n.s)}</span>`
     +(n.d?'<span class="fp-dec">◆ decision</span>':"")
     +(locked?'<span class="fp-lock">🔒 locked</span>':"")
@@ -2226,10 +2443,9 @@ function flowPopHTML(d,i){
       +`onkeydown="if(event.key==='Enter'){event.preventDefault();fpAddLink('${l.slug}',${ti})}">`
       +`<button class="fp-add" onclick="fpAddLink('${l.slug}',${ti})">+ Add</button></div></div>`;
   }
-  const action=ti>=0
-    ?`<button class="btn fp-open" onclick="jumpTask('${l.slug}',${ti})">Open task on card</button>`
-    :n.url?`<a class="btn fp-open" href="${n.url}" target="_blank" rel="noopener">open Figma board ↗</a>`
-    :`<span class="fp-foot-note">No linked task on this step.</span>`;
+  const aTask=ti>=0?`<button class="btn fp-open" onclick="jumpTask('${l.slug}',${ti})">Open task on card</button>`:"";
+  const aUrl=n.url?`<a class="btn fp-open" href="${n.url}" target="_blank" rel="noopener">open Figma board ↗</a>`:"";
+  const action=(aTask||aUrl)?aTask+aUrl:`<span class="fp-foot-note">No linked task on this step.</span>`;   // a node can have BOTH a task and a Figma link (e.g. brainstorming) → show both
   const hintsOn=S.flowHints!==false;
   h+=`<div class="fp-foot">${action}<label class="fp-toggle" title="${tip}">`
     +`<input type="checkbox" role="switch" aria-checked="${hintsOn}" ${hintsOn?"checked":""} onchange="toggleFlowHints(this.checked)">`
@@ -3146,6 +3362,37 @@ function briefApprove(id,slot){ const b=briefById(id); if(!b||b.status==="confir
   logEvent("signoff","✍️ "+(slot==="ben"?"Ben":slot==="product"?"Product":"Marketing")+" sign-off · "+b.title+" (v"+(b.version||1)+")",{card:b.card});
   if(upd.status==="confirmed"){ toast("✓ Brief confirmed — it's now the single source of truth."); logEvent("signoff","✓ CONFIRMED brief · "+b.title+" — now the single source of truth",{card:b.card}); promoteBriefToCore(Object.assign({},b,{approvals:a,status:"confirmed"})); }
 }
+// Remove a sign-off (un-sign). Same role gate as signing; a confirmed brief drops back to "review" when a signature is pulled.
+function briefUnsign(id,slot){ const b=briefById(id); if(!b||b.status==="superseded")return;
+  const can = slot==="ben"?canBenSign() : slot==="marketing"?canMktSign() : canProdSign();
+  if(!can){ toast(slot==="ben"?"Only the CEO can change Ben's sign-off." : slot==="marketing"?"Only the Marketing lead (or CEO) can change this sign-off." : "Only the Product lead, a Director, or the CEO can change this sign-off."); return; }
+  const cur=(b.approvals||{})[slot]; if(!cur)return;
+  const lbl=slot==="ben"?"Ben":slot==="product"?"Product":"Marketing"; const who=(cur.by||"").split("@")[0]||"";
+  const msg=LANG==="zh"
+    ? "移除 "+lbl+" 的簽署"+(who?"（"+who+"）":"")+"？\n\n若此簡報已確認，將退回「審核中」並失去單一事實來源鎖定。"
+    : "Remove the "+lbl+" sign-off"+(who?" ("+who+")":"")+"?\n\nIf this brief is confirmed, it drops back to “In Review”.";
+  if(typeof confirm!=="undefined" && !confirm(msg)) return;
+  const a=Object.assign({marketing:null,product:null,ben:null},b.approvals||{}); a[slot]=null;
+  const upd={approvals:a,updatedAt:Date.now()};
+  if(b.status==="confirmed"){ upd.status="review"; upd.confirmedAt=null; }   // a confirmed brief loses its source-of-truth lock when a signature is pulled
+  try{briefsCol().doc(id).set(upd,{merge:true});}catch(e){}
+  logEvent("signoff","↩︎ "+lbl+" sign-off removed · "+b.title+" (v"+(b.version||1)+")",{card:b.card});
+  toast((LANG==="zh"?"已移除簽署 · ":"Sign-off removed · ")+lbl);
+}
+// The three-department sign-off strip (Marketing · Product · Ben) — obvious, each clickable to sign, with a ✕ to revoke. Hidden on superseded versions.
+function briefApprovalsHTML(b){
+  if(!b||b.status==="superseded") return "";
+  const a=b.approvals||{}; const slots=[["marketing","Marketing"],["product","Product"],["ben","Ben"]];
+  const signed=slots.filter(([k])=>a[k]).length;
+  const head=(LANG==="zh"?"三方簽署":"Sign-off")+" · "+signed+"/3";
+  const done=signed===3?' <span class="bv-appr-done">✓ '+(LANG==="zh"?"已確認":"Confirmed")+'</span>':'';
+  const cells=slots.map(([k,label])=>{ const s=a[k];
+    if(s){ const tip=label+" ✓ "+(s.by||"")+(s.at?(" · "+bts(s.at)):"");
+      return '<div class="bv-sign signed" title="'+esc(tip)+'"><span class="bv-sign-l">✓ '+esc(label)+'</span><button class="bv-sign-x" title="'+(LANG==="zh"?"移除此簽署":"Remove this sign-off")+'" onclick="event.stopPropagation();briefUnsign(\''+b.id+'\',\''+k+'\')">✕</button></div>'; }
+    return '<button class="bv-sign unsigned" title="'+esc(label)+' '+(LANG==="zh"?"— 點此簽署":"— click to sign off")+'" onclick="event.stopPropagation();briefApprove(\''+b.id+'\',\''+k+'\')"><span class="bv-sign-l">○ '+esc(label)+'</span></button>';
+  }).join("");
+  return '<div class="bv-approvals"><div class="bv-appr-h">'+esc(head)+done+'</div><div class="bv-appr-row">'+cells+'</div></div>';
+}
 function briefComment(id){ const inp=document.getElementById("bc_"+id), text=inp?inp.value.trim():""; if(!text)return; const b=briefById(id); if(!b)return;
   if(!FB.ready){ toast("⚠️ Not connected — comment not saved, try again"); return; }
   const comments=(b.comments||[]).concat([{who:actor(),role:roleLabel(),text,at:Date.now()}]);
@@ -3167,7 +3414,8 @@ function briefRename(id){ const b=briefById(id); if(!b){toast("Brief not found")
 function briefCardHTML(b){ const a=b.approvals||{},mk=a.marketing,pr=a.product,bn=a.ben,op=S.open&&S.open["brief_"+b.id],live=b.status==="review"||b.status==="draft";
   return `<div style="border:1px solid ${b.status==="confirmed"?"var(--green)":"var(--line)"};border-radius:8px;padding:8px 10px;margin:8px 0;${b.status==="superseded"?"opacity:.55":""}">
     <div><b style="${b.status==="superseded"?"text-decoration:line-through":""}">${esc(b.title)}</b> <span class="ghostnote">v${b.version}</span> ${statusBadge(b.status)}</div>
-    <div class="ghostnote" style="margin:2px 0 6px">by ${esc(b.author||"?")} · ${esc(bts(b.createdAt))}${(mk||pr||bn)?(" · "+(mk?"✓ Mkt":"⬜ Mkt")+" "+(pr?"✓ Prod":"⬜ Prod")+" "+(bn?"✓ Ben":"⬜ Ben")):""}${b.core&&b.core.wiki?` · <span title="published to the BV Data Core as the company's canonical brief" style="color:var(--green)">🧠 in company brain</span>`:""}</div>
+    <div class="ghostnote" style="margin:2px 0 6px">by ${esc(b.author||"?")} · ${esc(bts(b.createdAt))}${b.core&&b.core.wiki?` · <span title="published to the BV Data Core as the company's canonical brief" style="color:var(--green)">🧠 in company brain</span>`:""}</div>
+    ${b.status!=="superseded"?briefApprovalsHTML(b):""}
     <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
       <button class="iconbtn" onclick="briefView('${b.id}')">👁 View</button><button class="iconbtn" title="Open at a stable, reload-proof link you can bookmark or share — re-renders from the saved copy, never dies on refresh" onclick="window.open('brief.html?id=${b.id}','_blank')">🔗 Link</button>
       <button class="iconbtn" title="Rename this brief" onclick="briefRename('${b.id}')">✏️ Rename</button>
@@ -3176,9 +3424,6 @@ function briefCardHTML(b){ const a=b.approvals||{},mk=a.marketing,pr=a.product,b
       ${live?`<button class="iconbtn" title="Re-render this EXACT brief in the latest format — adds per-paragraph 💬 Feedback + 📊 Graph and keeps your content/images/charts. No AI, no re-research." onclick="briefReskin('${b.id}')">⟳ Latest format</button>`:""}
       ${(live&&!/class="bvL bvL-zh"/.test(b.html||""))?`<button class="iconbtn" id="btr_${b.id}" title="Translate this brief to 繁體中文 — adds an EN/中文 toggle (AI translation; takes a moment)" onclick="briefTranslate('${b.id}')">🌐 中文</button>`:""}
       ${(live&&(b.comments||[]).length)?`<button class="iconbtn" id="brev_${b.id}" title="Ask Claude to revise the whole brief to address every feedback note above — files a new version" onclick="briefReviseFromFeedback('${b.id}')">↻ Revise from feedback</button>`:""}
-      ${live?`<button class="iconbtn" ${mk?"disabled":""} title="${mk?("Marketing ✓ "+esc(mk.by)):"Marketing lead sign-off"}" onclick="briefApprove('${b.id}','marketing')">${mk?"✓ Marketing":"Marketing sign-off"}</button>
-      <button class="iconbtn" ${pr?"disabled":""} title="${pr?("Product ✓ "+esc(pr.by)):"Product lead sign-off"}" onclick="briefApprove('${b.id}','product')">${pr?"✓ Product":"Product sign-off"}</button>
-      <button class="iconbtn" ${bn?"disabled":""} title="${bn?("Ben ✓ "+esc(bn.by)):"Ben (CEO) sign-off"}" onclick="briefApprove('${b.id}','ben')">${bn?"✓ Ben":"Ben sign-off"}</button>`:""}
       ${b.status==="confirmed"?`<button class="iconbtn" onclick="briefReopen('${b.id}')" title="reopen for a new revision round">↺ revise</button>`:""}
       <button class="iconbtn" style="color:var(--red)" onclick="briefDelete('${b.id}')">✕</button>
     </div>
