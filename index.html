@@ -677,7 +677,7 @@ const STAGES = ["Concept","Build","Production","Content","Listing creation","Liv
 const GATES = {
   "Concept":[{t:"Form (intake)",d:"Product"},{t:"Understand WHY",d:"Product"},{t:"Market research",d:"Product"},{t:"Product info confirmed",d:"Product"},{t:"Concept definition",d:"Product"},{t:"Concept brainstorming meeting",d:"Product"},{t:"Concept definition doc finalized",d:"Product"},{t:"Visual concept confirmed",d:"Design"},{t:"Ben concept sign-off ◆",d:"Product",ben:1}],
   "Build":[{t:"Prototype 1-2-3 approved",d:"Product"},{t:"Ben validation ◆",d:"Product",ben:1},{t:"Costing & profit signed off",d:"Product"},{t:"Packaging / insert / manual locked",d:"Design"},{t:"Model name set",d:"Design"}],
-  "Production":[{t:"Design freeze",d:"Product"},{t:"Marketing brief rough draft",d:"Marketing"},{t:"Pre-production sample approved + BOM",d:"Product"},{t:"Mass production complete",d:"Product"},{t:"Master order sheet updated",d:"Logistics"},{t:"Logistics planning done",d:"Logistics"},{t:"Logistics sheet updated",d:"Logistics"},{t:"Deploy marketing samples",d:"Logistics"},{t:"Dispatch details & tracking filed",d:"Logistics"},{t:"Freight booked (sea + air samples)",d:"Logistics"}],
+  "Production":[{t:"Design freeze",d:"Product"},{t:"Marketing brief rough draft",d:"Marketing"},{t:"Pre-production sample approved + BOM",d:"Product"},{t:"Mass production complete",d:"Product"},{t:"Deploy marketing samples",d:"Logistics"},{t:"Master order sheet updated",d:"Logistics"},{t:"Logistics planning done",d:"Logistics"},{t:"Logistics sheet updated",d:"Logistics"},{t:"Dispatch details & tracking filed",d:"Logistics"},{t:"Freight booked (sea + air samples)",d:"Logistics"}],
   "Content":[{t:"Pre-production complete",d:"Content"},{t:"Hero / lifestyle shoot done",d:"Content"},{t:"Post-production done",d:"Content"},{t:"Content exported (instruction / lifestyle / social clips / ads)",d:"Content"},{t:"A+ / infographic assets ready",d:"Design"}],
   "Listing creation":[{t:"Amazon SKU created",d:"Catalog"},{t:"Shopify SKU created",d:"Catalog"},{t:"Shipbob SKU created",d:"Catalog"},{t:"Next Smart Ship SKU created",d:"Catalog"},{t:"All ASINs sheet updated",d:"Catalog"},{t:"Ops sheet updated",d:"Catalog"},{t:"Shopify COGS sheet updated",d:"Catalog"},{t:"Shipping labels created (Amazon + Shipbob)",d:"Logistics"},{t:"Labels handed to manufacturer / carriers",d:"Logistics"},{t:"Product data filed → marketing brief",d:"Catalog"},{t:"Brand language confirmed ◆",d:"Catalog",ben:1},{t:"Listing imagery / A+ uploaded",d:"Design"}],
   "Live":[{t:"Listings published live (Amazon + Shopify)",d:"Catalog"},{t:"Amazon store / posts updated",d:"Design"},{t:"Inventory received (Amazon + Shipbob)",d:"Logistics"},{t:"Amazon pickup / shipped to Shipbob",d:"Logistics"},{t:"Marketing brief finalized & ready",d:"Marketing"}],
@@ -702,8 +702,7 @@ const FLOW = {
   {l:"Costing & profit",s:"Build",t:"Costing & profit signed off"},
   {l:"Design freeze",s:"Production",t:"Design freeze"},
   {l:"Pre-prod sample + BOM → Ben",s:"Production",t:"Pre-production sample approved + BOM"},
-  {l:"Mass production",s:"Production",t:"Mass production complete"},
-  {l:"Send samples to teams",s:"Production",t:"Deploy marketing samples"}],
+  {l:"Mass production",s:"Production",t:"Mass production complete"}],
  "Design":[
   {l:"Concept: look · color · material",s:"Concept",t:"Visual concept confirmed"},
   {l:"Packaging · insert · manual",s:"Build",t:"Packaging / insert / manual locked"},
@@ -747,10 +746,10 @@ const FLOW = {
  "CRM":[
   {l:"Influencer DMs → email pipeline",s:"Marketing",t:"Influencer DM → email pipeline set"}],
  "Logistics":[
+  {l:"Deploy marketing samples",s:"Production",t:"Deploy marketing samples"},
   {l:"Update master order sheet",s:"Production",t:"Master order sheet updated"},
   {l:"Logistics planning",s:"Production",t:"Logistics planning done"},
   {l:"Update logistics sheet",s:"Production",t:"Logistics sheet updated"},
-  {l:"Deploy marketing samples",s:"Production",t:"Deploy marketing samples"},
   {l:"Dispatch details & tracking",s:"Production",t:"Dispatch details & tracking filed"},
   {l:"Freight: sea bulk + air samples",s:"Production",t:"Freight booked (sea + air samples)"},
   {l:"Shipping labels: Amazon + Shipbob",s:"Listing creation",t:"Shipping labels created (Amazon + Shipbob)"},
@@ -768,10 +767,9 @@ const XROUTES={
 "Product|Create concept definition document":[["Product","Create concept definition document"],["Product","Concept brainstorming meeting (Figma)"],["Design","Concept: look · color · material"],["Product","Product info: spec · look · material · price"],["Product","Concept definition doc FINAL"]],
 "Product|Ben validation":[["Product","Ben validation"],["Product","Costing & profit"],["Design","Packaging · insert · manual"],["Design","Model name"]],
 "Product|Design freeze":[["Product","Design freeze"],["Marketing","Marketing brief rough draft"],["Logistics","Deploy marketing samples"]],
-"Marketing|Marketing brief rough draft":[["Marketing","Marketing brief rough draft"],["Logistics","Deploy marketing samples"],["Product","Send samples to teams"]],
-"Logistics|Deploy marketing samples":[["Logistics","Deploy marketing samples"],["Logistics","Dispatch details & tracking"],["Product","Send samples to teams"]],
-"Product|Send samples to teams":[["Product","Send samples to teams"],["Content","Pre-production"],["Content","Hero / lifestyle shoot"]],
-"Logistics|Dispatch details & tracking":[["Logistics","Dispatch details & tracking"],["Product","Send samples to teams"]],
+"Marketing|Marketing brief rough draft":[["Marketing","Marketing brief rough draft"],["Logistics","Deploy marketing samples"]],
+"Logistics|Deploy marketing samples":[["Logistics","Deploy marketing samples"],["Logistics","Dispatch details & tracking"]],
+"Logistics|Dispatch details & tracking":[["Logistics","Dispatch details & tracking"]],
 "Product|Mass production":[["Product","Mass production"],["Logistics","Logistics planning"],["Logistics","Freight: sea bulk + air samples"],["Logistics","Shipping labels: Amazon + Shipbob"]],
 "Design|Model name":[["Design","Model name"],["Catalog","Brand language confirmed"]],
 "Design|Listing imagery / A+ upload":[["Design","Listing imagery / A+ upload"],["Catalog","Listings published LIVE"]],
@@ -1324,7 +1322,6 @@ const ADDED_STEPS=[
  {stage:"Marketing",t:"Usage rights / archive",d:"Marketing",after:"KOL evaluation done (Ben + Marketing)",fl:["Marketing","Usage rights → long-term / archive"]},
  {stage:"Marketing",t:"Ad post-production (if needed)",d:"Ads",after:"Launch ads running",fl:["Ads","Post-production (if needed)"]}
 ];
-const SAMPLES_LINK={fl:["Product","Send samples to teams"],t:"Deploy marketing samples"};
 function migrateAddTrackedSteps(){
   let changed=false;
   const linkFlow=(dept,label,t)=>{ const lane=FLOW[dept]; if(!Array.isArray(lane))return; const n=lane.find(x=>x&&x.l===label); if(n&&n.t!==t){ n.t=t; changed=true; } };
@@ -1347,7 +1344,38 @@ function migrateAddTrackedSteps(){
       changed=true;
     });
   });
-  linkFlow(SAMPLES_LINK.fl[0],SAMPLES_LINK.fl[1],SAMPLES_LINK.t);  // samples node → existing gate (no new task)
+  return changed;
+}
+/* ---- idempotent migration: remove the duplicate Product-lane "Send samples to teams" flow node.
+   This step now lives ONLY in the Logistics lane as "Deploy marketing samples" (same gate). Because
+   the board snapshot persists FLOW/XROUTES, a code-only delete would be overwritten on load — so this
+   strips the Product copy from any saved snapshot and cleans its XROUTES references too. ---- */
+function migrateDropSamplesNode(){
+  let changed=false;
+  Object.keys(FLOW).forEach(d=>{ const lane=FLOW[d]; if(!Array.isArray(lane))return;
+    for(let k=lane.length-1;k>=0;k--){ const n=lane[k]; if(n&&n.l==="Send samples to teams"){ lane.splice(k,1); changed=true; } } });
+  if(XROUTES["Product|Send samples to teams"]){ delete XROUTES["Product|Send samples to teams"]; changed=true; }
+  Object.keys(XROUTES).forEach(key=>{ const steps=XROUTES[key]; if(!Array.isArray(steps))return;
+    const cleaned=steps.filter(p=>!(Array.isArray(p)&&p[0]==="Product"&&p[1]==="Send samples to teams"));
+    if(cleaned.length!==steps.length){ XROUTES[key]=cleaned; changed=true; } });
+  return changed;
+}
+/* ---- idempotent migration: "Deploy marketing samples" is the FIRST logistics action (right after
+   Mass production), per the BV workflow. Moves its FLOW node to the head of the Logistics lane, its
+   GATE to right after "Mass production complete", and the matching task in every card to the same
+   spot. Without this the persisted snapshot's old ordering (samples after the sheet steps) would
+   overwrite the code on load. Pure reorder — moves existing objects, never recreates them, so cards
+   keep their status/links and the cleaned snapshot stays a write-back fixed point. ---- */
+function migrateSamplesFirst(){
+  const SAMP="Deploy marketing samples", MP="Mass production complete"; let changed=false;
+  // FLOW: move the samples node to the front of the Logistics lane
+  const lane=FLOW.Logistics;
+  if(Array.isArray(lane)){ const i=lane.findIndex(n=>n&&n.t===SAMP); if(i>0){ const [n]=lane.splice(i,1); lane.unshift(n); changed=true; } }
+  // GATES + every card's task copy: move samples to right after "Mass production complete"
+  const afterMP=(a,key)=>{ if(!Array.isArray(a))return; const si=a.findIndex(x=>x&&x[key]===SAMP), mp=a.findIndex(x=>x&&x[key]===MP);
+    if(si<0||mp<0||si===mp+1)return; const [x]=a.splice(si,1); const mp2=a.findIndex(y=>y&&y[key]===MP); a.splice(mp2+1,0,x); changed=true; };
+  afterMP(GATES.Production,"t");
+  LAUNCHES.forEach(l=>afterMP(l.tasks,"t"));
   return changed;
 }
 function applySnapshot(d){
@@ -1361,6 +1389,8 @@ function applySnapshot(d){
   if(d.XROUTES){Object.keys(XROUTES).forEach(k=>delete XROUTES[k]);Object.entries(d.XROUTES).forEach(([k,v])=>XROUTES[k]=v);}
   migrateDeptReqToLogistics();               // rename/relocate the old "Department requirements collected" step BEFORE reconcile strips it
   migrateAddTrackedSteps();                  // add the newly-tracked flow-chart steps BEFORE reconcile strips them
+  migrateDropSamplesNode();                  // drop the duplicate Product "Send samples to teams" node (now only Logistics "Deploy marketing samples")
+  migrateSamplesFirst();                     // "Deploy marketing samples" leads the Logistics lane (right after Mass production) — BEFORE reconcile so the reorder persists
   reconcileLaunchTasks();                    // strip orphan tasks left by removed/renamed template steps
   applyDeptLens();                           // re-lock a signed-in non-CEO to their team once the shared TEAM email map has loaded
 }
@@ -2203,13 +2233,15 @@ function taskRow(l,t,extra,ro){
   const collabPlus=(!ro&&!extra)?collabAddMenu(l,t,i,resp,collabs):"";
   const lead=extra?`<span class="o-stage" title="stage">${esc(extra)}</span>`:`<span class="o-resp" style="color:${DCOLOR(resp)}" title="Responsible — ${esc(resp)}">${esc(resp)}</span>`;
   const meta=`<span class="o ometa">${lead}${collabChips?`<span class="o-collabs">${collabChips}</span>`:""}${collabPlus}</span>`;
+  // Ben ◆ gate rows render as a single Approve button — no 🔗 Links menu, no ▾ details expander (per request)
+  const ctrls=t.gate?"":`${lk?"":renderLinkMenu(t,l.slug,i)}
+    <button class="exp" onclick="toggle('${key}')">${open?"▴ close":"▾ details"}${t.notes.length?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button>`;
   return `<div id="task-${l.slug}-${i}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${lk?"opacity:.38;filter:grayscale(.6)":""}">
    ${t.gate?gateControl(l,t,i,lk):`<button type="button" class="st ${lk?"":t.st}" ${lk?"disabled":""} aria-label="${lk?"locked — "+esc(lockReason(l,t)):"status: "+stWord(t.st)+" — left-click to advance, right-click to step back"}" title="${lk?"locked — "+esc(lockReason(l,t)):"left-click: advance · right-click: step back"}" onclick="cycle('${l.slug}',${i})" oncontextmenu="cycleBack('${l.slug}',${i});return false">${lk?"🔒":stIcon[t.st]}</button>`}
    <span>${esc(flowTaskName(t))}${t.gate?' <span style="color:var(--purple)">◆</span>':""}
     ${lk?'<span class="urg" style="background:#1d2127;color:var(--faint)">locked</span>':""}${t.assignee&&t.assignee.trim()!==resp&&!collabs.includes(t.assignee.trim())?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
     ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
-    ${lk?"":renderLinkMenu(t,l.slug,i)}
-    <button class="exp" onclick="toggle('${key}')">${open?"▴ close":"▾ details"}${t.notes.length?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button></span>
+    ${ctrls}</span>
    ${meta}</div>
    ${open?(lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>Locked.</b> ${esc(lockReason(l,t)).replace(/^./,c=>c.toUpperCase())}. ${DOD[t.t]?`<div style="margin-top:6px;color:var(--faint)">Definition of done: ${esc(DOD[t.t])}</div>`:""}</div>`:taskPanel(l,t,i,ro)):""}</div>`;
 }
