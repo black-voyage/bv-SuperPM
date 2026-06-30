@@ -1530,6 +1530,8 @@ const DOD={"Form (intake)":"Intake complete: why, spec, look, material, customer
  "KOL / influencer projects live":"First KOL wave live.",
  "Launch ads running":"Launch campaigns active.",
  "Launch email sequence sent":"Full launch sequence delivered."};
+/* tasks that carry shipping dates — render Ship date + ETA inputs in the task panel */
+const SHIPDATE_TASKS=new Set(["Freight booked (sea + air samples)"]);
 
 /* ================= STATE ================= */
 let S={role:"ceo",view:"home",launch:null,dept:"Design",flowLaunch:"apex",open:{},progLaunch:"apex",route:null,flowHints:(typeof localStorage!=="undefined"&&localStorage.getItem("bv-flow-hints")==="0")?false:true,q:"",palSel:0,hideFlow:false,deptOpen:{},stageOpen:{},chatRailOpen:false,chatW:null,chatH:null,noteUrg:{},gateStage:null};
@@ -1710,6 +1712,7 @@ const ZH={
  "Responsible department updated":"負責部門已更新","Responsible":"負責","Collaborators":"協作部門","Collaborator removed":"已移除協作部門","Collaborator added":"已新增協作部門","Collaborator":"協作",
  "add a collaborating department":"新增協作部門","remove collaborator":"移除協作部門","+ add":"＋ 新增",
  "No notes yet.":"目前沒有備註。","Add a note…":"新增備註…",
+ "Shipping dates":"出貨／到貨日期","Ship date":"出貨日","Est. arrival":"預計到貨日","Ship date saved":"出貨日已儲存","Est. arrival saved":"預計到貨日已儲存","Ship date cleared":"出貨日已清除","Est. arrival cleared":"預計到貨日已清除",
  "CEO lens":"CEO 視角","Director lens":"總監視角","Department lens":"部門視角","Department":"部門","Director":"總監","Head":"主管",
  // — statuses / chips —
  "Awaiting Ben ◆":"等待 Ben ◆","In progress":"進行中","To do":"待辦","Blocked":"受阻","Done":"完成","Complete":"已完成","On track":"進度正常",
@@ -1949,6 +1952,7 @@ function addNote(slug,i){
   L(slug).tasks[i].notes.push({d:today,a:noteAuthor(),txt:v,urg}); toast("Note added"); render();
 }
 function delTaskNote(slug,i,ni){ const l=L(slug); const t=l&&l.tasks[i]; if(!t||!t.notes||!t.notes[ni])return; t.notes.splice(ni,1); log("🗑 Note removed from "+t.t); save(); render(); toast("Note deleted"); }
+function setTaskDate(slug,i,field,val){ const l=L(slug); const t=l&&l.tasks[i]; if(!t)return; if(val)t[field]=val; else delete t[field]; const lab=field==="shipDate"?"Ship date":"Est. arrival"; log(`📅 ${lab} · ${t.t} → ${val||"(cleared)"}`); save(); render(); toast(val?lab+" saved":lab+" cleared"); }
 function addLoom(slug,i){
   const u=prompt("Paste Loom / video URL"); if(!u)return;
   L(slug).tasks[i].notes.push({d:today,a:noteAuthor(),txt:"Video walkthrough",v:u}); toast("🎥 Video attached"); render();
@@ -2013,6 +2017,11 @@ function taskPanel(l,t,i,ro){
   const notes=t.notes||[]; const tk=l.slug+":tools:"+i; const tools=S.open[tk]; const nk=l.slug+":"+i; const pend=(S.noteUrg&&S.noteUrg[nk])||"med";
   return `<div class="taskpanel">
    ${DOD[t.t]?`<div style="margin-bottom:8px;color:var(--dim)">✅ <b>Done means:</b> ${esc(DOD[t.t])}${EVID.has(t.t)?' <span style="color:#67e8f9">· evidence link required</span>':""}</div>`:""}
+   ${SHIPDATE_TASKS.has(t.t)?`<div class="tnotes-head">🚢 Shipping dates</div>
+   <div class="shipdates" style="display:flex;flex-wrap:wrap;gap:14px;margin:2px 0 12px">
+     <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--dim)">Ship date<input type="date" value="${esc(t.shipDate||"")}" ${ro?"disabled":""} onchange="setTaskDate('${l.slug}',${i},'shipDate',this.value)"></label>
+     <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--dim)">Est. arrival<input type="date" value="${esc(t.etaDate||"")}" ${ro?"disabled":""} onchange="setTaskDate('${l.slug}',${i},'etaDate',this.value)"></label>
+   </div>`:""}
    <div class="tnotes-head">📝 Notes${notes.length?` <span class="ghostnote">(${notes.length})</span>`:""}</div>
    <div class="tnotes">${notes.length?notes.slice().reverse().map((n,ri)=>{const ni=notes.length-1-ri;return `<div class="tnote"><div class="tnote-h"><span class="tnote-m">${fmt(n.d)} · ${esc(n.a)}${n.urg&&n.urg!=="med"?` <span class="urg ${n.urg}" title="comment urgency">${n.urg}</span>`:""}</span><button class="lnkb tnote-x" title="delete note" onclick="delTaskNote('${l.slug}',${i},${ni})">✕</button></div><div class="tnote-t">${esc(n.txt)}${n.v?` <a class="lnk" href="${n.v}" target="_blank">🎥 watch</a>`:""}</div></div>`;}).join(""):'<div class="sub" style="padding:3px 0 6px">No notes yet — leave a comment or attach a video.</div>'}</div>
    <div class="tnote-add"><input type="text" id="nt-${l.slug}-${i}" placeholder="Add a note… (auto-signed as you)" onkeydown="if(event.key==='Enter'){event.preventDefault();addNote('${l.slug}',${i})}"><button type="button" class="tnote-vid" title="Attach a Loom / video walkthrough" aria-label="Attach a video" onclick="addLoom('${l.slug}',${i})">＋🎥</button><button class="btn" onclick="addNote('${l.slug}',${i})">Add note</button></div>
