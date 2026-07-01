@@ -3115,6 +3115,8 @@ function viewVersions(){
 }
 /* ================= CLAUDE CHAT — per-card, shared, tool-using ================= */
 const CHAT_API_URL="https://bv-superpm-chat-475005600052.us-central1.run.app/chat";  // chat proxy on Google Cloud Run (project bv-infra-499600, no-org — public allowed; key in Secret Manager). OFF Render. See FIREBASE-DEPLOY.md
+const CHAT_PAUSED=true;   // ⏸️ Live AI chat PAUSED (CEO request 2026-07-01). Set to false to resume. Gates every model call via chatFetch (backstop) + friendly notices in chatSend/chatSendDeep. No other behaviour changes.
+const CHAT_PAUSED_MSG="⏸️ The AI chat is paused right now — it'll be back shortly.";
 const CHAT_MODELS=[
   {id:"claude-sonnet-4-6",label:"Sonnet 4.6 · default"},
   {id:"claude-opus-4-8",label:"Opus 4.8 · deepest"},
@@ -3940,6 +3942,7 @@ function runChatTool(slug,name,input){
   }catch(e){ return {summary:"",text:"Tool error: "+e}; }
 }
 async function chatFetch(body,opts){   // resilient to backend cold starts: retries + tolerates a non-JSON "waking" page
+  if(CHAT_PAUSED) throw new Error(CHAT_PAUSED_MSG);   // ⏸️ hard backstop: no model call on ANY path (send/deep/storm/transform/presets/progress panel/brief gen) while paused
   opts=opts||{}; const TIMEOUT=opts.timeout||180000, TRIES=opts.tries||3, TOOBIG=opts.toobigMsg||"That request took too long (over 3 minutes) and was stopped — it was almost certainly too large. Ask for it in smaller parts (e.g. the brief first, then personas + ad concepts).";
   let lastErr="";
   for(let a=0;a<TRIES;a++){
@@ -4198,6 +4201,7 @@ async function chatSend(slug){
   const input=document.getElementById("chatInput"); if(!input)return;
   const text=(input.value||"").trim(); if(!text)return;
   if(!CHAT_API_URL){toast("⚠️ Chat backend not set yet — deploy the proxy & set CHAT_API_URL (see CHAT-SETUP.md)");return;}
+  if(CHAT_PAUSED){toast(CHAT_PAUSED_MSG);return;}
   if(CHAT.busy){ if(CHAT.busyAt && (Date.now()-CHAT.busyAt)>240000){ chatRelease(); } else { toast("Claude is still working… give it a moment, then resend."); return; } }
   // The user is answering the clarifying questions → now build the deliverable WITH their context (or "go" to build as-is).
   if(CHAT.pendingClarify){ const pc=CHAT.pendingClarify; const stale=pc.ts&&(Date.now()-pc.ts)>600000; const goFast=/^\s*(go|proceed|just build( it)?|build it|do it|yes|yep|ok|okay)\s*$/i.test(text); const bail=!goFast&&(isExplicitBuild(text)||looksTransform(text)||looksAugment(text)||/\b(never ?mind|cancel|forget it|scratch that|instead|actually|different (thing|question)|new question)\b/i.test(text)); if(stale||bail){ CHAT.pendingClarify=null; } else { CHAT.pendingClarify=null; input.value=""; return chatSendDeep(slug, goFast?pc.request:(pc.request+"\n\n[Extra context / answers from "+actor()+": "+text+"]")); } }
@@ -4619,6 +4623,7 @@ async function chatClarifyAsk(slug,request){
 }
 async function chatSendDeep(slug,text){
   const l=L(slug); if(!l)return;
+  if(CHAT_PAUSED){toast(CHAT_PAUSED_MSG);return;}
   const leaseRef=(FB.ready?chatRef(slug):null);
   var _runId=String(Date.now())+"-"+Math.random().toString(36).slice(2,8); CHAT.deepRunId=_runId;   // per-run lease id → blocks a SECOND run (even same user / another tab) and only the owner clears it
   if(leaseRef){ try{ const snap=await leaseRef.get(); const d=(snap&&snap.data())||{}; if(d.deepRunAt&&(Date.now()-d.deepRunAt)<300000&&d.deepRunId&&d.deepRunId!==_runId){ chatPush(slug,{role:"assistant",who:"Claude",text:"🔬 A deep run started by "+(d.deepRunBy||"someone")+" is still in progress on this card, so I won't start a second one. It frees up within a few minutes — resend then, or ask me a normal (non-deep) question now.",ts:nowStamp()}); CHAT.deepRunId=null; return; } await leaseRef.set({deepRunAt:Date.now(),deepRunUid:(ME&&ME.uid)||"local",deepRunBy:actor(),deepRunId:_runId},{merge:true}); }catch(e){} }
