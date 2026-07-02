@@ -73,7 +73,7 @@
   [data-theme="light"] .lnk{background:#E8F0FE;color:#1A56B0} [data-theme="light"] .asg{background:#E8EDF6;color:#3C5A8A}
   [data-theme="light"] .stg.past{background:#E9F7EC;color:#1E7E3E;border-color:#bfe5c8}
   [data-theme="light"] .deptchip.rdy{background:#E9F7EC;color:#1E7E3E;border-color:#bfe5c8}
-  [data-theme="light"] .flowwrap{background:#FBFCFE}
+  [data-theme="light"] .flowwrap{background:#FBFCFE;background-image:radial-gradient(circle,rgba(17,18,21,.055) 1px,transparent 1.4px);background-size:24px 24px}
   [data-theme="light"] .taskpanel{background:#F4F6FA}
   [data-theme="light"] .bar{background:#E3E8F1}
   body[data-wide] main{max-width:none}
@@ -283,7 +283,7 @@
   .back{color:var(--blue);cursor:pointer;font-size:13px;margin-bottom:12px;display:inline-block}
   .checkin{border:1px solid var(--line);border-radius:var(--r-md);padding:6px 12px;margin-bottom:8px;font-size:13px}
   .checkin .d{color:var(--faint);font-size:11.5px}
-  .flowwrap{overflow:auto;border:1px solid var(--line);border-radius:var(--r-md);background:#101216}
+  .flowwrap{overflow:auto;border:1px solid var(--line);border-radius:var(--r-md);background:#101216;background-image:radial-gradient(circle,rgba(246,248,252,.05) 1px,transparent 1.4px);background-size:24px 24px}
   .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--dim);margin:10px 0}
   .legend i{display:inline-block;width:11px;height:11px;border-radius:var(--r-xs);margin-right:5px;vertical-align:-1px}
   .deptchip{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-xs);padding:2px 10px;font-size:11.5px;margin:2px 3px 2px 0}
@@ -2604,7 +2604,9 @@ function flowLabel(s,boxW){
 function flowSVG(l){
   S._flowSlug=l.slug;                                  // which launch the popover reads task/links from
   const depts=Object.keys(FLOW).filter(d=>DEPTS().includes(d)||FLOW[d]);
-  const CW=118,GAP=16,NH=38,VG=76,TOP=54;            // smaller cards + more air between them → longer connectors, clearer red dependency highlight
+  // spacing rhythm: related nodes group TIGHT inside a lane (VG 64 → 26px gaps), distinct lanes separate GENEROUSLY (GAP 46).
+  // No lane boxes — grouping comes from proximity on an open dotted field, so the chart breathes instead of being walled in.
+  const CW=118,GAP=46,NH=38,VG=64,TOP=76;
   FL_LS=(LANG==="zh")?0.06:0;                         // 繁中 node labels get wider tracking; latin stays tight (factored into flowDW sizing + applied to <text>)
   const SUBH=21,SUBGAP=6,HEAD=25,PADB=9;             // nested sub-item metrics (a node with .sub renders as a taller container)
   const nodeH=n=>(n.sub&&n.sub.length)?HEAD+n.sub.length*SUBH+(n.sub.length-1)*SUBGAP+PADB:NH;
@@ -2612,7 +2614,7 @@ function flowSVG(l){
   depts.forEach(d=>{let yy=TOP;LY[d]=FLOW[d].map(n=>{const o=yy;yy+=nodeH(n)+(VG-NH);return o;});});
   const pos=(d,i)=>({x:GAP+depts.indexOf(d)*(CW+GAP),y:LY[d][i]});
   const hgt=(d,i)=>nodeH(FLOW[d][i]);
-  const W=depts.length*(CW+GAP)+GAP, H=Math.max(...depts.map(d=>{const a=FLOW[d];return a.length?LY[d][a.length-1]+nodeH(a[a.length-1]):TOP;}))+34;
+  const W=depts.length*(CW+GAP)+GAP, H=Math.max(...depts.map(d=>{const a=FLOW[d];return a.length?LY[d][a.length-1]+nodeH(a[a.length-1]):TOP;}))+46;
   const FT=THEME==="light"
     ?{colBg:"#FFFFFF",colLine:"#DDE3EE",arrow:"#9AA6BA",
       fill:{x:"#E9F7EC",p:"#FFF3E0",b:"#FDEAEA",o:"#EEF1F7",fut:"#F7F9FC"},
@@ -2648,17 +2650,18 @@ function flowSVG(l){
   let svg=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMin meet" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit;width:100%;height:auto;max-width:${W}px;margin-inline:auto;display:block">
   <defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="${FT.arrow}"/></marker>
   <marker id="arR" viewBox="0 0 9 9" refX="7.5" refY="4.5" markerWidth="7.5" markerHeight="7.5" orient="auto"><path d="M0 0L9 4.5L0 9z" fill="#EE3124"/></marker></defs>`;
-  // columns + headers
+  // lane headers — no container boxes; a dept-colored anchor dot + generous headroom mark each lane on the open field
   depts.forEach((d,c)=>{const x=GAP+c*(CW+GAP);
-    svg+=`<rect x="${x-6}" y="10" width="${CW+12}" height="${H-20}" rx="2" fill="${FT.colBg}" stroke="${FT.colLine}"/>
-    <text x="${x+CW/2}" y="33" text-anchor="middle" fill="${DCOLOR(d)}" font-size="12.5" font-weight="700" letter-spacing="${LANG==="zh"?0.08:0.03}em">${esc(flowTL(d))}</text>`;});
-  // in-column arrows
-  depts.forEach(d=>FLOW[d].forEach((n,i)=>{ if(i<FLOW[d].length-1){const a=pos(d,i),b=pos(d,i+1);
-    svg+=`<line x1="${a.x+CW/2}" y1="${a.y+hgt(d,i)}" x2="${b.x+CW/2}" y2="${b.y-3}" stroke="${FT.arrow}" stroke-width="1.3" marker-end="url(#ar)"/>`;}}));
-  // cross links
+    svg+=`<text x="${x+CW/2}" y="34" text-anchor="middle" fill="${DCOLOR(d)}" font-size="12.5" font-weight="700" letter-spacing="${LANG==="zh"?0.08:0.03}em">${esc(flowTL(d))}</text>
+    <circle cx="${x+CW/2}" cy="${47}" r="2.2" fill="${DCOLOR(d)}" opacity="0.85"/>`;});
+  // in-column connectors — quiet lines with endpoint dots (top-down direction is implicit inside a lane)
+  depts.forEach(d=>FLOW[d].forEach((n,i)=>{ if(i<FLOW[d].length-1){const a=pos(d,i),b=pos(d,i+1);const cx=a.x+CW/2,ay=a.y+hgt(d,i),by=b.y;
+    svg+=`<line x1="${cx}" y1="${ay+2}" x2="${cx}" y2="${by-2}" stroke="${FT.arrow}" stroke-width="1.2"/><circle cx="${cx}" cy="${ay+2}" r="2" fill="${FT.arrow}"/><circle cx="${cx}" cy="${by-2}" r="2" fill="${FT.arrow}"/>`;}}));
+  // cross links — origin dot + dashed curve + arrowhead (direction matters across lanes)
   CROSS.forEach(([fd,fi,td,ti])=>{ if(!FLOW[fd]||!FLOW[td])return; const a=pos(fd,fi),b=pos(td,ti);
-    const ax=a.x+CW, ay=a.y+hgt(fd,fi)/2, bx=b.x, by=b.y+hgt(td,ti)/2, mx=(ax+bx)/2;
-    svg+=`<path d="M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx-4} ${by}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar)"/>`;});
+    const l2r=b.x>=a.x, ax=l2r?a.x+CW:a.x, bx=l2r?b.x-4:b.x+CW+4;
+    const ay=a.y+hgt(fd,fi)/2, by=b.y+hgt(td,ti)/2, mx=(ax+bx)/2;
+    svg+=`<g opacity="0.5"><circle cx="${ax}" cy="${ay}" r="2" fill="${FT.arrow}"/><path d="M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx} ${by}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar)"/></g>`;});
   // nodes
   depts.forEach(d=>FLOW[d].forEach((n,i)=>{const {x,y}=pos(d,i);const st=stateOf(n,d,i);
     const frozen=isDesignFrozen(l)&&isFrozenDesignStage(n.s)&&st==="x";   // a done 概念/開發 node, locked by design freeze → render it iced
@@ -2671,7 +2674,7 @@ function flowSVG(l){
     const h=hgt(d,i);
     const body=n.d
       ?`<polygon id="fn-${d}-${i}" points="${x+CW/2},${y-2} ${x+CW+4},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-4},${y+NH/2}" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"/>`
-      :`<rect id="fn-${d}-${i}" x="${x}" y="${y}" width="${CW}" height="${h}" rx="2" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"/>`;
+      :`<rect id="fn-${d}-${i}" x="${x}" y="${y}" width="${CW}" height="${h}" rx="5" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"/>`;
     const tcol=frozen?FT.ice.txt:(FT.txt[st]||FT.txt.o);
     let labelSVG;
     if(n.sub&&n.sub.length){                            // parent header + nested sub-item boxes
@@ -2681,7 +2684,7 @@ function flowSVG(l){
       const lay=flowLabel(flowTL(n.l),CW), F=lay.font, lg=F*1.18, cy=y+NH/2, nl=lay.lines.length;
       labelSVG=lay.lines.map((ln,k)=>`<text x="${x+CW/2}" y="${(cy+(k-(nl-1)/2)*lg+F*0.34).toFixed(1)}" text-anchor="middle" fill="${tcol}" font-size="${F}" letter-spacing="${FL_LS}em">${esc(ln)}</text>`).join("");
     }
-    svg+=`<g${click}${depOn&&!depKeys.has(key)?' opacity="0.18"':""}>${body}${isSel?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="3" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inHi&&!isSel?`<rect class="glownode" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="3" fill="none" stroke="#EE3124" stroke-width="1.8" opacity="0.8" pointer-events="none"/>`:""}${labelSVG}${frozen?`<text x="${x+CW-9}" y="${y+14}" text-anchor="middle" fill="${FT.ice.strk}" font-size="11" font-weight="700" pointer-events="none">❄</text>`:""}
+    svg+=`<g${click}${depOn&&!depKeys.has(key)?' opacity="0.18"':""}>${body}${isSel?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inHi&&!isSel?`<rect class="glownode" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="1.8" opacity="0.8" pointer-events="none"/>`:""}${labelSVG}${frozen?`<text x="${x+CW-9}" y="${y+14}" text-anchor="middle" fill="${FT.ice.strk}" font-size="11" font-weight="700" pointer-events="none">❄</text>`:""}
     ${n.d?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#c084fc" font-size="11">◆ decision</text>`:""}${n.url?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#60a5fa" font-size="11">🔗 Figma</text>`:""}
     ${isHere?`<g pointer-events="none"><rect x="${x-4}" y="${y-10}" width="${LANG==="zh"?48:46}" height="18" rx="9" fill="#EE3124"/><text x="${x-4+(LANG==="zh"?48:46)/2}" y="${y+3}" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">📍 ${LANG==="zh"?"這裡":"here"}</text></g>`:""}
     <title>${esc(n.l)} — stage: ${n.s} · click for route + quick actions${st==="fut"&&ti>=0?" · 🔒 locked until previous step is done":""}</title></g>`;}));
