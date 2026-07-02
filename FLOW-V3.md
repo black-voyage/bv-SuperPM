@@ -230,7 +230,15 @@ Amazon 上架燈＋站內 PPC 燈、Vine 排程、ASIN eligible 檢核、availab
 
 ---
 
-### 五-E、系統同步狀態（2026-07-02 · 已上線至 index.html）
+### 五-E、系統同步狀態
+
+**〔2026-07-02 修訂〕改為「更新既有流程」而非平行系統**：依使用者回饋,V3 不再是獨立平行模板,而是**取代 app 唯一的流程** —— 同一個 Portfolio 看板（欄位＝V3 六階段）、卡片沿用原本的部門 swimlane 流程圖（內容換 V3）、儀表板改成卡片上的「🗺 流程圖 / 🎛 上市儀表板」切換鈕、原本的任務列/階段時間軸/◆ 決策全部沿用。單一 `V3` 陣列（43 節點）為真實來源,`v3Rederive()` 推導出 STAGES/GATES/FLOW/XROUTES/CROSS/PLAN;解鎖改為 **req 依賴制**（每步等前置完成,🔒 顯示在等誰,無手動 push）;雙語＝英文為底 + 自動注入 ZH/FLOWZH 字典。既有卡片載入時由 `v3SyncTasks` 依 code 重建（狀態保留,舊七階段進度不對應者歸零）。驗證:node 語法+執行期、多輪 headless 斷言、en/zh × 流程圖/儀表板截圖、對抗式 code review(修掉 routeSteps 誤刪 blocker、benQueue 讓 C9/D2/D5 ◆ 現身、v3LockText 英文漏譯等)。
+
+**待你確認的新造詞**（沒有舊英文對照）:萃取=Distill、整合設計=Design integration、產品介紹=Product intro video、識別設計=Identity design;以及 4 個 Ben 決策的中文區分名(Ben 概念定案 / 打樣定案 / 識別定案 / PDP 定案,原文都叫「Ben 決策」)。
+
+---
+
+**〔以下為 2026-07-02 稍早的初版實作紀錄,已被上面的修訂取代〕**
 
 **✅ v1 已實作**：V3 模板全部 43 節點（觸發制 DAG，程式碼側為真實來源＝日後改模板零遷移）；新增產品時選模板（Shopify V3／現行流程）；分階段清單（req 解鎖、🔒 顯示在等誰、◆ 限 Ben、天數可調步驟列上直填、P3 卡「預計大貨樣日」欄位）；儀表板（兩燈＋KOL 節奏、目標上市日、GO 按鈕限 Ben＋決策快照寫入 check-in、8 張素材預置卡＋倒推黃旗＋🔗 連結數、物流鏈＋三個到貨錨點＋**預計大貨到貨日**推估、CRM2 −3d 死線警示）；portfolio 的 V3 看板；中文模式 V3 標籤保護（notx 機制）；快照安全（reconcile 不剝除 v3、v3SyncTasks 自動對齊模板）。驗證：32 條 headless 斷言全過＋en/zh 截圖目視。
 
