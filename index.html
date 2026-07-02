@@ -618,6 +618,44 @@
   .collab-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--c,var(--line));color:var(--c,var(--text));border-radius:var(--r-xs);padding:1px 4px 1px 8px;font-size:12px}
   .collab-chip button{background:none;border:none;color:inherit;cursor:pointer;opacity:.7;font-size:11px;padding:0 2px;line-height:1}
   .collab-chip button:hover{opacity:1}
+  /* ---- V3 (Shopify flow) dashboard + rows ---- */
+  .v3code{display:inline-block;font-weight:600;font-size:10px;color:var(--accent);background:var(--panel2);border:1px solid var(--line);border-radius:3px;padding:0 5px;margin-right:4px;vertical-align:1px}
+  .v3days-fx{color:var(--faint);font-size:11px;margin-left:10px;white-space:nowrap}
+  .v3days-in{color:var(--faint);font-size:11px;margin-left:10px;white-space:nowrap}
+  .v3days-in input{width:52px;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:4px;padding:2px 4px;font-size:11px}
+  .v3note{color:var(--faint);font-size:11px;margin:-4px 0 6px 34px}
+  .v3sample{color:var(--dim);font-size:12px;margin:-2px 0 6px 34px}
+  .v3sample input{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:4px;padding:2px 6px;font-size:12px}
+  .v3strip .v3strip-top{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+  .v3strip-k{font-weight:700}
+  .v3light{padding:3px 10px;border-radius:14px;font-size:12px;border:1px solid var(--line);background:var(--panel2)}
+  .v3light.go{border-color:#4ade80;color:#4ade80;background:rgba(74,222,128,.09)}
+  .v3light.pre{border-color:#fbbf24;color:#fbbf24;background:rgba(251,191,36,.09)}
+  .v3light.no{color:var(--dim)}
+  .v3target{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
+  .v3target input{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:4px;padding:2px 6px}
+  .v3strip-go{margin-left:auto;display:flex;gap:8px}
+  .v3grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:980px){.v3grid{grid-template-columns:1fr}}
+  .v3assets{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+  .v3asset{border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:8px 10px;cursor:pointer}
+  .v3asset:hover{border-color:var(--accent)}
+  .v3asset.ok{border-color:rgba(74,222,128,.5);background:rgba(74,222,128,.07)}
+  .v3asset.warn{border-color:rgba(251,191,36,.5);background:rgba(251,191,36,.07)}
+  .v3asset.bad{border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.07)}
+  .v3asset.lock{opacity:.55}
+  .v3asset-n{font-weight:600;font-size:12.5px;margin-bottom:3px}
+  .v3asset-s{font-size:11px;color:var(--dim)}
+  .v3asset-m{display:flex;justify-content:space-between;font-size:10.5px;margin-top:4px}
+  .v3late{color:#fbbf24;font-weight:700;margin-left:6px}
+  .v3lrow{display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--line)}
+  .v3lrow:last-child{border-bottom:none}
+  .v3lrow.done{color:var(--dim)}
+  .v3lrow .o{margin-left:auto}
+  .v3anchors{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin:4px 0 10px}
+  .v3anchors>div{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--dim);border:1px solid var(--line);background:var(--panel2);border-radius:6px;padding:5px 9px}
+  .v3anchors b{color:var(--text)}
+  .panel.v3cur{border-color:var(--accent)}
   </style>
 </head>
 <body>
@@ -795,6 +833,168 @@ const CROSS = [ // [fromDept, fromIdx, toDept, toIdx] — key hand-offs from the
 /* ================= PLANNED STAGE DURATIONS (days) — drives the Timeline view ================= */
 const PLAN={"Concept":21,"Build":35,"Production":45,"Content":21,"Listing creation":14,"Live":10,"Marketing":30};
 
+/* ================= V3 SHOPIFY LAUNCH TEMPLATE (source of truth: FLOW-V3.md) =================
+   Trigger-based DAG, NOT stage/lane sequential. Each node:
+   c=code · n=name · ph=index into V3PHASES · o=owner (real people) · days (number = fixed,
+   null = manual per-launch, 0 = milestone/event) · ref = placeholder hint for manual days ·
+   req=[codes that must be done first] · ben=◆ Ben decision · asset=素材卡 label (feeds the
+   dashboard) · out=產出 · note=*備註.
+   IMPORTANT: like STAGES/PLAN, V3PHASES/V3FLOW are NOT serialized into the board snapshot —
+   only each card's task copies persist. v3SyncTasks() re-derives name/owner/phase/gate from
+   this template on every load, so editing the template here needs NO migration. */
+const V3PHASES=["概念＆設計","打樣＆交付","上市準備","行銷準備","物流","KOL 執行"];
+const V3FLOW=[
+ // — 概念＆設計 —
+ {c:"C1", n:"Form", ph:0,o:"Ben", days:0, req:[], out:"各種網站圖片"},
+ {c:"C2", n:"概念轉化 Understand WHY", ph:0,o:"Zac", days:1, req:["C1"]},
+ {c:"C3", n:"市場調查 Market Research", ph:0,o:"Zac", days:5, req:["C2"]},
+ {c:"C4", n:"萃取", ph:0,o:"Zac", days:2, req:["C3"], out:"PPT or Figma"},
+ {c:"C5", n:"腦力激盪", ph:0,o:"Zac + Design Team", days:2, req:["C4"], out:"會議"},
+ {c:"C6", n:"整合設計", ph:0,o:"Zac", days:4, req:["C5"], out:"PPT or Figma＋型號名稱＋品牌語言確認"},
+ {c:"C7", n:"Ben 決策", ph:0,o:"Ben", days:5, req:["C6"], ben:1, out:"Yes or No"},
+ // — 打樣＆交付 —
+ {c:"C8", n:"原型打樣", ph:1,o:"Zac", days:null, req:["C7"], out:"原型", note:"成本表貼於此（打樣期間來回議定成本）"},
+ {c:"C9", n:"Ben 決策", ph:1,o:"Ben", days:11, req:["C8"], ben:1, out:"Yes or No", note:"運輸 9＋決策 2"},
+ {c:"C10",n:"設計凍結", ph:1,o:"Zac + Ben", days:0, req:["C9"], out:"凍結資料＝產品資料建檔（供 MB1）"},
+ {c:"P1", n:"產前樣＆BOM", ph:1,o:"Zac", days:14, req:["C10"], out:"送台灣＆BOM 歸檔", note:"製作 7＋運輸 7"},
+ {c:"P3", n:"大貨生產", ph:1,o:"Zac", days:null, req:["P1"], sample:1, out:"天數倒數", note:"包裝檔（D3）於生產期間交廠"},
+ // — 上市準備 —
+ {c:"P2", n:"產品介紹", ph:2,o:"Zac", days:1, req:["P1"], asset:"產品介紹影片", out:"簡單操作影片 → 全公司"},
+ {c:"P4", n:"Catalog 資料建制", ph:2,o:"LC", days:1, req:["P1"], out:"Shopify SKU＋Shipbob SKU"},
+ {c:"D1", n:"識別設計", ph:2,o:"Design Team", days:7, req:["C10"], out:"Packaging、Label…"},
+ {c:"D2", n:"Ben 決策", ph:2,o:"Ben", days:2, req:["D1"], ben:1, out:"Yes or No"},
+ {c:"D3", n:"包裝設計定稿", ph:2,o:"Design Team", days:2, req:["D2"], note:"於產前樣確定～大貨生產期間交付工廠"},
+ {c:"D4", n:"PDP+Infographics draft", ph:2,o:"Design Team", days:14, req:["MB3"], asset:"PDP 草稿", note:"等 MB3 完成後開始（＝照片完成＋10 天）"},
+ {c:"D5", n:"Ben 決策", ph:2,o:"Ben", days:2, req:["D4"], ben:1, out:"Yes or No"},
+ {c:"D6", n:"Official PDP + infographics", ph:2,o:"Design Team", days:5, req:["D5","MS3b"], asset:"正式 PDP", note:"MS3b 影片完成才能定稿"},
+ {c:"CRM1",n:"FAQ 建制 and pop quiz", ph:2,o:"Angel", days:5, req:["MB2"], out:"FAQ 文字版 → 全公司"},
+ {c:"CRM2",n:"FAQ 定稿、通知客服專員", ph:2,o:"Angel", days:3, req:["CRM1","MS2"], asset:"FAQ 正式版", note:"死線＝目標上市日 −3 天"},
+ // — 行銷準備 —
+ {c:"P5", n:"部署行銷樣品", ph:3,o:"LC", days:null, ref:"空9／海21", est:9, out:"寄樣各部門", req:["MS1"], note:"樣品＝大貨樣；完成＝樣品到貨日"},
+ {c:"MB1",n:"Marketing Brief V1", ph:3,o:"Zac + Ben", days:5, req:["C10"], out:"V1"},
+ {c:"MB2",n:"Marketing Brief V2", ph:3,o:"Ann + Angel", days:7, req:["MB1"], out:"V2"},
+ {c:"MB3",n:"Marketing Brief V3", ph:3,o:"Ann + Angel", days:10, req:["MS3a"], out:"V3"},
+ {c:"MS1",n:"行銷拍攝需求", ph:3,o:"Ben + Ann + Angel", days:7, req:["MB2"], out:"統計需求", note:"阿訊、Gonzalo、小海、Brian"},
+ {c:"MS2",n:"行銷拍攝定稿", ph:3,o:"Ben + Ann + Angel", days:10, req:["MS1"], out:"概念定稿", note:"死線＝樣品到貨日（可晚 1 天開拍）"},
+ {c:"MS3a",n:"商品照拍攝＋上傳", ph:3,o:"各攝影師", days:null, req:["MS2","P5"], asset:"商品照"},
+ {c:"MS3b",n:"行銷／教學影片", ph:3,o:"各攝影師", days:null, ref:"35", req:["MS2","P5"], asset:"行銷／教學影片"},
+ {c:"KOL1",n:"Mega Influencer Outreach", ph:3,o:"Angel", days:null, req:["MB2"]},
+ {c:"KOL2",n:"Normal Influencer Sourcing", ph:3,o:"Angel", days:null, req:["MB2"]},
+ {c:"KOL3",n:"Mega Influencer Shooting", ph:3,o:"Angel", days:null, req:["P5","KOL1"], asset:"Mega 素材", note:"Ongoing"},
+ // — 物流 —
+ {c:"L1", n:"更新主訂單表", ph:4,o:"LC", days:1, req:["P1"], note:"P3 開始（＝P1 完成）即做"},
+ {c:"L2", n:"物流規劃", ph:4,o:"LC", days:1, req:["L1"]},
+ {c:"L3", n:"更新物流表", ph:4,o:"LC", days:1, req:["L2"]},
+ {c:"L6", n:"出貨標籤＋交付工廠", ph:4,o:"LC", days:1, req:["P4"], note:"Shipbob 標籤；大貨裝箱前必達"},
+ {c:"L4", n:"出貨與追蹤", ph:4,o:"LC", days:0, req:["P3"]},
+ {c:"L5", n:"運輸：海運大貨", ph:4,o:"LC", days:null, ref:"30", req:["L4"]},
+ {c:"L7", n:"送 Shipbob", ph:4,o:"LC", days:1, req:["L5"]},
+ {c:"L8", n:"監控入庫", ph:4,o:"LC", days:0, req:["L7"], note:"完成＝大貨到貨日"},
+ // — KOL 執行 —
+ {c:"KOL4",n:"Normal Influencer Outreach", ph:5,o:"Angel", days:null, req:["KOL2","MB3"]},
+ {c:"KOL5",n:"Influencer Shooting", ph:5,o:"Angel", days:null, req:["KOL4"], asset:"KOL videos＋usage rights", note:"Ongoing；需記錄 usage rights"}
+];
+const V3MAP=Object.fromEntries(V3FLOW.map(n=>[n.c,n]));
+const V3ASSETS=V3FLOW.filter(n=>n.asset).map(n=>n.c);
+const v3Task=(l,c)=>(l.tasks||[]).find(t=>t.code===c);
+const v3Done=(l,c)=>{const t=v3Task(l,c);return !!(t&&t.st==="x");};
+const v3NewTask=n=>({code:n.c,t:n.n,d:n.o,st:"o",gate:!!n.ben,stage:V3PHASES[n.ph],days:(n.days==null?null:n.days),links:[],codes:[],assignee:"",urg:"med",notes:[]});
+function v3Tasks(){return V3FLOW.map(v3NewTask);}
+// returns false when unlocked, else the blocking code ("P3s" = waiting for the bulk-sample date)
+function v3Locked(l,t){
+  const n=t&&t.code&&V3MAP[t.code]; if(!n)return false;
+  for(const r of (n.req||[])){ if(!v3Done(l,r)) return r; }
+  if(n.c==="P5"){ const p3=v3Task(l,"P3"); if(p3&&p3.st!=="x"&&!(p3.sampleDate&&today>=p3.sampleDate)) return "P3s"; }
+  return false;
+}
+function v3LockText(l,t){
+  const blk=v3Locked(l,t); if(!blk)return "";
+  if(blk==="P3s")return "等大貨樣（在 P3 填「預計大貨樣日」）";
+  const n=V3MAP[blk]; return n?("等 "+blk+" "+n.n):"等前置完成";
+}
+function v3CurPhase(l){
+  for(let i=0;i<V3PHASES.length;i++){ if((l.tasks||[]).some(t=>t.code&&V3MAP[t.code]&&V3MAP[t.code].ph===i&&t.st!=="x")) return V3PHASES[i]; }
+  return V3PHASES[V3PHASES.length-1];
+}
+function v3Advance(l){ // derive stage (= first phase with open work) + complete flag; keep history for the timeline views
+  const all=(l.tasks||[]).length>0&&(l.tasks||[]).every(t=>!t.code||t.st==="x");
+  if(all){ if(!l.complete){l.complete=true;const h=l.history[l.history.length-1];if(h&&!h.end)h.end=today;} return; }
+  if(l.complete)l.complete=false;
+  const ph=v3CurPhase(l);
+  if(ph!==l.stage){ const h=l.history[l.history.length-1]; if(h&&!h.end)h.end=today; l.history.push({stage:ph,start:today}); l.stage=ph; }
+}
+function v3cycle(slug,i,dir){
+  const l=L(slug),t=l&&l.tasks[i]; if(!l||!t||!t.code)return;
+  if(v3Locked(l,t))return;
+  if(t.gate&&S.role!=="ceo"){toast("◆ 需要 Ben（CEO）核准");return;}
+  const nx=t.gate?(dir<0?"o":"x"):(dir<0?{p:"o",x:"p",b:"x",o:"b"}:{o:"p",p:"x",x:"b",b:"o"})[t.st];
+  t.st=nx;
+  if(nx==="p"&&!t.startAt)t.startAt=today;
+  if(nx==="x"){t.doneAt=today;logEvent("milestone","✓ 完成 · "+l.name+" — "+t.code+" "+t.t,{card:l.slug});}
+  else delete t.doneAt;
+  if(nx==="b")logEvent("blocked","⛔ 卡關 · "+l.name+" — "+t.code+" "+t.t,{card:l.slug});
+  v3Advance(l); save(); render();
+}
+function v3SetDays(slug,i,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;const n=parseInt(v,10);t.days=isNaN(n)?null:n;save();render();}
+function v3SetDate(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;t[k]=v||"";save();render();}
+function v3SetTarget(slug,v){const l=L(slug);if(!l)return;l.target=v||l.target;log("🎯 目標上市日 → "+l.target+" · "+l.name);save();render();}
+// 倒推紅旗: remaining calendar-days estimate to finish `code` = longest unmet req chain (memoized by VALUE —
+// a plain visited-set would zero out shared upstreams on diamond deps like D6←D5-chain vs D6←MS3b-chain)
+function v3EstRemain(l,code,memo){
+  memo=memo||{}; if(code in memo)return memo[code];
+  memo[code]=0; // cycle guard (template is a DAG; this only matters if a bad edit ever loops it)
+  const t=v3Task(l,code); if(!t||t.st==="x")return 0;
+  const n=V3MAP[code]; if(!n)return 0;
+  const own=(t.days!=null?t.days:(n.est!=null?n.est:(n.ref?parseInt(n.ref,10)||0:0))); // est = numeric estimate when ref isn't parseable (e.g. P5 "空9／海21" → est 9)
+  let pre=0; (n.req||[]).forEach(r=>{pre=Math.max(pre,v3EstRemain(l,r,memo));});
+  return memo[code]=own+pre;
+}
+function v3Lights(l){
+  // v1 simplification (agreed in FLOW-V3.md sync scope): ads light = D6×MS3b×L8-done. The 五-D extras —
+  // ad-ready 版位子清單, usage-rights expiry, 入庫數量門檻 — are deferred with the ADS framework round 2.
+  const d=c=>v3Done(l,c);
+  const shop=d("MS3a")&&(d("D4")||d("D6"))&&d("L8")?"go":(d("MS3a")&&d("D4"))?"pre":"no";
+  const ads=d("D6")&&d("MS3b")&&d("L8")?"go":"no";
+  return {shop,ads,missShop:["MS3a","D4","L8"].filter(c=>!d(c)),missAds:["D6","MS3b","L8"].filter(c=>!d(c))};
+}
+function v3Go(slug,kind){
+  const l=L(slug); if(!l)return;
+  if(S.role!=="ceo"){toast("上架／廣告 GO 由 Ben（CEO）拍板");return;}
+  l.v3go=l.v3go||{};
+  if(l.v3go[kind]){ if(confirm("撤銷「"+(kind==="shop"?"上架":"廣告")+" GO」？")){delete l.v3go[kind];log("↩ 撤銷 "+(kind==="shop"?"上架":"廣告")+" GO · "+l.name);save();render();} return; }
+  const lights=v3Lights(l); const ok=kind==="shop"?lights.shop!=="no":lights.ads==="go";
+  if(!ok&&!confirm("燈號未全綠——仍要 GO 嗎？")) return;
+  l.v3go[kind]={d:today,who:actor()};
+  const miss=(kind==="shop"?lights.missShop:lights.missAds).map(c=>c+" "+(V3MAP[c]?V3MAP[c].n:c)).join("、"); // 決策快照：按下當下缺什麼，一併寫進 check-in 供事後檢討
+  l.checkins.unshift({d:today,a:actor(),txt:(kind==="shop"?"🚀 上架 GO":"📣 廣告 GO")+"（儀表板拍板"+(miss?"；當時缺："+miss:"；燈號全綠")+"）"});
+  logEvent("milestone",(kind==="shop"?"🚀 上架 GO":"📣 廣告 GO")+" · "+l.name,{card:l.slug});
+  save();render();
+}
+// forward-compat: template (code-side) is authoritative for name/owner/phase/gate; per-card st/days/dates/notes persist.
+function v3SyncTasks(l){
+  if(!l||l.tpl!=="v3"||!Array.isArray(l.tasks))return;
+  const have=new Set(l.tasks.map(t=>t.code).filter(Boolean));
+  V3FLOW.forEach((n,idx)=>{ if(have.has(n.c))return;
+    const pos=l.tasks.findIndex(t=>t.code&&V3MAP[t.code]&&V3FLOW.findIndex(x=>x.c===t.code)>idx);
+    if(pos>=0)l.tasks.splice(pos,0,v3NewTask(n)); else l.tasks.push(v3NewTask(n));
+  });
+  l.tasks=l.tasks.filter(t=>!t.code||V3MAP[t.code]);
+  l.tasks.forEach(t=>{const n=t.code&&V3MAP[t.code];if(!n)return;t.t=n.n;t.d=n.o;t.gate=!!n.ben;t.stage=V3PHASES[n.ph];});
+  v3Advance(l);
+}
+const V3OC={"Ben":"#c084fc","Zac":"#60a5fa","Ann":"#f472b6","Angel":"#fb923c","LC":"#34d399","Design Team":"#a78bfa","各攝影師":"#67e8f9"};
+const v3OColor=o=>{o=String(o||"");for(const k in V3OC){if(o.indexOf(k)>=0)return V3OC[k];}return "#9aa3af";};
+const ntx=s=>"<!--notx-->"+s+"<!--/notx-->"; // V3 labels are language-fixed (see tx()) — wrap every V3 name/owner/output when rendering
+const v3AddD=(s,n)=>new Date(D(s).getTime()+n*864e5).toISOString().slice(0,10);
+function v3EtaBulk(l){ // 預計大貨到貨日 = P3 完成日(實際或 startAt+days 推估) + L5 海運(填的天數或參考 30) + L7 1 天
+  const p3=v3Task(l,"P3"),l5=v3Task(l,"L5"),l8=v3Task(l,"L8");
+  if(!p3||(l8&&l8.st==="x"))return null;
+  const p3done=p3.doneAt||(p3.startAt&&p3.days!=null?v3AddD(p3.startAt,p3.days):null);
+  if(!p3done)return null;
+  const sea=(l5&&l5.st==="x"&&l5.doneAt)?null:((l5&&l5.days!=null)?l5.days:30);
+  return sea==null?v3AddD(l5.doneAt,1):v3AddD(p3done,sea+1);
+}
+
 /* ================= LAUNCH DATA (DRI = a department, not a person) ================= */
 function allTasks(overrides){
   const list=[];
@@ -850,7 +1050,7 @@ const criteria = l => (GATES[l.stage]||[]).map(c=>({...c, task:l.tasks.find(t=>t
 const gateState = l => { const cs=criteria(l); return {cs, met:cs.filter(c=>c.task&&c.task.st==="x").length, total:cs.length}; };
 const mandatory = l => [...new Set((GATES[l.stage]||[]).map(c=>c.d))];
 const deptReady = (l,d) => gateState(l).cs.filter(c=>c.d===d).every(c=>c.task.st==="x");
-const allMet = l => { const g=gateState(l); return g.met===g.total && !l.complete; };
+const allMet = l => { const g=gateState(l); return g.total>0 && g.met===g.total && !l.complete; }; // total>0: a V3 card (no legacy gates) must never read as push-ready
 const canPushRole = l => S.role==="ceo" || (S.role==="dept" && (S.dept===l.dri || mandatory(l).includes(S.dept)));
 const health = l => {
   if(l.complete) return ["Complete","done"];
@@ -1031,13 +1231,22 @@ function newLaunch(){
   const name=prompt("Product name?"); if(!name)return;
   const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
   if(!slug||L(slug)){toast("A launch with that name already exists");return;}
+  const tplIn=prompt("流程模板？\n 1 ＝ Shopify 上市流程（V3，觸發制）\n 2 ＝ 現行流程（七階段；未來的 Amazon 模板）","1");
+  if(tplIn===null)return;
+  const v3=String(tplIn).trim()!=="2";
   const dri=prompt("DRI department?","Product")||"Product";
-  const target=prompt("Target launch date (YYYY-MM-DD)?",new Date(D(today).getTime()+180*864e5).toISOString().slice(0,10));
-  LAUNCHES.push({name,slug,dri:DEPTS().includes(dri)?dri:"Product",stage:"Concept",target:target||"2026-12-31",
-    history:[{stage:"Concept",start:today}],tasks:allTasks({}),risks:[],
-    checkins:[{d:today,a:"system",txt:"Card created from template. Everything is locked until the intake Form is done."}]});
-  log("🆕 New launch created: "+name);
-  toast("🆕 "+name+" created — fill the intake Form to unlock the pipeline"); openL(slug);
+  const target=prompt("Target launch date（目標上市日）(YYYY-MM-DD)?",new Date(D(today).getTime()+180*864e5).toISOString().slice(0,10));
+  if(v3){
+    LAUNCHES.push({name,slug,tpl:"v3",dri:DEPTS().includes(dri)?dri:"Product",stage:V3PHASES[0],target:target||"2026-12-31",
+      history:[{stage:V3PHASES[0],start:today}],tasks:v3Tasks(),risks:[],
+      checkins:[{d:today,a:"system",txt:"卡片以 Shopify V3 模板建立。完成 C1 Form 後即依觸發鏈逐步解鎖。"}]});
+  }else{
+    LAUNCHES.push({name,slug,dri:DEPTS().includes(dri)?dri:"Product",stage:"Concept",target:target||"2026-12-31",
+      history:[{stage:"Concept",start:today}],tasks:allTasks({}),risks:[],
+      checkins:[{d:today,a:"system",txt:"Card created from template. Everything is locked until the intake Form is done."}]});
+  }
+  log("🆕 New launch created: "+name+(v3?"（Shopify V3）":""));
+  toast(v3?("🆕 "+name+" 已建立 — 完成 C1 Form 開始跑 V3 流程"):("🆕 "+name+" created — fill the intake Form to unlock the pipeline")); openL(slug);
   createLaunchFolder(slug); // also create a matching folder inside the shared "BV SuperPM" Drive folder
 }
 
@@ -1259,7 +1468,7 @@ function reconcileLaunchTasks(){
   const valid=new Set(); Object.values(GATES).forEach(arr=>(arr||[]).forEach(c=>{if(c&&c.t)valid.add(c.t);}));
   if(!valid.size) return 0;                 // safety: if GATES is somehow empty, strip nothing
   let removed=0;
-  LAUNCHES.forEach(l=>{ if(!Array.isArray(l.tasks))return; const n=l.tasks.length; l.tasks=l.tasks.filter(t=>t&&valid.has(t.t)); removed+=n-l.tasks.length; });
+  LAUNCHES.forEach(l=>{ if(!Array.isArray(l.tasks)||l.tpl==="v3")return; const n=l.tasks.length; l.tasks=l.tasks.filter(t=>t&&valid.has(t.t)); removed+=n-l.tasks.length; }); // v3 cards: template lives in V3FLOW, not GATES — never strip them here (v3SyncTasks reconciles them)
   return removed;
 }
 /* ---- one-time data migration: "Department requirements collected" (Product) → "Deploy marketing samples" (Logistics),
@@ -1392,6 +1601,7 @@ function applySnapshot(d){
   migrateDropSamplesNode();                  // drop the duplicate Product "Send samples to teams" node (now only Logistics "Deploy marketing samples")
   migrateSamplesFirst();                     // "Deploy marketing samples" leads the Logistics lane (right after Mass production) — BEFORE reconcile so the reorder persists
   reconcileLaunchTasks();                    // strip orphan tasks left by removed/renamed template steps
+  LAUNCHES.forEach(v3SyncTasks);             // V3 cards: re-derive name/owner/phase from V3FLOW + add newly-templated nodes (zero-migration template edits)
   applyDeptLens();                           // re-lock a signed-in non-CEO to their team once the shared TEAM email map has loaded
 }
 function loadSaved(){try{
@@ -1957,7 +2167,14 @@ const ZHRE=Object.entries(ZH).sort((a,b)=>b[0].length-a[0].length).map(([k,v])=>
   return [new RegExp((/^\w/.test(k)?"\\b":"")+e+(/\w$/.test(k)?"\\b":""),"g"),v];
 });
 const zhText=s=>{if(!s.trim())return s;for(const [re,v] of ZHRE)s=s.replace(re,v);return s;};
-const tx=html=>LANG==="en"?html:html.split(/(<[^>]*>)/g).map(seg=>seg.startsWith("<")?seg:zhText(seg)).join("");
+// <!--notx-->…<!--/notx--> marks language-fixed regions (V3 labels are the user's own zh/EN mix — zhText's
+// sequential key replacement would mangle them, e.g. "Catalog 資料建制"→"目錄 資料建制"). No marker → behavior unchanged.
+const tx=html=>{
+  if(LANG==="en")return html;
+  const keep=[]; html=html.replace(/<!--notx-->([\s\S]*?)<!--\/notx-->/g,(m,inner)=>{keep.push(inner);return "\u0000NTX"+(keep.length-1)+"\u0000";});
+  html=html.split(/(<[^>]*>)/g).map(seg=>seg.startsWith("<")?seg:zhText(seg)).join("");
+  return keep.length?html.replace(/\u0000NTX(\d+)\u0000/g,(m,i)=>keep[+i]):html;
+};
 let THEME="dark", WIDE=false;
 const THEME_CYCLE=["dark","light","blue"];
 const THEME_ICON={dark:"☀️",light:"🔵",blue:"🌙"};
@@ -2644,7 +2861,12 @@ function homeDept(){
 }
 function portfolioBoard(){
   const fq=l=>!S.q||l.name.toLowerCase().includes(S.q.toLowerCase())||l.dri.toLowerCase().includes(S.q.toLowerCase());
-  return `<div class="panel"><h3>PORTFOLIO — ALL LAUNCHES BY STAGE${S.q?` <span class="ghostnote">(filtered: “${esc(S.q)}”)</span>`:""}</h3><div class="board">${STAGES.map(s=>{const ls=LAUNCHES.filter(l=>l.stage===s&&fq(l));return `<div class="col"><h4>${s} <span>${ls.length||""}</span></h4>${ls.map(cardHTML).join("")}</div>`;}).join("")}</div></div>`;
+  const v3s=LAUNCHES.filter(l=>l.tpl==="v3"&&fq(l));
+  const v3Card=l=>{const tot=l.tasks.filter(t=>t.code).length,met=l.tasks.filter(t=>t.code&&t.st==="x").length;const g=l.v3go||{};
+    return `<div class="card" onclick="openL('${l.slug}')"><div class="nm">${esc(l.name)}</div>
+    <div class="meta">${met}/${tot} · 目標 ${fmt(l.target)}${g.shop?" · 🚀已上架":""}${g.ads?" · 📣廣告中":""}</div></div>`;};
+  const v3Board=v3s.length?`<div class="panel"><h3>${ntx("SHOPIFY 上市流程（V3）")}${S.q?` <span class="ghostnote">(filtered)</span>`:""}</h3><div class="board">${V3PHASES.map(p=>{const ls=v3s.filter(l=>!l.complete&&l.stage===p);return `<div class="col"><h4>${ntx(esc(p))} <span>${ls.length||""}</span></h4>${ls.map(v3Card).join("")}</div>`;}).join("")}${v3s.some(l=>l.complete)?`<div class="col"><h4>✓ 完成</h4>${v3s.filter(l=>l.complete).map(v3Card).join("")}</div>`:""}</div></div>`:"";
+  return v3Board+`<div class="panel"><h3>PORTFOLIO — ALL LAUNCHES BY STAGE${S.q?` <span class="ghostnote">(filtered: “${esc(S.q)}”)</span>`:""}</h3><div class="board">${STAGES.map(s=>{const ls=LAUNCHES.filter(l=>l.stage===s&&fq(l));return `<div class="col"><h4>${s} <span>${ls.length||""}</span></h4>${ls.map(cardHTML).join("")}</div>`;}).join("")}</div></div>`;
 }
 /* ---- launch-detail lower-section helpers ---- */
 const renderLinkMenu=(task,slug,i)=>{const n=(task.links||[]).length+(task.codes||[]).length;const cnt=n>1?" ("+n+")":"";return `<details class="lnkmenu" onclick="event.stopPropagation()"><summary class="${n?"has":""}" title="${n?n+" attached":"attach a link, sheet, doc, or code"}">🔗 Links${cnt}</summary><div class="lnkmenu-b">${linkChips(task,slug,i)}</div></details>`;};
@@ -2674,8 +2896,136 @@ function chatResizeStart(e){
   function up(){ document.removeEventListener("pointermove",mv); document.removeEventListener("pointerup",up); const rr=rail.getBoundingClientRect(); S.chatW=Math.round(rr.width); S.chatH=Math.round(rr.height); }
   document.addEventListener("pointermove",mv); document.addEventListener("pointerup",up);
 }
+/* ================= V3 LAUNCH VIEW (Shopify flow) — dashboard (五-D) + phase checklist ================= */
+function v3jump(slug,code){
+  const l=L(slug); if(!l)return; const i=l.tasks.findIndex(t=>t.code===code); if(i<0)return;
+  const n=V3MAP[code]; (S.stageOpen=S.stageOpen||{})[slug+":v3ph:"+n.ph]=true; render();
+  setTimeout(()=>{const el=document.getElementById("task-"+slug+"-"+i);
+    if(el&&el.scrollIntoView){el.scrollIntoView({behavior:"smooth",block:"center"});
+      el.style.outline="2px solid var(--accent)"; el.style.outlineOffset="2px";
+      setTimeout(()=>{el.style.outline="";},1800);}},60);
+}
+function v3DaysCtl(l,t,i){
+  const n=V3MAP[t.code]||{};
+  if(n.days===0)return `<span class="v3days-fx" title="里程碑／事件">—</span>`;
+  if(n.days!=null)return `<span class="v3days-fx">${n.days}d</span>`;
+  return `<span class="v3days-in"><input type="number" min="0" value="${t.days==null?"":t.days}" placeholder="${esc(n.ref||"?")}" title="天數（此步驟每個產品不同，手動填寫）" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${i},this.value)">d</span>`;
+}
+function v3Row(l,t){
+  const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
+  const n=V3MAP[t.code]||{}; const lkTxt=v3LockText(l,t); const lk=!!lkTxt;
+  const btn=lk
+    ? `<button type="button" class="st" disabled title="🔒 ${esc(lkTxt)}" aria-label="locked — ${esc(lkTxt)}">🔒</button>`
+    : t.gate
+      ? `<button type="button" class="st ${t.st}" style="color:var(--purple)" title="◆ Ben 決策 — 左鍵核准、右鍵撤銷" onclick="v3cycle('${l.slug}',${i},1)" oncontextmenu="v3cycle('${l.slug}',${i},-1);return false">${t.st==="x"?"✓":"◆"}</button>`
+      : `<button type="button" class="st ${t.st}" title="左鍵：推進（待做→進行→完成→卡關）· 右鍵：退回" onclick="v3cycle('${l.slug}',${i},1)" oncontextmenu="v3cycle('${l.slug}',${i},-1);return false">${stIcon[t.st]}</button>`;
+  const sampleCtl=n.sample?`<div class="v3sample">預計大貨樣日 <input type="date" value="${esc(t.sampleDate||"")}" title="大貨樣可寄出的日期 — P5 部署行銷樣品等這一天（G 決定內容 vs 物流誰先就緒）" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)">${t.st==="p"&&t.days!=null&&t.startAt?` <span class="ghostnote">倒數：剩 ${Math.max(0,t.days-dayDiff(t.startAt,today))}d</span>`:""}</div>`:"";
+  return `<div id="task-${l.slug}-${i}"><div class="row" style="${lk?"opacity:.42;filter:grayscale(.5)":""}">
+    ${btn}
+    <span><span class="v3code">${esc(t.code)}</span> ${ntx(esc(t.t))}${t.gate?' <span style="color:var(--purple)">◆</span>':""}
+      ${lk?`<span class="urg" style="background:#1d2127;color:var(--faint)">🔒 ${ntx(esc(lkTxt))}</span>`:""}
+      ${n.out?`<span class="ghostnote" title="產出">▸ ${ntx(esc(n.out))}</span>`:""}
+      ${lk?"":renderLinkMenu(t,l.slug,i)}
+      <button class="exp" onclick="toggle('${key}')">${open?"▴ 收合":"▾ 詳情"}${t.notes.length?` (${t.notes.length})`:""}</button>
+    </span>
+    <span class="o ometa"><span class="o-resp" style="color:${v3OColor(t.d)}" title="負責人">${ntx(esc(t.d))}</span>${v3DaysCtl(l,t,i)}</span>
+  </div>
+  ${sampleCtl}
+  ${n.note?`<div class="v3note">※ ${ntx(esc(n.note))}</div>`:""}
+  ${open?taskPanel(l,t,i,false):""}</div>`;
+}
+function v3PhasePanel(l,ph){
+  const tasks=l.tasks.filter(t=>t.code&&V3MAP[t.code]&&V3MAP[t.code].ph===ph);
+  if(!tasks.length)return "";
+  const met=tasks.filter(t=>t.st==="x").length;
+  const cur=!l.complete&&l.stage===V3PHASES[ph];
+  const key=l.slug+":v3ph:"+ph;
+  const op=(S.stageOpen&&key in S.stageOpen)?S.stageOpen[key]:(cur||tasks.some(t=>t.st==="b"));
+  return `<div class="panel${cur?" v3cur":""}"><h3 style="cursor:pointer" onclick="(S.stageOpen=S.stageOpen||{})['${key}']=${op?"false":"true"};render()">${op?"▾":"▸"} ${ntx(esc(V3PHASES[ph]))} <span class="ghostnote">${met}/${tasks.length}</span>${cur?' <span class="pill ok" style="font-size:10px">目前階段</span>':met===tasks.length?' <span style="color:#4ade80">✓</span>':""}</h3>
+  ${op?tasks.map(t=>v3Row(l,t)).join(""):""}</div>`;
+}
+function v3Dash(l){
+  const li=v3Lights(l);
+  const nm=c=>c+" "+(V3MAP[c]?V3MAP[c].n:c);
+  const shopChip=li.shop==="go"?`<span class="v3light go">🟢 可上架</span>`
+    :li.shop==="pre"?`<span class="v3light pre" title="照片＋PDP 草稿已齊，但大貨未入庫">🟡 可預購（大貨未入庫）</span>`
+    :`<span class="v3light no" title="缺：${esc(li.missShop.map(nm).join("、"))}">⚪ 未就緒 · 缺 ${li.missShop.length} 項</span>`;
+  const adsChip=li.ads==="go"?`<span class="v3light go">🟢 可下廣告</span>`
+    :`<span class="v3light no" title="缺：${esc(li.missAds.map(nm).join("、"))}">⚪ 未就緒 · 缺 ${li.missAds.length} 項</span>`;
+  const go=(kind,label,emo)=>{const g=(l.v3go||{})[kind];
+    return g?`<button class="btn ghost" title="點擊撤銷（限 Ben）" onclick="v3Go('${l.slug}','${kind}')">${emo} ${label} ✓ ${fmt(g.d)} · ${esc(g.who)}</button>`
+            :`<button class="btn" onclick="v3Go('${l.slug}','${kind}')">${emo} ${label} GO</button>`;};
+  const crm2=v3Task(l,"CRM2"); let crmWarn="";
+  if(l.target&&crm2&&crm2.st!=="x"){const left=dayDiff(today,l.target)-3;
+    crmWarn=left<0?`<span class="urg urgent" title="FAQ（CRM2）須在目標上市日前 3 天完成">⚠ FAQ 死線已過 ${-left}d</span>`
+      :left<=4?`<span class="urg high">FAQ 死線剩 ${left}d</span>`:"";}
+  const k4=v3Task(l,"KOL4"),k5=v3Task(l,"KOL5");
+  const kolChip=`<span class="ghostnote" title="KOL 波次（手動節奏，對齊目標上市日）">KOL：KOL4 ${k4?stIcon[k4.st]:"—"} · KOL5 ${k5?stIcon[k5.st]:"—"}</span>`;
+  // ① 素材就緒 — 預置卡：8 張全上板，Done 才翻綠；倒推紅旗＝預估剩餘天數 vs 距目標天數
+  const dtt=l.target?dayDiff(today,l.target):null;
+  const assets=V3ASSETS.map(c=>{const t=v3Task(l,c);const n=V3MAP[c];if(!t)return "";
+    const lkT=v3LockText(l,t); const done=t.st==="x";
+    const cls=done?"ok":t.st==="p"?"warn":t.st==="b"?"bad":lkT?"lock":"todo";
+    const st=done?`✓ ${fmt(t.doneAt||today)}`:t.st==="p"?"… 進行中":t.st==="b"?"! 卡關":lkT?`🔒 ${esc(lkT)}`:"○ 待做";
+    const rem=done?0:v3EstRemain(l,c);
+    const late=!done&&dtt!=null&&rem>dtt?`<span class="v3late" title="以已知天數倒推：預估還需 ${rem}d＞距目標上市日 ${dtt}d">⚠ 最晚開工日已過</span>`:"";
+    return `<div class="v3asset ${cls}" onclick="v3jump('${l.slug}','${c}')" title="點擊跳到任務">
+      <div class="v3asset-n">${ntx(esc(n.asset))}</div>
+      <div class="v3asset-s">${ntx(st)}${late}</div>
+      <div class="v3asset-m"><span style="color:${v3OColor(n.o)}">${ntx(esc(n.o))}</span>${(t.links||[]).length?`<span class="ghostnote">🔗${t.links.length}</span>`:""}${!done&&rem?`<span class="ghostnote">≈${rem}d</span>`:""}</div></div>`;}).join("");
+  // ② 物流就緒
+  const p3=v3Task(l,"P3"),p5=v3Task(l,"P5"),l8=v3Task(l,"L8");
+  const lrow=c=>{const t=v3Task(l,c);if(!t)return "";const n=V3MAP[c];const lkT=v3LockText(l,t);
+    return `<div class="v3lrow${t.st==="x"?" done":""}" onclick="v3jump('${l.slug}','${c}')"><span class="st ${t.st}" style="width:20px;height:20px;font-size:10px">${lkT?"🔒":stIcon[t.st]}</span><span class="v3code">${esc(c)}</span> ${ntx(esc(t.t))}<span class="o ghostnote">${n.days!=null?(n.days||"—")+(n.days?"d":""):(t.days!=null?t.days+"d":ntx(esc(n.ref||"?")))}</span></div>`;};
+  const anchors=`<div class="v3anchors">
+    <div><span>預計大貨樣日</span><b>${p3&&p3.sampleDate?fmt(p3.sampleDate):"—"}</b></div>
+    <div><span>樣品到貨日（P5 完成）</span><b>${p5&&p5.doneAt?fmt(p5.doneAt):"—"}</b></div>
+    <div><span>大貨到貨日（L8 完成）</span><b>${l8&&l8.st==="x"&&l8.doneAt?fmt(l8.doneAt):(v3EtaBulk(l)?`預計 ~${fmt(v3EtaBulk(l))}`:"—")}</b></div>
+    ${p3&&p3.st==="p"&&p3.days!=null&&p3.startAt?`<div><span>大貨倒數</span><b>剩 ${Math.max(0,p3.days-dayDiff(p3.startAt,today))}d</b></div>`:""}
+  </div>`;
+  return `<div class="panel v3strip">
+    <div class="v3strip-top">
+      <span class="v3strip-k">🎛 上市決策</span>
+      ${shopChip}${adsChip}
+      <label class="v3target">目標上市日 <input type="date" value="${esc(l.target||"")}" onchange="v3SetTarget('${l.slug}',this.value)"></label>
+      ${crmWarn}${kolChip}
+      <span class="v3strip-go">${go("shop","上架","🚀")} ${go("ads","廣告","📣")}</span>
+    </div>
+    <div class="sub" style="margin-top:4px">燈號＝規則自動判（素材 × 庫存）；GO＝人工拍板（限 Ben），記錄日期與人。ADS 執行在系統外，素材完成即從下方素材卡交付。</div>
+  </div>
+  <div class="v3grid">
+    <div class="panel"><h3>① 素材就緒 <span class="ghostnote">Done 自動流入 · 點卡跳任務</span></h3><div class="v3assets">${assets}</div></div>
+    <div class="panel"><h3>② 物流就緒</h3>${anchors}${["L1","L2","L3","L6","L4","L5","L7","L8"].map(lrow).join("")}</div>
+  </div>`;
+}
+function v3ViewLaunch(l){
+  const [h,cls]=health(l);
+  return `<span class="back" onclick="go('portfolio')">← Portfolio</span>
+  <div class="ld-head">
+    <div class="ld-head-main">
+      <div class="ld-title-row"><h2 class="ld-title">${esc(l.name)}</h2><span class="pill ok" title="Shopify 上市流程（V3 觸發制）">Shopify V3</span><span class="pill ${cls}">${h}</span></div>
+      <div class="ld-id"><span class="ld-now">${l.complete?"✓ 全部完成":`目前階段：<b>${ntx(esc(l.stage))}</b>`}</span></div>
+    </div>
+    <div class="ld-actions" role="group" aria-label="Launch actions">
+      <button class="ld-act" title="Edit this launch's name and target date" onclick="editLaunch('${l.slug}')">✏️<span class="ld-act-t">Edit</span></button>
+      ${l.driveFolderUrl?`<a class="ld-act" href="${l.driveFolderUrl}" target="_blank" title="Open this launch's folder">📁<span class="ld-act-t">Folder</span></a>`:`<button class="ld-act" title="Create a Drive folder for this launch" onclick="createLaunchFolder('${l.slug}')">📁<span class="ld-act-t">Folder</span></button>`}
+      <button class="ld-act danger" title="Delete this launch" onclick="deleteLaunch('${l.slug}')">🗑️<span class="ld-act-t">Delete</span></button>
+    </div>
+  </div>
+  ${v3Dash(l)}
+  <div class="twocol ld2"><div>
+    <div class="secdiv"><h4>流程 — 依階段</h4><div class="sub">同一條觸發鏈：前置完成才解鎖（🔒 會告訴你在等誰）。天數可調的步驟直接在列上填。</div></div>
+    ${V3PHASES.map((_,i)=>v3PhasePanel(l,i)).join("")}
+  </div><div>
+    ${renderBriefsPanel(l)}
+    ${renderResearchPanel(l)}
+    ${notesThread(l)}
+  </div></div>
+  ${chatRail(l)}`;
+}
 function viewLaunch(){
-  const l=L(S.launch); const [h,cls]=health(l);
+  const l=L(S.launch); if(l&&l.tpl==="v3")return v3ViewLaunch(l);
+  const [h,cls]=health(l);
   // The current stage's exit criteria are tickable inline in the timeline; the advance control (dept-ready summary + push + approval) is rendered inline under the current stage by advanceBar().
   return `<span class="back" onclick="go('portfolio')">← Portfolio</span>
   <div class="ld-head">
@@ -2719,8 +3069,10 @@ function viewDept(){
   <div class="board">${[["b","Blocked"],["p","In progress"],["o","To do"],["x","Done"]].map(([s,lbl])=>`<div class="col"><h4>${lbl} <span>${rows.filter(r=>r.t.st===s).length}</span></h4>${rows.filter(r=>r.t.st===s).map(({l,t})=>`<div class="card" onclick="openL('${l.slug}')"><div class="nm" style="font-size:13px">${esc(t.t)}</div><div class="meta">${l.name} · ${t.stage}</div></div>`).join("")}</div>`).join("")}</div>`;
 }
 function viewFlow(){
-  const l=L(S.flowLaunch);
-  return `<h2>Master flow chart — <select onchange="S.flowLaunch=this.value;render()">${LAUNCHES.map(x=>`<option value="${x.slug}" ${x.slug===S.flowLaunch?"selected":""}>${x.name}</option>`).join("")}</select></h2>
+  const legacy=LAUNCHES.filter(x=>x.tpl!=="v3"); // the master chart maps the legacy 7-stage template; V3 cards have their own per-card dashboard view
+  if(!legacy.length) return `<h2>Master flow chart</h2><div class="sub">所有卡片都在 Shopify V3 流程 — 開啟卡片即可看到 V3 的儀表板與觸發鏈。</div>`;
+  let l=L(S.flowLaunch); if(!l||l.tpl==="v3"){l=legacy[0];S.flowLaunch=l.slug;}
+  return `<h2>Master flow chart — <select onchange="S.flowLaunch=this.value;render()">${legacy.map(x=>`<option value="${x.slug}" ${x.slug===S.flowLaunch?"selected":""}>${x.name}</option>`).join("")}</select></h2>
   <div class="sub">The company process map from <b>BV Team Workflow_v2.pdf</b>, made live: every department's lane, decision diamonds (◆ = Ben), and hand-offs — colored by <b>${l.name}</b>'s real progress. This is the card "passed around" exactly like the master PDF.</div>
   ${flowSVG(l)}
   <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>done</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>in progress</span><span><i style="background:#331414;border:1px solid #f87171"></i>blocked</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>to do (current stage)</span><span><i style="background:#15171b;border:1px solid #262b32"></i>upcoming</span><span style="color:var(--purple)">◆ decision gate</span><span>⇢ dashed = cross-department hand-off</span></div>
