@@ -234,7 +234,9 @@ Amazon 上架燈＋站內 PPC 燈、Vine 排程、ASIN eligible 檢核、availab
 
 **〔2026-07-02 修訂〕改為「更新既有流程」而非平行系統**：依使用者回饋,V3 不再是獨立平行模板,而是**取代 app 唯一的流程** —— 同一個 Portfolio 看板（欄位＝V3 六階段）、卡片沿用原本的部門 swimlane 流程圖（內容換 V3）、儀表板改成卡片上的「🗺 流程圖 / 🎛 上市儀表板」切換鈕、原本的任務列/階段時間軸/◆ 決策全部沿用。單一 `V3` 陣列（43 節點）為真實來源,`v3Rederive()` 推導出 STAGES/GATES/FLOW/XROUTES/CROSS/PLAN;解鎖改為 **req 依賴制**（每步等前置完成,🔒 顯示在等誰,無手動 push）;雙語＝英文為底 + 自動注入 ZH/FLOWZH 字典。既有卡片載入時由 `v3SyncTasks` 依 code 重建（狀態保留,舊七階段進度不對應者歸零）。驗證:node 語法+執行期、多輪 headless 斷言、en/zh × 流程圖/儀表板截圖、對抗式 code review(修掉 routeSteps 誤刪 blocker、benQueue 讓 C9/D2/D5 ◆ 現身、v3LockText 英文漏譯等)。
 
-**待你確認的新造詞**（沒有舊英文對照）:萃取=Distill、整合設計=Design integration、產品介紹=Product intro video、識別設計=Identity design;以及 4 個 Ben 決策的中文區分名(Ben 概念定案 / 打樣定案 / 識別定案 / PDP 定案,原文都叫「Ben 決策」)。
+**〔2026-07-02 定案〕新造詞已確認**:萃取=Distill、整合設計=Design integration、產品介紹=Product intro video、識別設計=Identity design（維持原案）;4 個 Ben ◆ 決策的中文**一律叫「Ben 決策」**（不再區分概念/打樣/識別/PDP,英文仍各自為 Ben concept/prototype/identity/PDP sign-off 以維持唯一 task key）。
+
+**〔2026-07-02〕上市進度列瘦身（3 項）**:①負責人不再常駐顯示,改為**滑鼠移到部門 chip 時**以懸停 tooltip 顯示（`.o-hasowner`／`data-owner`,tooltip 出現在 chip 右側、左邊框帶負責人色）—— 列長縮短。②鎖定原因（🔒 finish X first）**不再內嵌於列**,改為點「▾ 詳情」在展開視窗內顯示;為此鎖定的 ◆ 決策列也補上詳情展開鈕,面板同時顯示該節點產出。③卡片流程圖**外框（.panel + FLOW CHART 標題）移除**,改與上市儀表板一致:切換鈕直接置頂,下方接內容。
 
 ---
 

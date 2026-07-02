@@ -577,6 +577,10 @@
   /* task-row responsibility cluster (right side: responsible · collaborators · ＋) */
   .ometa{display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
   .o-resp{font-weight:700;font-size:12px}
+  /* owner is revealed on hover over the department chip (keeps the progress row short) */
+  .o-hasowner{position:relative;cursor:help;outline:none}
+  .o-hasowner::after{content:attr(data-owner);position:absolute;left:100%;top:50%;transform:translateY(-50%);margin-left:8px;white-space:nowrap;background:#0d0f13;border:1px solid var(--line);border-left:3px solid var(--oc,var(--line));color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .12s;z-index:40;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+  .o-hasowner:hover::after,.o-hasowner:focus-visible::after{opacity:1}
   .o-stage{color:var(--faint);font-size:12px}
   .o-collabs{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
   .o-collab{font-size:11px;padding:0 6px;border:1px solid var(--line);border-radius:var(--r-xs);line-height:1.7}
@@ -656,7 +660,9 @@
   .v3anchors>div{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--dim);border:1px solid var(--line);background:var(--panel2);border-radius:6px;padding:5px 9px}
   .v3anchors b{color:var(--text)}
   .panel.v3cur{border-color:var(--accent)}
-  .ld-cardnav{display:inline-flex;gap:6px;margin-left:10px;vertical-align:middle}
+  .ld-cardhead{display:flex;align-items:center;gap:8px;margin:2px 0 10px}
+  .ld-flowhide{margin-left:auto}
+  .ld-cardnav{display:inline-flex;gap:6px;vertical-align:middle}
   .ld-cardtab{background:var(--panel2);border:1px solid var(--line);color:var(--dim);font-size:12px;padding:4px 11px;border-radius:var(--r-pill,14px);cursor:pointer;font-family:inherit}
   .ld-cardtab:hover{color:var(--text);border-color:var(--accent)}
   .ld-cardtab.on{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -743,10 +749,10 @@ const V3=[
  {c:"C4", en:"Distill", zh:"萃取", ph:0, dept:"Product", o:"Zac", days:2, req:["C3"], out:{en:"PPT / Figma",zh:"PPT or Figma"}, isNew:1},
  {c:"C5", en:"Brainstorming", zh:"腦力激盪", ph:0, dept:"Product", o:"Zac + Design Team", days:2, req:["C4"], out:{en:"meeting",zh:"會議"}},
  {c:"C6", en:"Design integration", zh:"整合設計", ph:0, dept:"Product", o:"Zac", days:4, req:["C5"], out:{en:"PPT/Figma + model name + brand language",zh:"PPT／Figma＋型號名稱＋品牌語言確認"}, isNew:1},
- {c:"C7", en:"Ben concept sign-off", zh:"Ben 概念定案", ph:0, dept:"Product", o:"Ben", days:5, req:["C6"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
+ {c:"C7", en:"Ben concept sign-off", zh:"Ben 決策", ph:0, dept:"Product", o:"Ben", days:5, req:["C6"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
  // 1 — Prototype & Delivery
  {c:"C8", en:"Prototyping", zh:"原型打樣", ph:1, dept:"Product", o:"Zac", days:null, req:["C7"], out:{en:"prototype",zh:"原型"}, note:{en:"cost sheet lives here (negotiated during sampling)",zh:"成本表貼於此（打樣期間來回議定成本）"}},
- {c:"C9", en:"Ben prototype sign-off", zh:"Ben 打樣定案", ph:1, dept:"Product", o:"Ben", days:11, req:["C8"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}, note:{en:"ship 9 + decide 2",zh:"運輸 9＋決策 2"}},
+ {c:"C9", en:"Ben prototype sign-off", zh:"Ben 決策", ph:1, dept:"Product", o:"Ben", days:11, req:["C8"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}, note:{en:"ship 9 + decide 2",zh:"運輸 9＋決策 2"}},
  {c:"C10", en:"Design freeze", zh:"設計凍結", ph:1, dept:"Product", o:"Zac + Ben", days:0, req:["C9"], out:{en:"freeze data = product data filing (feeds MB1)",zh:"凍結資料＝產品資料建檔（供 MB1）"}},
  {c:"P1", en:"Pre-production sample + BOM", zh:"產前樣＆BOM", ph:1, dept:"Product", o:"Zac", days:14, req:["C10"], out:{en:"to Taiwan + BOM filed",zh:"送台灣＆BOM 歸檔"}, note:{en:"make 7 + ship 7",zh:"製作 7＋運輸 7"}},
  {c:"P3", en:"Mass production", zh:"大貨生產", ph:1, dept:"Product", o:"Zac", days:null, req:["P1"], sample:1, out:{en:"day countdown",zh:"天數倒數"}, note:{en:"packaging (D3) to factory during production",zh:"包裝檔（D3）於生產期間交廠"}},
@@ -754,10 +760,10 @@ const V3=[
  {c:"P2", en:"Product intro video", zh:"產品介紹", ph:2, dept:"Product", o:"Zac", days:1, req:["P1"], asset:1, out:{en:"quick how-to video → whole company",zh:"簡單操作影片 → 全公司"}, isNew:1},
  {c:"P4", en:"Catalog data setup", zh:"Catalog 資料建制", ph:2, dept:"Catalog", o:"LC", days:1, req:["P1"], out:{en:"Shopify SKU + Shipbob SKU",zh:"Shopify SKU＋Shipbob SKU"}},
  {c:"D1", en:"Identity design", zh:"識別設計", ph:2, dept:"Design", o:"Design Team", days:7, req:["C10"], out:{en:"packaging, label…",zh:"Packaging、Label…"}, isNew:1},
- {c:"D2", en:"Ben identity sign-off", zh:"Ben 識別定案", ph:2, dept:"Design", o:"Ben", days:2, req:["D1"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
+ {c:"D2", en:"Ben identity sign-off", zh:"Ben 決策", ph:2, dept:"Design", o:"Ben", days:2, req:["D1"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
  {c:"D3", en:"Packaging finalized", zh:"包裝設計定稿", ph:2, dept:"Design", o:"Design Team", days:2, req:["D2"], note:{en:"to factory between PPS and mass production",zh:"於產前樣確定～大貨生產期間交付工廠"}},
  {c:"D4", en:"PDP + infographics draft", zh:"PDP 草稿", ph:2, dept:"Design", o:"Design Team", days:14, req:["MB3"], asset:1, note:{en:"starts after MB3 (= photos + 10d)",zh:"等 MB3 完成後開始（＝照片完成＋10 天）"}},
- {c:"D5", en:"Ben PDP sign-off", zh:"Ben PDP 定案", ph:2, dept:"Design", o:"Ben", days:2, req:["D4"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
+ {c:"D5", en:"Ben PDP sign-off", zh:"Ben 決策", ph:2, dept:"Design", o:"Ben", days:2, req:["D4"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
  {c:"D6", en:"Official PDP + infographics", zh:"正式 PDP", ph:2, dept:"Design", o:"Design Team", days:5, req:["D5","MS3b"], asset:1, note:{en:"finalized only after MS3b video",zh:"MS3b 影片完成才能定稿"}},
  {c:"CRM1", en:"FAQ draft + pop quiz", zh:"FAQ 建制", ph:2, dept:"CRM", o:"Angel", days:5, req:["MB2"], out:{en:"FAQ text → whole company",zh:"FAQ 文字版 → 全公司"}},
  {c:"CRM2", en:"FAQ finalized + brief CS", zh:"FAQ 定稿", ph:2, dept:"CRM", o:"Angel", days:3, req:["CRM1","MS2"], asset:1, note:{en:"deadline = target launch − 3d",zh:"死線＝目標上市日 −3 天"}},
@@ -2349,22 +2355,27 @@ function taskRow(l,t,extra,ro){
   const collabPlus=(!ro&&!extra)?collabAddMenu(l,t,i,resp,collabs):"";
   const vn=t.code&&V3MAP[t.code];   // V3 node behind this row (for the code chip, owner, manual-day control, sample date)
   const owner=vn?vn.o:"";
-  const lead=extra?`<span class="o-stage" title="stage">${esc(extra)}</span>`:`<span class="o-resp" style="color:${DCOLOR(resp)}" title="Responsible dept — ${esc(resp)}">${esc(resp)}</span>`;
-  const ownerChip=(owner&&owner!==resp)?`<span class="o-collab" style="color:${v3OColor(owner)}" title="Owner — ${esc(owner)}">${esc(owner)}</span>`:"";
-  const meta=`<span class="o ometa">${lead}${ownerChip}${collabChips?`<span class="o-collabs">${collabChips}</span>`:""}${collabPlus}${vn&&!extra?v3DaysCtl(l,t,i):""}</span>`;
-  // Ben ◆ gate rows render as a single Approve button — no 🔗 Links menu, no ▾ details expander (per request)
-  const ctrls=t.gate?"":`${lk?"":renderLinkMenu(t,l.slug,i)}
-    <button class="exp" onclick="toggle('${key}')">${open?"▴ close":"▾ details"}${t.notes.length?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button>`;
-  const outNote=vn&&!extra?`${vn.out?`<span class="ghostnote" title="output">▸ ${esc(v3T(vn.out))}</span>`:""}`:"";
+  // department chip; when a distinct person owns the step, the owner is folded into a hover tooltip (keeps the row short)
+  const showOwner=(owner&&owner!==resp);
+  const lead=extra
+    ? `<span class="o-stage" title="stage">${esc(extra)}</span>`
+    : showOwner
+      ? `<span class="o-resp o-hasowner" tabindex="0" style="color:${DCOLOR(resp)};--oc:${v3OColor(owner)}" data-owner="${esc((LANG==="zh"?"負責人 · ":"Owner · ")+owner)}">${esc(resp)}</span>`
+      : `<span class="o-resp" style="color:${DCOLOR(resp)}" title="Responsible dept — ${esc(resp)}">${esc(resp)}</span>`;
+  const meta=`<span class="o ometa">${lead}${collabChips?`<span class="o-collabs">${collabChips}</span>`:""}${collabPlus}${vn&&!extra?v3DaysCtl(l,t,i):""}</span>`;
+  // a locked row (incl. Ben ◆ gates) gets a ▾ details expander so the "why it's locked" text lives in the panel, not inline
+  const exp=`<button class="exp" onclick="toggle('${key}')">${open?"▴ close":"▾ details"}${(!lk&&t.notes.length)?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button>`;
+  const ctrls=t.gate?(lk?exp:""):`${lk?"":renderLinkMenu(t,l.slug,i)}${exp}`;
+  const outNote=(vn&&!extra&&!lk)?`${vn.out?`<span class="ghostnote" title="output">▸ ${esc(v3T(vn.out))}</span>`:""}`:"";
   const sampleCtl=(vn&&vn.sample&&!extra&&!ro)?`<div class="v3sample">${LANG==="zh"?"預計大貨樣日":"planned bulk-sample date"} <input type="date" value="${esc(t.sampleDate||"")}" title="the date bulk samples can ship — P5 (Deploy marketing samples) waits for this" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)">${t.st==="p"&&t.days!=null&&t.startAt?` <span class="ghostnote">${LANG==="zh"?"倒數剩":"countdown"} ${Math.max(0,t.days-dayDiff(t.startAt,today))}d</span>`:""}</div>`:"";
   return `<div id="task-${l.slug}-${i}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${lk?"opacity:.38;filter:grayscale(.6)":""}">
    ${t.gate?gateControl(l,t,i,lk):`<button type="button" class="st ${lk?"":t.st}" ${lk?"disabled":""} aria-label="${lk?"locked — "+esc(lockReason(l,t)):"status: "+stWord(t.st)+" — left-click to advance, right-click to step back"}" title="${lk?"locked — "+esc(lockReason(l,t)):"left-click: advance · right-click: step back"}" onclick="cycle('${l.slug}',${i})" oncontextmenu="cycleBack('${l.slug}',${i});return false">${lk?"🔒":stIcon[t.st]}</button>`}
    <span>${vn?`<span class="v3code">${esc(t.code)}</span> `:""}${esc(flowTaskName(t))}${t.gate?' <span style="color:var(--purple)">◆</span>':""}
-    ${lk?`<span class="urg" style="background:#1d2127;color:var(--faint)">🔒 ${esc(lockReason(l,t))}</span>`:""}${t.assignee&&t.assignee.trim()!==resp&&t.assignee.trim()!==owner&&!collabs.includes(t.assignee.trim())?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
+    ${t.assignee&&t.assignee.trim()!==resp&&t.assignee.trim()!==owner&&!collabs.includes(t.assignee.trim())?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
     ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
     ${outNote}${ctrls}</span>
    ${meta}</div>${sampleCtl}
-   ${open?(lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>Locked.</b> ${esc(lockReason(l,t)).replace(/^./,c=>c.toUpperCase())}. ${DOD[t.t]?`<div style="margin-top:6px;color:var(--faint)">Definition of done: ${esc(DOD[t.t])}</div>`:""}</div>`:taskPanel(l,t,i,ro)):""}</div>`;
+   ${open?(lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>${LANG==="zh"?"已鎖定":"Locked"}</b> — ${esc(lockReason(l,t))}${vn&&vn.out?`<div style="margin-top:6px;color:var(--faint)">${LANG==="zh"?"產出":"Output"}：${esc(v3T(vn.out))}</div>`:""}${DOD[t.t]?`<div style="margin-top:6px;color:var(--faint)">${LANG==="zh"?"完成定義":"Definition of done"}: ${esc(DOD[t.t])}</div>`:""}</div>`:taskPanel(l,t,i,ro)):""}</div>`;
 }
 function taskPanel(l,t,i,ro){
   const notes=t.notes||[]; const tk=l.slug+":tools:"+i; const tools=S.open[tk]; const nk=l.slug+":"+i; const pend=(S.noteUrg&&S.noteUrg[nk])||"med";
@@ -2893,11 +2904,10 @@ function viewLaunch(){
        <button class="ld-cardtab${view==="flow"?" on":""}" onclick="S.cardView='flow';render()">🗺 ${zh?"流程圖":"Flow chart"}</button>
        <button class="ld-cardtab${view==="dash"?" on":""}" onclick="S.cardView='dash';render()">🎛 ${zh?"上市儀表板":"Launch dashboard"}</button>
      </span>`;
-    if(view==="dash") return `<div style="margin:2px 0 10px">${tabs}</div>${v3Dash(l)}`;
-    return `<div class="panel"><h3>${zh?"流程圖":"Flow chart"} ${tabs}<button class="iconbtn" style="float:right" onclick="S.hideFlow=!S.hideFlow;render()">${S.hideFlow?(zh?"▸ 顯示":"▸ show"):(zh?"▾ 隱藏":"▾ hide")}</button></h3>
+    if(view==="dash") return `<div class="ld-cardhead">${tabs}</div>${v3Dash(l)}`;
+    return `<div class="ld-cardhead">${tabs}<button class="iconbtn ld-flowhide" onclick="S.hideFlow=!S.hideFlow;render()">${S.hideFlow?(zh?"▸ 顯示":"▸ show"):(zh?"▾ 隱藏":"▾ hide")}</button></div>
     ${S.hideFlow?`<div class="sub" style="margin:4px 0">${zh?"流程圖已隱藏。":"Flow chart hidden."}</div>`:`${flowSVG(l)}
-    <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>${zh?"完成":"done"}</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>${zh?"進行中":"in progress"}</span><span><i style="background:#331414;border:1px solid #f87171"></i>${zh?"卡關":"blocked"}</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>${zh?"待做":"to do"}</span><span><i style="background:#15171b;border:1px solid #262b32"></i>${zh?"未解鎖":"upcoming"}</span><span style="color:var(--purple)">◆ ${zh?"決策關卡":"decision gate"}</span></div>`}
-    </div>`;})()}
+    <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>${zh?"完成":"done"}</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>${zh?"進行中":"in progress"}</span><span><i style="background:#331414;border:1px solid #f87171"></i>${zh?"卡關":"blocked"}</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>${zh?"待做":"to do"}</span><span><i style="background:#15171b;border:1px solid #262b32"></i>${zh?"未解鎖":"upcoming"}</span><span style="color:var(--purple)">◆ ${zh?"決策關卡":"decision gate"}</span></div>`}`;})()}
     <div class="twocol ld2"><div>
     <div class="secdiv"><h4>${LANG==="zh"?"上市進度 — 依階段":"LAUNCH PROGRESS — BY PHASE"}</h4><div class="sub">${LANG==="zh"?"每一步在前置完成後才解鎖（🔒 會顯示在等誰）。天數可調的步驟直接在列上填。":"Each step unlocks when its prerequisites are done (🔒 shows what it's waiting on). Fill adjustable days right on the row."}</div></div>
     ${stageTimeline(l)}
