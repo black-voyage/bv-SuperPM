@@ -2609,7 +2609,7 @@ function flowSVG(l){
     }
     svg+=`<g${click}${rsteps&&!inR?' opacity="0.22"':""}>${body}${isSel&&!rsteps?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="3" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inR?`<rect class="glownode" x="${x-4}" y="${y-4}" width="${CW+8}" height="${h+8}" rx="3" fill="none" stroke="#EE3124" stroke-width="3"/>`:""}${labelSVG}${frozen?`<text x="${x+CW-9}" y="${y+15}" text-anchor="middle" fill="${FT.ice.strk}" font-size="13" font-weight="700" pointer-events="none">❄</text>`:""}
     ${n.d?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#c084fc" font-size="11">◆ decision</text>`:""}${n.url?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#60a5fa" font-size="11">🔗 Figma</text>`:""}
-    ${isHere?`<text x="${x+CW/2}" y="${y+h+16}" text-anchor="middle" fill="#EE3124" font-size="12" font-weight="700">📍 ${l.name} is here</text>`:""}
+    ${isHere?`<g pointer-events="none"><rect x="${x-4}" y="${y-10}" width="${LANG==="zh"?48:46}" height="18" rx="9" fill="#EE3124"/><text x="${x-4+(LANG==="zh"?48:46)/2}" y="${y+3}" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">📍 ${LANG==="zh"?"這裡":"here"}</text></g>`:""}
     <title>${esc(n.l)} — stage: ${n.s} · click for route + quick actions${st==="fut"&&ti>=0?" · 🔒 locked until previous step is done":""}</title></g>`;}));
   if(rsteps){const rpts=rsteps.map(([dd,ll])=>{const ii=FLOW[dd]?FLOW[dd].findIndex(nn=>nn.l===ll):-1; if(ii<0)return null; const p=pos(dd,ii); return [p.x+CW/2,p.y+hgt(dd,ii)/2];}).filter(Boolean);
     if(rpts.length>1) svg+=`<path d="M${rpts.map(p=>p.join(" ")).join(" L ")}" fill="none" stroke="#EE3124" stroke-width="2.5" stroke-dasharray="9 7" class="routeline" opacity="0.85"/>`;}
@@ -4949,6 +4949,8 @@ function render(){
   if(!dl){dl=document.createElement("datalist");dl.id="people";document.body.appendChild(dl);}
   dl.innerHTML=[...new Set(TEAM.flatMap(t=>[t.name,t.head,...(t.members||"").split(",")]).map(s=>(s||"").trim()).filter(Boolean))].map(p=>`<option value="${esc(p)}">`).join("");
   let html;
+  // guard a stale/deleted launch slug (e.g. card removed but S.launch still points at it) — fall back to portfolio instead of crashing in viewLaunch/health
+  if(S.view==="launch"&&!L(S.launch)){S.view="portfolio";S.launch=null;}
   if(S.view==="launch") html=viewLaunch();
   else if(S.view==="digest") html=viewDigest();
   else if(S.view==="portfolio") html=`<h2>Portfolio <button class="btn" style="margin-left:8px" onclick="newLaunch()">+ New launch</button></h2><div class="sub">Every launch by stage. New cards start fully locked except the intake Form.</div>${portfolioBoard()}<div style="margin-top:26px">${viewTimeline()}</div>`;
