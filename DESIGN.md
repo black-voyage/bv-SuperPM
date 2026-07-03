@@ -1,11 +1,13 @@
 # Design
 
-Visual system for Black Voyage Product Tracker (SuperPM). **v2 direction — "Spatial Console"** (2026-07-02): re-planned from a reference analysis (Fluxa case study, Gliuk.Studio — dark node-canvas AI-workflow UI), reconciled against **BV Brand Guidelines Condensed Version V4** (in the `bv-second-brain` data core). Register: **product** (Mission Control).
+Visual system for Black Voyage Product Tracker (SuperPM). **v3 direction — "Spatial Console"** (2026-07-03): re-planned from a reference analysis (Fluxa case study, Gliuk.Studio — dark node-canvas AI-workflow UI, Behance gallery 251326143), reconciled against **BV Brand Guidelines Condensed Version V4** (in the `bv-second-brain` data core). Register shifted **from "Restrained Product" toward "Expressive Spatial"** — glass and glow are deliberately turned UP (see Material & Glow tiers). The user-facing decode + full spec lives as a rendered artifact ("Spatial Console v3 設計規範") + a pattern library artifact ("Pattern Library v3", 21 rendered layout examples); this file is the code-facing source of truth.
+
+**Implementation scope (2026-07-03):** only the **flow-chart / Launch page** has a concrete plan and is the vertical slice to build first. Other pages await their own plans — but this spec is written full-system so new pages drop in by choosing a Material/Glow tier + component vocabulary, no re-thinking.
 
 **Standing constraints from the replan:**
-- The reference's **blue (#0981FF) and cyan (#1EDIE9) are NOT adopted**. BV Orange `#EE3124` takes every role the reference gives blue (active nav, selection, primary action, key-phrase emphasis, accent node). `--blue` survives only as a semantic *info* state.
-- Brand colors and fonts below are canonical — do not re-seed. Identity-preservation wins over reference-matching (hence Aeonik stays; see Typography).
-- Everything else in the reference is fair source material: depth layering, soft geometry, connector language, presence chips, control vocabulary, typographic attitude.
+- **Orange is THE signal (priority) color; Blue is a permitted SECONDARY.** Orange `#EE3124` owns primary action, selection, current, key-phrase emphasis, the one signal glow. **Blue is usable** for links, secondary emphasis, info, data-viz, and ambient glow — but must stay **subordinate to orange** (quieter/less saturated, never competes for the "act now" role). (Earlier v2 rejected blue outright; the user corrected this — blue is fine, orange is just the priority.) Cyan `#1ED1E9` is an optional tertiary/data hue.
+- Brand colors and fonts below are canonical — do not re-seed. Identity-preservation wins over reference-matching (hence Aeonik stays, not the reference's Urbanist; see Typography).
+- Everything else in the reference is fair source material: depth layering, soft geometry, glass, connector language, presence chips, control vocabulary, typographic attitude. **Not** adopted: the freeform-canvas *layout* applied to scan-heavy dashboards (canvas paradigm maps to the flow chart only); Urbanist; orange as ambient decoration.
 
 ## Theme
 
@@ -60,7 +62,9 @@ Values widened 2026-07-03 for readable figure-ground — the first pass kept pag
 
 ### Semantic state colors
 
-`--green:#4ade80` (on-track / success) · `--amber:#fbbf24` (warning / at-risk) · `--red:#f87171` (blocked / error) · `--blue:#60a5fa` (**info only** — never an accent) · `--purple:#c084fc` (code / system). Use for status dots, SLA pills, gate states — never decoratively.
+`--green:#4ade80` (on-track / success) · `--amber:#fbbf24` (warning / at-risk) · `--red:#f87171` (blocked / error) · `--purple:#c084fc` (code / system). Use for status dots, SLA pills, gate states — never decoratively.
+
+**Blue — the secondary color (v3):** `#3D8BFF` (secondary actions/emphasis) · `#60a5fa` (info / links) · `#1ED1E9` (cyan, tertiary/data-viz). Blue is a real, usable supporting hue (links, secondary buttons, secondary emphasis in display copy, data-viz series, ambient glow) but stays **subordinate to Orange** — quieter, never the "primary action / current / act-now" role. When blue and orange could both apply to a control, orange wins.
 
 **Owner/person colors** (presence language, see Components): Ben `#c084fc` · Zac `#60a5fa` · Ann `#f472b6` · Angel `#fb923c` · LC `#34d399` · Design Team `#a78bfa` · 各攝影師 `#67e8f9`. These identify *people*, not states.
 
@@ -122,8 +126,27 @@ The reference's core trick: a surface is a *material*, not a fill.
 
 - **Floating surface** (default for panels/cards): `--panel` fill + 1px `--line` border + `--edge` top-inset highlight + `--sh-md`. Reads as a slab lit from above, floating over the void.
 - **Inner well**: `--panel2`, hairline border, no shadow, no edge — content sunk *into* a surface (inputs, nested boxes, prompt wells).
-- **Glass overlay** (restricted): `backdrop-filter: blur(16–20px)` + `rgba(22,24,28,.72)`. **Only** for floating transient chrome that sits over live content: media transport controls, the flow-node popover, command palette. Never as decoration on static panels — decorative glassmorphism stays banned.
-- **Accent tile**: one saturated Orange rounded tile can anchor a composition (the reference's blue logo tile between problems→solutions). At most one per view; it is a landmark, not a button style.
+- **Accent tile**: one saturated Orange rounded tile can anchor a composition (the reference's logo tile between problems→solutions). At most one per view; it is a landmark, not a button style.
+
+### Material & Glow tiers (v3 — the "how much" dial)
+
+Glass/glow are turned up but **graded**, not all-or-nothing. Each surface picks **one Material tier (M) + one Glow tier (G)**; data-dense zones go low (legibility), overlays/canvas go high (expression). This replaces the old "decorative glassmorphism banned" rule — glass is now a first-class material, but tiered.
+
+| Material | Recipe | Where |
+|---|---|---|
+| **M0 · Flat** | solid `--surface`, hairline, no blur | dense tables, long-text lists, high-legibility zones |
+| **M1 · Frosted** | `rgba(20,23,29,.80)` + `blur(14px)` + `--edge` + `--sh-sm` | default cards/panels |
+| **M2 · Glass** | `rgba(22,25,31,.55)` + `blur(24px) saturate(1.2)` + `--edge` + `--sh-md` | floating overlays, popovers, node inspector, command bar |
+| **M3 · Deep** | `rgba(22,25,31,.42)` + `blur(32px)` + `--edge` + surface halo + `--sh-lg` | modals, hero, launch-canvas inspector |
+
+| Glow | Recipe | Where |
+|---|---|---|
+| **G0 · none** | — | dense data zones |
+| **G1 · ambient** | page dual corner halos (neutral silver + **faint blue**, ≤16%) — always on | every view background |
+| **G2 · surface** | soft neutral halo (`0 0 ~50px rgba(244,247,252,.12)`) behind a floating panel/canvas | canvas field, hero panels |
+| **G3 · signal** | **Orange** glow `0 0 16–24px rgba(238,49,36,.4–.5)` on active/selected/primary **only** | primary buttons, current node, dependency line |
+
+Pairings: tables/long-text = **M0·G0** · cards = **M1·G1** · overlays/inspector/command bar = **M2·G2** · modals/hero/canvas inspector = **M3·G2**. **G3 (orange glow) is reserved for signal** — never ambient scenery. Blue may enter G1/G2 ambient (secondary); orange never does.
 
 ## Canvas & Connectors (new — the system's signature)
 
@@ -163,7 +186,7 @@ Node-graph language for flow/relationship surfaces (flow chart today; anywhere r
 
 ## Bans (enforced)
 
-Gradient text · decorative glassmorphism (glass = floating transient chrome only) · side-stripe borders · per-section uppercase eyebrows · numbered section scaffolding unless a real sequence · hero-metric template · identical card grids · consumer-cute illustration · generic SaaS/Bootstrap admin look · text overflowing its container at any breakpoint · **blue/cyan as accent** (reference colors explicitly not adopted; Orange is the only signal hue — blue is info-state only) · orange as ambient decoration (glows stay neutral).
+Gradient text · side-stripe borders · per-section uppercase eyebrows · numbered section scaffolding unless a real sequence · hero-metric template · identical card grids · consumer-cute illustration · generic SaaS/Bootstrap admin look · text overflowing its container at any breakpoint · **blue out-shouting orange** (blue is secondary — it must never take the primary-action / current / act-now role) · **orange as ambient decoration** (the one hard color rule: orange = signal, glows stay neutral/blue) · **glass/glow on data-dense zones** (tables & long-text stay M0/G0 for legibility — glass is graded, not blanket). NOTE: the old "decorative glassmorphism banned" is retired — glass is now a first-class **tiered** material (see Material & Glow tiers).
 
 ## Migration notes (code → this doc)
 
@@ -176,4 +199,14 @@ Current `index.html` vs. this target, in suggested implementation order:
 5. **Ambient glows + dot-grid rollout**: `--void` field behind launch dashboard (flow chart already has it); one neutral ambient glow max.
 6. **Display moments**: auth screen + key empty states adopt `--fs-hero` light-weight statements with mixed emphasis.
 
-Already aligned (shipped earlier): dot-grid flow field, proximity grouping, endpoint-dot connectors, Orange dependency highlight, rem type scale, tabular numerics, pill view-toggle tabs, KV-shaped detail grid.
+Already aligned (shipped earlier): dot-grid flow field, proximity grouping, endpoint-dot connectors, Orange dependency highlight, rem type scale, tabular numerics, pill view-toggle tabs, KV-shaped detail grid, figure-ground (darker page `#0C0D10` below lighter panels `#181B21`), glass materials + neutral+blue ambient glow, sentence-case panel titles.
+
+## v3 build plan (2026-07-03)
+
+**Scope:** implement on the **flow-chart / Launch page only** for now (vertical slice); other pages await their own plans. Spec is full-system so new pages drop in via M/G tiers + the component vocabulary.
+
+**Layout / IA (proposed, per-surface, for when other pages are planned):** global shell = left icon rail + top context bar (card name + pill tabs + actions) + bottom command bar (BV chat/STORM/jump). Fluxa→BV mapping: Overview→Home/CEO lens · **Flows (node canvas)→流程圖 (the 1:1 fit, canvas-first)** · Campaigns→行銷活動 · Pipeline→Portfolio/進度 · Content→素材(MS3a/b) · Insights→Progress. Dashboards stay structured grids (NOT freeform canvas). A pattern library of 21 rendered layout examples (dropdowns, tables, toolbars, overlays, master-detail, bento…) exists as an artifact — pull from it per surface.
+
+**Build order:** (1) tokens/materials/tiers + rail shell + command bar skeleton → (2) **Launch canvas** to reference grade (M2/M3 glass nodes+inspector, glowing curves, presence) → (3) Home/Portfolio frosting → (4) command bar wired → (5) presence chips → (6) motion.
+
+**Motion — PENDING the user's reel.** After Effects is in Fluxa's toolchain → real motion exists. The spec's motion section is a *proposal* until locked against the reference recording. Method to ingest it: the user provides the screen recording as a local file → extract frames with `ffmpeg -i reel.mp4 -vf fps=3 frame_%03d.png` (or scene-change) → Read the frames to observe entrance/curve-flow/easing → upgrade proposal to matched. (ffmpeg not yet installed; `brew install ffmpeg`.) Claude cannot play video or read it from a URL — frames-as-images only. All motion ships with `prefers-reduced-motion` fallbacks.
