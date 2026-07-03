@@ -16,7 +16,8 @@
      Neutrals: Silver #D0D5E1 · Aero White #F6F8FC
      Type: Aeonik (heading/paragraph) · IBM Plex Mono (labels) · rectangles + thin lines */
   :root{
-    --bg:#111215; --panel:#16181C; --panel2:#1D2026; --line:#2A2D34;
+    /* Spatial figure-ground: page sits BELOW its floating panels. Darker page + lighter/contrastier panels = cards visibly float on dark (the v2 tokens were too close in value to read as depth). */
+    --bg:#0C0D10; --panel:#181B21; --panel2:#20242C; --line:#2E323B;
     --text:#F6F8FC; --dim:#ADB6C6; --faint:#7B8494;
     --accent:#EE3124; --green:#4ade80; --amber:#fbbf24; --red:#f87171; --blue:#60a5fa; --purple:#c084fc;
     --btntext:#fff;
@@ -27,10 +28,10 @@
     --r-lg:20px;  /* floating tiles · the chat rail · modals · media wells */
     --r-pill:999px;
     /* depth layers + materials (DESIGN.md — Materials & Depth) */
-    --void:#0B0C0F;                       /* deepest layer: canvas fields, hero moments */
-    --edge:rgba(246,248,252,.06);         /* 1px top-inset light edge on floating surfaces */
-    --sh-sm:0 2px 10px rgba(0,0,0,.30);   /* raised controls */
-    --sh-md:0 10px 30px rgba(0,0,0,.38);  /* cards · popovers */
+    --void:#070809;                       /* deepest layer: canvas fields, hero moments */
+    --edge:rgba(246,248,252,.11);         /* 1px top-inset light edge on floating surfaces */
+    --sh-sm:0 3px 14px rgba(0,0,0,.45);   /* raised controls */
+    --sh-md:0 14px 40px rgba(0,0,0,.55);  /* cards · popovers */
     --sh-lg:0 24px 64px rgba(0,0,0,.5);   /* modals · overlays */
     --font-head:"Aeonik","Inter","Helvetica Neue",-apple-system,"Segoe UI",sans-serif;
     --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -69,10 +70,10 @@
   }
   body{background:var(--bg);color:var(--text);font:var(--fs-body)/var(--lh-body) var(--font-head);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;font-kerning:normal;font-optical-sizing:auto;font-variant-numeric:tabular-nums;}
   /* ambient depth glow — one neutral halo per view, behind content (fixed, non-interactive, z-index -1) */
-  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:radial-gradient(1100px 700px at 85% -12%,rgba(246,248,252,.05),transparent 62%),radial-gradient(900px 640px at -10% 112%,rgba(246,248,252,.032),transparent 60%)}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:radial-gradient(1100px 700px at 85% -12%,rgba(246,248,252,.10),transparent 60%),radial-gradient(900px 640px at -10% 112%,rgba(246,248,252,.06),transparent 60%)}
   [data-theme="light"] body::before{background:radial-gradient(1100px 700px at 85% -12%,rgba(17,24,39,.05),transparent 62%),radial-gradient(900px 640px at -10% 112%,rgba(17,24,39,.03),transparent 60%)}
   /* the auth overlay is opaque and above everything — carry the same ambient halo on its own background */
-  #authgate{background:radial-gradient(1100px 700px at 85% -12%,rgba(246,248,252,.05),transparent 62%),radial-gradient(900px 640px at -10% 112%,rgba(246,248,252,.032),transparent 60%) var(--bg,#0e0e12)}
+  #authgate{background:radial-gradient(1100px 700px at 85% -12%,rgba(246,248,252,.10),transparent 60%),radial-gradient(900px 640px at -10% 112%,rgba(246,248,252,.06),transparent 60%) var(--bg,#0e0e12)}
   [data-theme="light"] #authgate{background:radial-gradient(1100px 700px at 85% -12%,rgba(17,24,39,.05),transparent 62%),radial-gradient(900px 640px at -10% 112%,rgba(17,24,39,.03),transparent 60%) var(--bg)}
   h2{font-size:var(--fs-title);font-weight:700;letter-spacing:-.018em;line-height:var(--lh-snug);text-wrap:balance}
   /* mono-uppercase = the DATA voice (table heads, column heads, codes). Panel titles moved to sentence case (reference-driven). */
