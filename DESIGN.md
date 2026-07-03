@@ -142,7 +142,7 @@ Glass/glow are turned up but **graded**, not all-or-nothing. Each surface picks 
 | Glow | Recipe | Where |
 |---|---|---|
 | **G0 · none** | — | dense data zones |
-| **G1 · ambient** | page dual corner halos (neutral silver + **faint blue**, ≤16%) — always on | every view background |
+| **G1 · ambient** | page corner halos, **blue-tinted**, **slowly drifting** (~24s loop, see Motion) — always on | every view background |
 | **G2 · surface** | soft neutral halo (`0 0 ~50px rgba(244,247,252,.12)`) behind a floating panel/canvas | canvas field, hero panels |
 | **G3 · signal** | **Orange** glow `0 0 16–24px rgba(238,49,36,.4–.5)` on active/selected/primary **only** | primary buttons, current node, dependency line |
 
@@ -171,12 +171,20 @@ Node-graph language for flow/relationship surfaces (flow chart today; anywhere r
 - Loading → skeletons, not centered spinners. Empty states teach the next action (and are the licensed home for `--fs-hero` statements + imagery). Dropdowns escape `overflow` via `<dialog>`/popover/fixed, never clipped.
 - **Numbered sequences** (`/01`, `/02`): only when the list is genuinely ordered (problems→solutions, runbooks). Never as section scaffolding.
 
-## Motion
+## Motion (v3 — aligned to the Fluxa 32s reel, read frame-by-frame 2026-07-03)
 
-- 150–250ms on most transitions (`.15s` borders, `.25s` drawers). Motion conveys state — change, feedback, selection, reveal — never decoration. No orchestrated page-load sequences (a console loads into a task).
-- **Canvas motion vocabulary**: dependency-highlight dash-flow (~1s linear loop); glow pulse on awaiting-decision nodes (~1.15s ease-in-out); connector draw-in on first paint is acceptable at ≤300ms; everything else static.
-- Ease-out (quart/quint/expo); no bounce/elastic. Reveals enhance already-visible content; never gate visibility on a transition.
-- Every animation has a `@media (prefers-reduced-motion: reduce)` alternative (crossfade or instant).
+The reference reel is a slow, ease-out, glass+glow-heavy **cinematic** language, not scattered effects. Adopted DNA + BV adaptations:
+
+- **Living ambient glow** (NEW, biggest change): the void's ambient glow is not static — large **blue-teal** blobs **drift/breathe** (~24s loop) and bloom on pull-back. → BV: `body::before`/canvas glow becomes an **animated, blue-tinted** atmosphere (blue is the secondary hue; orange still never enters glow). Slow, low-opacity, GPU-cheap (transform/opacity on a couple of radial layers); paused under `prefers-reduced-motion`.
+- **Staggered entrance choreography** (ADAPT): elements reveal in sequence — chrome → side panels slide in → nodes fade/scale → **connectors draw** → content. This **overrides** the old "no orchestrated page-load" rule — BUT only **once per card-open / first load**, never on every re-render (a PM console can't perform on each tick). ≤600ms total, ease-out, reduced-motion → instant.
+- **Connector draw-in** (ADOPT): curved wire animates source→target, glows, endpoint dot lights after (≤300ms). Flow-chart connectors on first paint.
+- **Camera pull-back transition** (OPTIONAL): whole workspace scales into a floating card and recedes into the glow. → BV: card → Portfolio "back" transition (scale+fade), if wanted.
+- **Dependency dash-flow** (SHIPPED): selected node's orange dashed dependency lines flow (~1s linear loop) + glow.
+- **Typewriter** (ADOPT): command bar / AI-chat text types out.
+- **Panel expand** (ADOPT): collapsed node → content reveal, blur→clear + rise 6px (~180ms).
+- **Presence cursors** (DEFER): owner chips glide (spring) with name labels — only if multi-user is built.
+
+Base rules unchanged: 150–250ms on most transitions; ease-out (quart/quint/expo), **no bounce/elastic**; motion conveys state, not decoration; every animation has a `@media (prefers-reduced-motion: reduce)` crossfade/instant alternative. Motion reel frames archived in the session scratchpad (`mframes/`).
 
 ## Brand signatures (use sparingly, in the margins)
 
