@@ -16,3 +16,12 @@ ingest/node_modules/
 
 # Local seeded preview/screenshot scratch files — never commit or deploy
 _preview_*
+
+# Firebase deploy cache (machine-local state, not source)
+.firebase/
+
+# Ingest run logs (regenerated each sync)
+ingest/*.log
+
+# impeccable skill local config / hooks
+.impeccable/
