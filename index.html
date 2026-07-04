@@ -66,12 +66,15 @@
   button:focus:not(:focus-visible),summary:focus:not(:focus-visible){outline:none}
   /* DESIGN.md Motion — every animation has a reduced-motion alternative */
   @media (prefers-reduced-motion: reduce){
-    *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
   }
+  /* living atmosphere — blue-teal ambient glow that slowly drifts (Spatial Console v3, aligned to Fluxa reel).
+     Lives on body::before (a STABLE element) so it animates smoothly and never restarts on #app re-render. */
+  @keyframes ambientdrift{from{transform:translate3d(-1.5%,-1%,0) scale(1.02)}to{transform:translate3d(2%,1.5%,0) scale(1.09)}}
   body{background:var(--bg);color:var(--text);font:var(--fs-body)/var(--lh-body) var(--font-head);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;font-kerning:normal;font-optical-sizing:auto;font-variant-numeric:tabular-nums;}
   /* ambient depth glow — one neutral halo per view, behind content (fixed, non-interactive, z-index -1) */
-  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:radial-gradient(1100px 700px at 85% -12%,rgba(246,248,252,.10),transparent 60%),radial-gradient(900px 640px at -10% 112%,rgba(246,248,252,.06),transparent 60%)}
-  [data-theme="light"] body::before{background:radial-gradient(1100px 700px at 85% -12%,rgba(17,24,39,.05),transparent 62%),radial-gradient(900px 640px at -10% 112%,rgba(17,24,39,.03),transparent 60%)}
+  body::before{content:"";position:fixed;inset:-15%;pointer-events:none;z-index:-1;will-change:transform;animation:ambientdrift 26s ease-in-out infinite alternate;background:radial-gradient(1040px 720px at 82% 4%,rgba(61,139,255,.15),transparent 58%),radial-gradient(900px 660px at 8% 98%,rgba(30,209,233,.10),transparent 56%),radial-gradient(780px 640px at 52% 52%,rgba(61,139,255,.05),transparent 62%)}
+  [data-theme="light"] body::before{background:radial-gradient(1040px 720px at 82% 4%,rgba(61,139,255,.10),transparent 58%),radial-gradient(900px 660px at 8% 98%,rgba(30,209,233,.07),transparent 56%),radial-gradient(780px 640px at 52% 52%,rgba(61,139,255,.04),transparent 62%)}
   /* the auth overlay is opaque and above everything — carry the same ambient halo on its own background */
   #authgate{background:radial-gradient(1100px 700px at 85% -12%,rgba(246,248,252,.10),transparent 60%),radial-gradient(900px 640px at -10% 112%,rgba(246,248,252,.06),transparent 60%) var(--bg,#0e0e12)}
   [data-theme="light"] #authgate{background:radial-gradient(1100px 700px at 85% -12%,rgba(17,24,39,.05),transparent 62%),radial-gradient(900px 640px at -10% 112%,rgba(17,24,39,.03),transparent 60%) var(--bg)}
@@ -91,7 +94,7 @@
   [data-theme="light"] .lnk{background:#E8F0FE;color:#1A56B0} [data-theme="light"] .asg{background:#E8EDF6;color:#3C5A8A}
   [data-theme="light"] .stg.past{background:#E9F7EC;color:#1E7E3E;border-color:#bfe5c8}
   [data-theme="light"] .deptchip.rdy{background:#E9F7EC;color:#1E7E3E;border-color:#bfe5c8}
-  [data-theme="light"] .flowwrap{background-color:var(--void);background-image:radial-gradient(900px 520px at 88% -10%,rgba(17,24,39,.045),transparent 62%),radial-gradient(720px 480px at -8% 108%,rgba(17,24,39,.03),transparent 60%),radial-gradient(circle,rgba(17,18,21,.055) 1px,transparent 1.4px);background-size:auto,auto,24px 24px}
+  [data-theme="light"] .flowwrap{background-color:rgba(238,241,247,.82);background-image:radial-gradient(760px 460px at 84% -8%,rgba(61,139,255,.06),transparent 60%),radial-gradient(640px 460px at -6% 106%,rgba(30,209,233,.05),transparent 60%),radial-gradient(circle,rgba(17,18,21,.055) 1px,transparent 1.4px);background-size:auto,auto,24px 24px}
   [data-theme="light"] .taskpanel{background:#F4F6FA}
   [data-theme="light"] .bar{background:#E3E8F1}
   body[data-wide] main{max-width:none}
@@ -104,7 +107,8 @@
   .depedge{stroke-dasharray:7 5;filter:drop-shadow(0 0 2.5px rgba(238,49,36,.7));animation:dashmove 1s linear infinite}
   @media (prefers-reduced-motion:reduce){.depedge{animation:none;stroke-dasharray:none} .glownode{animation:none} .routeline{animation:none}}
   /* flow-node inline popover — replaces the full-width route banner; fixed so it escapes the chart's overflow (mirrors #summitTip) */
-  #flowPop{position:fixed;z-index:58;display:none;width:300px;max-width:92vw;max-height:calc(100vh - 24px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:inset 0 1px 0 var(--edge),var(--sh-lg);color:var(--text);font-size:12.5px;animation:fpIn .16s cubic-bezier(.22,.61,.36,1)}
+  /* node inspector — M2/M3 glass (real backdrop-blur; sits over the live canvas) */
+  #flowPop{position:fixed;z-index:58;display:none;width:300px;max-width:92vw;max-height:calc(100vh - 24px);overflow:auto;background:rgba(22,25,31,.62);backdrop-filter:blur(26px) saturate(1.2);-webkit-backdrop-filter:blur(26px) saturate(1.2);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:inset 0 1px 0 var(--edge),var(--sh-lg);color:var(--text);font-size:12.5px;animation:fpIn .16s cubic-bezier(.22,.61,.36,1)}
   @keyframes fpIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
   .fn-sel{filter:drop-shadow(0 0 4px rgba(238,49,36,.55))}
   .fp-head{display:flex;align-items:flex-start;gap:10px;padding:11px 12px 9px;border-bottom:1px solid var(--line)}
@@ -311,7 +315,8 @@
   .checkin{border:1px solid var(--line);border-radius:var(--r-md);padding:6px 12px;margin-bottom:8px;font-size:13px}
   .checkin .d{color:var(--faint);font-size:11.5px}
   /* canvas field: void base + neutral ambient glows at the corners (orange never decorates) + dot grid */
-  .flowwrap{overflow:auto;border:1px solid var(--line);border-radius:var(--r-md);background-color:var(--void);background-image:radial-gradient(900px 520px at 88% -10%,rgba(246,248,252,.055),transparent 62%),radial-gradient(720px 480px at -8% 108%,rgba(246,248,252,.04),transparent 60%),radial-gradient(circle,rgba(246,248,252,.05) 1px,transparent 1.4px);background-size:auto,auto,24px 24px}
+  /* flow field: semi-transparent void so the living body::before glow drifts THROUGH the canvas + its own dot grid + a faint blue bloom */
+  .flowwrap{position:relative;overflow:auto;border:1px solid var(--line);border-radius:var(--r-md);background-color:rgba(8,9,12,.82);background-image:radial-gradient(760px 460px at 84% -8%,rgba(61,139,255,.10),transparent 60%),radial-gradient(640px 460px at -6% 106%,rgba(30,209,233,.07),transparent 60%),radial-gradient(circle,rgba(246,248,252,.05) 1px,transparent 1.4px);background-size:auto,auto,24px 24px}
   .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--dim);margin:10px 0}
   .legend i{display:inline-block;width:11px;height:11px;border-radius:4px;margin-right:5px;vertical-align:-1px}   /* literal — var(--r-xs)=6px turns an 11px swatch into a circle */
   .deptchip{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-xs);padding:2px 10px;font-size:11.5px;margin:2px 3px 2px 0}
@@ -2679,7 +2684,8 @@ function flowSVG(l){
   }
   let svg=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMin meet" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit;width:100%;height:auto;max-width:${W}px;margin-inline:auto;display:block">
   <defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="${FT.arrow}"/></marker>
-  <marker id="arR" viewBox="0 0 9 9" refX="7.5" refY="4.5" markerWidth="7.5" markerHeight="7.5" orient="auto"><path d="M0 0L9 4.5L0 9z" fill="#EE3124"/></marker></defs>`;
+  <marker id="arR" viewBox="0 0 9 9" refX="7.5" refY="4.5" markerWidth="7.5" markerHeight="7.5" orient="auto"><path d="M0 0L9 4.5L0 9z" fill="#EE3124"/></marker>
+  <filter id="nsh" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000" flood-opacity="0.55"/></filter></defs>`;
   // lane headers — no container boxes; a dept-colored anchor dot + generous headroom mark each lane on the open field
   depts.forEach((d,c)=>{const x=GAP+c*(CW+GAP);
     svg+=`<text x="${x+CW/2}" y="34" text-anchor="middle" fill="${DCOLOR(d)}" font-size="12.5" font-weight="700" letter-spacing="${LANG==="zh"?0.08:0.03}em">${esc(flowTL(d))}</text>
@@ -2703,8 +2709,8 @@ function flowSVG(l){
     const click=` style="cursor:pointer" onclick="event.stopPropagation();flowNode('${d}',${i})"`;
     const h=hgt(d,i);
     const body=n.d
-      ?`<polygon id="fn-${d}-${i}" points="${x+CW/2},${y-2} ${x+CW+4},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-4},${y+NH/2}" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"/>`
-      :`<rect id="fn-${d}-${i}" x="${x}" y="${y}" width="${CW}" height="${h}" rx="5" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"/>`;
+      ?`<polygon id="fn-${d}-${i}" filter="url(#nsh)" points="${x+CW/2},${y-2} ${x+CW+4},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-4},${y+NH/2}" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"/>`
+      :`<rect id="fn-${d}-${i}" filter="url(#nsh)" x="${x}" y="${y}" width="${CW}" height="${h}" rx="5" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"/>`;
     const tcol=frozen?FT.ice.txt:(FT.txt[st]||FT.txt.o);
     let labelSVG;
     if(n.sub&&n.sub.length){                            // parent header + nested sub-item boxes
