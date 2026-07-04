@@ -117,10 +117,29 @@
   /* red dependency arrows — prominent (glow) + animated flow so the prerequisite→step→unblocks chain reads at a glance */
   .depedge{stroke-dasharray:7 5;filter:drop-shadow(0 0 2.5px rgba(238,49,36,.7));animation:dashmove 1s linear infinite}
   @media (prefers-reduced-motion:reduce){.depedge{animation:none;stroke-dasharray:none} .glownode{animation:none} .routeline{animation:none}}
+  /* ── Flow-chart entrance choreography (Spatial Console v3 — DESIGN.md Motion) ──
+     Plays ONCE per flow-view open (gated in flowSVG via .flowwrap.flowin); never on
+     node-click / board-sync re-renders. Read: lane headers → nodes (fade+scale) →
+     connectors (draw-in) → endpoint dots + cross links. All hidden/init state lives
+     inside no-preference, so reduced-motion users get the finished static chart. */
+  @keyframes flowHeadIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+  @keyframes flowNodeIn{from{opacity:0}to{opacity:1}}
+  @keyframes flowEdgeDraw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+  @keyframes flowDotIn{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}
+  @keyframes flowCrossIn{from{opacity:0}to{opacity:.5}}
+  @media (prefers-reduced-motion:no-preference){
+    /* timing tuned so every channel's (max --d + duration) lands ≤600ms total (DESIGN.md Motion budget) */
+    .flowwrap.flowin .flowhead{opacity:0;transform-box:fill-box;transform-origin:center;animation:flowHeadIn .30s var(--d,0ms) cubic-bezier(.16,1,.3,1) both}
+    /* nodes fade opacity-ONLY: each node body carries a feDropShadow (filter:url(#nsh)); scaling the group would re-rasterize that filter every frame across ~15-20 simultaneous nodes. opacity composites after the filter, so no re-raster. */
+    .flowwrap.flowin .flownode{opacity:0;animation:flowNodeIn .32s var(--d,0ms) cubic-bezier(.16,1,.3,1) both}
+    .flowwrap.flowin .flowedge{stroke-dasharray:1;stroke-dashoffset:1;animation:flowEdgeDraw .28s var(--d,0ms) cubic-bezier(.16,1,.3,1) both}
+    .flowwrap.flowin .flowdot{opacity:0;transform-box:fill-box;transform-origin:center;animation:flowDotIn .18s var(--d,0ms) ease-out both}
+    .flowwrap.flowin .flowcross{animation:flowCrossIn .26s var(--d,0ms) ease-out both}
+  }
   /* flow-node inline popover — replaces the full-width route banner; fixed so it escapes the chart's overflow (mirrors #summitTip) */
   /* node inspector — M2/M3 glass (real backdrop-blur; sits over the live canvas) */
-  #flowPop{position:fixed;z-index:58;display:none;width:300px;max-width:92vw;max-height:calc(100vh - 24px);overflow:auto;background:rgba(22,25,31,.62);backdrop-filter:blur(26px) saturate(1.2);-webkit-backdrop-filter:blur(26px) saturate(1.2);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:inset 0 1px 0 var(--edge),var(--sh-lg);color:var(--text);font-size:12.5px;animation:fpIn .16s cubic-bezier(.22,.61,.36,1)}
-  @keyframes fpIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  #flowPop{position:fixed;z-index:58;display:none;width:300px;max-width:92vw;max-height:calc(100vh - 24px);overflow:auto;background:rgba(22,25,31,.62);backdrop-filter:blur(26px) saturate(1.2);-webkit-backdrop-filter:blur(26px) saturate(1.2);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:inset 0 1px 0 var(--edge),var(--sh-lg);color:var(--text);font-size:12.5px;animation:fpIn .18s cubic-bezier(.16,1,.3,1)}
+  @keyframes fpIn{from{opacity:0;transform:translateY(6px);filter:blur(6px)}to{opacity:1;transform:none;filter:blur(0)}}
   .fn-sel{filter:drop-shadow(0 0 4px rgba(238,49,36,.55))}
   .fp-head{display:flex;align-items:flex-start;gap:10px;padding:11px 12px 9px;border-bottom:1px solid var(--line)}
   .fp-h-main{flex:1;min-width:0}
@@ -814,7 +833,7 @@
   <button class="iconbtn" title="activity feed + inbox" onclick="toggleDrawer()">🔔 <span id="inboxN"></span></button>
   <button class="iconbtn" title="download JSON backup" onclick="exportJSON()">⬇</button>
   <button class="btn ghost" id="themeBtn" style="padding:6px 10px" title="light / dark" onclick="setTheme()">☀️</button><button class="btn ghost" id="wideBtn" style="padding:6px 10px" title="regular / wide screen" onclick="setWide()">⛶</button><button class="btn ghost" id="langBtn" style="padding:6px 12px" onclick="setLang()">中文</button>
-  <div class="rolewrap"><span id="vaLab">Viewing as</span> <select id="roleSel" onchange="setRole(this.value)"></select></div>
+  <div class="rolewrap"><select id="roleSel" onchange="setRole(this.value)"></select></div>
   <span id="fbsync" style="font-size:11px;margin-left:10px;font-family:var(--font-mono)" title="real-time shared-board status"></span>
   <span id="whoami" style="margin-left:10px"></span>
   <span id="gauth" style="display:inline-flex;align-items:center;gap:6px;margin-left:10px"></span>
@@ -1701,8 +1720,8 @@ function setUsername(){const n=prompt("Your name — shown next to your question
 function renderWhoami(){const el=document.getElementById("whoami");if(!el)return;
   const name=USERNAME||(ME&&ME.name)||"";
   el.innerHTML=ME
-    ? `<span style="cursor:pointer;color:var(--accent);font-size:12px" title="${esc((ME.email||"")+" — click to rename")}" onclick="setUsername()">👤 ${esc(name||"Set name")}</span> <button class="iconbtn" style="font-size:11px" title="sign out" onclick="signOutUser()">⎋</button>`
-    : (USERNAME?`<span style="cursor:pointer;color:var(--accent);font-size:12px" title="click to change" onclick="setUsername()">👤 ${esc(USERNAME)}</span>`:`<button class="btn ghost" style="padding:6px 10px" onclick="setUsername()">👤 Set your name</button>`);}
+    ? `<button class="iconbtn" style="font-size:12px" title="${esc((ME.email||"")+" — sign out")}" onclick="signOutUser()">⎋</button>`
+    : "";}
 /* ----- per-user Google identity (Firebase Auth, any Google account) + hard sign-in gate + attributed feed ----- */
 function authGate(show,msg){ const g=document.getElementById("authgate"); if(g)g.style.display=show?"flex":"none"; const e=document.getElementById("authgateErr"); if(e&&msg!==undefined)e.textContent=msg||""; }
 function signInUser(){
@@ -2562,10 +2581,10 @@ function taskRow(l,t,extra,ro){
 }
 function taskPanel(l,t,i,ro){ return `<div class="taskpanel">${taskPanelBody(l,t,i,ro)}</div>`; }
 // the interactive body (notes + shipping dates) — shared by the plain panel and the V3 detail panel
-function taskPanelBody(l,t,i,ro){
+function taskPanelBody(l,t,i,ro,noDod){
   const zh=LANG==="zh";
   const notes=t.notes||[]; const tk=l.slug+":tools:"+i; const tools=S.open[tk]; const nk=l.slug+":"+i; const pend=(S.noteUrg&&S.noteUrg[nk])||"med";
-  return `${DOD[t.t]?`<div class="v3dod">✅ <b>${zh?"完成定義":"Done means"}</b> ${esc(DOD[t.t])}${EVID.has(t.t)?` <span style="color:#67e8f9">· ${zh?"需附證明連結":"evidence link required"}</span>`:""}</div>`:""}
+  return `${DOD[t.t]&&!noDod?`<div class="v3dod">✅ <b>${zh?"完成定義":"Done means"}</b> ${esc(DOD[t.t])}${EVID.has(t.t)?` <span style="color:#67e8f9">· ${zh?"需附證明連結":"evidence link required"}</span>`:""}</div>`:""}
    ${SHIPDATE_TASKS.has(t.t)?`<div class="tnotes-head">🚢 ${zh?"運輸日期":"Shipping dates"}</div>
    <div class="shipdates" style="display:flex;flex-wrap:wrap;gap:14px;margin:2px 0 12px">
      <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--dim)">${zh?"出貨日":"Ship date"}<input type="date" value="${esc(t.shipDate||"")}" ${ro?"disabled":""} onchange="setTaskDate('${l.slug}',${i},'shipDate',this.value)"></label>
@@ -2582,13 +2601,14 @@ function taskDetail(l,t,i,ro,vn,lk){
   if(!vn) return lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>${T("已鎖定","Locked")}</b> — ${esc(lockReason(l,t))}</div>`:taskPanel(l,t,i,ro);
   const info=[];
   if(vn.out) info.push([T("產出","Output"), esc(v3T(vn.out))]);
+  if(DOD[t.t]) info.push([`<span style="color:var(--green)">✓</span> ${T("完成定義","Done means")}`, esc(DOD[t.t])+(EVID.has(t.t)?` <span style="color:#67e8f9">· ${T("需附證明連結","evidence link required")}</span>`:"")]);
   if(vn.note) info.push([T("備註","Note"), esc(v3T(vn.note))]);
   info.push([T("預設天數","Default days"), vn.days==null?T("手動填寫","manual"):(vn.days===0?T("即時 / 事件","instant"):vn.days+"d")]);
   info.push([T("負責人","Owner"), esc(vn.o)]);
   const grid=`<div class="v3det">${info.map(([k,v])=>`<div class="v3det-r"><span class="v3det-k">${k}</span><span class="v3det-v">${v}</span></div>`).join("")}</div>`;
   const lockBlk=lk?`<div class="v3det-lock">🔒 <b>${T("鎖定中","Locked")}</b> · ${esc(lockReason(l,t))}</div>`:"";
   const shots=vn.shots?v3ShotList(l,t,i,ro,vn):"";
-  const notes=lk?"":taskPanelBody(l,t,i,ro);
+  const notes=lk?"":taskPanelBody(l,t,i,ro,true);
   return `<div class="taskpanel">${grid}${lockBlk}${shots}${notes}</div>`;
 }
 // per-launch shot list — starter proposals differ by product, so quantities are editable and rows can be added/removed
@@ -2759,6 +2779,7 @@ function flowLabel(s,boxW){
   }
 }
 
+let FLOWSEEN="";                                       // flow context we last played the entrance for — gates "animate once per open"
 function flowSVG(l){
   S._flowSlug=l.slug;                                  // which launch the popover reads task/links from
   const depts=Object.keys(FLOW).filter(d=>DEPTS().includes(d)||FLOW[d]);
@@ -2799,6 +2820,10 @@ function flowSVG(l){
   const selN=S.route?((FLOW[S.route.d]||[])[S.route.i]||null):null;
   const selCode=selN?selN.code:null;
   const depOn=hintsOn&&!!S.route;
+  // entrance choreography gate — animate ONCE per flow-view open, not on node-click / board-sync re-renders (DESIGN.md Motion).
+  // Skip when a node is already selected (depOn) so the one-time stagger never fights the dependency-dim opacity attr.
+  const _fctx=(l&&l.slug||"?")+"|"+(S.cardView||"flow");
+  const _flowFirst=(FLOWSEEN!==_fctx)&&!depOn; FLOWSEEN=_fctx;
   const findByCode=code=>{ for(const dd of depts){const arr=FLOW[dd]||[]; for(let k=0;k<arr.length;k++) if(arr[k].code===code) return [dd,k];} return null; };
   const depEdges=[]; const depKeys=new Set();
   if(depOn&&selCode){ const selPos=[S.route.d,S.route.i]; depKeys.add(S.route.d+"|"+selN.l);
@@ -2811,16 +2836,16 @@ function flowSVG(l){
   <filter id="nsh" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000" flood-opacity="0.55"/></filter></defs>`;
   // lane headers — no container boxes; a dept-colored anchor dot + generous headroom mark each lane on the open field
   depts.forEach((d,c)=>{const x=GAP+c*(CW+GAP);
-    svg+=`<text x="${x+CW/2}" y="34" text-anchor="middle" fill="${DCOLOR(d)}" font-size="12.5" font-weight="700" letter-spacing="${LANG==="zh"?0.08:0.03}em">${esc(flowTL(d))}</text>
-    <circle cx="${x+CW/2}" cy="${47}" r="2.2" fill="${DCOLOR(d)}" opacity="0.85"/>`;});
+    svg+=`<g class="flowhead" style="--d:${Math.min(c*13,120)}ms"><text x="${x+CW/2}" y="34" text-anchor="middle" fill="${DCOLOR(d)}" font-size="12.5" font-weight="700" letter-spacing="${LANG==="zh"?0.08:0.03}em">${esc(flowTL(d))}</text>
+    <circle cx="${x+CW/2}" cy="${47}" r="2.2" fill="${DCOLOR(d)}" opacity="0.85"/></g>`;});
   // in-column connectors — quiet lines with endpoint dots (top-down direction is implicit inside a lane)
-  depts.forEach(d=>FLOW[d].forEach((n,i)=>{ if(i<FLOW[d].length-1){const a=pos(d,i),b=pos(d,i+1);const cx=a.x+CW/2,ay=a.y+hgt(d,i),by=b.y;
-    svg+=`<line x1="${cx}" y1="${ay+2}" x2="${cx}" y2="${by-2}" stroke="${FT.arrow}" stroke-width="1.2"/><circle cx="${cx}" cy="${ay+2}" r="3" fill="${FT.arrow}"/><circle cx="${cx}" cy="${by-2}" r="3" fill="${FT.arrow}"/>`;}}));
+  depts.forEach((d,c)=>FLOW[d].forEach((n,i)=>{ if(i<FLOW[d].length-1){const a=pos(d,i),b=pos(d,i+1);const cx=a.x+CW/2,ay=a.y+hgt(d,i),by=b.y;const _ed=Math.min(140+c*12+i*14,300);
+    svg+=`<path class="flowedge" pathLength="1" style="--d:${_ed}ms" d="M${cx} ${ay+2}L${cx} ${by-2}" fill="none" stroke="${FT.arrow}" stroke-width="1.2"/><circle class="flowdot" style="--d:${_ed+90}ms" cx="${cx}" cy="${ay+2}" r="3" fill="${FT.arrow}"/><circle class="flowdot" style="--d:${_ed+90}ms" cx="${cx}" cy="${by-2}" r="3" fill="${FT.arrow}"/>`;}}));
   // cross links — origin dot + dashed curve + arrowhead (direction matters across lanes)
-  CROSS.forEach(([fd,fi,td,ti])=>{ if(!FLOW[fd]||!FLOW[td])return; const a=pos(fd,fi),b=pos(td,ti);
+  CROSS.forEach(([fd,fi,td,ti],ci)=>{ if(!FLOW[fd]||!FLOW[td])return; const a=pos(fd,fi),b=pos(td,ti);
     const l2r=b.x>=a.x, ax=l2r?a.x+CW:a.x, bx=l2r?b.x-4:b.x+CW+4;
     const ay=a.y+hgt(fd,fi)/2, by=b.y+hgt(td,ti)/2, mx=(ax+bx)/2;
-    svg+=`<g opacity="0.5"><circle cx="${ax}" cy="${ay}" r="3" fill="${FT.arrow}"/><path d="M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx} ${by}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" stroke-dasharray="4 3"/><circle cx="${bx}" cy="${by}" r="3" fill="${FT.arrow}"/></g>`;});
+    svg+=`<g class="flowcross" opacity="0.5" style="--d:${Math.min(240+ci*6,300)}ms"><circle cx="${ax}" cy="${ay}" r="3" fill="${FT.arrow}"/><path d="M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx} ${by}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" stroke-dasharray="4 3"/><circle cx="${bx}" cy="${by}" r="3" fill="${FT.arrow}"/></g>`;});
   // nodes
   depts.forEach(d=>FLOW[d].forEach((n,i)=>{const {x,y}=pos(d,i);const st=stateOf(n,d,i);
     const frozen=isDesignFrozen(l)&&isFrozenDesignStage(n.s)&&st==="x";   // a done 概念/開發 node, locked by design freeze → render it iced
@@ -2829,7 +2854,7 @@ function flowSVG(l){
     const ti=n.t?l.tasks.findIndex(x=>x.t===n.t):-1;
     const key=d+"|"+n.l, inHi=depOn&&depKeys.has(key);
     const isSel=S.route&&S.route.d===d&&S.route.i===i;     // currently-open node (drives the popover anchor)
-    const click=` style="cursor:pointer" onclick="event.stopPropagation();flowNode('${d}',${i})"`;
+    const click=` class="flownode" style="cursor:pointer;--d:${Math.min(60+depts.indexOf(d)*14+i*15,220)}ms" onclick="event.stopPropagation();flowNode('${d}',${i})"`;
     const h=hgt(d,i);
     const body=n.d
       ?`<polygon id="fn-${d}-${i}" filter="url(#nsh)" points="${x+CW/2},${y-2} ${x+CW+4},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-4},${y+NH/2}" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"/>`
@@ -2853,7 +2878,7 @@ function flowSVG(l){
     else{ const l2r=pb.x>=pa.x, ax=l2r?pa.x+CW:pa.x, ay=pa.y+ha/2, bx=l2r?pb.x-5:pb.x+CW+5, by=pb.y+hb/2, mx=(ax+bx)/2; dpath=`M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx} ${by}`; }
     svg+=`<path class="depedge" d="${dpath}" fill="none" stroke="#EE3124" stroke-width="2.3"/>`;});
   svg+="</svg>";
-  return `<div class="flowwrap">${svg}</div>`;        // route intro + actions now live in the inline #flowPop popover
+  return `<div class="flowwrap${_flowFirst?' flowin':''}">${svg}</div>`;        // .flowin → play the entrance choreography once (gated above); route intro + actions live in the inline #flowPop popover
 }
 
 /* ===== flow-node inline popover (route intro · files/links · hint toggle) =====
@@ -3134,7 +3159,6 @@ function viewLaunch(){
   <div class="ld-head">
     <div class="ld-head-main">
       <div class="ld-title-row"><h2 class="ld-title">${esc(l.name)}</h2><span class="pill ${cls}">${h}</span></div>
-      <div class="ld-id"><span class="ld-dri" style="--dc:${DCOLOR(l.dri)}" title="DRI — the department directly responsible for this launch">DRI · <b>${esc(l.dri)}</b></span>${l.complete?"":`<span class="ld-now">Now at <b style="color:${DCOLOR(progressDept(l))}">${esc(progressDept(l)||"—")}</b></span>`}</div>
     </div>
     <div class="ld-actions" role="group" aria-label="Launch actions">
       <button class="ld-act" title="Edit this launch's name and target date" onclick="editLaunch('${l.slug}')">✏️<span class="ld-act-t">Edit</span></button>
@@ -3143,6 +3167,8 @@ function viewLaunch(){
     </div>
   </div>
   <div class="ld-stats">
+    <div class="ld-stat"><span class="ld-stat-k">DRI</span><span class="ld-stat-v" style="color:${DCOLOR(l.dri)}">${esc(l.dri)}</span></div>
+    ${l.complete?"":`<div class="ld-stat"><span class="ld-stat-k">Now at</span><span class="ld-stat-v" style="color:${DCOLOR(progressDept(l))}">${esc(progressDept(l)||"—")}</span></div>`}
     <div class="ld-stat"><span class="ld-stat-k">Stage</span><span class="ld-stat-v">${l.complete?"Complete":esc(l.stage)}</span></div>
     <div class="ld-stat"><span class="ld-stat-k">Target</span><span class="ld-stat-v">${fmt(l.target)}</span></div>
     ${l.complete?"":`<div class="ld-stat"><span class="ld-stat-k">Float</span><span class="ld-stat-v"><b style="color:${floatDays(l)<0?"var(--red)":"var(--green)"}">${floatDays(l)}d</b></span></div>
@@ -5236,6 +5262,7 @@ function render(){
   let html;
   // guard a stale/deleted launch slug (e.g. card removed but S.launch still points at it) — fall back to portfolio instead of crashing in viewLaunch/health
   if(S.view==="launch"&&!L(S.launch)){S.view="portfolio";S.launch=null;}
+  if(S.view!=="launch")FLOWSEEN="";   // left the flow view → next open replays the entrance (once), not on in-view re-renders
   if(S.view==="launch") html=viewLaunch();
   else if(S.view==="digest") html=viewDigest();
   else if(S.view==="portfolio") html=`<h2>Portfolio <button class="btn" style="margin-left:8px" onclick="newLaunch()">+ New launch</button></h2><div class="sub">Every launch by stage. New cards start fully locked except the intake Form.</div>${portfolioBoard()}`;
