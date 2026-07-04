@@ -395,7 +395,11 @@
   .asg{display:inline-block;background:#222a36;color:#aac4e8;border-radius:var(--r-xs);padding:1px 9px;font-size:11px;margin-left:4px}
   .exp{background:none;border:none;color:var(--faint);cursor:pointer;font-size:11px;margin-left:6px;padding:2px 6px;border-radius:var(--r-xs)}
   .exp:hover{color:var(--text);background:var(--panel2)}
-  .taskpanel{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;margin:2px 0 12px;font-size:13px}
+  /* detail panel = recessed DARK glass (nested BELOW the row header): darker than the card + top/bottom rim light + inner shadow → reads as an inner well catching light, not a raised slab */
+  .taskpanel{background:rgba(9,10,13,.72);background:color-mix(in srgb,var(--void) 74%,transparent);backdrop-filter:blur(18px) saturate(1.15);-webkit-backdrop-filter:blur(18px) saturate(1.15);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;margin:2px 0 12px;font-size:13px;box-shadow:inset 0 1px 0 rgba(246,248,252,.13),inset 0 -1px 0 rgba(246,248,252,.04),inset 0 -18px 36px rgba(0,0,0,.30)}
+  .v3days-inp{width:66px;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:var(--r-xs);padding:2px 7px;font-size:12.5px;font-family:inherit}
+  .v3days-inp.unfilled{border-color:rgba(251,191,36,.55);background:rgba(251,191,36,.06)}
+  .v3days-inp:focus{outline:none;border-color:var(--accent)}
   .taskpanel .frow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
   .taskpanel label{color:var(--dim);font-size:12px}
   .note{border:1px solid var(--line);border-radius:var(--r-md);padding:4px 10px;margin-bottom:6px}
@@ -2568,7 +2572,7 @@ function taskRow(l,t,extra,ro){
     : showOwner
       ? `<span class="o-resp o-hasowner" tabindex="0" style="color:${DCOLOR(resp)};--oc:${v3OColor(owner)}" data-owner="${esc((LANG==="zh"?"負責人 · ":"Owner · ")+owner)}">${esc(resp)}</span>`
       : `<span class="o-resp" style="color:${DCOLOR(resp)}" title="Responsible dept — ${esc(resp)}">${esc(resp)}</span>`;
-  const meta=`<span class="o ometa">${lead}${collabChips?`<span class="o-collabs">${collabChips}</span>`:""}${collabPlus}${vn&&!extra?v3DaysCtl(l,t,i):""}</span>`;
+  const meta=`<span class="o ometa">${lead}${collabChips?`<span class="o-collabs">${collabChips}</span>`:""}${collabPlus}</span>`;   // days moved into the detail panel (預設天數 row) — no longer on the outer row
   // a locked row (incl. Ben ◆ gates) gets a ▾ details expander so the "why it's locked" text lives in the panel, not inline
   const exp=`<button class="exp" onclick="toggle('${key}')" title="${open?(LANG==="zh"?"收合":"collapse"):(LANG==="zh"?"展開全部":"expand")}" aria-label="${open?"collapse":"expand"}">${open?"▴":"▾"}${(!lk&&t.notes.length)?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button>`;
   const ctrls=t.gate?"":`${lk?"":renderLinkMenu(t,l.slug,i)}${exp}`;   // Ben ◆ gates carry no expand/notes panel — the decision button says it all
@@ -2606,9 +2610,12 @@ function taskDetail(l,t,i,ro,vn,lk){
   if(!vn) return lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>${T("已鎖定","Locked")}</b> — ${esc(lockReason(l,t))}</div>`:taskPanel(l,t,i,ro);
   const info=[];
   if(vn.out) info.push([T("產出","Output"), esc(v3T(vn.out))]);
-  if(DOD[t.t]) info.push([`<span style="color:var(--green)">✓</span> ${T("完成定義","Done means")}`, esc(DOD[t.t])+(EVID.has(t.t)?` <span style="color:#67e8f9">· ${T("需附證明連結","evidence link required")}</span>`:"")]);
+  if(DOD[t.t]) info.push([T("完成定義","Done means"), esc(DOD[t.t])+(EVID.has(t.t)?` <span style="color:#67e8f9">· ${T("需附證明連結","evidence link required")}</span>`:"")]);
   if(vn.note) info.push([T("備註","Note"), esc(v3T(vn.note))]);
-  info.push([T("預設天數","Default days"), vn.days==null?T("手動填寫","manual"):(vn.days===0?T("即時 / 事件","instant"):vn.days+"d")]);
+  info.push([T("預設天數","Default days"), vn.days==null
+    ? (ro?`<span style="color:var(--amber)">${T("待負責部門填寫","to be filled in")}</span>`
+        :`<input type="number" min="0" class="v3days-inp${t.days==null?" unfilled":""}" value="${t.days==null?"":t.days}" placeholder="${T("需填寫","required")}" title="${T("此步驟天數每個產品不同，由負責部門填寫","varies per product — the owning dept fills it in")}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${i},this.value)"> ${T("天","d")}`)
+    : (vn.days===0?T("即時 / 事件","instant"):vn.days+"d")]);
   info.push([T("負責人","Owner"), esc(vn.o)]);
   const grid=`<div class="v3det">${info.map(([k,v])=>`<div class="v3det-r"><span class="v3det-k">${k}</span><span class="v3det-v">${v}</span></div>`).join("")}</div>`;
   const lockBlk=lk?`<div class="v3det-lock">🔒 <b>${T("鎖定中","Locked")}</b> · ${esc(lockReason(l,t))}</div>`:"";
