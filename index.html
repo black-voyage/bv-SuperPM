@@ -341,7 +341,7 @@
   .asg{display:inline-block;background:#222a36;color:#aac4e8;border-radius:var(--r-xs);padding:1px 9px;font-size:11px;margin-left:4px}
   .exp{background:none;border:none;color:var(--faint);cursor:pointer;font-size:11px;margin-left:6px;padding:2px 6px;border-radius:var(--r-xs)}
   .exp:hover{color:var(--text);background:var(--panel2)}
-  .taskpanel{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-md);padding:12px;margin:2px 0 8px 28px;font-size:13px}
+  .taskpanel{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;margin:2px 0 12px;font-size:13px}
   .taskpanel .frow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
   .taskpanel label{color:var(--dim);font-size:12px}
   .note{border:1px solid var(--line);border-radius:var(--r-md);padding:4px 10px;margin-bottom:6px}
@@ -528,12 +528,14 @@
   .ld-act.danger:hover{background:rgba(248,113,113,.13);color:var(--red)}
   @media(max-width:600px){.ld-act-t{display:none}.ld-act{padding:7px 11px}}
   /* stat row — labeled, scannable (replaces the run-on sub line) */
-  .ld-stats{display:flex;flex-wrap:wrap;align-items:flex-end;gap:13px 22px;margin:14px 0 20px;padding:11px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-  .ld-stat{display:flex;flex-direction:column;gap:3px}
-  .ld-stat-k{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
-  .ld-stat-v{font-size:13.5px;color:var(--text);font-weight:600;line-height:1.1}
+  /* stat strip — spacious KV cells split by hairline dividers (DESIGN.md §Components KV rows) */
+  .ld-stats{display:flex;flex-wrap:wrap;align-items:center;gap:14px 0;margin:16px 0 20px;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .ld-stat{display:flex;flex-direction:column;gap:6px;padding:0 24px;border-left:1px solid var(--line);min-width:0}
+  .ld-stat:first-child{padding-left:0;border-left:none}
+  .ld-stat-k{font-family:var(--font-mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+  .ld-stat-v{font-size:15px;color:var(--text);font-weight:600;line-height:1.1}
   .ld-stat-v b{font-weight:700}
-  .ld-stat-rd{margin-left:auto}
+  .ld-stat-rd{margin-left:auto;border-left:none;padding-right:0}
   /* gate-readiness disclosure — compact trigger, per-dept breakdown on hover/focus */
   .ld-rd{position:relative;display:inline-flex}
   .ld-rd-trig{display:inline-flex;align-items:center;gap:6px;cursor:default;font-size:12.5px;font-weight:600;border:1px solid var(--line);background:var(--panel2);border-radius:var(--r-xs);padding:4px 11px;color:var(--dim)}
@@ -2450,18 +2452,18 @@ function taskRow(l,t,extra,ro){
   const meta=`<span class="o ometa">${lead}${collabChips?`<span class="o-collabs">${collabChips}</span>`:""}${collabPlus}${vn&&!extra?v3DaysCtl(l,t,i):""}</span>`;
   // a locked row (incl. Ben ◆ gates) gets a ▾ details expander so the "why it's locked" text lives in the panel, not inline
   const exp=`<button class="exp" onclick="toggle('${key}')" title="${open?(LANG==="zh"?"收合":"collapse"):(LANG==="zh"?"展開全部":"expand")}" aria-label="${open?"collapse":"expand"}">${open?"▴":"▾"}${(!lk&&t.notes.length)?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button>`;
-  const ctrls=t.gate?(lk?exp:""):`${lk?"":renderLinkMenu(t,l.slug,i)}${exp}`;
+  const ctrls=t.gate?"":`${lk?"":renderLinkMenu(t,l.slug,i)}${exp}`;   // Ben ◆ gates carry no expand/notes panel — the decision button says it all
   // the step's output/explanation now lives in the ▾ details panel (taskDetail), keeping the row short; a shot-list total shows for MS3a/b
   const shotChip=(vn&&vn.shots&&!extra&&v3ShotTotal(t)>0)?`<span class="ghostnote" title="${LANG==="zh"?"素材需求合計":"asset shot-list total"}">${vn.shots==="video"?"🎬":"📸"} ${v3ShotTotal(t)}</span>`:"";
   const sampleCtl=(vn&&vn.sample&&!extra&&!ro)?`<div class="v3sample">${LANG==="zh"?"預計大貨樣日":"planned bulk-sample date"} <input type="date" value="${esc(t.sampleDate||"")}" title="the date bulk samples can ship — P5 (Deploy marketing samples) waits for this" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)">${t.st==="p"&&t.days!=null&&t.startAt?` <span class="ghostnote">${LANG==="zh"?"倒數剩":"countdown"} ${Math.max(0,t.days-dayDiff(t.startAt,today))}d</span>`:""}</div>`:"";
-  return `<div id="task-${l.slug}-${i}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="cursor:pointer;${lk?"opacity:.38;filter:grayscale(.6)":""}" onclick="rowToggle(event,'${key}')">
+  return `<div id="task-${l.slug}-${i}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${t.gate?"":"cursor:pointer;"}${lk?"opacity:.38;filter:grayscale(.6)":""}"${t.gate?"":` onclick="rowToggle(event,'${key}')"`}>
    ${t.gate?gateControl(l,t,i,lk):`<button type="button" class="st ${lk?"":t.st}" ${lk?"disabled":""} aria-label="${lk?"locked — "+esc(lockReason(l,t)):"status: "+stWord(t.st)+" — left-click to advance, right-click to step back"}" title="${lk?"locked — "+esc(lockReason(l,t)):"left-click: advance · right-click: step back"}" onclick="cycle('${l.slug}',${i})" oncontextmenu="cycleBack('${l.slug}',${i});return false">${lk?"🔒":stIcon[t.st]}</button>`}
    <span>${vn?`<span class="v3code">${esc(t.code)}</span> `:""}${esc(flowTaskName(t))}${t.gate?' <span style="color:var(--purple)">◆</span>':""}
     ${t.assignee&&t.assignee.trim()!==resp&&t.assignee.trim()!==owner&&!collabs.includes(t.assignee.trim())?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
     ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
     ${shotChip}${ctrls}</span>
    ${meta}</div>${sampleCtl}
-   ${open?taskDetail(l,t,i,ro,vn,lk):""}</div>`;
+   ${open&&!t.gate?taskDetail(l,t,i,ro,vn,lk):""}</div>`;
 }
 function taskPanel(l,t,i,ro){ return `<div class="taskpanel">${taskPanelBody(l,t,i,ro)}</div>`; }
 // the interactive body (notes + shipping dates) — shared by the plain panel and the V3 detail panel
@@ -2748,7 +2750,7 @@ function flowSVG(l){
   depEdges.forEach(([a,b])=>{const pa=pos(a[0],a[1]),pb=pos(b[0],b[1]),ha=hgt(a[0],a[1]),hb=hgt(b[0],b[1]); let dpath;
     if(a[0]===b[0]){ const ax=pa.x+CW/2, ay=pa.y+ha, bx=pb.x+CW/2, by=pb.y-5, my=(ay+by)/2; dpath=`M${ax} ${ay} C ${ax} ${my}, ${bx} ${my}, ${bx} ${by}`; }
     else{ const l2r=pb.x>=pa.x, ax=l2r?pa.x+CW:pa.x, ay=pa.y+ha/2, bx=l2r?pb.x-5:pb.x+CW+5, by=pb.y+hb/2, mx=(ax+bx)/2; dpath=`M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx} ${by}`; }
-    svg+=`<path class="depedge" d="${dpath}" fill="none" stroke="#EE3124" stroke-width="2.3" marker-end="url(#arR)"/>`;});
+    svg+=`<path class="depedge" d="${dpath}" fill="none" stroke="#EE3124" stroke-width="2.3"/>`;});
   svg+="</svg>";
   return `<div class="flowwrap">${svg}</div>`;        // route intro + actions now live in the inline #flowPop popover
 }
@@ -2957,8 +2959,8 @@ function v3jump(slug,code){
 }
 function v3DaysCtl(l,t,i){
   const n=V3MAP[t.code]||{};
-  if(n.days===0)return `<span class="v3days-fx" title="${LANG==="zh"?"里程碑／事件":"milestone / event"}">—</span>`;
-  if(n.days!=null)return `<span class="v3days-fx">${n.days}d</span>`;
+  if(n.days===0)return "";                 // milestone/event — the day figure lives in the detail panel, not the outer row
+  if(n.days!=null)return "";               // fixed days — shown as 預設天數 in the panel; no outer badge
   return `<span class="v3days-in"><input type="number" min="0" value="${t.days==null?"":t.days}" placeholder="${esc(v3T(n.ref)||"?")}" title="${LANG==="zh"?"天數（此步驟每個產品不同，手動填寫）":"days — varies per product, fill in manually"}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${i},this.value)">d</span>`;
 }
 function v3Dash(l){
