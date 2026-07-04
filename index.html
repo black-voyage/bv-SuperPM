@@ -155,6 +155,8 @@
   .fp-route b{color:var(--text);font-weight:600}
   .fp-deps{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:7px}
   .fp-deplabel{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
+  .fp-deplabel.fp-deplock{font-size:14px;letter-spacing:0}   /* lock / unlock icon replaces the verbose 等待 / 完成後解鎖 label */
+  .fp-linkwrap{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:2px}   /* hosts the shared linkChips (＋連結 / Sheet / Doc / Code) — synced with the task rows */
   .fp-dep{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:10.5px;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:2px;padding:1px 7px}
   .fp-dep::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--dc,var(--faint));flex:none}
   .fp-sec{padding:10px 12px;border-bottom:1px solid var(--line)}
@@ -2919,12 +2921,23 @@ function flowPopEl(){let p=document.getElementById("flowPop");
   if(!p){p=document.createElement("div"); p.id="flowPop";
     p.addEventListener("click",e=>e.stopPropagation());
     document.body.appendChild(p);} return p;}
+// complete / reopen a step straight from the inspector (mirrors the card's status tick, jumps to done)
+function fpComplete(slug,i){
+  const l=L(slug),t=l&&l.tasks[i]; if(!t)return;
+  if(taskLocked(l,t)){toast(LANG==="zh"?"此步驟仍鎖定，無法完成":"step is still locked");return;}
+  if(!confirmFrozenStepEdit(l,t))return;
+  const done=t.st==="x";
+  const r=applyTaskStatus(l,t,done?"o":"x"); if(!r.ok){toast(r.reason);return;}
+  if(done)delete t.doneAt; else t.doneAt=today;
+  save(); render();
+}
 function flowPopHTML(d,i){
   const n=FLOW[d]&&FLOW[d][i]; if(!n)return"";
   const l=L(S._flowSlug)||(S.launch&&L(S.launch))||LAUNCHES[0];
   const ti=n.t?l.tasks.findIndex(x=>x.t===n.t):-1;
   const task=ti>=0?l.tasks[ti]:null;
   const locked=nodeLocked(l,d,i);
+  const zh=LANG==="zh";
   const ph=LANG==="zh"?"貼上連結網址…":"paste a URL…";
   const cls=LANG==="zh"?"關閉":"Close", rm=LANG==="zh"?"移除":"remove";
   const tip=LANG==="zh"?"開啟時，點擊步驟會用紅線標出它的『前置』與『完成後解鎖』的步驟；用熟了可關閉":"Trace this step's prerequisites and what finishing it unblocks, in red on the chart";
@@ -2939,22 +2952,19 @@ function flowPopHTML(d,i){
    const reqs=(n.req||[]);
    const dependents=[]; Object.keys(FLOW).forEach(dd=>(FLOW[dd]||[]).forEach(nn=>{ if(nn.code&&(nn.req||[]).includes(n.code)&&!dependents.includes(nn.code)) dependents.push(nn.code); }));
    let r=`<div class="fp-route">`;
-   if(reqs.length) r+=`<div class="fp-deps"><span class="fp-deplabel">🔒 ${zh?"等待":"waits on"}</span>${reqs.map(c=>`<span class="fp-dep">${named(c)}</span>`).join("")}</div>`;
-   if(dependents.length) r+=`<div class="fp-deps"><span class="fp-deplabel">➜ ${zh?"完成後解鎖":"unblocks"}</span>${dependents.map(c=>`<span class="fp-dep">${named(c)}</span>`).join("")}</div>`;
+   if(reqs.length) r+=`<div class="fp-deps"><span class="fp-deplabel fp-deplock" title="${zh?"等待這些步驟完成":"waits on these"}" aria-label="${zh?"等待":"waits on"}">🔒</span>${reqs.map(c=>`<span class="fp-dep">${named(c)}</span>`).join("")}</div>`;
+   if(dependents.length) r+=`<div class="fp-deps"><span class="fp-deplabel fp-deplock" title="${zh?"完成後解鎖這些步驟":"unlocks these when done"}" aria-label="${zh?"完成後解鎖":"unlocks"}">🔓</span>${dependents.map(c=>`<span class="fp-dep">${named(c)}</span>`).join("")}</div>`;
    if(!reqs.length&&!dependents.length) r+=`<span class="fp-deplabel">${zh?"流程起點":"starting step"}</span>`;
    h+=r+`</div>`;}
   if(task){
-    const chips=(task.links||[]).length
-      ?task.links.map((k,li)=>`<span class="fp-lnk"><a href="${escAll(k.u)}" target="_blank" rel="noopener" title="${escAll(k.u)}">🔗 ${esc(k.n)}</a><button class="fp-lnkx" title="${rm}" aria-label="${rm}" onclick="removeLink('${l.slug}',${ti},${li})">✕</button></span>`).join("")
-      :`<span class="fp-empty">No files yet.</span>`;
-    h+=`<div class="fp-sec"><div class="fp-lab">Files / links</div><div class="fp-links">${chips}</div>`
-      +`<div class="fp-addrow"><input id="fpLinkU" class="fp-in" placeholder="${ph}" autocomplete="off" `
-      +`onkeydown="if(event.key==='Enter'){event.preventDefault();fpAddLink('${l.slug}',${ti})}">`
-      +`<button class="fp-add" onclick="fpAddLink('${l.slug}',${ti})">+ Add</button></div></div>`;
+    // synced with the task-row link menu — same ＋連結 / 📊 Sheet / 📝 Doc / </> Code/Link options + existing links
+    h+=`<div class="fp-sec"><div class="fp-lab">${zh?"檔案與連結":"Files / links"}</div><div class="fp-linkwrap">${linkChips(task,l.slug,ti)}</div></div>`;
   }
-  const aTask=ti>=0?`<button class="btn fp-open" onclick="jumpTask('${l.slug}',${ti})">Open task on card</button>`:"";
-  const aUrl=n.url?`<a class="btn fp-open" href="${n.url}" target="_blank" rel="noopener">open Figma board ↗</a>`:"";
-  const action=(aTask||aUrl)?aTask+aUrl:`<span class="fp-foot-note">No linked task on this step.</span>`;   // a node can have BOTH a task and a Figma link (e.g. brainstorming) → show both
+  const doneNow=!!(task&&task.st==="x");
+  const aDone=(task&&!locked&&!n.d)?`<button class="btn fp-open${doneNow?" ghost":""}" onclick="fpComplete('${l.slug}',${ti})">${doneNow?(zh?"↩ 重新開啟":"↩ Reopen"):(zh?"✓ 標記完成":"✓ Complete")}</button>`:"";
+  const aTask=ti>=0?`<button class="btn ghost fp-open" onclick="jumpTask('${l.slug}',${ti})">${zh?"在卡片上開啟":"Open on card"}</button>`:"";
+  const aUrl=n.url?`<a class="btn ghost fp-open" href="${n.url}" target="_blank" rel="noopener">${zh?"開啟 Figma ↗":"open Figma board ↗"}</a>`:"";
+  const action=(aDone||aTask||aUrl)?aDone+aTask+aUrl:`<span class="fp-foot-note">${zh?"此步驟沒有對應任務。":"No linked task on this step."}</span>`;   // a node can have BOTH a task and a Figma link (e.g. brainstorming) → show both
   const hintsOn=S.flowHints!==false;
   h+=`<div class="fp-foot">${action}<label class="fp-toggle" title="${tip}">`
     +`<input type="checkbox" role="switch" aria-checked="${hintsOn}" ${hintsOn?"checked":""} onchange="toggleFlowHints(this.checked)">`
