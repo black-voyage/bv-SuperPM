@@ -222,6 +222,11 @@
   nav button.on{background:var(--panel2);color:var(--text)}
   .spacer{flex:1}
   .rolewrap{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim)}
+  /* lens switcher lives on the Home header now (CEO-only), not the nav */
+  .lensbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
+  .lenssel{font-family:var(--font-head);text-transform:none;letter-spacing:0}
+  /* Google-account connect lives in Settings now (create Sheets/Docs), not the nav */
+  .gauthrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 18px;font-size:13px;color:var(--dim)}
   select,input[type=text]{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:var(--r-sm);padding:6px 10px;font-size:13px}
   main{padding:20px;max-width:1320px;margin:0 auto}
   h2{font-size:var(--fs-title);margin-bottom:6px}
@@ -833,10 +838,8 @@
   <button class="iconbtn" title="activity feed + inbox" onclick="toggleDrawer()">🔔 <span id="inboxN"></span></button>
   <button class="iconbtn" title="download JSON backup" onclick="exportJSON()">⬇</button>
   <button class="btn ghost" id="themeBtn" style="padding:6px 10px" title="light / dark" onclick="setTheme()">☀️</button><button class="btn ghost" id="wideBtn" style="padding:6px 10px" title="regular / wide screen" onclick="setWide()">⛶</button><button class="btn ghost" id="langBtn" style="padding:6px 12px" onclick="setLang()">中文</button>
-  <div class="rolewrap"><select id="roleSel" onchange="setRole(this.value)"></select></div>
   <span id="fbsync" style="font-size:11px;margin-left:10px;font-family:var(--font-mono)" title="real-time shared-board status"></span>
   <span id="whoami" style="margin-left:10px"></span>
-  <span id="gauth" style="display:inline-flex;align-items:center;gap:6px;margin-left:10px"></span>
 </header>
 <main id="app"></main>
 <footer style="max-width:1320px;margin:10px auto 26px;padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between;font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;color:var(--faint)"><span>40.6892° N , 74.0445° W — DESIGNED IN NYC</span><span>TRAVEL WITHOUT LIMITS</span></footer>
@@ -3553,7 +3556,7 @@ function viewSettings(){
     <button class="btn ${tab==="history"?"":"ghost"}" style="margin-left:6px" onclick="S.settingsTab='history';render()">🕘 History</button>
     <button class="btn ${tab==="usage"?"":"ghost"}" style="margin-left:6px" onclick="S.settingsTab='usage';render()">💸 Spend &amp; usage</button>
   </div>`;
-  return `<h2>Settings</h2><div class="sub">People config, the workflow template, the department board, change history and AI spend, in one place.</div>${tabs}${tab==="history"?viewVersions():tab==="usage"?viewUsage():tab==="dept"?viewDept():tab==="tpl"?viewWorkflowTpl():viewTeam()}`;
+  return `<h2>Settings</h2><div class="sub">People config, the workflow template, the department board, change history and AI spend, in one place.</div><div class="gauthrow"><span>${LANG==="zh"?"建立 Sheets／Docs 用的 Google 帳號":"Google account for creating Sheets / Docs"}</span><span id="gauth"></span></div>${tabs}${tab==="history"?viewVersions():tab==="usage"?viewUsage():tab==="dept"?viewDept():tab==="tpl"?viewWorkflowTpl():viewTeam()}`;
 }
 // Aggregate every AI question/answer (with cost, tokens, who, data used) from the shared chats — full history.
 function loadUsage(){
@@ -5243,6 +5246,13 @@ async function chatSendDeep(slug,text){
   }catch(e){ if(parts.length||plan){ try{ fileIt("stopped: "+((e&&e.message)||e)); }catch(_){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Deep run hit an error after some sections: "+((e&&e.message)||e)+".",ts:nowStamp()}); } } else { chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Deep run couldn't start: "+((e&&e.message)||e)+". Please try again.",ts:nowStamp()}); } }
   finally{ CHAT.deep=false; if(leaseRef){ try{ leaseRef.get().then(function(s){ var dd=(s&&s.data())||{}; if(!dd.deepRunId||dd.deepRunId===_runId){ leaseRef.set({deepRunAt:0,deepRunId:""},{merge:true}); } }).catch(function(){}); }catch(e){} } CHAT.deepRunId=null; var _b=document.getElementById("deepBtn"); if(_b)_b.classList.remove("on"); chatRelease(); }
 }
+// the lens switcher (CEO-only) — self-contained like the Department-lens dept picker; lives on the Home header, not the nav
+function lensSwitcherHTML(){
+  if(!isCEO())return "";
+  const cur=S.role==="dept"?"dept:"+S.dept:S.role;
+  const roles=[["ceo","Ben — CEO"],["director","Director"]].concat(DEPTS().map(d=>["dept:"+d,"Head — "+d]));
+  return `<select class="lenssel" onchange="setRole(this.value)" title="preview another department's lens (CEO only)">${roles.map(([v,lab])=>`<option value="${v}" ${v===cur?"selected":""}>${lab}</option>`).join("")}</select>`;
+}
 function render(){
   const sel=document.getElementById("roleSel"), vaLab=document.getElementById("vaLab");
   if(isCEO()){
@@ -5271,7 +5281,7 @@ function render(){
   else if(S.view==="dept") html=viewDept();
   else if(S.view==="campaign") html=viewCampaign();
   else if(S.view==="settings"||S.view==="team"||S.view==="versions") html=viewSettings();
-  else html=S.role==="ceo"?homeCEO():S.role==="director"?homeDirector():homeDept();
+  else html=(isCEO()?`<div class="lensbar">${LANG==="zh"?"視角":"Lens"} ${lensSwitcherHTML()}</div>`:"")+(S.role==="ceo"?homeCEO():S.role==="director"?homeDirector():homeDept());
   app.innerHTML=tx(html);
   const nb=document.getElementById("inboxN"); if(nb){const n=autopilot().length; nb.textContent=n?n:"";}
   if(S.view==="launch"&&S.launch){chatSub(S.launch);renderChatBody();}
