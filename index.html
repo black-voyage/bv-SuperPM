@@ -54,11 +54,12 @@
   [data-theme="light"]{
     --bg:#F6F8FC; --panel:#FFFFFF; --panel2:#ECEFF5; --line:#D0D5E1;
     --text:#111215; --dim:#4E5666; --faint:#8A93A3;
-    --void:#EEF1F7; --edge:rgba(255,255,255,.9);
-    --sh-sm:0 2px 10px rgba(17,24,39,.08); --sh-md:0 10px 30px rgba(17,24,39,.10); --sh-lg:0 24px 64px rgba(17,24,39,.18);
-    --g2:0 0 34px rgba(17,24,39,.05);
+    --void:#E9EDF4; --edge:rgba(255,255,255,.85);
+    /* Light elevation is its OWN system — NOT the dark theme's single black haze. Soft COOL-slate, LAYERED (tight contact + wide ambient) so white panels lift crisply on Aero White; low alpha reads as light air, not dirt. */
+    --sh-sm:0 1px 2px rgba(17,24,39,.05),0 2px 8px rgba(41,50,72,.06); --sh-md:0 2px 6px rgba(17,24,39,.05),0 10px 26px rgba(41,50,72,.09),0 20px 44px rgba(41,50,72,.05); --sh-lg:0 4px 12px rgba(17,24,39,.07),0 22px 52px rgba(41,50,72,.13),0 40px 80px rgba(41,50,72,.08);
+    --g2:0 0 0 rgba(41,50,72,0);   /* no surface bloom on white — the layered shadow carries depth; a dark glow here only double-hazes the panel (the old dirty-smudge halo) */
     --trend-hot:#dc2626;
-    --glass1:rgba(255,255,255,.74); --glass2:rgba(255,255,255,.6);
+    --glass1:rgba(255,255,255,.82); --glass2:rgba(255,255,255,.68);
   }
   /* cool dark-blue theme — dark base with blue glow */
   [data-theme="blue"]{
@@ -106,7 +107,7 @@
   [data-theme="light"] .stg.past{background:#E9F7EC;color:#1E7E3E;border-color:#bfe5c8}
   [data-theme="light"] .deptchip.rdy{background:#E9F7EC;color:#1E7E3E;border-color:#bfe5c8}
   [data-theme="light"] .flowwrap{background-color:rgba(238,241,247,.82);background-image:radial-gradient(760px 460px at 84% -8%,rgba(61,139,255,.06),transparent 60%),radial-gradient(640px 460px at -6% 106%,rgba(30,209,233,.05),transparent 60%),radial-gradient(circle,rgba(17,18,21,.055) 1px,transparent 1.4px);background-size:auto,auto,24px 24px}
-  [data-theme="light"] .taskpanel{background:#F4F6FA}
+  [data-theme="light"] .taskpanel{background:#EDF1F7;box-shadow:inset 0 1px 3px rgba(41,50,72,.06),inset 0 10px 22px -12px rgba(41,50,72,.10)}   /* recessed inner well in light — cool inset shadow, NOT the dark theme's black inner smudge */
   [data-theme="light"] .bar{background:#E3E8F1}
   body[data-wide] main{max-width:none}
   body[data-wide] footer{max-width:none!important}
@@ -139,6 +140,7 @@
   /* flow-node inline popover — replaces the full-width route banner; fixed so it escapes the chart's overflow (mirrors #summitTip) */
   /* node inspector — M2/M3 glass (real backdrop-blur; sits over the live canvas) */
   #flowPop{position:fixed;z-index:58;display:none;width:300px;max-width:92vw;max-height:calc(100vh - 24px);overflow:auto;background:rgba(22,25,31,.62);backdrop-filter:blur(26px) saturate(1.2);-webkit-backdrop-filter:blur(26px) saturate(1.2);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:inset 0 1px 0 var(--edge),var(--sh-lg);color:var(--text);font-size:12.5px;animation:fpIn .18s cubic-bezier(.16,1,.3,1)}
+  [data-theme="light"] #flowPop{background:rgba(255,255,255,.82)}   /* the base is dark glass; on white the inspector needs a LIGHT glass or its var(--text) black copy sits on a dark panel (illegible) */
   @keyframes fpIn{from{opacity:0;transform:translateY(6px);filter:blur(6px)}to{opacity:1;transform:none;filter:blur(0)}}
   .fn-sel{filter:drop-shadow(0 0 4px rgba(238,49,36,.55))}
   .fp-head{display:flex;align-items:flex-start;gap:10px;padding:11px 12px 9px;border-bottom:1px solid var(--line)}
@@ -156,8 +158,17 @@
   .fp-deps{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:7px}
   .fp-deplabel{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
   .fp-deplabel.fp-deplock{font-size:14px;letter-spacing:0}   /* lock / unlock icon replaces the verbose 等待 / 完成後解鎖 label */
-  .fp-linkwrap{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:2px}   /* hosts the shared linkChips (＋連結 / Sheet / Doc / Code) — synced with the task rows */
   .fp-dep{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:10.5px;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:2px;padding:1px 7px}
+  /* action bar — primary Complete verb lifted to the top, paired with the step's day estimate on the right */
+  .fp-actbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line)}
+  .fp-actbar .btn{padding:7px 14px;font-size:12px}
+  .fp-act-note{font-size:11px;color:var(--dim)}
+  .fp-days{font-family:var(--font-mono);font-size:10.5px;color:var(--dim);border:1px solid var(--line);background:var(--panel2);border-radius:var(--r-xs);padding:3px 8px;white-space:nowrap;flex:none}
+  .fp-days.tbd{color:var(--red);border-color:rgba(248,113,113,.45);background:rgba(248,113,113,.1)}   /* estimate not typed yet → soft-red, matches the days-pending flags */
+  /* the 4 add-link buttons sit as an aligned 2×2 grid (was a ragged 3+1 wrap); existing link/code chips span full width above them */
+  .fp-linkgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:4px}
+  .fp-linkgrid>*:not(.addlnk){grid-column:1/-1;margin-left:0}
+  .fp-linkgrid .addlnk{margin-left:0;width:100%;display:inline-flex;align-items:center;justify-content:center;gap:3px;padding:7px 6px;font-size:11px;white-space:nowrap}
   .fp-dep::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--dc,var(--faint));flex:none}
   .fp-sec{padding:10px 12px;border-bottom:1px solid var(--line)}
   .fp-lab{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);margin-bottom:8px}
@@ -195,6 +206,7 @@
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
   .iconbtn{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:var(--r-sm);padding:6px 11px;cursor:pointer;font-size:13px}
   .iconbtn:hover{color:var(--text);border-color:var(--accent)}
+  .navtools{display:flex;align-items:center;gap:7px;flex-wrap:wrap}   /* right-side controls cluster tightly (was 18px header gap = too spread) */
   .drawer{position:fixed;top:0;right:-420px;width:400px;max-width:92vw;height:100vh;background:var(--glass2);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border-left:1px solid var(--line);z-index:40;transition:right .25s;display:flex;flex-direction:column}
   .drawer.openD{right:0}
   .drawer .dh{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center}
@@ -289,7 +301,7 @@
   .pill{display:inline-block;padding:2px 9px;border-radius:var(--r-xs);font-size:11px;font-weight:600;margin-top:6px}
   .ok{background:#14331f;color:var(--green)} .risk{background:#33260f;color:var(--amber)}
   .bad{background:#331414;color:var(--red)} .done{background:#1a2333;color:var(--blue)} .dec{background:#2a1a33;color:var(--purple)}
-  .row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r-sm);flex-wrap:wrap}
+  .row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r-sm);flex-wrap:wrap;transition:background .2s ease,box-shadow .2s ease}
   .row:hover{background:var(--panel2)}
   .st{width:18px;height:18px;border-radius:var(--r-xs);border:1.5px solid var(--faint);background:none;color:var(--faint);font-family:inherit;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex:none;cursor:pointer}
   button.st:disabled{cursor:default}
@@ -399,8 +411,15 @@
   .taskpanel{background:rgba(9,10,13,.72);background:color-mix(in srgb,var(--void) 74%,transparent);backdrop-filter:blur(18px) saturate(1.15);-webkit-backdrop-filter:blur(18px) saturate(1.15);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;margin:2px 0 12px;font-size:13px;box-shadow:inset 0 1px 0 rgba(246,248,252,.13),inset 0 -1px 0 rgba(246,248,252,.04),inset 0 -18px 36px rgba(0,0,0,.30)}
   .v3days-inp{width:66px;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:var(--r-xs);padding:2px 7px;font-size:12.5px;font-family:inherit}
   .v3days-inp.unfilled{border-color:rgba(251,191,36,.55);background:rgba(251,191,36,.06)}
+  /* days-not-set warning on a collapsed card row — soft red (淡紅), borderless so it reads as a gentle flag, not the blocked-red / act-now-orange alarm */
+  .daysmiss{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:600;color:var(--red);background:rgba(248,113,113,.12);border-radius:var(--r-pill);padding:1px 8px;margin-left:6px;vertical-align:middle;white-space:nowrap}
   .v3days-inp:focus{outline:none;border-color:var(--accent)}
   .taskpanel .frow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  /* task-detail panel expand reveal — DESIGN.md Motion "panel expand": blur→clear + rise 6px (~200ms), ease-out.
+     The panel is re-render-mounted (only present when open), so the entrance is gated in taskRow (PANELSEEN) to fire
+     ONCE per open — never on board-sync / status-tick / other-row re-renders while it stays open. */
+  @keyframes tpReveal{from{opacity:0;transform:translateY(6px);filter:blur(5px)}to{opacity:1;transform:none;filter:blur(0)}}
+  @media (prefers-reduced-motion:no-preference){.taskwrap.tp-in>.taskpanel{animation:tpReveal .2s cubic-bezier(.16,1,.3,1) both;will-change:transform,filter}}
   .taskpanel label{color:var(--dim);font-size:12px}
   .note{border:1px solid var(--line);border-radius:var(--r-md);padding:4px 10px;margin-bottom:6px}
   .note .d{color:var(--faint);font-size:11px}
@@ -611,6 +630,9 @@
   .ld-stat-v{font-size:15px;color:var(--text);font-weight:600;line-height:1.1}
   .ld-stat-v b{font-weight:700}
   .ld-stat-rd{margin-left:auto;border-left:none;padding-right:0}
+  /* the two readiness chips are ONE tight, consistently-aligned pair (no divider, snug gap) — not two spread-apart columns */
+  .ld-readycluster{flex-direction:row;gap:20px;align-items:flex-start}
+  .ld-ready-item{display:flex;flex-direction:column;gap:6px;min-width:0;align-items:flex-start}
   /* gate-readiness disclosure — compact trigger, per-dept breakdown on hover/focus */
   .ld-rd{position:relative;display:inline-flex}
   .ld-rd-trig{display:inline-flex;align-items:center;gap:6px;cursor:default;font-size:12.5px;font-weight:600;border:1px solid var(--line);background:var(--panel2);border-radius:var(--r-xs);padding:4px 11px;color:var(--dim)}
@@ -626,6 +648,8 @@
   .ld-rd-row .v{font-family:var(--font-mono);font-size:11px}
   .ld-rd-row.rdy .v{color:var(--green)}
   .ld-rd-row.open .v{color:var(--amber)}
+  .ld-rd-trig.days{color:var(--red);border-color:rgba(248,113,113,.45)}   /* days-not-set = soft red (淡紅), distinct from the amber gate-criteria warning */
+  .ld-rd-row.miss .v{color:var(--red)}
   @media(prefers-reduced-motion:reduce){.ld-rd-pop{transition:opacity .12s linear}}
   /* comment composer — inline video-attach ＋ in the task detail */
   .tnote-vid{flex:none;background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-sm);color:var(--dim);font-size:13px;padding:0 11px;cursor:pointer;font-family:inherit}
@@ -664,10 +688,19 @@
   .stl-frozen-tag{font-size:10px;font-weight:700;letter-spacing:.03em;color:#7dd3fc;border:1px solid rgba(56,189,248,.5);background:rgba(56,189,248,.1);border-radius:6px;padding:1px 6px;margin-left:6px}
   .stl-blocked>.stl-card{border-color:rgba(248,113,113,.5)}
   .stl-up>.stl-card{background:transparent;border-style:dashed}
-  .stl-card>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 13px;border-radius:var(--r-md)}
+  .stl-card>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 13px;border-radius:var(--r-md);transition:background .2s ease}
   .stl-card>summary::-webkit-details-marker{display:none}
   .stl-card>summary:hover{background:var(--panel2)}
   .stl-up>.stl-card>summary:hover{background:rgba(127,127,127,.06)}
+  /* stage accordion open/close — animate the native <details> via ::details-content (DESIGN.md Motion: 300-500ms layout change, ease-out, no bounce).
+     interpolate-size (scoped to .stagetl) enables the block-size:0↔auto interpolation; browsers/reduced-motion without it just toggle instantly (graceful). */
+  .stl-caret{font-family:var(--font-mono);font-size:11px;color:var(--faint);line-height:1;transition:transform .3s cubic-bezier(.16,1,.3,1)}
+  .stl-card:not([open]) .stl-caret{transform:rotate(-90deg)}
+  .stagetl{interpolate-size:allow-keywords}
+  @media (prefers-reduced-motion:no-preference){
+    .stl-card::details-content{block-size:0;overflow:clip;opacity:.55;transition:block-size .34s cubic-bezier(.16,1,.3,1),opacity .3s ease,content-visibility .34s allow-discrete}
+    .stl-card[open]::details-content{block-size:auto;opacity:1}
+  }
   .stl-card[open]>summary{border-bottom:1px solid var(--line);border-radius:var(--r-md) var(--r-md) 0 0}
   .stl-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;min-width:0}
   .stl-stage{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.05em;font-size:12.5px;font-weight:700}
@@ -839,11 +872,12 @@
   <div class="logo" style="display:flex;align-items:center;gap:10px;color:var(--text)"><svg width="160" height="36" viewBox="0 0 1607 360" fill="none" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#clip0_2_2867)"><g clip-path="url(#clip1_2_2867)"><path d="M230.153 80.9255C229.8 80.0628 228.957 79.5138 228.035 79.5138L196.163 79.4746C196.163 79.4746 196.026 79.4746 195.947 79.4942H168.763C168.763 79.4942 180.668 86.5331 188.827 94.3758C194.221 100.023 205.421 109.159 216.228 133.178C241.745 189.822 277.717 281.934 277.717 281.934L295.879 239.78L230.153 80.9255Z" fill="currentColor"/><path d="M347.776 119.139C348.875 116.492 364.899 79.4551 364.899 79.4551H325.437C347.129 92.6897 347.816 114.1 347.757 119.139H347.776Z" fill="currentColor"/><path d="M319.023 131.668C316.571 125.629 308.118 116.923 291.76 124.649C300.429 119.257 310.864 112.747 310.864 112.747C310.864 112.747 301.94 90.6504 301.077 88.925C297.527 82.1999 291.505 79.0824 283.581 79.4157C283.581 79.4157 251.709 79.4746 244.727 79.4942C246.1 79.5138 247.571 79.6706 249.081 79.9255H248.904C255.965 81.1607 264.026 85.3762 268.753 94.7286C271.872 101.826 281.463 125.609 282.13 127.256C282.856 129.08 282.601 130.335 281.502 130.942C275.5 134.648 269.499 138.432 269.028 138.746C269.028 138.746 276.069 137.883 282.11 139.02C284.699 139.51 287.798 141.471 289.21 144.628C289.348 144.942 312.766 200.527 312.766 200.527L330.674 158.902L319.023 131.687V131.668Z" fill="currentColor"/><path d="M248.904 79.906C247.453 79.6511 246.041 79.5138 244.727 79.4746L248.904 79.906Z" fill="currentColor"/><path d="M719.652 153.275C728.517 153.275 737.265 156.824 745.601 163.804L747.758 165.607V144.354L747.111 143.981C738.657 139.06 729.753 136.57 720.672 136.57C704.059 136.57 690.329 142.824 679.856 155.177C671.363 165.235 667.048 176.881 667.048 189.743C667.048 204.096 672.206 216.526 682.386 226.702C692.585 236.78 705.098 241.878 719.534 241.878C729.125 241.878 738.402 239.388 747.111 234.466L747.778 234.094V212.487L745.62 214.311C743.227 216.33 740.913 218.056 738.795 219.467C736.657 220.879 734.597 221.997 732.577 222.84C729.086 224.467 724.771 225.29 719.73 225.29C709.963 225.29 701.607 221.82 694.899 214.977C688.172 208.135 684.759 199.586 684.759 189.626C684.759 179.666 688.172 170.862 694.919 163.862C701.588 156.863 709.923 153.314 719.671 153.314L719.652 153.275Z" fill="currentColor"/><path d="M842.002 138.472H818.347L781.69 176.038V138.472H764.116V240.054H781.69V198.331L783.337 196.665L818.465 240.054H841.903L795.87 184.665L842.002 138.472Z" fill="currentColor"/><path d="M1143.37 138.472L1121.42 176.685L1099.55 138.472H1079.33L1112.61 196.331V240.054H1130.17V196.331L1163.59 138.472H1143.37Z" fill="currentColor"/><path d="M1246.79 238.995L1198.68 131.884C1198.42 131.295 1197.6 131.295 1197.32 131.884L1147.45 238.995C1147.21 239.486 1147.58 240.054 1148.11 240.054H1165.45C1165.74 240.054 1166 239.878 1166.12 239.623L1171.88 227.035L1184.81 198.507L1191.3 184.155L1197.62 170.215L1198.22 171.607L1206.48 190.39L1228.25 239.956C1228.25 239.956 1228.41 240.035 1228.49 240.035H1246.08C1246.63 240.035 1246.98 239.486 1246.77 238.976L1246.79 238.995Z" fill="currentColor"/><path d="M663.027 238.995L614.915 131.884C614.66 131.295 613.836 131.295 613.561 131.884L563.174 240.054H582.16L588.122 227.035L601.048 198.507L607.54 184.155L613.856 170.215L614.464 171.607L622.721 190.39L644.512 240.035H663.458L663.007 238.976L663.027 238.995Z" fill="currentColor"/><path d="M539.324 223.389H518.572V138.472H500.999V240.054H546.816L539.324 223.389Z" fill="currentColor"/><path d="M1420.29 155.118V138.452H1363.04V240.054H1420.29V223.389H1380.61V192.939H1410.88V176.274H1380.61V155.118H1420.29Z" fill="currentColor"/><path d="M1302.12 185.901V185.979L1309.57 202.566H1326.62C1325.67 208.546 1322.6 213.801 1317.44 218.193C1311.85 222.918 1305.47 225.31 1298.47 225.31C1290.21 225.31 1282.41 222.075 1275.31 215.722C1267.72 208.88 1263.87 200.037 1263.87 189.449C1263.87 178.862 1267.32 170.509 1274.13 163.706C1280.94 156.784 1289.49 153.275 1299.55 153.275C1310.73 153.275 1320.36 158.549 1328.19 168.96L1329.07 170.137L1341.68 158.059L1340.86 157.118C1334.56 149.922 1328.07 144.648 1321.52 141.413C1314.65 138.178 1307.18 136.55 1299.29 136.55C1284.6 136.55 1271.95 141.746 1261.69 152C1251.44 162.216 1246.24 174.803 1246.24 189.469C1246.24 204.135 1251.36 216.291 1261.44 226.545C1271.52 236.761 1283.8 241.937 1297.96 241.937C1312.12 241.937 1324.62 236.564 1334.01 225.977C1338.17 221.252 1341.17 216.095 1342.93 210.625C1344.72 204.801 1345.62 198.037 1345.62 190.508V185.92H1302.08L1302.12 185.901Z" fill="currentColor"/><path d="M1063.81 152.118C1053.52 141.824 1041 136.609 1026.59 136.609C1012.17 136.609 999.362 141.785 988.986 151.981C978.552 162.196 973.276 174.587 973.276 188.802C973.276 204.978 979.082 218.251 990.516 228.251C1000.89 237.27 1012.76 241.838 1025.8 241.838C1040.53 241.838 1053.3 236.682 1063.71 226.526C1074.11 216.408 1079.37 203.899 1079.37 189.371C1079.37 174.842 1074.13 162.392 1063.79 152.098L1063.81 152.118ZM1061.69 189.253C1061.69 199.272 1058.22 207.899 1051.36 214.86C1044.51 221.741 1035.98 225.232 1026 225.232C1016.82 225.232 1008.6 221.8 1001.58 215.016C994.537 208.252 990.948 199.507 990.948 188.979C990.948 178.45 994.4 170.431 1001.21 163.627C1008.01 156.745 1016.48 153.255 1026.37 153.255C1036.26 153.255 1044.75 156.745 1051.48 163.627C1058.24 170.47 1061.67 179.097 1061.67 189.233L1061.69 189.253Z" fill="currentColor"/><path d="M479.836 194.155C477.031 190.018 473.304 186.939 468.695 184.979C473.383 180.097 475.756 174.214 475.756 167.45C475.756 163.392 474.873 159.333 473.147 155.392C471.46 151.471 469.126 148.157 466.204 145.51C463.321 142.942 459.751 141.099 455.593 140.02C452.926 139.334 449.63 138.863 445.767 138.628L407.304 138.432V240.015H447.179C454.024 240.015 459.81 239.368 464.439 238.093C468.734 236.76 472.637 234.348 476.05 230.917C481.758 225.349 484.66 218.428 484.66 210.369C484.66 204.232 483.033 198.762 479.816 194.115L479.836 194.155ZM424.898 154.804H444.766C449.454 154.804 453.043 155.902 455.416 158.078C457.809 160.254 458.967 163.411 458.967 167.725C458.967 172.038 457.79 175.45 455.495 177.646C453.181 179.842 449.375 180.979 444.178 180.979H424.878V154.823L424.898 154.804ZM462.772 219.722C459.869 222.153 455.142 223.388 448.748 223.388H424.898V196.076H447.081C454.73 196.076 460.065 197.409 462.929 200.037C465.871 202.703 467.302 205.919 467.302 209.84C467.302 213.761 465.812 217.114 462.772 219.741V219.722Z" fill="currentColor"/><path d="M903.177 136.374H884.348L928.302 243.407L937.932 221.016L903.177 136.374Z" fill="currentColor"/><path d="M974.355 136.374H956.134L933.754 188.39L942.659 210.056L974.355 136.374Z" fill="currentColor"/></g></g><defs><clipPath id="clip0_2_2867"><rect width="1607" height="360" fill="white"/></clipPath><clipPath id="clip1_2_2867"><rect width="1389" height="360" fill="white" transform="translate(109 -0.167969)"/></clipPath></defs></svg><span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.3em;color:var(--accent)">TRACKER</span></div>
   <nav id="nav"></nav>
   <div class="spacer"></div>
+  <div class="navtools">
   <input type="text" id="q" placeholder="search… ( / )" style="width:120px" oninput="S.q=this.value;if(S.view!=='portfolio')go('portfolio');else render();document.getElementById('q').focus()">
   <button class="iconbtn" title="command palette (Ctrl/⌘ K)" onclick="openPal()">⌘K</button>
   <button class="iconbtn" title="activity feed + inbox" onclick="toggleDrawer()">🔔 <span id="inboxN"></span></button>
-  <button class="iconbtn" title="download JSON backup" onclick="exportJSON()">⬇</button>
   <button class="btn ghost" id="themeBtn" style="padding:6px 10px" title="light / dark" onclick="setTheme()">☀️</button><button class="btn ghost" id="wideBtn" style="padding:6px 10px" title="regular / wide screen" onclick="setWide()">⛶</button><button class="btn ghost" id="langBtn" style="padding:6px 12px" onclick="setLang()">中文</button>
+  </div>
   <span id="fbsync" style="font-size:11px;margin-left:10px;font-family:var(--font-mono)" title="real-time shared-board status"></span>
   <span id="whoami" style="margin-left:10px"></span>
 </header>
@@ -1238,6 +1272,29 @@ function delayTrend(N=24){
   }
   return depts;
 }
+// per-LAUNCH cumulative-delay time series (companion to delayTrend's per-dept version). Same accrual model:
+// each stage overrun accrues linearly from the day its budget ran out to the day the stage ended. Returns
+// {t0, series:{name:number[N]}} so a real time-axis chart can be drawn. Portfolio total = sum of series per sample.
+function delayTrendByLaunch(N=24){
+  const iv=[];
+  LAUNCHES.forEach(l=>{const hs=l.history||[]; segments(l).forEach((s,i)=>{
+    if(!s.over||!hs[i])return;
+    const end=hs[i].end||(hs[i+1]?hs[i+1].start:today);
+    const start=v3AddD(hs[i].start,s.plan);   // the day the stage's day-budget ran out
+    iv.push({slug:l.slug,start,end,amt:s.over});   // key by slug (unique) — two launches can share a display name
+  });});
+  const series={};
+  if(!iv.length)return {t0:today,N,series,total:new Array(N).fill(0)};
+  const t0=iv.reduce((a,x)=>x.start<a?x.start:a,today);
+  const span=Math.max(1,D(today)-D(t0));
+  iv.forEach(x=>series[x.slug]=series[x.slug]||new Array(N).fill(0));
+  const total=new Array(N).fill(0);
+  for(let k=0;k<N;k++){ const t=D(t0).getTime()+span*(N<2?0:k/(N-1));   // guard N=1 (0/0 → NaN)
+    iv.forEach(x=>{const a=D(x.start).getTime(),b=Math.max(a+864e5,D(x.end).getTime());
+      const v=x.amt*Math.max(0,Math.min(1,(t-a)/(b-a))); series[x.slug][k]+=v; total[k]+=v;});
+  }
+  return {t0,N,span,series,total};
+}
 function projectedSlip(l){ // projected finish vs target
   if(l.complete) return 0;
   const cur=segments(l).find(s=>s.cur); if(!cur) return 0;
@@ -1245,6 +1302,90 @@ function projectedSlip(l){ // projected finish vs target
   const future=STAGES.slice(STAGES.indexOf(l.stage)+1).reduce((a,s)=>a+stageDayBudget(l,s),0);
   const finish=new Date(D(today).getTime()+(remainCur+future)*864e5);
   return Math.round((finish-D(l.target))/864e5);
+}
+
+/* ================= PRODUCT HEALTH OVERVIEW (V3) =================
+   All read-only derivations off the req DAG + per-task day limits + actual timestamps.
+   No new stored fields — startAt/doneAt already exist (auto-stamped on cycle, hand-editable in the detail panel). */
+const v3DayOf=(l,c)=>{const t=v3Task(l,c),n=V3MAP[c]||{};return t?(taskDayLimit(t)||0):(n.days!=null?n.days:(n.est||0));};
+// planned start/end for every node, laid out along the req DAG: a step's planned start = the latest
+// planned end among its prerequisites (anchored at the card's first stage-start), end = start + its day limit.
+function v3Schedule(l){
+  const anchor=(l.history&&l.history[0]&&l.history[0].start)||today, sched={};
+  const walk=c=>{
+    if(c in sched)return sched[c];
+    sched[c]={plannedStart:anchor,plannedEnd:anchor};   // placeholder = cycle guard (template is a DAG)
+    const n=V3MAP[c]||{}; let start=anchor;
+    (n.req||[]).forEach(r=>{if(V3MAP[r]){const pe=walk(r).plannedEnd; if(pe>start)start=pe;}});
+    const d=v3DayOf(l,c), end=v3AddD(start,d), t=v3Task(l,c);
+    return sched[c]={code:c,dept:n.dept||"",plan:d,plannedStart:start,plannedEnd:end,
+      actualStart:(t&&t.startAt)||"",actualEnd:(t&&t.doneAt)||"",st:t?t.st:"o"};
+  };
+  V3.forEach(n=>walk(n.c));
+  return sched;
+}
+// the req chain with the largest total planned days — the chain that actually sets the launch date.
+function v3CriticalPath(l){
+  const memo={};
+  const best=c=>{ // longest chain ENDING at c, {len, path[] root→c}
+    if(c in memo)return memo[c];
+    memo[c]={len:0,path:[c]};                            // guard
+    const n=V3MAP[c]||{}; let bl=0,bp=[];
+    (n.req||[]).forEach(r=>{if(V3MAP[r]){const b=best(r); if(b.len>bl){bl=b.len;bp=b.path;}}});
+    return memo[c]={len:bl+v3DayOf(l,c),path:[...bp,c]};
+  };
+  let top={len:-1,path:[]};
+  V3.forEach(n=>{const b=best(n.c); if(b.len>top.len)top=b;});
+  return top.path;
+}
+// per-department health: planned-day budget vs actual elapsed vs remaining, a RAG status, and whether
+// the dept sits on the critical path. Actual is derived from the stage timeline (history) — each started
+// stage's real elapsed is split across its departments by their planned day-budget weight — so it's
+// meaningful WITHOUT per-task timestamps (hand-filled dates refine plannedEnd/late, not this figure).
+function v3DeptHealth(l){
+  const sched=v3Schedule(l), cp=new Set(v3CriticalPath(l)), depts={};
+  const segBy={}; segments(l).forEach(s=>segBy[s.stage]=s);
+  V3.forEach(n=>{
+    const t=v3Task(l,n.c); if(!t)return;
+    const g=depts[n.dept]||(depts[n.dept]={dept:n.dept,budget:0,actual:0,remain:0,done:0,total:0,late:0,onCP:false,blocked:false});
+    g.budget+=taskDayLimit(t)||0; g.total++;
+    if(cp.has(n.c))g.onCP=true;
+    if(t.st==="b")g.blocked=true;
+    if(t.st==="x")g.done++;
+    const s=sched[n.c]; if(t.st!=="x"&&s&&s.plannedEnd<today)g.late++;
+  });
+  Object.keys(depts).forEach(d=>{ let act=0,bud=0;
+    // sum actual elapsed AND budget over the SAME started stages so the ratio is like-for-like — comparing
+    // partial actual against the whole-launch budget would never flag a dept that's over on its current stage.
+    STAGES.forEach(st=>{ const seg=segBy[st]; if(!seg)return; const db=deptStageBudget(l,st,d); if(db){act+=seg.days*(db/(seg.plan||db)); bud+=db;} });
+    const g=depts[d]; g.actual=Math.round(act); g.budgetSoFar=Math.round(bud); g.remain=Math.max(0,g.budget-g.actual);
+  });
+  return Object.values(depts).map(g=>{
+    const base=g.budgetSoFar||g.budget, ratio=base?g.actual/base:0;   // vs budget of STARTED stages, not whole launch
+    let status="ontrack";
+    if(g.blocked||ratio>1.1) status="behind";
+    else if(g.total&&g.done===g.total) status=(g.actual<base*0.95?"ahead":g.actual<=base*1.1?"ontrack":"behind");
+    return {...g,ratio,status};
+  }).sort((a,b)=>{const rk=s=>s.status==="behind"?0:s.status==="ontrack"?1:2; return (rk(a)-rk(b))||(b.onCP-a.onCP)||(b.ratio-a.ratio)||(b.budget-a.budget);});
+}
+// one-line verdict: overall slip + the bottleneck dept (a behind dept on the critical path, else the worst behind dept).
+function v3Narrative(l){
+  const zh=LANG==="zh";
+  if(l.complete)return zh?"已完成上市。":"Launch complete.";
+  const slip=projectedSlip(l), dh=v3DeptHealth(l), behind=dh.filter(g=>g.status==="behind");
+  const bott=behind.find(g=>g.onCP)||behind[0], dn=bott?bott.dept:"";
+  if(slip>0)return (zh?`預計晚 ${slip} 天上市`:`Projected ${slip}d late`)+(bott?(zh?`,瓶頸在 ${dn}`:`, bottleneck: ${dn}`):"");
+  if(bott)return zh?`整體在排程內,但 ${dn} 落後,留意別波及關鍵路徑`:`On schedule overall, but ${dn} is behind — watch the critical path`;
+  return (zh?`順利,緩衝 ${floatDays(l)} 天`:`On track — ${floatDays(l)}d of float`);
+}
+// jump to the most-actionable open task in a department (blocked → in-progress → next unlocked → first open).
+function v3jumpDept(slug,dept){
+  const l=L(slug); if(!l)return;
+  const inDept=(l.tasks||[]).filter(t=>t.d===dept); if(!inDept.length)return;
+  const open=inDept.filter(t=>t.st!=="x");
+  // blocked → in-progress → next unlocked → first open → (all done) last task in the dept, so the click always lands somewhere
+  const pick=open.find(t=>t.st==="b")||open.find(t=>t.st==="p")||open.find(t=>!taskLocked(l,t))||open[0]||inDept[inDept.length-1];
+  jumpTask(slug,l.tasks.indexOf(pick));
 }
 
 /* ================= SUPER PM ENGINE ================= */
@@ -2482,6 +2623,7 @@ function addCheckin(slug){
   L(slug).checkins.unshift({d:today,a:S.role==="dept"?S.dept:"Ben",txt:v}); toast("Check-in posted"); render();
 }
 /* in-card task editing */
+const PANELSEEN=new Set();   // task-detail panels whose expand reveal has already played — gates it to once per open (not per re-render)
 function toggle(key){S.open[key]=!S.open[key];render();}
 // whole task row is clickable to expand/collapse — but ignore clicks that land on a real control inside it
 function rowToggle(e,key){ if(e.target.closest("button,input,select,textarea,a,label,.lnkmenu,.collabmenu,[data-noexp]"))return; toggle(key); }
@@ -2579,9 +2721,11 @@ function taskRow(l,t,extra,ro){
   // the step's output/explanation now lives in the ▾ details panel (taskDetail), keeping the row short; a shot-list total shows for MS3a/b
   const shotChip=(vn&&vn.shots&&!extra&&v3ShotTotal(t)>0)?`<span class="ghostnote" title="${LANG==="zh"?"素材需求合計":"asset shot-list total"}">${vn.shots==="video"?"🎬":"📸"} ${v3ShotTotal(t)}</span>`:"";
   const sampleCtl=(vn&&vn.sample&&!extra&&!ro)?`<div class="v3sample">${LANG==="zh"?"預計大貨樣日":"planned bulk-sample date"} <input type="date" value="${esc(t.sampleDate||"")}" title="the date bulk samples can ship — P5 (Deploy marketing samples) waits for this" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)">${t.st==="p"&&t.days!=null&&t.startAt?` <span class="ghostnote">${LANG==="zh"?"倒數剩":"countdown"} ${Math.max(0,t.days-dayDiff(t.startAt,today))}d</span>`:""}</div>`:"";
-  return `<div id="task-${l.slug}-${i}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${t.gate?"":"cursor:pointer;"}${lk?"opacity:.38;filter:grayscale(.6)":""}"${t.gate?"":` onclick="rowToggle(event,'${key}')"`}>
+  const _hasPanel=open&&!t.gate;                                  // the detail panel is only rendered when open (non-gate)
+  let _tpNew=""; if(_hasPanel){ if(!PANELSEEN.has(key)){PANELSEEN.add(key);_tpNew=" tp-in";} } else PANELSEEN.delete(key);  // first open → play reveal once; closed → forget so a reopen replays
+  return `<div id="task-${l.slug}-${i}" class="taskwrap${_tpNew}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${t.gate?"":"cursor:pointer;"}${lk?"opacity:.38;filter:grayscale(.6)":""}"${t.gate?"":` onclick="rowToggle(event,'${key}')"`}>
    ${t.gate?gateControl(l,t,i,lk):`<button type="button" class="st ${lk?"":t.st}" ${lk?"disabled":""} aria-label="${lk?"locked — "+esc(lockReason(l,t)):"status: "+stWord(t.st)+" — left-click to advance, right-click to step back"}" title="${lk?"locked — "+esc(lockReason(l,t)):"left-click: advance · right-click: step back"}" onclick="cycle('${l.slug}',${i})" oncontextmenu="cycleBack('${l.slug}',${i});return false">${lk?"🔒":stIcon[t.st]}</button>`}
-   <span>${vn?`<span class="v3code">${esc(t.code)}</span> `:""}${esc(flowTaskName(t))}${t.gate?' <span style="color:var(--purple)">◆</span>':""}
+   <span>${vn?`<span class="v3code">${esc(t.code)}</span> `:""}${esc(flowTaskName(t))}${t.gate?' <span style="color:var(--purple)">◆</span>':""}${vn&&vn.days==null&&t.days==null&&t.st!=="x"?`<span class="daysmiss" title="${LANG==="zh"?"此步驟天數尚未填寫":"this step still needs a day estimate"}">⏱ ${LANG==="zh"?"天數未填":"days unset"}</span>`:""}
     ${t.assignee&&t.assignee.trim()!==resp&&t.assignee.trim()!==owner&&!collabs.includes(t.assignee.trim())?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
     ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
     ${shotChip}${ctrls}</span>
@@ -2617,6 +2761,14 @@ function taskDetail(l,t,i,ro,vn,lk){
         :`<input type="number" min="0" class="v3days-inp${t.days==null?" unfilled":""}" value="${t.days==null?"":t.days}" placeholder="${T("需填寫","required")}" title="${T("此步驟天數每個產品不同，由負責部門填寫","varies per product — the owning dept fills it in")}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${i},this.value)"> ${T("天","d")}`)
     : (vn.days===0?T("即時 / 事件","instant"):vn.days+"d")]);
   info.push([T("負責人","Owner"), esc(vn.o)]);
+  // actual start/done — auto-stamped on status cycle, but hand-editable here so a late click doesn't skew the health/timeline math
+  if(!ro && vn.days!==0) info.push([T("實際起訖","Actual start / done"),
+    `<span style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">`
+    +`<input type="date" value="${esc(t.startAt||"")}" title="${T("實際開始日(可手動校正)","actual start — editable")}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'startAt',this.value)">`
+    +`<span class="ghostnote">→</span>`
+    +`<input type="date" value="${esc(t.doneAt||"")}" title="${T("實際完成日(可手動校正)","actual done — editable")}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'doneAt',this.value)">`
+    +(t.startAt&&t.doneAt?` <span class="ghostnote">${dayDiff(t.startAt,t.doneAt)}d ${T("實耗","elapsed")}</span>`:t.startAt&&t.st==="p"?` <span class="ghostnote">${dayDiff(t.startAt,today)}d ${T("進行中","running")}</span>`:"")
+    +`</span>`]);
   const grid=`<div class="v3det">${info.map(([k,v])=>`<div class="v3det-r"><span class="v3det-k">${k}</span><span class="v3det-v">${v}</span></div>`).join("")}</div>`;
   const lockBlk=lk?`<div class="v3det-lock">🔒 <b>${T("鎖定中","Locked")}</b> · ${esc(lockReason(l,t))}</div>`:"";
   const shots=vn.shots?v3ShotList(l,t,i,ro,vn):"";
@@ -2648,6 +2800,24 @@ function readinessPop(l){
   return `<span class="ld-rd"><span class="ld-rd-trig ${cls}" tabindex="0" role="button" aria-label="${aria}">${trig}</span>`
     +`<span class="ld-rd-pop" role="tooltip"><div class="ld-rd-pop-h">Gate readiness · ${esc(l.stage)}</div>`
     +rows.map(r=>`<div class="ld-rd-row ${r.ready?"rdy":"open"}"><span class="d" style="--dc:${DCOLOR(r.d)}">${esc(r.d)}</span><span class="v">${r.ready?"✓ ready":r.o+" open"}</span></div>`).join("")
+    +`</span></span>`;
+}
+// steps whose day estimate must be typed in by the owning dept but is still blank — scans ALL tasks (data-completeness gap), not just the current stage's exit criteria
+function daysPending(l){
+  return (l.tasks||[]).map((t,i)=>({t,i,n:V3MAP[t.code]}))
+    .filter(x=>x.n && x.n.days==null && x.t.days==null && x.t.st!=="x");
+}
+// sibling of readinessPop — surfaces WHO still owes a day estimate, in a soft-red (淡紅) voice distinct from the amber gate-criteria warning
+function daysPendingPop(l){
+  const list=daysPending(l), zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  if(!list.length) return `<span class="ld-rd"><span class="ld-rd-trig ok" tabindex="0" role="button" aria-label="${T("所有步驟都已填天數","every step has a day estimate")}">${T("✓ 天數齊全","✓ Days set")}</span></span>`;
+  const byDept={}; list.forEach(x=>{const d=x.t.d||(x.n&&x.n.dept)||"—"; (byDept[d]=byDept[d]||[]).push(x);});
+  const n=list.length, nd=Object.keys(byDept).length;
+  const trig=T(`⚠ ${n} 項待填天數`,`⚠ ${n} days unset`);
+  const aria=T(`${n} 個步驟尚未填寫天數，跨 ${nd} 個部門；游標移上可看是誰`,`${n} steps still need a day estimate across ${nd} department${nd===1?"":"s"}. Hover or focus for who.`);
+  return `<span class="ld-rd"><span class="ld-rd-trig days" tabindex="0" role="button" aria-label="${aria}">${trig}</span>`
+    +`<span class="ld-rd-pop" role="tooltip"><div class="ld-rd-pop-h">${T("待填天數","Days not set")}</div>`
+    +Object.entries(byDept).map(([d,xs])=>`<div class="ld-rd-row miss"><span class="d" style="--dc:${DCOLOR(d)}">${esc(d)}${xs[0].n&&xs[0].n.o?` · ${esc(xs[0].n.o)}`:""}</span><span class="v">${xs.length} ${T("項","open")}</span></div>`).join("")
     +`</span></span>`;
 }
 // the advance control (dept-ready summary · ◆ approval · push) — rendered inline under the CURRENT stage so it's right where you're working, not buried at the page bottom
@@ -2683,7 +2853,7 @@ function stageTimeline(l){
       <details class="stl-card"${op?" open":""} ontoggle="(S.stageOpen=S.stageOpen||{})['${key}']=this.open">
         <summary aria-label="${esc(s)} phase — ${frozen?"design frozen, ":""}${state==="done"?"done":state==="now"?"current":state==="blocked"?"blocked":"upcoming"}, ${met} of ${tot} steps done">
           <span class="stl-head"><span class="stl-stage">${esc(s)}</span>${frozen?`<span class="stl-frozen-tag">❄ ${LANG==="zh"?"已凍結":"frozen"}</span>`:""}${isCur?`<span class="stl-now">📍 ${LANG==="zh"?"進行中":"is here"}</span>`:""}<span class="stl-depts">${depts.map(d=>`<span class="stl-dept" style="color:${DCOLOR(d)}">${esc(d)}</span>`).join("")}</span></span>
-          <span class="stl-meta"><span class="stl-count" title="steps done">${met}/${tot}</span></span>
+          <span class="stl-meta"><span class="stl-count" title="steps done">${met}/${tot}</span><span class="stl-caret" aria-hidden="true">▾</span></span>
         </summary>
         <div class="stl-body">${tot?ts.map(t=>taskRow(l,t,"",false)).join(""):'<div class="sub" style="padding:6px 2px">No steps in this phase.</div>'}</div>
       </details>
@@ -2842,10 +3012,12 @@ function flowSVG(l){
     (selN.req||[]).forEach(rc=>{const p=findByCode(rc); if(p){depEdges.push([p,selPos]); depKeys.add(p[0]+"|"+FLOW[p[0]][p[1]].l);}});   // prereq ➜ selected
     depts.forEach(dd=>(FLOW[dd]||[]).forEach((nn,k)=>{ if((nn.req||[]).includes(selCode)){depEdges.push([selPos,[dd,k]]); depKeys.add(dd+"|"+nn.l);} }));  // selected ➜ dependents
   }
+  // node drop-shadow — theme-aware: dark/blue get a deep black lift; LIGHT gets a soft COOL-slate shadow (a black .55 shadow on a near-white node reads as the dirty smudge the reference light-mode never has).
+  const nshDrop=THEME==="light"?'dy="2" stdDeviation="3.5" flood-color="#293248" flood-opacity="0.15"':'dy="4" stdDeviation="5" flood-color="#000" flood-opacity="0.55"';
   let svg=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMin meet" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit;width:100%;height:auto;max-width:${W}px;margin-inline:auto;display:block">
   <defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="${FT.arrow}"/></marker>
   <marker id="arR" viewBox="0 0 9 9" refX="7.5" refY="4.5" markerWidth="7.5" markerHeight="7.5" orient="auto"><path d="M0 0L9 4.5L0 9z" fill="#EE3124"/></marker>
-  <filter id="nsh" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000" flood-opacity="0.55"/></filter></defs>`;
+  <filter id="nsh" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" ${nshDrop}/></filter></defs>`;
   // lane headers — no container boxes; a dept-colored anchor dot + generous headroom mark each lane on the open field
   depts.forEach((d,c)=>{const x=GAP+c*(CW+GAP);
     svg+=`<g class="flowhead" style="--d:${Math.min(c*13,120)}ms"><text x="${x+CW/2}" y="34" text-anchor="middle" fill="${DCOLOR(d)}" font-size="12.5" font-weight="700" letter-spacing="${LANG==="zh"?0.08:0.03}em">${esc(flowTL(d))}</text>
@@ -2864,6 +3036,8 @@ function flowSVG(l){
     const nf=frozen?FT.ice.fill:fill[st], ns=frozen?FT.ice.strk:strk[st];
     const isHere=n.t&&n.t===here&&(hereOwner==null||d===hereOwner);
     const ti=n.t?l.tasks.findIndex(x=>x.t===n.t):-1;
+    const _tt=ti>=0?l.tasks[ti]:null, _vnn=n.code&&V3MAP[n.code];
+    const daysMiss=!n.d&&_vnn&&_vnn.days==null&&_tt&&_tt.days==null&&_tt.st!=="x";   // step still needs its day estimate typed in → soft-red corner flag
     const key=d+"|"+n.l, inHi=depOn&&depKeys.has(key);
     const isSel=S.route&&S.route.d===d&&S.route.i===i;     // currently-open node (drives the popover anchor)
     const click=` class="flownode" style="cursor:pointer;--d:${Math.min(60+depts.indexOf(d)*14+i*15,220)}ms" onclick="event.stopPropagation();flowNode('${d}',${i})"`;
@@ -2880,10 +3054,10 @@ function flowSVG(l){
       const lay=flowLabel(flowTL(n.l),CW), F=lay.font, lg=F*1.18, cy=y+NH/2, nl=lay.lines.length;
       labelSVG=lay.lines.map((ln,k)=>`<text x="${x+CW/2}" y="${(cy+(k-(nl-1)/2)*lg+F*0.34).toFixed(1)}" text-anchor="middle" fill="${tcol}" font-size="${F}" letter-spacing="${FL_LS}em">${esc(ln)}</text>`).join("");
     }
-    svg+=`<g${click}${depOn&&!depKeys.has(key)?' opacity="0.18"':""}>${body}${isSel?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inHi&&!isSel?`<rect class="glownode" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="1.8" opacity="0.8" pointer-events="none"/>`:""}${labelSVG}${frozen?`<text x="${x+CW-9}" y="${y+14}" text-anchor="middle" fill="${FT.ice.strk}" font-size="11" font-weight="700" pointer-events="none">❄</text>`:""}
+    svg+=`<g${click}${depOn&&!depKeys.has(key)?' opacity="0.18"':""}>${body}${isSel?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inHi&&!isSel?`<rect class="glownode" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="1.8" opacity="0.8" pointer-events="none"/>`:""}${labelSVG}${frozen?`<text x="${x+CW-9}" y="${y+14}" text-anchor="middle" fill="${FT.ice.strk}" font-size="11" font-weight="700" pointer-events="none">❄</text>`:""}${daysMiss?`<circle cx="${x+CW-8}" cy="${y+8}" r="5.5" fill="rgba(248,113,113,.20)" pointer-events="none"/><circle cx="${x+CW-8}" cy="${y+8}" r="3" fill="rgba(248,113,113,.9)" pointer-events="none"/>`:""}
     ${n.d?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#c084fc" font-size="11">◆ decision</text>`:""}${n.url?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#60a5fa" font-size="11">🔗 Figma</text>`:""}
     ${isHere?`<g pointer-events="none"><rect x="${x-4}" y="${y-10}" width="${LANG==="zh"?48:46}" height="18" rx="9" fill="#EE3124"/><text x="${x-4+(LANG==="zh"?48:46)/2}" y="${y+3}" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">📍 ${LANG==="zh"?"這裡":"here"}</text></g>`:""}
-    <title>${esc(n.l)} — stage: ${n.s} · click for route + quick actions${st==="fut"&&ti>=0?" · 🔒 locked until previous step is done":""}</title></g>`;}));
+    <title>${esc(n.l)} — stage: ${n.s} · click for route + quick actions${st==="fut"&&ti>=0?" · 🔒 locked until previous step is done":""}${daysMiss?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}</title></g>`;}));
   // red dependency arrows (drawn on top so they clearly reach the highlighted nodes)
   depEdges.forEach(([a,b])=>{const pa=pos(a[0],a[1]),pb=pos(b[0],b[1]),ha=hgt(a[0],a[1]),hb=hgt(b[0],b[1]); let dpath;
     if(a[0]===b[0]){ const ax=pa.x+CW/2, ay=pa.y+ha, bx=pb.x+CW/2, by=pb.y-5, my=(ay+by)/2; dpath=`M${ax} ${ay} C ${ax} ${my}, ${bx} ${my}, ${bx} ${by}`; }
@@ -2935,7 +3109,8 @@ function fpComplete(slug,i){
   if(!confirmFrozenStepEdit(l,t))return;
   const done=t.st==="x";
   const r=applyTaskStatus(l,t,done?"o":"x"); if(!r.ok){toast(r.reason);return;}
-  if(done)delete t.doneAt; else t.doneAt=today;
+  if(done)delete t.doneAt; else { t.doneAt=today; if(!t.startAt)t.startAt=today; }   // stamp start too — completing straight o→x skips the p step that normally sets startAt
+  v3Advance(l);   // re-derive stage / complete / history — mirrors cycle()/approve(); without it the card's phase goes stale after completing from the flow inspector
   save(); render();
 }
 function flowPopHTML(d,i){
@@ -2953,6 +3128,15 @@ function flowPopHTML(d,i){
     +(n.d?'<span class="fp-dec">◆ decision</span>':"")
     +(locked?'<span class="fp-lock">🔒 locked</span>':"")
     +`</div></div><button class="fp-x" title="${cls}" aria-label="${cls}" onclick="closeFlowPop()">✕</button></div>`;
+  // action bar — the primary Complete verb lifted UP to right under the head, paired with this step's day estimate (待填 shows soft-red)
+  {const vn=V3MAP[n.code]||{};
+   const dRaw=(task&&task.days!=null)?task.days:(vn.days!=null?vn.days:(vn.est!=null?vn.est:null));
+   const dTBD=dRaw==null&&!n.d;
+   const daysTxt=dRaw==null?(n.d?(zh?"即時":"instant"):(zh?"待填":"TBD")):(dRaw===0?(zh?"即時":"instant"):dRaw+"d");
+   const doneNow=!!(task&&task.st==="x");
+   const aMark=(task&&!locked&&!n.d)?`<button class="btn fp-mark${doneNow?" ghost":""}" onclick="fpComplete('${l.slug}',${ti})">${doneNow?(zh?"↩ 重新開啟":"↩ Reopen"):(zh?"✓ 標記完成":"✓ Complete")}</button>`
+     :`<span class="fp-act-note">${n.d?(zh?"◆ 由 Ben 拍板":"◆ Ben decides"):locked?(zh?"🔒 前置未完成":"🔒 waiting on prerequisites"):(zh?"無對應任務":"no linked task")}</span>`;
+   h+=`<div class="fp-actbar">${aMark}<span class="fp-days${dTBD?" tbd":""}" title="${zh?"預估天數":"estimated days"}">⏱ ${daysTxt}</span></div>`;}
   // dependency panel — the same req graph the red arrows draw: what this waits on, and what finishing it unblocks
   {const zh=LANG==="zh";
    const named=code=>{const nn=V3MAP[code]; return code+(nn?" "+esc(zh?nn.zh:nn.en):"");};
@@ -2965,13 +3149,12 @@ function flowPopHTML(d,i){
    h+=r+`</div>`;}
   if(task){
     // synced with the task-row link menu — same ＋連結 / 📊 Sheet / 📝 Doc / </> Code/Link options + existing links
-    h+=`<div class="fp-sec"><div class="fp-lab">${zh?"檔案與連結":"Files / links"}</div><div class="fp-linkwrap">${linkChips(task,l.slug,ti)}</div></div>`;
+    h+=`<div class="fp-sec"><div class="fp-lab">${zh?"檔案與連結":"Files / links"}</div><div class="fp-linkgrid">${linkChips(task,l.slug,ti)}</div></div>`;
   }
-  const doneNow=!!(task&&task.st==="x");
-  const aDone=(task&&!locked&&!n.d)?`<button class="btn fp-open${doneNow?" ghost":""}" onclick="fpComplete('${l.slug}',${ti})">${doneNow?(zh?"↩ 重新開啟":"↩ Reopen"):(zh?"✓ 標記完成":"✓ Complete")}</button>`:"";
+  // foot now holds only the SUBORDINATE controls — the Complete verb moved up to the action bar
   const aTask=ti>=0?`<button class="btn ghost fp-open" onclick="jumpTask('${l.slug}',${ti})">${zh?"在卡片上開啟":"Open on card"}</button>`:"";
   const aUrl=n.url?`<a class="btn ghost fp-open" href="${n.url}" target="_blank" rel="noopener">${zh?"開啟 Figma ↗":"open Figma board ↗"}</a>`:"";
-  const action=(aDone||aTask||aUrl)?aDone+aTask+aUrl:`<span class="fp-foot-note">${zh?"此步驟沒有對應任務。":"No linked task on this step."}</span>`;   // a node can have BOTH a task and a Figma link (e.g. brainstorming) → show both
+  const action=(aTask||aUrl)?aTask+aUrl:`<span class="fp-foot-note">${zh?"此步驟沒有對應任務。":"No linked task on this step."}</span>`;
   const hintsOn=S.flowHints!==false;
   h+=`<div class="fp-foot">${action}<label class="fp-toggle" title="${tip}">`
     +`<input type="checkbox" role="switch" aria-checked="${hintsOn}" ${hintsOn?"checked":""} onchange="toggleFlowHints(this.checked)">`
@@ -3075,15 +3258,76 @@ function portfolioBoard(){
     }<span class="pfb-name" title="${s}">${s}</span>${ls.length?`<span class="pfb-count">${ls.length}</span>`:""}<span class="pfb-line"></span></div>${ls.map(cardHTML).join("")}</div>`;
   }).join("")}</div></div>`;
 }
+// 📊 PORTFOLIO health overview — every product in one scannable table, most-at-risk first, click to drill
+// into that product's 健康總覽 tab. Reuses the same engine (health/projectedSlip/floatDays/v3DeptHealth).
+function portfolioOverview(){
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  const fq=l=>!S.q||l.name.toLowerCase().includes(S.q.toLowerCase())||(l.dri||"").toLowerCase().includes(S.q.toLowerCase());
+  const RANK={bad:3,dec:2,risk:1,ok:0,done:-1};
+  const rows=LAUNCHES.filter(fq).map(l=>{
+    const [h,cls]=health(l), slip=projectedSlip(l), fl=floatDays(l);
+    const behind=l.complete?[]:v3DeptHealth(l).filter(g=>g.status==="behind");
+    const bott=behind.find(g=>g.onCP)||behind[0]||null;
+    const done=l.tasks.filter(t=>t.st==="x").length, total=l.tasks.length||1, blocked=l.tasks.filter(t=>t.st==="b").length;
+    return {l,h,cls,slip,fl,bott,done,total,blocked};
+  }).sort((a,b)=>(RANK[b.cls]-RANK[a.cls])||(b.slip-a.slip)||(a.fl-b.fl));
+  const active=rows.filter(r=>!r.l.complete).length, atRisk=rows.filter(r=>!r.l.complete&&(r.fl<0||r.blocked||r.slip>0)).length;
+  const cols="grid-template-columns:minmax(130px,1.4fr) minmax(90px,1fr) minmax(110px,1fr) minmax(96px,.9fr) minmax(96px,1fr);gap:14px";
+  const bar=(d,t)=>`<div style="position:relative;height:8px;border-radius:5px;background:var(--void);min-width:70px;flex:1"><div style="position:absolute;height:8px;border-radius:5px;background:var(--green);width:${Math.round(d/t*100)}%"></div></div>`;
+  const rowHTML=r=>{const l=r.l; const act=`S.cardView='overview';openL('${l.slug}')`;
+    const sched=l.complete?`<span style="color:var(--green)">${T("已完成","done")}</span>`
+      :r.slip>0?`<span style="color:var(--red)">+${r.slip}d ${T("延遲","late")}</span>`
+      :`<span style="color:${r.fl<0?"var(--red)":"var(--green)"}">float ${r.fl}d</span>`;
+    const bt=r.bott?`<span style="color:${DCOLOR(r.bott.dept)};font-weight:600">${r.bott.onCP?"🔴 ":""}${esc(r.bott.dept)}</span>`:`<span class="ghostnote">—</span>`;
+    return `<div onclick="${act}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${act}}" role="button" tabindex="0" title="${esc(v3Narrative(l))}" style="display:grid;${cols};align-items:center;padding:10px 0;border-top:1px solid var(--line);cursor:pointer">
+      <span style="display:flex;align-items:center;gap:8px;min-width:0"><span class="pill ${r.cls}" style="font-size:10px;flex:none">${r.h}</span><b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(l.name)}</b></span>
+      <span class="ghostnote" style="font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.complete?T("完成","Complete"):esc(l.stage)}</span>
+      <span style="display:flex;align-items:center;gap:8px">${bar(r.done,r.total)}<span class="ghostnote" style="font-size:11px;flex:none;font-variant-numeric:tabular-nums">${r.done}/${r.total}</span></span>
+      <span style="font-size:12px;font-variant-numeric:tabular-nums">${sched}</span>
+      <span style="font-size:12px">${bt}</span>
+    </div>`;};
+  return `<div class="panel"><h3>${T("產品健康總覽 — 一眼看所有產品","Product health — all products at a glance")} <span class="ghostnote">${T("最需關注排最前 · 點列進該產品健康頁","most-at-risk first · click a row for its health page")}</span></h3>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:baseline;margin:2px 0 10px"><b style="font-size:14px">${T("進行中","Active")} ${active}</b><b style="font-size:14px;color:${atRisk?"var(--red)":"var(--green)"}">${T("需關注","At risk")} ${atRisk}</b></div>
+    <div style="overflow-x:auto"><div style="min-width:560px">
+    <div style="display:grid;${cols};padding:0 0 4px;font-size:10px;letter-spacing:.05em;color:var(--faint);text-transform:uppercase">
+      <span>${T("產品 / 健康","Product / health")}</span><span>${T("階段","Stage")}</span><span>${T("進度","Progress")}</span><span>${T("時程","Schedule")}</span><span>${T("瓶頸部門","Bottleneck")}</span></div>
+    ${rows.map(rowHTML).join("")||`<div class="sub">${T("尚無產品","no products")}</div>`}
+    </div></div>
+  </div>`;
+}
+// 📈 delay-trend analysis — A: portfolio total (one warm line, area wash); B: per-product decomposition
+// (categorical lines, CVD-validated set #3987e5/#199e70/#9085e9/#d55181, color bound to entity, >4 fold to 其他).
+function portfolioTrends(){
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  const dt=delayTrendByLaunch(24);
+  const wrap=inner=>`<div class="panel"><h3>${T("延遲趨勢分析","Delay-trend analysis")} <span class="ghostnote">${T("累積延遲天數隨時間變化 · 上升=擴大,走平／下降=收斂","cumulative delay days over time · rising = widening, flat/falling = converging")}</span></h3>${inner}</div>`;
+  if(!dt.total.some(v=>v>0.5)) return wrap(`<div class="empty-hero">${T("目前沒有累積延遲 — 所有產品都在預算天數內 🎉","No accumulated delay — every product is within its day budget 🎉")}</div>`);
+  const xTicks=[{i:0,label:fmt(dt.t0)},{i:dt.N-1,label:fmt(today)}];
+  // theme-aware colors: dark steps lose contrast on the light panel, so the light theme uses its own validated steps
+  const accent=THEME==="light"?"#e8641b":"#fb8b3d";
+  const CAT=THEME==="light"?["#2a78d6","#199e70","#6a5bd0","#c23a76"]:["#3987e5","#199e70","#9085e9","#d55181"];
+  const chartA=lineChartSVG([{name:T("全公司","Portfolio"),color:accent,pts:dt.total}],{aria:T("全公司累積延遲趨勢","portfolio cumulative delay trend"),xTicks,h:200,r:100});
+  // color bound to ENTITY (stable LAUNCHES order), not to delay rank — a product keeps its hue day to day; >4 fold into 其他
+  const withDelay=LAUNCHES.filter(l=>dt.series[l.slug]&&dt.series[l.slug][dt.N-1]>0.5);
+  const keep=withDelay.slice(0,4), rest=withDelay.slice(4);
+  const bSeries=keep.map((l,i)=>({name:l.name,color:CAT[i],pts:dt.series[l.slug]}));
+  if(rest.length){const other=new Array(dt.N).fill(0); rest.forEach(l=>dt.series[l.slug].forEach((v,k)=>other[k]+=v)); bSeries.push({name:T("其他","Other"),color:"var(--faint)",pts:other});}
+  const chartB=lineChartSVG(bSeries,{aria:T("各產品累積延遲趨勢","per-product cumulative delay trend"),xTicks,h:200,r:130});
+  const legend=`<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px">${bSeries.map(s=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--dim)"><span style="width:10px;height:10px;border-radius:2px;background:${s.color};flex:none"></span><!--notx-->${esc(s.name)}<!--/notx--> <b style="font-variant-numeric:tabular-nums">${Math.round(s.pts[dt.N-1])}d</b></span>`).join("")}</div>`;
+  return wrap(`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:22px">
+     <div><div class="sub" style="margin-bottom:4px">A · ${T("全公司延遲累積(總量)","Portfolio total")}</div>${chartA}<div class="ghostnote" style="margin-top:6px">${T("一條線＝全公司欠了幾天。曲線變陡＝延遲在加速。","One line = total days the portfolio is behind. Steeper = delay accelerating.")}</div></div>
+     <div><div class="sub" style="margin-bottom:4px">B · ${T("各產品分解(誰在拖)","By product")}</div>${chartB}${legend}</div>
+   </div>`);
+}
 /* ---- launch-detail lower-section helpers ---- */
 const renderLinkMenu=(task,slug,i)=>{const n=(task.links||[]).length+(task.codes||[]).length;const cnt=n>1?" ("+n+")":"";return `<details class="lnkmenu" onclick="event.stopPropagation()"><summary class="${n?"has":""}" title="${n?n+" attached":"attach a link, sheet, doc, or code"}">🔗 Links${cnt}</summary><div class="lnkmenu-b">${linkChips(task,slug,i)}</div></details>`;};
 function addLaunchNote(slug){ const inp=document.getElementById("note-"+slug); if(!inp)return; const t=(inp.value||"").trim(); if(!t)return; const l=L(slug); if(!l)return; (l.risks=l.risks||[]).push({t,a:noteAuthor(),owner:l.dri,d:today}); log("📝 Note added to "+l.name); save(); render(); toast("Note added"); }
 function delLaunchNote(slug,idx){ const l=L(slug); if(!l||!l.risks||!l.risks[idx])return; l.risks.splice(idx,1); log("🗑 Note removed from "+l.name); save(); render(); toast("Note deleted"); }
 // Launch-level notes: SAME note model + row component as per-task notes (author · date · optional urgency · delete). One notes system; the old risk score/owner/trigger fields degrade gracefully.
-function notesThread(l){ const rs=l.risks||[]; const items=rs.map((r,idx)=>({r,idx})).reverse();
+function notesThread(l){ const rs=l.risks||[], zh=LANG==="zh"; const items=rs.map((r,idx)=>({r,idx})).reverse();
   return `<div class="panel notes"><h3>📝 Notes &amp; decisions${rs.length?` <span class="ghostnote" style="font-weight:400">(${rs.length})</span>`:""}</h3>
-   <div class="tnotes">${items.map(({r,idx})=>{const txt=r.txt||r.t||"";const who=r.a||r.owner||"—";const urg=r.urg||(r.sc>=8?"urgent":"");return `<div class="tnote"><div class="tnote-h"><span class="tnote-m">${r.d?fmt(r.d)+" · ":""}${esc(who)}${urg&&urg!=="med"?` <span class="urg ${urg}">${urg}</span>`:""}</span><button class="lnkb tnote-x" title="delete note" onclick="delLaunchNote('${l.slug}',${idx})">✕</button></div><div class="tnote-t"><!--notx-->${esc(txt)}<!--/notx-->${r.trigger&&r.trigger!=="—"?` <span class="ghostnote">· trigger: ${esc(r.trigger)}</span>`:""}</div></div>`;}).join("")||'<div class="sub" style="padding:3px 0 6px">No notes yet — log decisions, risks, or launch context here.</div>'}</div>
-   <div class="tnote-add"><input type="text" id="note-${l.slug}" placeholder="Add a note or decision… (auto-signed as you)" onkeydown="if(event.key==='Enter'){event.preventDefault();addLaunchNote('${l.slug}')}"><button class="btn" onclick="addLaunchNote('${l.slug}')">Add</button></div>
+   <div class="tnotes">${items.map(({r,idx})=>{const txt=r.txt||r.t||"";const who=r.a||r.owner||"—";const urg=r.urg||(r.sc>=8?"urgent":"");return `<div class="tnote"><div class="tnote-h"><span class="tnote-m">${r.d?fmt(r.d)+" · ":""}${esc(who)}${urg&&urg!=="med"?` <span class="urg ${urg}">${urg}</span>`:""}</span><button class="lnkb tnote-x" title="${zh?"刪除備註":"delete note"}" onclick="delLaunchNote('${l.slug}',${idx})">✕</button></div><div class="tnote-t"><!--notx-->${esc(txt)}<!--/notx-->${r.trigger&&r.trigger!=="—"?` <span class="ghostnote">${zh?"· 觸發：":"· trigger: "}${esc(r.trigger)}</span>`:""}</div></div>`;}).join("")||`<div class="sub" style="padding:3px 0 6px">${zh?"尚無備註 — 記錄決策、風險或上市脈絡。":"No notes yet — log decisions, risks, or launch context here."}</div>`}</div>
+   <div class="tnote-add"><input type="text" id="note-${l.slug}" placeholder="${zh?"新增備註或決策…（自動署名為你）":"Add a note or decision… (auto-signed as you)"}" onkeydown="if(event.key==='Enter'){event.preventDefault();addLaunchNote('${l.slug}')}"><button class="btn" onclick="addLaunchNote('${l.slug}')">${zh?"新增":"Add"}</button></div>
   </div>`; }
 function chatRail(l){ if(!S.chatRailOpen) return `<button class="chat-badge" aria-expanded="false" onclick="S.chatRailOpen=true;render()" title="Open launch chat">💬 Chat</button>`;
   const sz=`${S.chatW?`width:${S.chatW}px;`:""}${S.chatH?`height:${S.chatH}px;max-height:none;`:""}`;
@@ -3117,6 +3361,51 @@ function v3DaysCtl(l,t,i){
   if(n.days===0)return "";                 // milestone/event — the day figure lives in the detail panel, not the outer row
   if(n.days!=null)return "";               // fixed days — shown as 預設天數 in the panel; no outer badge
   return `<span class="v3days-in"><input type="number" min="0" value="${t.days==null?"":t.days}" placeholder="${esc(v3T(n.ref)||"?")}" title="${LANG==="zh"?"天數（此步驟每個產品不同，手動填寫）":"days — varies per product, fill in manually"}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${i},this.value)">d</span>`;
+}
+// 📊 health overview — verdict + plan-vs-actual timeline + department comparison (find the bottleneck)
+function v3Overview(l){
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  const [h,cls]=health(l), slip=projectedSlip(l), fl=floatDays(l);
+  // ---- ① verdict strip ----
+  const kv=(k,v,c)=>`<span style="display:inline-flex;gap:6px;align-items:baseline"><span class="ld-stat-k">${k}</span><b${c?` style="color:${c}"`:""}>${v}</b></span>`;
+  const verdict=`<div class="panel" style="display:flex;flex-wrap:wrap;align-items:center;gap:14px 20px">
+    <span class="pill ${cls}" style="font-size:13.5px">${h}</span>
+    <b style="font-size:15px;flex:1 1 240px">${esc(v3Narrative(l))}</b>
+    <span style="display:flex;gap:18px;flex-wrap:wrap">${kv(T("目標","Target"),fmt(l.target))}${kv(T("預測","Forecast"),fmt(forecastDate(l)))}${kv("Float",fl+"d",fl<0?"var(--red)":"var(--green)")}${slip>0?kv(T("預估延遲","Slip"),slip+"d","var(--red)"):""}</span>
+  </div>`;
+  // ---- ② plan vs actual, by phase ----
+  const segBy={}; segments(l).forEach(s=>segBy[s.stage]=s);
+  const maxD=Math.max(1,...STAGES.map(s=>Math.max(stageDayBudget(l,s),segBy[s]?segBy[s].days:0)));
+  const barW=d=>Math.max(2,d/maxD*100);
+  const trows=STAGES.map((s,i)=>{ const plan=stageDayBudget(l,s), seg=segBy[s];
+    const passed=l.complete||STAGES.indexOf(l.stage)>i, cur=seg&&seg.cur, over=seg?seg.over:0;
+    const aCol=over>0?"var(--red)":cur?"var(--amber)":"var(--green)";
+    return `<div style="display:grid;grid-template-columns:118px 1fr 84px;gap:10px;align-items:center;padding:4px 0">
+      <span style="font-size:12px;color:${cur?"var(--text)":"var(--dim)"};font-weight:${cur?700:400}">${esc(s)}${cur?" ●":""}</span>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <div style="height:8px;border-radius:5px;background:var(--line);width:${barW(plan)}%" title="${T("規劃","plan")} ${plan}d"></div>
+        ${seg?`<div style="height:8px;border-radius:5px;background:${aCol};width:${barW(seg.days)}%" title="${T("實際","actual")} ${seg.days}d"></div>`:`<div style="height:8px"></div>`}
+      </div>
+      <span class="ghostnote" style="font-size:11px;text-align:right">${seg?`${seg.days}/${plan}d${over>0?` <span style="color:var(--red)">+${over}</span>`:""}`:passed?`${plan}d`:`${plan}d ${T("待進","soon")}`}</span>
+    </div>`;}).join("");
+  const timeline=`<div class="panel"><h3>${T("規劃 vs 實際 — 各階段","Plan vs actual — by phase")} <span class="ghostnote">${T("灰=規劃 · 綠/黃/紅=實際(紅=超時)","grey=plan · green/amber/red=actual (red=over)")}</span></h3>${trows}</div>`;
+  // ---- ③ department comparison (bullet bars; behind first) ----
+  const dh=v3DeptHealth(l), maxB=Math.max(1,...dh.map(g=>Math.max(g.budgetSoFar||g.budget,g.actual)));
+  const sMap={behind:["var(--red)",T("落後","behind")],ontrack:["var(--amber)",T("準時","on track")],ahead:["var(--green)",T("超前","ahead")]};
+  const drows=dh.map(g=>{ const col=DCOLOR(g.dept), base=g.budgetSoFar||g.budget, behind=g.status==="behind", [sc,st]=sMap[g.status];
+    const act=`v3jumpDept('${l.slug}','${esc(g.dept)}')`;
+    return `<div onclick="${act}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${act}}" role="button" tabindex="0" style="display:grid;grid-template-columns:118px 1fr auto auto;gap:12px;align-items:center;padding:7px 0;border-top:1px solid var(--line);cursor:pointer" title="${T("點擊跳到此部門最該處理的任務","jump to this dept's most-actionable task")}">
+      <span style="font-size:12.5px;color:${col};font-weight:600">${esc(g.dept)}${g.onCP&&behind?` <span title="${T("在關鍵路徑上 — 直接拖累上市日","on the critical path — delays the launch date")}">🔴</span>`:""}</span>
+      <div style="position:relative;height:12px">
+        <div style="position:absolute;inset:0;border-radius:6px;background:var(--void)"></div>
+        <div style="position:absolute;height:12px;border-radius:6px;background:${behind?"var(--red)":col};opacity:.85;width:${Math.max(3,Math.min(100,g.actual/maxB*100))}%" title="${T("實際","actual")} ${g.actual}d"></div>
+        <div style="position:absolute;top:-2px;height:16px;width:2px;background:var(--text);left:${Math.min(100,base/maxB*100)}%" title="${T("已開工預算","budget so far")} ${base}d"></div>
+      </div>
+      <span class="ghostnote" style="font-size:11px;text-align:right;min-width:96px;font-variant-numeric:tabular-nums" title="${T("實際耗時／已開工階段預算 · 已完成／總步驟","actual / started-stage budget · done/total steps")}">${g.actual}/${base}d · ${g.done}/${g.total}✓</span>
+      <span style="color:${sc};font-weight:600;font-size:11.5px;min-width:44px;text-align:right">${st}</span>
+    </div>`;}).join("");
+  const deptPanel=`<div class="panel"><h3>${T("部門健康 — 找瓶頸","Department health — find the bottleneck")} <span class="ghostnote">${T("條=實際耗時 · 直線=已開工預算 · 落後排最前","bar=actual · tick=started-stage budget · behind first")}</span></h3>${drows||`<div class="sub">${T("尚無資料","no data yet")}</div>`}</div>`;
+  return verdict+`<div style="height:12px"></div>`+timeline+`<div style="height:12px"></div>`+deptPanel;
 }
 function v3Dash(l){
   const zh=LANG==="zh"; const T=(z,e)=>zh?z:e;
@@ -3181,31 +3470,33 @@ function viewLaunch(){
       <div class="ld-title-row"><h2 class="ld-title">${esc(l.name)}</h2><span class="pill ${cls}">${h}</span></div>
     </div>
     <div class="ld-actions" role="group" aria-label="Launch actions">
-      <button class="ld-act" title="Edit this launch's name and target date" onclick="editLaunch('${l.slug}')">✏️<span class="ld-act-t">Edit</span></button>
-      ${l.driveFolderUrl?`<a class="ld-act" href="${l.driveFolderUrl}" target="_blank" title="Open this launch's folder in the shared BV SuperPM Drive folder">📁<span class="ld-act-t">Folder</span></a>`:`<button class="ld-act" title="Create a folder for this launch inside the shared BV SuperPM Drive folder (existing files stay where they are; new ones go here)" onclick="createLaunchFolder('${l.slug}')">📁<span class="ld-act-t">Folder</span></button>`}
-      <button class="ld-act danger" title="Delete this launch (and optionally its Drive folder)" onclick="deleteLaunch('${l.slug}')">🗑️<span class="ld-act-t">Delete</span></button>
+      <button class="ld-act" title="${LANG==="zh"?"編輯此上市案的名稱與目標日期":"Edit this launch's name and target date"}" onclick="editLaunch('${l.slug}')">✏️<span class="ld-act-t">${LANG==="zh"?"編輯":"Edit"}</span></button>
+      ${l.driveFolderUrl?`<a class="ld-act" href="${l.driveFolderUrl}" target="_blank" title="${LANG==="zh"?"在共用的 BV SuperPM Drive 資料夾中開啟此上市案的資料夾":"Open this launch's folder in the shared BV SuperPM Drive folder"}">📁<span class="ld-act-t">${LANG==="zh"?"資料夾":"Folder"}</span></a>`:`<button class="ld-act" title="${LANG==="zh"?"在共用的 BV SuperPM Drive 資料夾中為此上市案建立資料夾（既有檔案留在原處，新檔案放這裡）":"Create a folder for this launch inside the shared BV SuperPM Drive folder (existing files stay where they are; new ones go here)"}" onclick="createLaunchFolder('${l.slug}')">📁<span class="ld-act-t">${LANG==="zh"?"資料夾":"Folder"}</span></button>`}
+      <button class="ld-act danger" title="${LANG==="zh"?"刪除此上市案（可一併刪除其 Drive 資料夾）":"Delete this launch (and optionally its Drive folder)"}" onclick="deleteLaunch('${l.slug}')">🗑️<span class="ld-act-t">${LANG==="zh"?"刪除":"Delete"}</span></button>
     </div>
   </div>
   <div class="ld-stats">
     <div class="ld-stat"><span class="ld-stat-k">DRI</span><span class="ld-stat-v" style="color:${DCOLOR(l.dri)}">${esc(l.dri)}</span></div>
-    ${l.complete?"":`<div class="ld-stat"><span class="ld-stat-k">Now at</span><span class="ld-stat-v" style="color:${DCOLOR(progressDept(l))}">${esc(progressDept(l)||"—")}</span></div>`}
-    <div class="ld-stat"><span class="ld-stat-k">Stage</span><span class="ld-stat-v">${l.complete?"Complete":esc(l.stage)}</span></div>
-    <div class="ld-stat"><span class="ld-stat-k">Target</span><span class="ld-stat-v">${fmt(l.target)}</span></div>
+    ${l.complete?"":`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"目前在":"Now at"}</span><span class="ld-stat-v" style="color:${DCOLOR(progressDept(l))}">${esc(progressDept(l)||"—")}</span></div>`}
+    <div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"階段":"Stage"}</span><span class="ld-stat-v">${l.complete?(LANG==="zh"?"已完成":"Complete"):esc(l.stage)}</span></div>
+    <div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"目標":"Target"}</span><span class="ld-stat-v">${fmt(l.target)}</span></div>
     ${l.complete?"":`<div class="ld-stat"><span class="ld-stat-k">Float</span><span class="ld-stat-v"><b style="color:${floatDays(l)<0?"var(--red)":"var(--green)"}">${floatDays(l)}d</b></span></div>
-    <div class="ld-stat"><span class="ld-stat-k">Velocity</span><span class="ld-stat-v">${velocity(l).toFixed(1)}/wk</span></div>
-    <div class="ld-stat"><span class="ld-stat-k">Forecast</span><span class="ld-stat-v">${fmt(forecastDate(l))}</span></div>
-    <div class="ld-stat ld-stat-rd"><span class="ld-stat-k">Gate readiness</span>${readinessPop(l)}</div>`}
+    <div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"速度":"Velocity"}</span><span class="ld-stat-v">${velocity(l).toFixed(1)}/wk</span></div>
+    <div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"預測":"Forecast"}</span><span class="ld-stat-v">${fmt(forecastDate(l))}</span></div>
+    <div class="ld-stat ld-stat-rd ld-readycluster"><span class="ld-ready-item"><span class="ld-stat-k">Gate readiness</span>${readinessPop(l)}</span><span class="ld-ready-item"><span class="ld-stat-k">${LANG==="zh"?"待填天數":"Days pending"}</span>${daysPendingPop(l)}</span></div>`}
   </div>
 
-  ${(()=>{const zh=LANG==="zh";const view=S.cardView==="dash"?"dash":"flow";
+  ${(()=>{const zh=LANG==="zh";const view=S.cardView==="dash"?"dash":S.cardView==="overview"?"overview":"flow";
     const tabs=`<span class="ld-cardnav">
        <button class="ld-cardtab${view==="flow"?" on":""}" onclick="S.cardView='flow';render()">🗺 ${zh?"流程圖":"Flow chart"}</button>
        <button class="ld-cardtab${view==="dash"?" on":""}" onclick="S.cardView='dash';render()">🎛 ${zh?"上市儀表板":"Launch dashboard"}</button>
+       <button class="ld-cardtab${view==="overview"?" on":""}" onclick="S.cardView='overview';render()">📊 ${zh?"健康總覽":"Overview"}</button>
      </span>`;
-    // both views share an IDENTICAL header (just the tabs) so switching flow⇄dashboard never shifts the surrounding chrome
+    // all views share an IDENTICAL header (just the tabs) so switching never shifts the surrounding chrome
+    if(view==="overview") return `<div class="ld-cardhead">${tabs}</div>${v3Overview(l)}`;
     if(view==="dash") return `<div class="ld-cardhead">${tabs}</div>${v3Dash(l)}`;
     return `<div class="ld-cardhead">${tabs}</div>${flowSVG(l)}
-    <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>${zh?"完成":"done"}</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>${zh?"進行中":"in progress"}</span><span><i style="background:#331414;border:1px solid #f87171"></i>${zh?"卡關":"blocked"}</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>${zh?"待做":"to do"}</span><span><i style="background:#15171b;border:1px solid #262b32"></i>${zh?"未解鎖":"upcoming"}</span><span style="color:var(--purple)">◆ ${zh?"決策關卡":"decision gate"}</span><span class="ghostnote">🔗 ${zh?"點任一步驟＝亮出前置／解鎖":"click a step = show its deps"}</span></div>`;})()}
+    <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>${zh?"完成":"done"}</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>${zh?"進行中":"in progress"}</span><span><i style="background:#331414;border:1px solid #f87171"></i>${zh?"卡關":"blocked"}</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>${zh?"待做":"to do"}</span><span><i style="background:#15171b;border:1px solid #262b32"></i>${zh?"未解鎖":"upcoming"}</span><span style="color:var(--purple)">◆ ${zh?"決策關卡":"decision gate"}</span><span class="ghostnote">🔗 ${zh?"點任一步驟＝亮出前置／解鎖":"click a step = show its deps"}</span></div>
     <div class="twocol ld2"><div>
     <div class="secdiv"><h4>${LANG==="zh"?"上市進度 — 依階段":"Launch progress — by phase"}</h4><div class="sub">${LANG==="zh"?"每一步在前置完成後才解鎖（🔒 會顯示在等誰）。天數可調的步驟直接在列上填。":"Each step unlocks when its prerequisites are done (🔒 shows what it's waiting on). Fill adjustable days right on the row."}</div></div>
     ${stageTimeline(l)}
@@ -3213,7 +3504,7 @@ function viewLaunch(){
     ${renderBriefsPanel(l)}
     ${renderResearchPanel(l)}
     ${notesThread(l)}
-  </div></div>
+  </div></div>`;})()}
   ${chatRail(l)}`;
 }
 function viewDept(){
@@ -3497,6 +3788,41 @@ function sparkSVG(pts,color,label){
     <path d="${area}" fill="${color}" opacity=".12"/>
     <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
     <circle cx="${P[n-1][0].toFixed(1)}" cy="${P[n-1][1].toFixed(1)}" r="3.5" fill="${color}" stroke="var(--panel)" stroke-width="2"/></svg>`;
+}
+// round a max up to a clean axis tick (1/2/5 × 10^k) so gridlines read as round numbers
+function niceMax(v){ if(!isFinite(v)||v<=0)return 1; const p=Math.pow(10,Math.floor(Math.log10(v))); const f=v/p; const n=[1,1.5,2,2.5,3,4,5,6,8,10].find(s=>f<=s)||10; return n*p; }
+// analytical line chart: real x/y axes, recessive grid, round ticks, 2px lines, endpoint dot + direct label,
+// per-point <title> for native hover. series=[{name,color,pts:number[]}]. Single series gets an area wash;
+// multi-series lean on direct labels (the CVD floor-band secondary encoding). opts.xTicks=[{i,label}].
+function lineChartSVG(series,opts){
+  opts=opts||{}; const W=opts.w||520,H=opts.h||210,m={t:14,r:opts.r||70,b:30,l:38};
+  const iw=W-m.l-m.r, ih=H-m.t-m.b;
+  const n=Math.max(2,...series.map(s=>s.pts.length));
+  const nice=niceMax(Math.max(...series.flatMap(s=>s.pts),0));
+  const X=i=>m.l+iw*(n<2?0:i/(n-1)), Y=v=>m.t+ih*(1-v/nice);
+  let grid="",ylab="";
+  for(let g=0;g<=4;g++){const val=nice*g/4,y=Y(val);
+    grid+=`<line x1="${m.l}" y1="${y.toFixed(1)}" x2="${(m.l+iw).toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1" opacity="${g===0?".8":".4"}"/>`;
+    ylab+=`<text x="${m.l-7}" y="${(y+3).toFixed(1)}" text-anchor="end" font-size="9.5" fill="var(--faint)" style="font-variant-numeric:tabular-nums">${Math.round(val)}</text>`;}
+  let xlab=""; (opts.xTicks||[]).forEach(t=>{xlab+=`<text x="${X(t.i).toFixed(1)}" y="${H-9}" text-anchor="${t.i===0?"start":t.i>=n-1?"end":"middle"}" font-size="9.5" fill="var(--faint)">${esc(t.label)}</text>`;});
+  let body=""; const ends=[];
+  series.forEach(s=>{ if(!s.pts||!s.pts.length)return; const P=s.pts.map((v,i)=>[X(i),Y(v)]); const li=P.length-1;   // per-series last index — series can differ in length
+    const line=P.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ");
+    if(series.length===1){const area=`M${P[0][0].toFixed(1)},${Y(0).toFixed(1)} `+P.map(p=>`L${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ")+` L${P[li][0].toFixed(1)},${Y(0).toFixed(1)} Z`;
+      body+=`<path d="${area}" fill="${s.color}" opacity=".13"/>`;}
+    body+=`<polyline points="${line}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+    P.forEach((p,i)=>{body+=`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="7" fill="transparent"><title>${esc(s.name)} · ${Math.round(s.pts[i])}d</title></circle>`;});
+    const last=P[li];
+    body+=`<circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="3.5" fill="${s.color}" stroke="var(--panel)" stroke-width="2"/>`;
+    ends.push({y:last[1],dotY:last[1],x:last[0]+7,color:s.color,text:esc(s.name)+" "+Math.round(s.pts[li])+"d"});});
+  // de-collide endpoint labels: sort by y, push apart to a minimum gap, clamp inside the plot
+  ends.sort((a,b)=>a.y-b.y); const GAP=13;
+  for(let i=1;i<ends.length;i++) if(ends[i].y<ends[i-1].y+GAP) ends[i].y=ends[i-1].y+GAP;
+  const bot=H-6; if(ends.length&&ends[ends.length-1].y>bot){let over=ends[ends.length-1].y-bot; for(let i=ends.length-1;i>=0;i--){ends[i].y-=over; if(i>0&&ends[i].y-ends[i-1].y>=GAP)break; }}
+  const labels=ends.map(e=>`<text x="${e.x.toFixed(1)}" y="${(e.y+3.5).toFixed(1)}" font-size="10.5" font-weight="600" fill="${e.color}" style="font-variant-numeric:tabular-nums">${e.text}</text>`
+    +(Math.abs(e.y-e.dotY)>2?`<line x1="${(e.x-3).toFixed(1)}" y1="${(e.dotY).toFixed(1)}" x2="${(e.x-1).toFixed(1)}" y2="${(e.y+1).toFixed(1)}" stroke="${e.color}" stroke-width="1" opacity=".5"/>`:"")).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${esc(opts.aria||"trend chart")}" style="max-width:100%;display:block">
+    ${grid}${ylab}${xlab}${body}${labels}</svg>`;
 }
 function viewTimeline(){
   const PXD=2.6; // pixels per day
@@ -4476,6 +4802,8 @@ function runChatTool(slug,name,input){
     if(name==="set_task_status"){ const map={todo:"o",in_progress:"p",done:"x",blocked:"b"}; const nx=map[input.status]; if(!nx)return {summary:"",text:"Unknown status."};
       const q=(input.task||"").toLowerCase(); const t=(l.tasks||[]).find(t=>t.t.toLowerCase().includes(q)); if(!t)return {summary:"",text:"No task matching “"+(input.task||"")+"”."};
       const r=applyTaskStatus(l,t,nx); if(!r.ok)return {summary:"⛔ can't",text:"Can't set “"+t.t+"” to "+input.status+" — "+r.reason+". The board's lock-order and evidence rules apply to the assistant exactly as they do to people; finish the prerequisite or attach the evidence first."};
+      if(nx==="p"&&!t.startAt)t.startAt=today; if(nx==="x"){t.doneAt=today; if(!t.startAt)t.startAt=today;} else if(t.doneAt)delete t.doneAt;   // stamp actuals like every human path
+      v3Advance(l);   // re-derive phase after an assistant-driven status change — same as cycle()/approve(); otherwise stage/complete stay stale
       save(); return {summary:"✓ "+t.t+"→"+input.status,text:"Set “"+t.t+"” to "+input.status+" (recorded in the activity feed)."}; }
     return {summary:"",text:"Unknown tool "+name};
   }catch(e){ return {summary:"",text:"Tool error: "+e}; }
@@ -5292,7 +5620,7 @@ function render(){
   if(S.view!=="launch")FLOWSEEN="";   // left the flow view → next open replays the entrance (once), not on in-view re-renders
   if(S.view==="launch") html=viewLaunch();
   else if(S.view==="digest") html=viewDigest();
-  else if(S.view==="portfolio") html=`<h2>Portfolio <button class="btn" style="margin-left:8px" onclick="newLaunch()">+ New launch</button></h2><div class="sub">Every launch by stage. New cards start fully locked except the intake Form.</div>${portfolioBoard()}`;
+  else if(S.view==="portfolio") html=`<h2>Portfolio <button class="btn" style="margin-left:8px" onclick="newLaunch()">+ New launch</button></h2><div class="sub">${LANG==="zh"?"依階段的流程總覽在上,各產品健康與進度明細在下(最需關注排最前)。":"Stage pipeline up top; per-product health and progress below (most-at-risk first)."}</div>${portfolioBoard()}${portfolioOverview()}`;
   else if(S.view==="progress") html=viewProgress();
   else if(S.view==="timeline") html=viewTimeline();
   else if(S.view==="dept") html=viewDept();
