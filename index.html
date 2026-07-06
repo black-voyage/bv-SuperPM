@@ -639,6 +639,18 @@
   .ld-rd-trig.warn{color:var(--amber);border-color:rgba(251,191,36,.4)}
   .ld-rd-trig.ok{color:var(--green);border-color:rgba(74,222,128,.4)}
   .ld-rd-trig:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  /* ── 預計上市日：Form 未送出提示 + 待補天數提醒（沒填天數的任務會讓預計日偏早） ── */
+  .ld-formnudge{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:-6px 0 18px;padding:11px 14px;border:1px solid rgba(251,191,36,.34);background:rgba(251,191,36,.07);border-radius:var(--r-sm,12px);font-size:13px;color:var(--dim)}
+  .ld-pending{margin:-6px 0 18px;padding:12px 14px;border:1px solid var(--line);background:var(--panel2);border-radius:var(--r-sm,12px)}
+  .ld-pending .pdrow{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-bottom:8px}
+  .ld-pending .pdrow:last-of-type{margin-bottom:6px}
+  .ld-pending .sub{font-size:11.5px;color:var(--faint);margin:0}
+  .pdlbl{font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+  .pdlbl.red{color:var(--red)}
+  .pdchip{cursor:pointer;font-size:12px;line-height:1;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--dim);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pdchip:hover{border-color:var(--accent);color:var(--text)}
+  .pdchip.cp{border-color:rgba(248,113,113,.5);color:var(--text)}
+  .v3pdwarn{color:var(--red);font-weight:700;font-size:12px}
   .ld-rd-pop{position:absolute;right:0;top:calc(100% + 7px);z-index:30;min-width:200px;opacity:0;visibility:hidden;transform:translateY(-5px);transition:opacity .16s ease-out,transform .16s ease-out,visibility .16s;background:var(--glass2);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:inset 0 1px 0 var(--edge),var(--sh-md);padding:9px 10px}
   .ld-rd:hover .ld-rd-pop,.ld-rd:focus-within .ld-rd-pop{opacity:1;visibility:visible;transform:translateY(0)}
   .ld-rd-pop-h{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:7px}
@@ -1037,6 +1049,7 @@ function v3Advance(l){ // derive stage (= first phase with open work) + complete
   if(l.complete)l.complete=false;
   const ph=v3CurPhase(l);
   if(ph!==l.stage){ const h=l.history[l.history.length-1]; if(h&&!h.end)h.end=today; l.history.push({stage:ph,start:today}); l.stage=ph; }
+  syncProjected(l);   // 任一狀態變更（勾完成 C1、gate 核准…）都經 v3Advance → 重算預計上市日並鏡射到 l.target
 }
 function v3cycle(slug,i,dir){
   const l=L(slug),t=l&&l.tasks[i]; if(!l||!t||!t.code)return;
@@ -1048,10 +1061,10 @@ function v3cycle(slug,i,dir){
   if(nx==="x"){t.doneAt=today;logEvent("milestone","✓ 完成 · "+l.name+" — "+t.code+" "+t.t,{card:l.slug});}
   else delete t.doneAt;
   if(nx==="b")logEvent("blocked","⛔ 卡關 · "+l.name+" — "+t.code+" "+t.t,{card:l.slug});
-  v3Advance(l); save(); render();
+  v3Advance(l); syncProjected(l); save(); render();
 }
-function v3SetDays(slug,i,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;const n=parseInt(v,10);t.days=isNaN(n)?null:n;save();render();}
-function v3SetDate(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;t[k]=v||"";save();render();}
+function v3SetDays(slug,i,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;const n=parseInt(v,10);t.days=isNaN(n)?null:n;syncProjected(l);save();render();}
+function v3SetDate(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;t[k]=v||"";syncProjected(l);save();render();}
 function v3SetTarget(slug,v){const l=L(slug);if(!l)return;l.target=v||l.target;log("🎯 目標上市日 → "+l.target+" · "+l.name);save();render();}
 // 倒推紅旗: remaining calendar-days estimate to finish `code` = longest unmet req chain (memoized by VALUE —
 // a plain visited-set would zero out shared upstreams on diamond deps like D6←D5-chain vs D6←MS3b-chain)
@@ -1338,6 +1351,25 @@ function v3CriticalPath(l){
   V3.forEach(n=>{const b=best(n.c); if(b.len>top.len)top=b;});
   return top.path;
 }
+/* ── 上市日期模型：開啟日（建卡）· Form 送出日（C1 完成）· 預計上市日（＝送出日＋關鍵路徑天數）──
+   合併決策：l.target 永遠鏡射「預計上市日」，任何任務天數一改就自動重算（syncProjected）。
+   days:null 又沒填天數的任務會讓關鍵路徑少算 → v3PendingDays 列成「待補」，UI 主動提醒補填。 */
+const openDate=l=>(l.history&&l.history[0]&&l.history[0].start)||"";
+const formSubmitDate=l=>{const t=v3Task(l,"C1"); if(!t||t.st!=="x")return ""; return t.doneAt||openDate(l);}; // C1 完成＝送出；舊卡沒蓋章就退回開啟日
+const isSubmitted=l=>!!formSubmitDate(l);
+const v3PlanDays=l=>v3CriticalPath(l).reduce((a,c)=>a+v3DayOf(l,c),0);   // 關鍵路徑（最長 req 鏈）總天數
+function projLaunchDate(l){                                              // 預計上市日
+  if(l.complete){const h=(l.history||[]).slice(-1)[0]; return (h&&h.end)||l.target||openDate(l);}
+  return v3AddD(formSubmitDate(l)||today, v3PlanDays(l));                 // 未送出時以今天暫估（送出後鎖在送出日）
+}
+function syncProjected(l){ if(l&&!l.complete){const p=projLaunchDate(l); if(p)l.target=p;} } // 讓 l.target 鏡射預計上市日
+// days:null 且未填的任務：miss＝無 est 退路（當 0，預計日偏早，必填）；soft＝有 est 預設可頂著（建議確認）。onCP＝落在關鍵路徑上。
+function v3PendingDays(l){
+  const cp=new Set(v3CriticalPath(l)), miss=[], soft=[];
+  V3.forEach(n=>{ if(n.days!=null)return; const t=v3Task(l,n.c); if(!t||t.st==="x"||t.days!=null)return;
+    (n.est!=null?soft:miss).push({code:n.c, t:t.t, d:n.dept, onCP:cp.has(n.c)}); });
+  const rank=(a,b)=>(b.onCP-a.onCP); return {miss:miss.sort(rank), soft:soft.sort(rank)};
+}
 // per-department health: planned-day budget vs actual elapsed vs remaining, a RAG status, and whether
 // the dept sits on the critical path. Actual is derived from the stage timeline (history) — each started
 // stage's real elapsed is split across its departments by their planned day-budget weight — so it's
@@ -1490,12 +1522,12 @@ function newLaunch(){
   const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
   if(!slug||L(slug)){toast("A launch with that name already exists");return;}
   const dri=prompt("DRI department?","Product")||"Product";
-  const target=prompt("Target launch date（目標上市日）(YYYY-MM-DD)?",new Date(D(today).getTime()+180*864e5).toISOString().slice(0,10));
-  LAUNCHES.push({name,slug,dri:DEPTS().includes(dri)?dri:"Product",stage:STAGES[0],target:target||"2026-12-31",
+  const nl={name,slug,dri:DEPTS().includes(dri)?dri:"Product",stage:STAGES[0],target:"",
     history:[{stage:STAGES[0],start:today}],tasks:allTasks({}),risks:[],
-    checkins:[{d:today,a:"system",txt:"Card created from the Shopify flow. Fill the intake Form (C1) to unlock the pipeline."}]});
+    checkins:[{d:today,a:"system",txt:"Card created from the Shopify flow. Fill the intake Form (C1) to unlock the pipeline."}]};
+  LAUNCHES.push(nl); syncProjected(nl);   // 預計上市日改由「送出日＋任務天數」自動推算，不再手填目標日
   log("🆕 New launch created: "+name);
-  toast("🆕 "+name+" created — fill the intake Form to unlock the pipeline"); openL(slug);
+  toast(LANG==="zh"?"🆕 "+name+" 已建立 —— 填寫 intake Form 以解鎖流程":"🆕 "+name+" created — fill the intake Form to unlock the pipeline"); openL(slug);
   createLaunchFolder(slug); // also create a matching folder inside the shared "BV SuperPM" Drive folder
 }
 
@@ -1531,7 +1563,7 @@ function signInGoogle(){
     fetch("https://www.googleapis.com/oauth2/v3/userinfo",{headers:{Authorization:"Bearer "+tok}}).then(r=>r.json()).then(u=>{
       GAUTH.email=u.email||""; GAUTH.name=u.name||u.email||"Google user";
       try{localStorage.setItem("bv-gsignedin","1");}catch(e){}
-      renderGAuth(); toast("✅ Signed in as "+(GAUTH.email||GAUTH.name));
+      renderGAuth(); toast(LANG==="zh"?"✅ 已登入為 "+(GAUTH.email||GAUTH.name):"✅ Signed in as "+(GAUTH.email||GAUTH.name));
     }).catch(()=>{renderGAuth();toast("✅ Signed in to Google");});
   }).catch(err=>{ toast(err&&err.kind==="unconfigured"?"⚠️ Add a Google Client ID first":"Google sign-in cancelled"); });
 }
@@ -1559,7 +1591,7 @@ function createDriveDoc(slug,i,kind){
   const name=isCamp?("BV-SuperPM-"+((curCamp()||{name:"Campaign"}).name)+"-"+t.t):(isIntake?("BV-SuperPM-"+l.name):("BV-SuperPM-"+l.name+"-"+t.t)); // BV-SuperPM-<product / use-case>
   const kindLabel=kind==="doc"?"Doc":"Sheet";
   if(GAUTH.token&&!gHasDrive())GAUTH.token=null; // drop a stale token that lacks Drive access so we re-consent
-  toast("Creating Google "+kindLabel+" “"+name+"”…");
+  toast(LANG==="zh"?"正在建立 Google "+kindLabel+"「"+name+"」…":"Creating Google "+kindLabel+" “"+name+"”…");
   gGetToken(true).then(tok=>{
     if(!gHasDrive())throw {kind:"noscope"};
     const parentFolder=(l&&l.driveFolderId)?l.driveFolderId:GOOGLE_FOLDER_ID; // prefer this launch's own folder, else the shared root
@@ -1575,13 +1607,13 @@ function createDriveDoc(slug,i,kind){
   }).then(d=>{
     const url=d.webViewLink||("https://drive.google.com/open?id="+d.id);
     t.links=t.links||[]; t.links.push({n:d.name||name,u:url});
-    if(isIntake){ t.st="x"; l.checkins.unshift({d:today,a:actor(),txt:`Intake ${kindLabel} “${d.name||name}” created (anyone-with-link can edit) — pipeline unlocked.`}); }
+    if(isIntake){ t.st="x"; t.doneAt=today; v3Advance(l); l.checkins.unshift({d:today,a:actor(),txt:`Intake ${kindLabel} “${d.name||name}” created (anyone-with-link can edit) — pipeline unlocked.`}); } // 送出日＝今天，並經 v3Advance 重算預計上市日
     log("📄 "+kindLabel+" created: "+(d.name||name)+(GAUTH.email?(" · by "+GAUTH.email):"")); save(); render();
-    toast("✅ "+kindLabel+" created (anyone-with-link can edit)"+(isIntake?" · pipeline unlocked":"")); window.open(url,"_blank");
+    toast(LANG==="zh"?"✅ "+kindLabel+" 已建立(知道連結者皆可編輯)"+(isIntake?" · pipeline 已解鎖":""):"✅ "+kindLabel+" created (anyone-with-link can edit)"+(isIntake?" · pipeline unlocked":"")); window.open(url,"_blank");
   }).catch(err=>{
     if(err&&err.kind==="unconfigured"){toast("⚠️ Add a Google Client ID first");}
     else if(err&&err.kind==="noscope"){toast("Re-connect Google and CHECK the “Google Drive” permission box so files can be created.");}
-    else{toast("Couldn't create: "+(typeof err==="string"?err:"sign-in needed, folder not accessible, or sharing blocked by your org"));}
+    else{toast(LANG==="zh"?"無法建立:"+(typeof err==="string"?err:"需要登入、資料夾無法存取,或存取權限被你的組織封鎖"):"Couldn't create: "+(typeof err==="string"?err:"sign-in needed, folder not accessible, or sharing blocked by your org"));}
   });
 }
 
@@ -1600,7 +1632,7 @@ function createLaunchFolder(slug,_tries){
   }
   if(GAUTH.token&&!gHasDrive())GAUTH.token=null; // drop a stale token lacking Drive access so we re-consent
   const fname="BV-SuperPM-"+l.name; // folder named after the product, matching the Doc/Sheet naming
-  toast("Creating Drive folder “"+fname+"”…");
+  toast(LANG==="zh"?"正在建立 Drive 資料夾「"+fname+"」…":"Creating Drive folder “"+fname+"”…");
   gGetToken(true).then(tok=>{
     if(!gHasDrive())throw {kind:"noscope"};
     const body={name:fname,mimeType:"application/vnd.google-apps.folder"};
@@ -1618,28 +1650,25 @@ function createLaunchFolder(slug,_tries){
     cur.driveFolderId=d.id; cur.driveFolderUrl=d.webViewLink||("https://drive.google.com/open?id="+d.id);
     cur.checkins.unshift({d:today,a:actor(),txt:`Drive folder “${d.name||fname}” created in BV SuperPM (anyone-with-link can edit) — new files for this launch are saved there.`});
     log("📁 Drive folder created: "+(d.name||fname)+(GAUTH.email?(" · by "+GAUTH.email):"")); save(); render();
-    toast("📁 Drive folder “"+(d.name||fname)+"” created in BV SuperPM");
+    toast(LANG==="zh"?"📁 Drive 資料夾「"+(d.name||fname)+"」已在 BV SuperPM 建立":"📁 Drive folder “"+(d.name||fname)+"” created in BV SuperPM");
   }).catch(err=>{
     if(err&&err.kind==="noscope"){toast("Folder not created — re-connect Google and CHECK the “Google Drive” box.");}
     else if(err&&(err.kind==="denied"||err.kind==="unconfigured")){/* sign-in cancelled — card still created locally */}
-    else{toast("Couldn't create Drive folder: "+(typeof err==="string"?err:"sign-in needed or blocked by your org"));}
+    else{toast(LANG==="zh"?"無法建立 Drive 資料夾:"+(typeof err==="string"?err:"需要登入,或被你的組織封鎖"):"Couldn't create Drive folder: "+(typeof err==="string"?err:"sign-in needed or blocked by your org"));}
   });
 }
 
 /* ----- edit a launch's name / target date (keeps the slug stable so tasks & history still link) ----- */
 function editLaunch(slug){
   const l=L(slug); if(!l)return;
-  const name=prompt("Launch name?",l.name); if(name===null)return;
+  const name=prompt("Launch name?",l.name); if(name===null)return;   // 目標日已改為自動推算的「預計上市日」，這裡只改名稱
   const nm=name.trim(); if(!nm){toast("Name can't be empty");return;}
-  const target=(prompt("Target launch date (YYYY-MM-DD)?",l.target)||l.target).trim();
-  const oldName=l.name, oldTarget=l.target;
-  const renamed=nm!==oldName, retargeted=target!==oldTarget;
-  if(!renamed&&!retargeted){toast("No changes");return;}
-  l.name=nm; l.target=target;
-  const parts=[]; if(renamed)parts.push(`name “${oldName}” → “${nm}”`); if(retargeted)parts.push(`target ${fmt(oldTarget)} → ${fmt(target)}`);
-  l.checkins.unshift({d:today,a:actor(),txt:"Edited: "+parts.join("; ")+"."});
+  const oldName=l.name;
+  if(nm===oldName){toast("No changes");return;}
+  l.name=nm;
+  l.checkins.unshift({d:today,a:actor(),txt:`Edited: name “${oldName}” → “${nm}”.`});
   log("✏️ Launch edited: "+nm+(GAUTH.email?(" · by "+GAUTH.email):"")); save(); render(); toast("✏️ Updated");
-  if(renamed&&l.driveFolderId) renameDriveFolder(l.driveFolderId,nm); // keep the Drive folder name in sync
+  if(l.driveFolderId) renameDriveFolder(l.driveFolderId,nm); // keep the Drive folder name in sync
 }
 function renameDriveFolder(fid,name){
   if(!GOOGLE_CLIENT_ID||!gReady())return; // Google not set up → folder keeps old name, harmless
@@ -1650,7 +1679,7 @@ function renameDriveFolder(fid,name){
       headers:{"Authorization":"Bearer "+tok,"Content-Type":"application/json"},
       body:JSON.stringify({name:"BV-SuperPM-"+name})})
       .then(r=>{ if(!r.ok) return r.json().then(d=>{throw ((d.error&&d.error.message)||"rename failed");}); });
-  }).then(()=>{ log("📁 Drive folder renamed: BV-SuperPM-"+name); toast("📁 Drive folder renamed to “BV-SuperPM-"+name+"”"); })
+  }).then(()=>{ log("📁 Drive folder renamed: BV-SuperPM-"+name); toast(LANG==="zh"?"📁 Drive 資料夾已重新命名為「BV-SuperPM-"+name+"」":"📁 Drive folder renamed to “BV-SuperPM-"+name+"”"); })
   .catch(err=>{ if(err&&err.kind==="noscope"){toast("Name updated — re-connect Google with Drive permission to also rename the folder.");}
     else if(!(err&&(err.kind==="denied"||err.kind==="unconfigured"))){toast("Name updated, but couldn't rename the Drive folder.");} });
 }
@@ -1666,7 +1695,7 @@ function deleteLaunch(slug){
   LAUNCHES.splice(idx,1);
   log("🗑️ Launch deleted: "+nm+(GAUTH.email?(" · by "+GAUTH.email):""));
   if(S.view==="launch"&&S.launch===slug){S.view="portfolio";S.launch=null;}
-  save(); render(); toast("🗑️ “"+nm+"” deleted");
+  save(); render(); toast(LANG==="zh"?"🗑️ 已刪除「"+nm+"」":"🗑️ “"+nm+"” deleted");
   if(delFolder&&fid) trashDriveFolder(fid,nm);
 }
 function trashDriveFolder(fid,name){
@@ -1678,11 +1707,11 @@ function trashDriveFolder(fid,name){
       headers:{"Authorization":"Bearer "+tok,"Content-Type":"application/json"},
       body:JSON.stringify({trashed:true})})
       .then(r=>{ if(!r.ok) return r.json().then(d=>{throw ((d.error&&d.error.message)||"trash failed");}); });
-  }).then(()=>{ log("🗑️ Drive folder moved to Trash: BV-SuperPM-"+name); toast("🗑️ Drive folder “BV-SuperPM-"+name+"” moved to Trash"); })
+  }).then(()=>{ log("🗑️ Drive folder moved to Trash: BV-SuperPM-"+name); toast(LANG==="zh"?"🗑️ Drive 資料夾「BV-SuperPM-"+name+"」已移至垃圾桶":"🗑️ Drive folder “BV-SuperPM-"+name+"” moved to Trash"); })
   .catch(err=>{
     if(err&&err.kind==="noscope"){toast("Folder kept — re-connect Google and CHECK the “Google Drive” box to delete it.");}
     else if(err&&(err.kind==="denied"||err.kind==="unconfigured")){/* sign-in cancelled — card already deleted */}
-    else{toast("Card deleted, but couldn't trash the Drive folder: "+(typeof err==="string"?err:"sign-in/permission needed"));}
+    else{toast(LANG==="zh"?"卡片已刪除,但無法將 Drive 資料夾移至垃圾桶:"+(typeof err==="string"?err:"需要登入／權限"):"Card deleted, but couldn't trash the Drive folder: "+(typeof err==="string"?err:"sign-in/permission needed"));}
   });
 }
 
@@ -1693,7 +1722,7 @@ function boom(){try{
     c.style.animationDelay=(Math.random()*.3)+"s"; document.body.appendChild(c);
     setTimeout(()=>{try{c.remove();}catch(e){}},1800);}
 }catch(e){}}
-function runFix(idx){ const i=autopilot()[idx]; if(i&&i.fix){i.fix(); toast("⚡ Fixed: "+i.msg.slice(0,60)); render();} }
+function runFix(idx){ const i=autopilot()[idx]; if(i&&i.fix){i.fix(); toast(LANG==="zh"?"⚡ 已修正:"+i.msg.slice(0,60):"⚡ Fixed: "+i.msg.slice(0,60)); render();} }
 function addRisk(slug){ const t=prompt("Risk (one line)"); if(!t)return;
   const owner=prompt("Owning department","Product")||"—"; const sc=parseInt(prompt("Score 1-9 (likelihood × impact)","6"))||5;
   const trigger=prompt("Trigger / early warning","")||"—";
@@ -1847,6 +1876,7 @@ function applySnapshot(d){
   // the V3 task set (state preserved by code; legacy 7-stage tasks drop away and their V3 node starts fresh).
   v3Rederive();
   LAUNCHES.forEach(v3SyncTasks);
+  LAUNCHES.forEach(syncProjected);           // 每張卡的目標日 = 依「送出日＋任務天數」推算的預計上市日
   reconcileLaunchTasks();                    // safety net (all V3 titles are in GATES, so this is a no-op now)
   applyDeptLens();                           // re-lock a signed-in non-CEO to their team once the shared TEAM email map has loaded
 }
@@ -1893,7 +1923,7 @@ function firstRunName(u){
   if(USERNAME) return;                       // already have a display name on this device
   USERNAME=(((u.displayName||"").trim())||((u.email||"").split("@")[0])||"").trim();  // default silently to the Google name — no extra prompt
   try{localStorage.setItem("bv-username",USERNAME);}catch(e){}
-  if(USERNAME)toast("👋 Welcome, "+USERNAME+" — click your name (top-right) to change it.");
+  if(USERNAME)toast(LANG==="zh"?"👋 歡迎,"+USERNAME+" —— 點你的名字(右上角)可以更改。":"👋 Welcome, "+USERNAME+" — click your name (top-right) to change it.");
 }
 function saveUserProfile(){ if(!ME||!FB.docRef)return; try{ FB.docRef.collection("users").doc(ME.uid).set({uid:ME.uid,email:ME.email,name:USERNAME||ME.name,lastSeen:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); }catch(e){} }
 function activityRef(){ return FB.docRef?FB.docRef.collection("activity"):null; }
@@ -1968,7 +1998,7 @@ function restoreVersion(id){
   _verNote="↩ Restored to "+v.ts+" (originally by "+v.who+")";
   log("↩ Restored version from "+v.ts);
   S.view="versions"; render(); // render → save → recordVersion captures the restore
-  toast("↩ Restored to "+v.ts);
+  toast(LANG==="zh"?"↩ 已還原到 "+v.ts:"↩ Restored to "+v.ts);
 }
 /* ================= SHARED STATE — Firebase Firestore (real-time master board) =================
    Every browser reads/writes ONE shared document, so all users see all updates live.
@@ -2045,7 +2075,7 @@ function startBoardSync(){
       try{ if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot()); }catch(e){}
       render(); FB.applying=false;
       if(cleaned!==data.state) fbWriteNow(true);             // self-heal: persist the reconciled board so the shared doc is clean for everyone (the echo equals verSnap() and is ignored, so no write loop)
-      if(data.updatedBy&&data.updatedBy!==actor()) toast("🔄 "+data.updatedBy+" updated the board");
+      if(data.updatedBy&&data.updatedBy!==actor()) toast(LANG==="zh"?"🔄 "+data.updatedBy+" 已更新看板":"🔄 "+data.updatedBy+" updated the board");
     }, err=>{ fbStatus("● offline","var(--red)"); });
     FB.versRef.orderBy("createdAt","desc").limit(120).onSnapshot(qs=>{   // shared version history (History tab)
       const arr=[]; qs.forEach(doc=>{ const x=doc.data(); x.id=doc.id; arr.push(x); });
@@ -2446,8 +2476,115 @@ function setLang(){LANG=LANG==="en"?"zh":"en";
   const v=document.getElementById("vaLab"); if(v)v.textContent=LANG==="en"?"Viewing as":"檢視身分";
   render();}
 
-function toast(m){const t=document.getElementById("toast");t.textContent=LANG==="zh"?zhText(m):m;t.style.display="block";setTimeout(()=>t.style.display="none",3000);}
-function setRole(v){ if(!isCEO()){toast("Only the CEO can switch views — you're signed in as "+roleLabel()+".");return;} if(v==="ceo"||v==="director"){S.role=v;} else {S.role="dept";S.dept=v.slice(5);} S.view="home";S.launch=null;render(); }
+const TOAST_ZH = {
+  "A launch with that name already exists": "已有相同名稱的上架案",
+  "Answering normally — if it falls short, tap 🔬 Deep or type /deep and I'll rebuild it as a full Brief.": "以一般模式回答 —— 若不夠深入，點 🔬 Deep 或輸入 /deep，我會重新整理成完整 Brief。",
+  "Brief confirmed — company-brain sync didn't reach the Core (it stays the source of truth here).": "Brief 已確認 —— 未能同步到 company-brain 的 Core（這裡仍是唯一真實來源）。",
+  "Brief not found": "找不到 Brief",
+  "Campaign deleted": "已刪除 Campaign",
+  "Card deleted — sign in to Google to also remove the Drive folder.": "已刪除卡片 —— 登入 Google 才能一併移除 Drive 資料夾。",
+  "Check-in posted": "已發布 Check-in",
+  "Claude is still working… give it a moment, then resend.": "Claude 還在處理中……稍等一下再重新傳送。",
+  "Couldn't find sections to translate.": "找不到可翻譯的段落。",
+  "DRI updated": "已更新 DRI",
+  "Export unavailable here": "這裡無法匯出",
+  "Folder kept — re-connect Google and CHECK the “Google Drive” box to delete it.": "已保留資料夾 —— 重新連接 Google 並勾選「Google Drive」才能刪除。",
+  "Folder not created — re-connect Google and CHECK the “Google Drive” box.": "未建立資料夾 —— 重新連接 Google 並勾選「Google Drive」。",
+  "Google Drive isn't ready yet — open the card and tap 📁 Folder to create it.": "Google Drive 尚未就緒 —— 打開卡片並點 📁 Folder 來建立。",
+  "Google sign-in still loading — try again in a second": "Google 登入還在載入中 —— 請稍後再試",
+  "Google still loading — try again in a second": "Google 還在載入中 —— 請稍後再試",
+  "Hold on — a generate is still running": "請稍候 —— 有一個生成作業還在進行中",
+  "Name can't be empty": "名稱不能是空白",
+  "Name updated — re-connect Google with Drive permission to also rename the folder.": "名稱已更新 —— 重新連接 Google 並授權 Drive 才能一併重新命名資料夾。",
+  "Name updated, but couldn't rename the Drive folder.": "名稱已更新，但無法重新命名 Drive 資料夾。",
+  "No changes": "沒有變更",
+  "No feedback to revise from yet.": "目前還沒有可供修改的意見回饋。",
+  "Not enough text in this section to summarize.": "這個段落的文字不夠，無法摘要。",
+  "Note added": "已新增備註",
+  "Note deleted": "已刪除備註",
+  "Nothing to save": "沒有可儲存的內容",
+  "Only the CEO can give this sign-off — sign in as ben@blackvoyage.com.": "只有 CEO 能核准 —— 請以 ben@blackvoyage.com 登入。",
+  "Only the Marketing lead (or CEO) can give this sign-off — add their email to ROLE_BY_EMAIL.": "只有 Marketing 主管（或 CEO）能核准 —— 請把該信箱加進 ROLE_BY_EMAIL。",
+  "Only the Product lead, a Director, or the CEO can give this sign-off — add their email to ROLE_BY_EMAIL.": "只有 Product 主管、Director 或 CEO 能核准 —— 請把該信箱加進 ROLE_BY_EMAIL。",
+  "Paste HTML code or a link first": "請先貼上 HTML 程式碼或連結",
+  "Paste a full http(s) image OR video URL": "請貼上完整的 http(s) 圖片或影片網址",
+  "Re-connect Google and CHECK the “Google Drive” permission box so files can be created.": "請重新連接 Google 並勾選「Google Drive」權限，才能建立檔案。",
+  "Responsible department updated": "已更新負責部門",
+  "Restore failed": "還原失敗",
+  "Risk logged": "已記錄風險",
+  "Risk removed": "已移除風險",
+  "Select-all done — press Ctrl/⌘C": "已全選 —— 按 Ctrl/⌘C 複製",
+  "Signed out of Google": "已登出 Google",
+  "Still working on the last question — one sec, then ask again.": "還在處理上一個問題 —— 稍等一下再問一次。",
+  "Task added": "已新增任務",
+  "Task not found": "找不到任務",
+  "This brief already has a 中文 version — open it and use the 🌐 toggle.": "這份 Brief 已經有中文版 —— 打開後用 🌐 切換。",
+  "This brief has no content to re-render.": "這份 Brief 沒有內容可以重新產生。",
+  "This brief has no content to revise.": "這份 Brief 沒有內容可以修改。",
+  "This brief has no content to translate.": "這份 Brief 沒有內容可以翻譯。",
+  "This step isn't in the workflow template": "這個步驟不在流程範本中",
+  "Type a research topic, then send.": "輸入研究主題後傳送。",
+  "Version not found": "找不到版本",
+  "↩ Approval reverted": "↩ 已撤銷核准",
+  "⏹ Stopped — you can send again.": "⏹ 已停止 —— 可以重新傳送。",
+  "◆ gates can only be approved by Ben (CEO)": "◆ 決策關卡只能由 Ben（CEO）核准",
+  "◆ gates can only be changed by Ben (CEO)": "◆ 決策關卡只能由 Ben（CEO）變更",
+  "◆ 需要 Ben（CEO）核准": "◆ 需要 Ben（CEO）核准",
+  "⚑ Issue reported to BV Second Brain — thank you": "⚑ 問題已回報給 BV Second Brain —— 謝謝你",
+  "⚠️ Add a Google Client ID first": "⚠️ 請先新增 Google Client ID",
+  "⚠️ Add a Google Client ID in the code first (see GOOGLE-SHEETS-SETUP.md)": "⚠️ 請先在程式碼中新增 Google Client ID（詳見 GOOGLE-SHEETS-SETUP.md）",
+  "⚠️ Brief not saved — try again": "⚠️ Brief 未儲存 —— 請再試一次",
+  "⚠️ Chat backend not set yet — deploy the proxy & set CHAT_API_URL (see CHAT-SETUP.md)": "⚠️ Chat 後端尚未設定 —— 請部署 proxy 並設定 CHAT_API_URL（詳見 CHAT-SETUP.md）",
+  "⚠️ Chat connection dropped — reload to reconnect.": "⚠️ Chat 連線中斷 —— 請重新整理以重新連線。",
+  "⚠️ Couldn't file the edit (not signed in to the board?). Nothing changed.": "⚠️ 無法送出編輯（是否尚未登入看板？）。沒有任何變更。",
+  "⚠️ Couldn't file the re-rendered brief (not signed in?).": "⚠️ 無法送出重新產生的 Brief（尚未登入？）。",
+  "⚠️ Couldn't file the revision (not signed in to the board?). Old version kept.": "⚠️ 無法送出修改（是否尚未登入看板？）。已保留舊版本。",
+  "⚠️ Couldn't queue the research request — try again": "⚠️ 無法排入研究請求 —— 請再試一次",
+  "⚠️ Couldn't queue the research — try again.": "⚠️ 無法排入研究 —— 請再試一次。",
+  "⚠️ Couldn't read this brief's sections — try ✎ Edit instead.": "⚠️ 無法讀取這份 Brief 的段落 —— 請改用 ✎ Edit。",
+  "⚠️ Couldn't rename — try again": "⚠️ 無法重新命名 —— 請再試一次",
+  "⚠️ Couldn't save to shared memory — try again": "⚠️ 無法儲存到共享記憶 —— 請再試一次",
+  "⚠️ Couldn't save your comment — try again": "⚠️ 無法儲存你的留言 —— 請再試一次",
+  "⚠️ Couldn't sync to the shared chat — saved locally for you.": "⚠️ 無法同步到共享聊天室 —— 已先幫你儲存在本機。",
+  "⚠️ Document too large to share via chat — saved locally for you. The Brief in 📋 Briefs is the shared copy.": "⚠️ 文件太大，無法透過聊天分享 —— 已先幫你儲存在本機。📋 Briefs 裡的 Brief 才是共享版本。",
+  "⚠️ Generate came back empty.": "⚠️ 生成結果是空的。",
+  "⚠️ Not connected — can't file report": "⚠️ 尚未連線 —— 無法送出報告",
+  "⚠️ Not connected — comment not saved, try again": "⚠️ 尚未連線 —— 留言未儲存，請再試一次",
+  "⚠️ Not connected — rename not saved": "⚠️ 尚未連線 —— 重新命名未儲存",
+  "⚠️ Report failed": "⚠️ 報告失敗",
+  "⚠️ Revise came back empty — old version kept.": "⚠️ 修改結果是空的 —— 已保留舊版本。",
+  "⚠️ The brief was too long to finish in one pass — the previous version is kept. Revise one section at a time with ✎ Edit.": "⚠️ Brief 太長，無法一次處理完 —— 已保留前一版本。請用 ✎ Edit 一次修改一個段落。",
+  "✅ Signed in to Google": "✅ 已登入 Google",
+  "✏️ Link updated": "✏️ 已更新連結",
+  "✏️ Updated": "✏️ 已更新",
+  "✓ Approved — committed to repo, Slack message updated": "✓ 已核准 —— 已提交到 repo，Slack 訊息已更新",
+  "✓ Brief confirmed — it's now the single source of truth.": "✓ Brief 已確認 —— 現在是唯一真實來源。",
+  "⬇ Backup downloaded": "⬇ 已下載備份",
+  "上架／廣告 GO 由 Ben（CEO）拍板": "上架／廣告 GO 由 Ben（CEO）拍板",
+  "🆕 New chat started": "🆕 已開始新聊天",
+  "🌐 中文 added — open the brief and use the EN/中文 toggle.": "🌐 已新增中文版 —— 打開 brief 並用 EN/中文 切換。",
+  "🌪 Type a research topic in the box, then press STORM.": "🌪 在欄位輸入研究主題，然後按 STORM。",
+  "🎤 Couldn't start the mic.": "🎤 無法啟動麥克風。",
+  "🎤 Listening — click 🔴 to stop, then Send.": "🎤 錄音中 —— 點 🔴 停止，再按 Send。",
+  "🎤 Voice typing isn't supported in this browser — use Chrome or Edge.": "🎤 這個瀏覽器不支援語音輸入 —— 請用 Chrome 或 Edge。",
+  "🎥 Video attached": "🎥 已附上影片",
+  "💬 Feedback added": "💬 已新增意見回饋",
+  "📋 Digest copied — paste into Slack": "📋 摘要已複製 —— 貼到 Slack",
+  "📌 Checkpoint saved": "📌 已儲存檢查點",
+  "📎 Attached": "📎 已附上",
+  "🔒 Locked — not all exit criteria are met": "🔒 已鎖定 —— 尚未符合所有結束條件",
+  "🔗 Link attached to task": "🔗 已將連結附到任務",
+  "🔗 Link attached": "🔗 已附上連結",
+  "🗑 Code removed": "🗑 已移除程式碼",
+  "🗑 Link removed": "🗑 已移除連結",
+  "🗑 Message deleted": "🗑 已刪除訊息",
+  "🗑 Report also removed from Google Drive": "🗑 已一併從 Google Drive 移除報告",
+  "🗑 Research request deleted": "🗑 已刪除研究請求",
+  "🚀 Pushed — next-stage departments alerted in Slack": "🚀 已推進 —— 已在 Slack 通知下一階段的部門",
+  "🧠 Promoted to the company brain (Core wiki).": "🧠 已提升到公司大腦（Core wiki）。",
+};
+function toast(m){const t=document.getElementById("toast");t.textContent=LANG==="zh"?(TOAST_ZH[m]||zhText(m)):m;t.style.display="block";setTimeout(()=>t.style.display="none",3000);}
+function setRole(v){ if(!isCEO()){toast(LANG==="zh"?"只有 CEO 可以切換視角 —— 你目前是以 "+roleLabel()+" 身分登入。":"Only the CEO can switch views — you're signed in as "+roleLabel()+".");return;} if(v==="ceo"||v==="director"){S.role=v;} else {S.role="dept";S.dept=v.slice(5);} S.view="home";S.launch=null;render(); }
 function go(v){S.route=null;S.view=v;S.launch=null;render();}
 function openL(slug){S.route=null;S.view="launch";S.launch=slug;S.gateStage=null;render();}
 const L=slug=>LAUNCHES.find(x=>x.slug===slug);
@@ -2490,7 +2627,7 @@ function stepStatus(slug,i,dir){ // status loop: todo → in progress → done �
   if(nx==="x"){const lane=FLOW[t.d]; const ii=lane?lane.findIndex(n=>n.t===t.t):-1;
     if(ii>=0){const key=t.d+"|"+lane[ii].l; const others=[...new Set(routeSteps(key,t.d,ii).map(p=>p[0]))].filter(x=>x!==t.d);
       if(others.length){S.route={key,d:t.d,i:ii};
-        toast("✨ Done → this hand-off involves: "+others.join(", ")+" — route highlighted on the flow chart");}}}
+        toast(LANG==="zh"?"✨ 完成 → 這個交接涉及:"+others.join(", ")+" —— 流程圖上已標示路線":"✨ Done → this hand-off involves: "+others.join(", ")+" — route highlighted on the flow chart");}}}
   if(nx==="p"&&!t.startAt)t.startAt=today; if(nx==="x")t.doneAt=today; else if(t.doneAt)delete t.doneAt;
   v3Advance(l);   // no manual push — the phase auto-derives from what's still open
   render();
@@ -2878,7 +3015,7 @@ const cardHTML=l=>{const g=gateState(l),[h,cls]=health(l);const si=STAGES.indexO
   <div class="card-hd"><span class="nm">${l.name}</span><button class="card-x" title="Delete this launch" aria-label="Delete this launch" onclick="event.stopPropagation();deleteLaunch('${l.slug}')">✕</button></div>
   <div class="card-kv">
     <div class="r"><span class="k">Now at:</span><span class="v">${l.complete?`<b style="color:var(--green)">✓ Complete</b>`:`<b style="color:${DCOLOR(progressDept(l))}">${esc(progressDept(l)||"—")}</b>`}</span></div>
-    <div class="r"><span class="k">Target</span><span class="v" style="font-family:var(--font-mono)">🎯 ${fmt(l.target)}</span></div>
+    <div class="r"><span class="k">${LANG==="zh"?"預計上市":"Projected"}</span><span class="v" style="font-family:var(--font-mono)">🎯 ${isSubmitted(l)?fmt(projLaunchDate(l)):`<span style="color:var(--faint)">${LANG==="zh"?"未送出":"—"}</span>`}</span></div>
     ${cn?`<div class="r"><span class="k">Next up</span><span class="v" title="${esc(cn.t)}">${esc(cn.t)}</span></div>`:""}
   </div>
   <div style="margin:9px 0 0">${dots}</div>
@@ -3381,7 +3518,7 @@ function v3Overview(l){
   const verdict=`<div class="panel" style="display:flex;flex-wrap:wrap;align-items:center;gap:14px 20px">
     <span class="pill ${cls}" style="font-size:13.5px">${h}</span>
     <b style="font-size:15px;flex:1 1 240px">${esc(v3Narrative(l))}</b>
-    <span style="display:flex;gap:18px;flex-wrap:wrap">${kv(T("目標","Target"),fmt(l.target))}${kv(T("預測","Forecast"),fmt(forecastDate(l)))}${kv("Float",fl+"d",fl<0?"var(--red)":"var(--green)")}${slip>0?kv(T("預估延遲","Slip"),slip+"d","var(--red)"):""}</span>
+    <span style="display:flex;gap:18px;flex-wrap:wrap">${kv(T("開啟","Opened"),fmt(openDate(l)))}${kv(T("送出","Submitted"),isSubmitted(l)?fmt(formSubmitDate(l)):T("未送出","—"))}${kv(T("預計上市","Projected"),fmt(projLaunchDate(l)))}${kv("Float",fl+"d",fl<0?"var(--red)":"var(--green)")}${slip>0?kv(T("預估延遲","Slip"),slip+"d","var(--red)"):""}</span>
   </div>`;
   // ---- ② plan vs actual, by phase ----
   const segBy={}; segments(l).forEach(s=>segBy[s.stage]=s);
@@ -3459,7 +3596,7 @@ function v3Dash(l){
     <div class="v3strip-top">
       <span class="v3strip-k">🎛 ${T("上市決策","Launch decision")}</span>
       ${shopChip}${adsChip}
-      <label class="v3target">${T("目標上市日","Target launch")} <input type="date" value="${esc(l.target||"")}" onchange="v3SetTarget('${l.slug}',this.value)"></label>
+      <span class="v3target" title="${T("送出日＋關鍵路徑天數自動推算；不再手填","auto = Form-submit day + critical-path days; no longer hand-typed")}">${T("預計上市日","Projected launch")} <b>${fmt(projLaunchDate(l))}</b>${isSubmitted(l)?(v3PendingDays(l).miss.length?` <span class="v3pdwarn" title="${T("有任務未填天數，日期偏早","unfilled durations — runs early")}">⚠${v3PendingDays(l).miss.length}</span>`:""):` <span class="ghostnote">${T("暫估·未送出","est. · unsubmitted")}</span>`}</span>
       ${crmWarn}${kolChip}
       <span class="v3strip-go">${go("shop",T("上架","List"),"🚀")} ${go("ads",T("廣告","Ads"),"📣")}</span>
     </div>
@@ -3473,6 +3610,8 @@ function v3Dash(l){
 function viewLaunch(){
   const l=L(S.launch);
   const [h,cls]=health(l);
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  const submitted=isSubmitted(l), proj=projLaunchDate(l), pend=v3PendingDays(l);   // 開啟／送出／預計上市日 + 待補天數
   // The current stage's exit criteria are tickable inline in the timeline; the advance control (dept-ready summary + push + approval) is rendered inline under the current stage by advanceBar().
   return `<span class="back" onclick="go('portfolio')">← Portfolio</span>
   <div class="ld-head">
@@ -3480,7 +3619,7 @@ function viewLaunch(){
       <div class="ld-title-row"><h2 class="ld-title">${esc(l.name)}</h2><span class="pill ${cls}">${h}</span></div>
     </div>
     <div class="ld-actions" role="group" aria-label="Launch actions">
-      <button class="ld-act" title="${LANG==="zh"?"編輯此上市案的名稱與目標日期":"Edit this launch's name and target date"}" onclick="editLaunch('${l.slug}')">✏️<span class="ld-act-t">${LANG==="zh"?"編輯":"Edit"}</span></button>
+      <button class="ld-act" title="${LANG==="zh"?"編輯此上市案的名稱（上市日已改為自動推算的預計上市日）":"Edit this launch's name (launch date is now the auto-projected date)"}" onclick="editLaunch('${l.slug}')">✏️<span class="ld-act-t">${LANG==="zh"?"編輯":"Edit"}</span></button>
       ${l.driveFolderUrl?`<a class="ld-act" href="${l.driveFolderUrl}" target="_blank" title="${LANG==="zh"?"在共用的 BV SuperPM Drive 資料夾中開啟此上市案的資料夾":"Open this launch's folder in the shared BV SuperPM Drive folder"}">📁<span class="ld-act-t">${LANG==="zh"?"資料夾":"Folder"}</span></a>`:`<button class="ld-act" title="${LANG==="zh"?"在共用的 BV SuperPM Drive 資料夾中為此上市案建立資料夾（既有檔案留在原處，新檔案放這裡）":"Create a folder for this launch inside the shared BV SuperPM Drive folder (existing files stay where they are; new ones go here)"}" onclick="createLaunchFolder('${l.slug}')">📁<span class="ld-act-t">${LANG==="zh"?"資料夾":"Folder"}</span></button>`}
       <button class="ld-act danger" title="${LANG==="zh"?"刪除此上市案（可一併刪除其 Drive 資料夾）":"Delete this launch (and optionally its Drive folder)"}" onclick="deleteLaunch('${l.slug}')">🗑️<span class="ld-act-t">${LANG==="zh"?"刪除":"Delete"}</span></button>
     </div>
@@ -3489,12 +3628,23 @@ function viewLaunch(){
     <div class="ld-stat"><span class="ld-stat-k">DRI</span><span class="ld-stat-v" style="color:${DCOLOR(l.dri)}">${esc(l.dri)}</span></div>
     ${l.complete?"":`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"目前在":"Now at"}</span><span class="ld-stat-v" style="color:${DCOLOR(progressDept(l))}">${esc(progressDept(l)||"—")}</span></div>`}
     <div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"階段":"Stage"}</span><span class="ld-stat-v">${l.complete?(LANG==="zh"?"已完成":"Complete"):esc(l.stage)}</span></div>
-    <div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"目標":"Target"}</span><span class="ld-stat-v">${fmt(l.target)}</span></div>
-    ${l.complete?"":`<div class="ld-stat"><span class="ld-stat-k">Float</span><span class="ld-stat-v"><b style="color:${floatDays(l)<0?"var(--red)":"var(--green)"}">${floatDays(l)}d</b></span></div>
-    <div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"速度":"Velocity"}</span><span class="ld-stat-v">${velocity(l).toFixed(1)}/wk</span></div>
-    <div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"預測":"Forecast"}</span><span class="ld-stat-v">${fmt(forecastDate(l))}</span></div>
+    <div class="ld-stat"><span class="ld-stat-k">${T("開啟","Opened")}</span><span class="ld-stat-v">${fmt(openDate(l))}</span></div>
+    <div class="ld-stat"><span class="ld-stat-k">${T("送出","Submitted")}</span><span class="ld-stat-v">${submitted?fmt(formSubmitDate(l)):`<span style="color:var(--faint);font-weight:500">${T("未送出","—")}</span>`}</span></div>
+    <div class="ld-stat"><span class="ld-stat-k">${T("預計上市","Projected")}</span><span class="ld-stat-v"><b>${fmt(proj)}</b>${l.complete?"":submitted?(pend.miss.length?` <span class="v3pdwarn" title="${T("有任務未填天數，預計日偏早","unfilled durations — projection runs early")}">⚠${pend.miss.length}</span>`:""):` <span class="ghostnote">${T("暫估","est.")}</span>`}</span></div>
+    ${l.complete?"":`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"速度":"Velocity"}</span><span class="ld-stat-v">${velocity(l).toFixed(1)}/wk</span></div>
     <div class="ld-stat ld-stat-rd ld-readycluster"><span class="ld-ready-item"><span class="ld-stat-k">Gate readiness</span>${readinessPop(l)}</span><span class="ld-ready-item"><span class="ld-stat-k">${LANG==="zh"?"待填天數":"Days pending"}</span>${daysPendingPop(l)}</span></div>`}
   </div>
+
+  ${(()=>{ if(l.complete) return "";
+    if(!submitted) return `<div class="ld-formnudge">📋 <b>${T("尚未送出需求表","Intake form not submitted")}</b> — ${T("勾選 C1〈產品需求表〉完成即開始排程，並鎖定預計上市日的起算點。","complete C1 (intake Form) to start scheduling and lock the projected-launch anchor.")} <button class="pdchip cp" onclick="v3jump('${l.slug}','C1')">→ C1 ${T("產品需求表","Intake form")}</button></div>`;
+    const all=[...pend.miss.map(r=>({...r,est:false})), ...pend.soft.map(r=>({...r,est:true}))];
+    const oncp=all.filter(r=>r.onCP), off=all.filter(r=>!r.onCP);
+    if(!oncp.length && !off.length) return "";
+    const chip=r=>`<button class="pdchip${r.onCP?" cp":""}" title="${esc(r.d)} · ${r.est?T("目前用預設值，建議確認實際天數","using the default — confirm the real duration"):T("尚未填天數，目前當 0 天計","no duration set — counts as 0 days")}" onclick="v3jump('${l.slug}','${r.code}')">${esc(r.code)} ${esc(r.t)}</button>`;
+    const r1=oncp.length?`<div class="pdrow"><span class="pdlbl red">⚠ ${T("影響上市日","Moves launch date")} ${oncp.length}</span>${oncp.map(chip).join("")}</div>`:"";
+    const r2=off.length?`<div class="pdrow"><span class="pdlbl">◐ ${T("其他待補","Also unset")} ${off.length}</span>${off.map(chip).join("")}</div>`:"";
+    return `<div class="ld-pending">${r1}${r2}<div class="sub">${T("關鍵路徑上沒填天數的任務會被當 0 天算，預計上市日因此偏早；填了就自動重算。","Unset durations on the critical path count as 0 days, so the projected launch runs early — fill them and it recalculates automatically.")}</div></div>`;
+  })()}
 
   ${(()=>{const zh=LANG==="zh";const view=S.cardView==="dash"?"dash":S.cardView==="overview"?"overview":"flow";
     const tabs=`<span class="ld-cardnav">
@@ -3886,7 +4036,7 @@ function newCampaign(){
   const date=prompt("Target date (YYYY-MM-DD)?",today)||today;
   const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||("camp-"+(CAMPAIGNS.length+1));
   CAMPAIGNS.push({name,slug,date,products:[],tasks:[]}); S.camp=CAMPAIGNS.length-1;
-  log("🆕 Campaign created: "+name); save(); render(); toast("🆕 Campaign “"+name+"” created");
+  log("🆕 Campaign created: "+name); save(); render(); toast(LANG==="zh"?"🆕 Campaign「"+name+"」已建立":"🆕 Campaign “"+name+"” created");
 }
 function addCampTask(){ const c=curCamp(); if(!c)return; const t=prompt("Campaign task?"); if(!t)return;
   const d=prompt("Department?","Marketing")||"Marketing"; (c.tasks=c.tasks||[]).push({t,d:DEPTS().includes(d)?d:"Marketing",st:"o",links:[]}); save(); render(); toast("Task added"); }
@@ -4003,7 +4153,7 @@ function chatModel(){let m=(typeof localStorage!=="undefined"&&localStorage.getI
   // one-time move to the Sonnet 4.6 default (the prior default was Opus); the picker still lets anyone switch
   try{ if(typeof localStorage!=="undefined"&&!localStorage.getItem("bv-chat-default-sonnet")){ localStorage.setItem("bv-chat-default-sonnet","1"); if(!m){ m=CHAT_MODEL_DEFAULT; localStorage.setItem("bv-chat-model",m); } } }catch(e){}
   return CHAT_MODELS.some(x=>x.id===m)?m:CHAT_MODEL_DEFAULT;}
-function setChatModel(id){try{localStorage.setItem("bv-chat-model",id);}catch(e){} toast("🧠 Chat model → "+((CHAT_MODELS.find(x=>x.id===id)||{}).label||id));}
+function setChatModel(id){try{localStorage.setItem("bv-chat-model",id);}catch(e){} toast(LANG==="zh"?"🧠 對話模型 → "+((CHAT_MODELS.find(x=>x.id===id)||{}).label||id):"🧠 Chat model → "+((CHAT_MODELS.find(x=>x.id===id)||{}).label||id));}
 const CHAT_TOOLS=[
   {name:"search_catalog",description:"Search the Black Voyage product CATALOG — real SKUs with their specs (model, variant, size, material, dimensions, feature). Use to ground product/spec claims in real data. (Competitor comparisons & brand voice live in search_knowledge.)",input_schema:{type:"object",properties:{query:{type:"string",description:"keywords: model, SKU, material, size, feature…"}},required:["query"]}},
   {name:"get_product",description:"Get the FULL spec row of one catalog SKU (model, variant, size, material, feature, dimensions) by SKU, model name, or material.",input_schema:{type:"object",properties:{name:{type:"string"}},required:["name"]}},
@@ -4371,7 +4521,7 @@ function briefComment(id){ const inp=document.getElementById("bc_"+id), text=inp
 }
 function briefView(id){ const b=briefById(id); if(b)codeModal({readOnly:true,label:b.title+" · v"+b.version,html:b.html}); }
 function briefToggle(id){ S.open=S.open||{}; S.open["brief_"+id]=!S.open["brief_"+id]; renderBriefs(); }
-function briefReopen(id){ const b=briefById(id); if(!b)return; if(typeof confirm!=="undefined"&&!confirm("Start a new revision round? Creates a new draft version for re-confirmation. The current confirmed brief stays the source of truth until the new one is confirmed by Marketing + Product + Ben."))return; const v=briefSave(b.card,b.title,b.html,b.type); if(v)toast("Opened revision v"+v+" for review."); }
+function briefReopen(id){ const b=briefById(id); if(!b)return; if(typeof confirm!=="undefined"&&!confirm("Start a new revision round? Creates a new draft version for re-confirmation. The current confirmed brief stays the source of truth until the new one is confirmed by Marketing + Product + Ben."))return; const v=briefSave(b.card,b.title,b.html,b.type); if(v)toast(LANG==="zh"?"已開啟修訂版 v"+v+" 供審閱。":"Opened revision v"+v+" for review."); }
 function briefDelete(id){ if(typeof confirm!=="undefined"&&!confirm("Delete this brief version (for everyone)? It is also removed from Google Drive."))return; var _b=(typeof briefById==="function")?briefById(id):null; try{ if(_b&&_b.driveFileId)_briefDriveDelete(_b.driveFileId); }catch(e){} try{briefsCol().doc(id).delete();}catch(e){} }
 function statusBadge(s){const m={draft:["Draft","#999"],review:["In Review","var(--amber)"],confirmed:["✓ CONFIRMED","var(--green)"],superseded:["superseded","#777"]},x=m[s]||m.review;return `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;border:1px solid ${x[1]};color:${x[1]}">${x[0]}</span>`;}
 // Rename a brief (the display title). Persists to Firestore.
@@ -4380,7 +4530,7 @@ function briefRename(id){ const b=briefById(id); if(!b){toast("Brief not found")
   if(name==null)return; const t=String(name).trim(); if(!t||t===(b.title||""))return;
   if(!FB.ready){ toast("⚠️ Not connected — rename not saved"); return; }
   // Rename ONLY this brief — every brief/variation keeps its own independent name (no cross-changing across versions).
-  try{ briefsCol().doc(b.id).set({title:t,updatedAt:Date.now()},{merge:true}).catch(function(e){ toast("⚠️ Couldn't rename — try again"); }); toast("✏️ Renamed → “"+t+"”"); }catch(e){ toast("⚠️ Couldn't rename — try again"); }
+  try{ briefsCol().doc(b.id).set({title:t,updatedAt:Date.now()},{merge:true}).catch(function(e){ toast("⚠️ Couldn't rename — try again"); }); toast(LANG==="zh"?"✏️ 已重新命名 → 「"+t+"」":"✏️ Renamed → “"+t+"”"); }catch(e){ toast("⚠️ Couldn't rename — try again"); }
 }
 function briefCardHTML(b){ const a=b.approvals||{},mk=a.marketing,pr=a.product,bn=a.ben,op=S.open&&S.open["brief_"+b.id],live=b.status==="review"||b.status==="draft";
   return `<div style="border:1px solid ${b.status==="confirmed"?"var(--green)":"var(--line)"};border-radius:8px;padding:8px 10px;margin:8px 0;${b.status==="superseded"?"opacity:.55":""}">
@@ -4402,14 +4552,15 @@ function briefCardHTML(b){ const a=b.approvals||{},mk=a.marketing,pr=a.product,b
   </div>`;
 }
 function briefsInner(l){ if(!l)return"";
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
   const mine=(BRIEFS||[]).filter(b=>b.card===l.slug);
   // Latest at the very top; legacy (superseded) briefs always sink to the bottom so you can work down through the variations.
   mine.sort((a,b)=>{ const al=a.status==="superseded"?1:0, bl=b.status==="superseded"?1:0; if(al!==bl)return al-bl; return ((b.createdAt||0)-(a.createdAt||0))||((b.version||0)-(a.version||0)); });
   const conf=mine.find(b=>b.status==="confirmed");
   return `<div class="panel"><h3>📋 Briefs <span class="ghostnote" style="font-weight:400">· ${mine.length}</span></h3>`
-    +(conf?`<div class="sub" style="margin-bottom:6px;color:var(--green)">✓ <b>Source of truth:</b> ${esc(conf.title)} v${conf.version} — confirmed by ${esc((conf.approvals.marketing||{}).by||"Marketing")} + ${esc((conf.approvals.product||{}).by||"Product")} + ${esc((conf.approvals.ben||{}).by||"Ben")}</div>`
-      :`<div class="sub" style="margin-bottom:6px">No confirmed brief yet. Ask the chat to draft one — it files the brief here for the team to review, leave feedback, and collect <b>Marketing + Product + Ben</b> sign-off.</div>`)
-    +(mine.length?((S.briefsAll?mine:mine.slice(0,3)).map(briefCardHTML).join("")+((mine.length>3)?('<div style="text-align:center;margin-top:8px"><button class="iconbtn" style="font-size:11px" onclick="toggleBriefsAll()">'+(S.briefsAll?"▴ Show fewer":("▾ Show all "+mine.length+" briefs"))+'</button></div>'):"")):"")
+    +(conf?`<div class="sub" style="margin-bottom:6px;color:var(--green)">✓ <b>${T("最終定案","Source of truth")}：</b>${esc(conf.title)} v${conf.version} — ${zh?`由 ${esc((conf.approvals.marketing||{}).by||"Marketing")} + ${esc((conf.approvals.product||{}).by||"Product")} + ${esc((conf.approvals.ben||{}).by||"Ben")} 確認`:`confirmed by ${esc((conf.approvals.marketing||{}).by||"Marketing")} + ${esc((conf.approvals.product||{}).by||"Product")} + ${esc((conf.approvals.ben||{}).by||"Ben")}`}</div>`
+      :`<div class="sub" style="margin-bottom:6px">${T("尚無已確認的 Brief。可以請 chat 起草一份 —— 系統會把 Brief 歸檔於此，供團隊審閱、留言回饋，並收集","No confirmed brief yet. Ask the chat to draft one — it files the brief here for the team to review, leave feedback, and collect")} <b>Marketing + Product + Ben</b> ${T("的簽核。","sign-off.")}</div>`)
+    +(mine.length?((S.briefsAll?mine:mine.slice(0,3)).map(briefCardHTML).join("")+((mine.length>3)?('<div style="text-align:center;margin-top:8px"><button class="iconbtn" style="font-size:11px" onclick="toggleBriefsAll()">'+(S.briefsAll?T("▴ 顯示較少","▴ Show fewer"):T("▾ 顯示全部 "+mine.length+" 份 Briefs","▾ Show all "+mine.length+" briefs"))+'</button></div>'):"")):"")
     +`</div>`;
 }
 /* ===== BRIEF AI ACTIONS — revise-from-feedback, inline per-section editor (+image), per-section visual ===== */
@@ -4454,10 +4605,10 @@ async function briefTranslate(id){ const b=briefById(id); if(!b){toast("Brief no
   try{ briefsCol().doc(id).set({html:html,updatedAt:Date.now()},{merge:true}).then(function(){ toast("🌐 中文 added — open the brief and use the EN/中文 toggle."); }).catch(function(){ toast("\u26a0\ufe0f Couldn't save the 中文 version — try again."); }); }catch(e){ toast("\u26a0\ufe0f Couldn't save — try again."); }
 }
 function briefReskin(id){ const b=briefById(id); if(!b){toast("Brief not found");return;} if(!String(b.html||"").trim()){toast("This brief has no content to re-render.");return;}
-  let r=null; try{ r=reskinHtml(b.html,b.card); }catch(e){ toast("⚠️ Re-render failed: "+((e&&e.message)||e)); return; }
+  let r=null; try{ r=reskinHtml(b.html,b.card); }catch(e){ toast(LANG==="zh"?"⚠️ 重新渲染失敗:"+((e&&e.message)||e):"⚠️ Re-render failed: "+((e&&e.message)||e)); return; }
   if(!r||!r.n){ toast("⚠️ Couldn't read this brief's sections — try ✎ Edit instead."); return; }
   const v=briefSave(b.card,r.title,r.html,b.type);
-  if(v){ try{logEvent("question","⟳ Re-rendered brief in latest format · "+r.title+" → v"+v,{card:b.card});}catch(e){} toast("⟳ Re-rendered “"+r.title+"” in the latest format — filed as v"+v+" with per-paragraph 💬/📊. No AI, no re-research."); }
+  if(v){ try{logEvent("question","⟳ Re-rendered brief in latest format · "+r.title+" → v"+v,{card:b.card});}catch(e){} toast(LANG==="zh"?"⟳ 已用最新格式重新渲染「"+r.title+"」—— 存為 v"+v+",附上逐段 💬/📊。無 AI、無重新研究。":"⟳ Re-rendered “"+r.title+"” in the latest format — filed as v"+v+" with per-paragraph 💬/📊. No AI, no re-research."); }
   else toast("⚠️ Couldn't file the re-rendered brief (not signed in?).");
 }
 // Does the user want to RE-SKIN the existing brief (same content, new buttons/format) rather than build a fresh one?
@@ -4484,15 +4635,15 @@ async function briefReviseFromFeedback(id){ const b=briefById(id); if(!b){toast(
   const usr="CURRENT BRIEF (v"+(b.version||1)+") — “"+(b.title||"")+"”:\n"+src+"\n\nTEAM FEEDBACK TO ADDRESS (every point):\n"+fb;
   try{
     const r=await chatFetch({model:DELIVER_MODEL,system:sys,messages:[{role:"user",content:usr}],tools:undefined,think:true},{timeout:175000,tries:2,toobigMsg:"This brief is large — revising it timed out. Try revising one section at a time with the ✎ Edit tool instead."});
-    if(!r||r.error){ toast("⚠️ Revise failed — "+((r&&r.error)||"no response")+". Old version kept."); _briefBtnBusy(id,"brev",false,"↻ Revise from feedback"); return; }
+    if(!r||r.error){ toast(LANG==="zh"?"⚠️ 修訂失敗 —— "+((r&&r.error)||"沒有回應")+"。已保留舊版本。":"⚠️ Revise failed — "+((r&&r.error)||"no response")+". Old version kept."); _briefBtnBusy(id,"brev",false,"↻ Revise from feedback"); return; }
     let out=(r.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("");
     if(r.stop_reason==="max_tokens"){ toast("⚠️ The brief was too long to finish in one pass — the previous version is kept. Revise one section at a time with ✎ Edit."); _briefBtnBusy(id,"brev",false,"↻ Revise from feedback"); return; }   // never let a truncated revision supersede the good version
     out=balanceFragment(sanitizeFragment(out));
     if(!out||out.trim().length<60){ toast("⚠️ Revise came back empty — old version kept."); _briefBtnBusy(id,"brev",false,"↻ Revise from feedback"); return; }
     const v=briefSave(b.card,b.title,out,b.type);
-    if(v){ try{logEvent("question","↻ Revised brief from feedback · "+(b.title||"")+" → v"+v,{card:b.card});}catch(e){} toast("↻ Revising v"+(b.version||1)+" → filed as v"+v); }
+    if(v){ try{logEvent("question","↻ Revised brief from feedback · "+(b.title||"")+" → v"+v,{card:b.card});}catch(e){} toast(LANG==="zh"?"↻ 正在修訂 v"+(b.version||1)+" → 存為 v"+v:"↻ Revising v"+(b.version||1)+" → filed as v"+v); }
     else toast("⚠️ Couldn't file the revision (not signed in to the board?). Old version kept.");
-  }catch(e){ toast("⚠️ Revise error: "+((e&&e.message)||e)+". Old version kept."); }
+  }catch(e){ toast(LANG==="zh"?"⚠️ 修訂發生錯誤:"+((e&&e.message)||e)+"。已保留舊版本。":"⚠️ Revise error: "+((e&&e.message)||e)+". Old version kept."); }
   finally{ _briefBtnBusy(id,"brev",false,"↻ Revise from feedback"); }
 }
 /* ----- Inline per-section editor (FEATURES 2 & 3) ----- */
@@ -4583,7 +4734,7 @@ function briefAddImagePick(k){ const E=BRIEF_EDIT; if(!E||!E.picker)return; cons
   const i=E.picker.secIdx; const img='<img src="'+escAll(it.url)+'" style="max-width:100%;border-radius:8px">';
   E.sections[i].html=_briefInjectVisual(E.sections[i].html,img);   // inject INSIDE the section (outside the EN/中文 layers), not after </section>
   briefAddImageClose();
-  toast("🖼 Image added to §"+(i+1)+" — Save to keep it");
+  toast(LANG==="zh"?"🖼 圖片已加入 §"+(i+1)+" —— 按儲存以保留":"🖼 Image added to §"+(i+1)+" — Save to keep it");
   _briefEditRender();   // re-render so the new image shows (with a ⇄ Swap button via decorateImages)
 }
 // Add an image by pasting a URL — the escape hatch when the Core gallery is empty or has no match.
@@ -4605,12 +4756,12 @@ async function briefGenSectionVisual(i){ const E=BRIEF_EDIT; if(!E||E.busy)retur
     +"Output ONLY the HTML/SVG fragment: no prose, no explanation, no code fences, no <html>/<head>/<body>. Use Black Voyage's clean monochrome style (ink #16181C, accent #E2552E, light grey lines), keep it under ~700px wide, and make any <svg> fully self-contained (inline styles/attributes, a width/viewBox, no external refs).";
   try{
     const r=await chatFetch({model:chatModel(),system:sys,messages:[{role:"user",content:"SECTION (“"+_briefSecHeading(sec.html,i)+"”) content to summarize as a table or SVG:\n"+text}],tools:undefined,think:false},{timeout:120000,tries:1,toobigMsg:"section too long — trim it first"});
-    if(!r||r.error){ toast("⚠️ Generate failed — "+((r&&r.error)||"no response")); }
+    if(!r||r.error){ toast(LANG==="zh"?"⚠️ 產生失敗 —— "+((r&&r.error)||"沒有回應"):"⚠️ Generate failed — "+((r&&r.error)||"no response")); }
     else{ let out=(r.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("");
       out=_briefSanitizeVisual(out);
-      if(out&&out.trim().length>12){ E.sections[i].html=_briefInjectVisual(E.sections[i].html,out); toast("⚡ Added a "+(/^<svg/i.test(out.trim())?"chart":"table")+" to §"+(i+1)+" — Save to keep it"); }
+      if(out&&out.trim().length>12){ E.sections[i].html=_briefInjectVisual(E.sections[i].html,out); toast(LANG==="zh"?"⚡ 已加入一個"+(/^<svg/i.test(out.trim())?"圖表":"表格")+"到 §"+(i+1)+" —— 按儲存以保留":"⚡ Added a "+(/^<svg/i.test(out.trim())?"chart":"table")+" to §"+(i+1)+" — Save to keep it"); }
       else toast("⚠️ Generate came back empty."); }
-  }catch(e){ toast("⚠️ Generate error: "+((e&&e.message)||e)); }
+  }catch(e){ toast(LANG==="zh"?"⚠️ 產生時發生錯誤:"+((e&&e.message)||e):"⚠️ Generate error: "+((e&&e.message)||e)); }
   finally{ E.busy=false; _briefBtnBusy(i,"bedgen",false,"⚡ Generate"); _briefEditRender(); }
 }
 // Allow <svg>/<table> through; strip fences and document/style/script wrappers like sanitizeFragment but keep svg+table tags.
@@ -4623,7 +4774,7 @@ function briefEditSave(){ const E=BRIEF_EDIT; if(!E){toast("Nothing to save");re
   const full=String(E.head||"")+body+String(E.tail||"");
   if(!full.trim()){toast("Nothing to save");return;}
   const v=briefSave(E.card,E.title,full,E.type);
-  if(v){ try{logEvent("question","✎ Edited brief · "+(E.title||"")+" → v"+v,{card:E.card});}catch(e){} toast("✎ Edits saved — filed as v"+v); briefEditClose(); }
+  if(v){ try{logEvent("question","✎ Edited brief · "+(E.title||"")+" → v"+v,{card:E.card});}catch(e){} toast(LANG==="zh"?"✎ 編輯已儲存 —— 存為 v"+v:"✎ Edits saved — filed as v"+v); briefEditClose(); }
   else toast("⚠️ Couldn't file the edit (not signed in to the board?). Nothing changed.");
 }
 function renderBriefsPanel(l){return `<div id="briefsPanel">${briefsInner(l)}</div>`;}
@@ -4633,21 +4784,22 @@ function renderResearch(){const el=document.getElementById("researchPanel"); if(
 function toggleBriefsAll(){ try{S.briefsAll=!S.briefsAll;}catch(e){} renderBriefs(); }
 function toggleResearchAll(){ try{S.researchAll=!S.researchAll;}catch(e){} renderResearch(); }
 function deleteResearch(id){ if(!id)return; if(typeof confirm!=="undefined"&&!confirm("Delete this research request?"))return; try{ if(FB.docRef)FB.docRef.collection("research").doc(id).delete(); }catch(e){} try{ RESEARCH=(RESEARCH||[]).filter(function(r){return r.id!==id;}); }catch(e){} renderResearch(); try{toast("🗑 Research request deleted");}catch(e){} }
-function clearQueuedResearch(slug){ var ids=(RESEARCH||[]).filter(function(r){return r.card===slug;}).map(function(r){return r.id;}).filter(Boolean); if(!ids.length)return; if(typeof confirm!=="undefined"&&!confirm("Delete ALL "+ids.length+" research request(s) for this card?"))return; ids.forEach(function(id){ try{ if(FB.docRef)FB.docRef.collection("research").doc(id).delete(); }catch(e){} }); try{ RESEARCH=(RESEARCH||[]).filter(function(r){return r.card!==slug;}); }catch(e){} renderResearch(); try{toast("🗑 Cleared "+ids.length+" research request(s)");}catch(e){} }
+function clearQueuedResearch(slug){ var ids=(RESEARCH||[]).filter(function(r){return r.card===slug;}).map(function(r){return r.id;}).filter(Boolean); if(!ids.length)return; if(typeof confirm!=="undefined"&&!confirm("Delete ALL "+ids.length+" research request(s) for this card?"))return; ids.forEach(function(id){ try{ if(FB.docRef)FB.docRef.collection("research").doc(id).delete(); }catch(e){} }); try{ RESEARCH=(RESEARCH||[]).filter(function(r){return r.card!==slug;}); }catch(e){} renderResearch(); try{toast(LANG==="zh"?"🗑 已清除 "+ids.length+" 筆研究請求":"🗑 Cleared "+ids.length+" research request(s)");}catch(e){} }
 function loadResearchReports(force){ if(RESEARCH_REPORTS!==null&&!force)return; if(RESEARCH_REPORTS===null)RESEARCH_REPORTS=[]; fetch("https://bv-second-brain--bv-second-brain.us-east4.hosted.app/api/core/memory?limit=400").then(function(r){return r.json();}).then(function(d){ RESEARCH_REPORTS=(((d&&d.docs)||[]).filter(function(m){return /research-report/.test(m.tags||"")||/^STORM RESEARCH COMPLETE/i.test(m.text||"");})); renderResearch(); }).catch(function(){}); }
 function researchInner(l){ if(!l)return"";
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
   const mine=(RESEARCH||[]).filter(function(r){return r.card===l.slug;});
   if(RESEARCH_REPORTS===null) loadResearchReports();
   const reps=RESEARCH_REPORTS||[];
   function matchRep(topic){ var t=(topic||"").toLowerCase().slice(0,40); if(!t)return null; return reps.find(function(r){return String(r.text||"").toLowerCase().includes(t);}); }
   function when(c){ try{ return c&&c.toDate?c.toDate().toLocaleDateString():""; }catch(e){ return ""; } }
-  return `<div class="panel"><h3>🌪 Storm Research <span class="ghostnote" style="font-weight:400">· ${mine.length}</span><button class="iconbtn" style="font-size:11px;padding:2px 7px;float:right" title="Refresh briefing status from the Core" onclick="loadResearchReports(true)">↻</button>${mine.length?`<button class="iconbtn" style="font-size:11px;padding:2px 7px;float:right;margin-right:4px" title="Delete ALL research requests for this card" onclick="clearQueuedResearch('${l.slug}')">🗑 Clear all</button>`:""}</h3>`
-    +(mine.length?"":`<div class="sub">No research yet. Type a topic in the chat box and press 🌪 STORM to queue a 5-lens, citation-verified briefing.</div>`)
+  return `<div class="panel"><h3>🌪 Storm Research <span class="ghostnote" style="font-weight:400">· ${mine.length}</span><button class="iconbtn" style="font-size:11px;padding:2px 7px;float:right" title="${T("從 Core 重新整理研究進度","Refresh briefing status from the Core")}" onclick="loadResearchReports(true)">↻</button>${mine.length?`<button class="iconbtn" style="font-size:11px;padding:2px 7px;float:right;margin-right:4px" title="${T("刪除此卡片的所有研究請求","Delete ALL research requests for this card")}" onclick="clearQueuedResearch('${l.slug}')">🗑 ${T("全部清除","Clear all")}</button>`:""}</h3>`
+    +(mine.length?"":`<div class="sub">${T("尚無研究。在 chat 輸入框填入主題，按下 🌪 STORM 即可排入 5 視角、引用可查核的研究簡報。","No research yet. Type a topic in the chat box and press 🌪 STORM to queue a 5-lens, citation-verified briefing.")}</div>`)
     +(S.researchAll?mine:mine.slice(0,3)).map(function(r){ var rep=matchRep(r.topic); var done=!!rep;
-      return `<div class="card" style="padding:10px 12px;margin-top:8px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b style="font-size:13px">🌪 ${esc(r.topic||"(untitled)")}</b><span style="display:flex;gap:6px;align-items:center;flex:none"><span class="pill" style="${done?"background:rgba(46,125,91,.14);color:var(--green)":"background:rgba(238,49,36,.10);color:var(--accent)"}">${done?"✓ done":"⏳ queued"}</span><button class="iconbtn" title="Delete this research request" style="font-size:12px;padding:1px 7px;opacity:.55" onclick="deleteResearch('${r.id}')">✕</button></span></div><div class="sub" style="margin-top:3px;font-size:11px">${esc(r.by||"")}${when(r.createdAt)?(" · "+when(r.createdAt)):""}</div>`
-        +(done?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12px;color:var(--accent);user-select:none">▾ View full briefing</summary><div class="sub" style="margin-top:6px;white-space:pre-wrap">${esc(String(rep.text||"").replace(/^STORM RESEARCH COMPLETE —\s*/i,""))}</div></details>`:`<div class="sub" style="margin-top:6px">Running the 5-lens, citation-verified pipeline in the research runtime — the briefing posts back here. Or pull it in chat: "recall the research on ${esc((r.topic||"").slice(0,40))}".</div>`)
+      return `<div class="card" style="padding:10px 12px;margin-top:8px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b style="font-size:13px">🌪 ${esc(r.topic||T("（未命名）","(untitled)"))}</b><span style="display:flex;gap:6px;align-items:center;flex:none"><span class="pill" style="${done?"background:rgba(46,125,91,.14);color:var(--green)":"background:rgba(238,49,36,.10);color:var(--accent)"}">${done?T("✓ 已完成","✓ done"):T("⏳ 排隊中","⏳ queued")}</span><button class="iconbtn" title="${T("刪除此研究請求","Delete this research request")}" style="font-size:12px;padding:1px 7px;opacity:.55" onclick="deleteResearch('${r.id}')">✕</button></span></div><div class="sub" style="margin-top:3px;font-size:11px">${esc(r.by||"")}${when(r.createdAt)?(" · "+when(r.createdAt)):""}</div>`
+        +(done?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12px;color:var(--accent);user-select:none">${T("▾ 檢視完整簡報","▾ View full briefing")}</summary><div class="sub" style="margin-top:6px;white-space:pre-wrap">${esc(String(rep.text||"").replace(/^STORM RESEARCH COMPLETE —\s*/i,""))}</div></details>`:`<div class="sub" style="margin-top:6px">${zh?`正在研究執行環境中執行 5 視角、引用可查核的 pipeline —— 簡報完成後會自動回貼在這裡。也可以直接在 chat 裡喚回：「recall the research on ${esc((r.topic||"").slice(0,40))}」。`:`Running the 5-lens, citation-verified pipeline in the research runtime — the briefing posts back here. Or pull it in chat: "recall the research on ${esc((r.topic||"").slice(0,40))}".`}</div>`)
         +`</div>`; }).join("")
-    +((mine.length>3)?('<div style="text-align:center;margin-top:8px"><button class="iconbtn" style="font-size:11px" onclick="toggleResearchAll()">'+(S.researchAll?"▴ Show fewer":("▾ Show all "+mine.length))+'</button></div>'):"")
+    +((mine.length>3)?('<div style="text-align:center;margin-top:8px"><button class="iconbtn" style="font-size:11px" onclick="toggleResearchAll()">'+(S.researchAll?T("▴ 顯示較少","▴ Show fewer"):T("▾ 顯示全部 "+mine.length,"▾ Show all "+mine.length))+'</button></div>'):"")
     +`</div>`;
 }
 /* ===== CHAT PRESETS — one-click pre-engineered prompts (Utility -> Department, dept-aware) ===== */
@@ -4691,7 +4843,7 @@ function chatStepSub(name,input){ const src=TOOL_SRC[name]||""; const q=(input&&
 function chatRelease(){ CHAT.busy=false; CHAT.wake=false; CHAT.busyAt=0; try{clearInterval(CHAT.tick);}catch(e){} renderChatBody(); }
 function chatStop(){ CHAT.cancel=true; try{ if(CHAT.abort)CHAT.abort.abort(); }catch(e){} CHAT.pendingClarify=null; if(CHAT.slug&&CHAT.deepRunId){ try{ chatRef(CHAT.slug).set({deepRunAt:0,deepRunId:""},{merge:true}); }catch(e){} } CHAT.deepRunId=null; chatRelease(); toast("⏹ Stopped — you can send again."); }
 // Voice dictation → fills the chat box (Web Speech API; Chrome/Edge/Safari).
-function chatMic(slug){ var SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR){ toast("🎤 Voice typing isn't supported in this browser — use Chrome or Edge."); return; } var ta=document.getElementById("chatInput"); if(!ta)return; if(CHAT._rec){ try{CHAT._rec.stop();}catch(e){} return; } var rec; try{rec=new SR();}catch(e){ toast("🎤 Couldn't start the mic."); return; } rec.lang="en-US"; rec.interimResults=true; rec.continuous=true; var base=ta.value?ta.value.replace(/\s+$/,"")+" ":""; rec.onresult=function(e){ var fin="",intr=""; for(var i=e.resultIndex;i<e.results.length;i++){ var tr=e.results[i][0].transcript; if(e.results[i].isFinal)fin+=tr; else intr+=tr; } if(fin)base=base+fin+" "; ta.value=base+intr; }; rec.onerror=function(e){ if(!e||e.error!=="aborted")toast("🎤 "+((e&&e.error)||"voice error")); }; rec.onend=function(){ CHAT._rec=null; var b=document.getElementById("micBtn"); if(b){b.textContent="🎤";b.style.color="";} }; try{ rec.start(); CHAT._rec=rec; var b=document.getElementById("micBtn"); if(b){b.textContent="🔴";b.style.color="#EE3124";} toast("🎤 Listening — click 🔴 to stop, then Send."); }catch(e){ toast("🎤 Couldn't start the mic."); } }
+function chatMic(slug){ var SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR){ toast("🎤 Voice typing isn't supported in this browser — use Chrome or Edge."); return; } var ta=document.getElementById("chatInput"); if(!ta)return; if(CHAT._rec){ try{CHAT._rec.stop();}catch(e){} return; } var rec; try{rec=new SR();}catch(e){ toast("🎤 Couldn't start the mic."); return; } rec.lang="en-US"; rec.interimResults=true; rec.continuous=true; var base=ta.value?ta.value.replace(/\s+$/,"")+" ":""; rec.onresult=function(e){ var fin="",intr=""; for(var i=e.resultIndex;i<e.results.length;i++){ var tr=e.results[i][0].transcript; if(e.results[i].isFinal)fin+=tr; else intr+=tr; } if(fin)base=base+fin+" "; ta.value=base+intr; }; rec.onerror=function(e){ if(!e||e.error!=="aborted")toast(LANG==="zh"?"🎤 "+((e&&e.error)||"語音錯誤"):"🎤 "+((e&&e.error)||"voice error")); }; rec.onend=function(){ CHAT._rec=null; var b=document.getElementById("micBtn"); if(b){b.textContent="🎤";b.style.color="";} }; try{ rec.start(); CHAT._rec=rec; var b=document.getElementById("micBtn"); if(b){b.textContent="🔴";b.style.color="#EE3124";} toast("🎤 Listening — click 🔴 to stop, then Send."); }catch(e){ toast("🎤 Couldn't start the mic."); } }
 // Clarify-question picks (clickable options instead of typing).
 function bvPickClarify(qi,oi){ var pc=CHAT.pendingClarify; if(!pc||!pc.qs)return; pc.picks=pc.picks||{}; var q=pc.qs[qi]; if(!q)return; var o=(q.options||[])[oi]; if(o==null)return; pc.picks[qi]=(pc.picks[qi]===o?null:o); renderChatBody(); }
 function bvClarifyBuild(){ var pc=CHAT.pendingClarify; if(!pc||!pc.qs)return; var ans=pc.qs.map(function(q,qi){ var a=(pc.picks&&pc.picks[qi])?pc.picks[qi]:""; return a?(q.q+" "+a):null; }).filter(Boolean).join("; "); var slug=pc.slug, request=pc.request; CHAT.pendingClarify=null; renderChatBody(); return chatSendDeep(slug, request+(ans?("\n\n[Scoping picks: "+ans+"]"):"")); }
@@ -5644,6 +5796,7 @@ function render(){
   renderWhoami(); renderGAuth(); renderDrawer(); save();
 }
 loadSaved();
+LAUNCHES.forEach(syncProjected);   // seed（無 localStorage 時不走 applySnapshot）也要把目標日對齊預計上市日
 loadVersions();
 fbInit();
 loadProjectsData();
