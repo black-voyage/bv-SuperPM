@@ -20,6 +20,7 @@
     --bg:#0C0D10; --panel:#1C2029; --panel2:#20242C; --line:#363B45;
     --text:#F6F8FC; --dim:#ADB6C6; --faint:#7B8494;
     --accent:#EE3124; --green:#4ade80; --amber:#fbbf24; --red:#f87171; --blue:#60a5fa; --purple:#c084fc;
+    --accent-glow:rgba(238,49,36,.42);    /* G3 signal glow on the primary action — theme-swapped in blue */
     --btntext:#fff;
     /* radius scale (Spatial Console v2) — soft geometry; precision reads through hairlines + alignment, not corners. */
     --r-xs:6px;   /* chips · pills · tags · status squares · progress bars */
@@ -69,6 +70,7 @@
     --g2:0 0 50px rgba(120,170,255,.06);
     --glass1:rgba(18,26,43,.80); --glass2:rgba(13,19,32,.55);
     --accent:#3D8BFF;
+    --accent-glow:rgba(61,139,255,.42);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   /* DESIGN.md — keyboard focus visible on every interactive element; mouse focus stays quiet */
@@ -366,6 +368,26 @@
   .btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
   .btn.red{background:#3a1d1d;color:var(--red);border:1px solid #5a2a2a}
   .btn:disabled{background:var(--panel2);color:var(--faint);cursor:not-allowed;border:1px solid var(--line)}
+  /* ===== Design-language modal (replaces native prompt/confirm/alert) — M3 deep glass · G2 surface halo · G3 signal glow on primary ===== */
+  .uimwrap{position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(6,7,9,.56);backdrop-filter:blur(3px) saturate(1.05);-webkit-backdrop-filter:blur(3px) saturate(1.05)}
+  .uimwrap.on{display:flex}
+  .uimbox{background:var(--glass2);backdrop-filter:blur(32px) saturate(1.2);-webkit-backdrop-filter:blur(32px) saturate(1.2);border:1px solid var(--line);border-radius:var(--r-lg);width:min(440px,94vw);max-height:88vh;overflow:auto;box-shadow:inset 0 1px 0 var(--edge),0 0 60px rgba(244,247,252,.06),var(--sh-lg)}
+  .uimhead{display:flex;align-items:flex-start;gap:10px;padding:20px 22px 0}
+  .uimdot{width:8px;height:8px;border-radius:50%;flex:none;margin-top:7px}
+  .uimttl{font:600 var(--fs-title)/1.3 var(--font-head);color:var(--text);word-break:break-word}
+  .uimbody{padding:9px 22px 0 40px;color:var(--dim);font-size:13.5px;line-height:1.55;white-space:pre-line;word-break:break-word}
+  .uimfield{padding:14px 22px 2px}
+  .uimin{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-sm);color:var(--text);font:inherit;font-size:14px;padding:10px 12px;box-sizing:border-box}
+  .uimin::placeholder{color:var(--faint)}
+  .uimin:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+  textarea.uimin{min-height:96px;resize:vertical;line-height:1.5}
+  .uimacts{display:flex;justify-content:flex-end;gap:10px;padding:18px 22px 20px}
+  .uimacts .btn{padding:9px 18px}
+  .uimbox .btn.uim-ok{box-shadow:0 0 18px var(--accent-glow)}
+  .uimbox .btn.uim-ok:hover{filter:brightness(1.05)}
+  @media (prefers-reduced-motion:no-preference){.uimwrap.on{animation:uimFade .16s ease-out}.uimwrap.on .uimbox{animation:uimRise .22s cubic-bezier(.16,1,.3,1)}}
+  @keyframes uimFade{from{opacity:0}to{opacity:1}}
+  @keyframes uimRise{from{opacity:0;transform:translateY(10px) scale(.985);filter:blur(4px)}to{opacity:1;transform:none;filter:blur(0)}}
   .stages{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 16px;position:sticky;top:58px;z-index:9;background:var(--bg);padding:6px 0;border-bottom:1px solid var(--line)}
   .stg{padding:5px 11px;border-radius:var(--r-xs);font-size:12px;border:1px solid var(--line);color:var(--faint);cursor:pointer;background:none;font-family:inherit;white-space:nowrap}
   .stages .stg.sel{outline:2px solid var(--accent);outline-offset:1px}
@@ -896,6 +918,7 @@
 <main id="app"></main>
 <footer style="max-width:1320px;margin:10px auto 26px;padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between;font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;color:var(--faint)"><span>40.6892° N , 74.0445° W — DESIGNED IN NYC</span><span>TRAVEL WITHOUT LIMITS</span></footer>
 <div id="toast"></div>
+<div id="uimodal" class="uimwrap" aria-hidden="true"></div>
 <div class="drawer" id="drawer">
   <div class="dh"><b>Activity & Inbox</b><span class="spacer"></span>
     <button class="iconbtn" onclick="autoFixAll()">⚡ Auto-correct all</button>
@@ -1085,13 +1108,13 @@ function v3Lights(l){
   const ads=d("D6")&&d("MS3b")&&d("L8")?"go":"no";
   return {shop,ads,missShop:["MS3a","D4","L8"].filter(c=>!d(c)),missAds:["D6","MS3b","L8"].filter(c=>!d(c))};
 }
-function v3Go(slug,kind){
+async function v3Go(slug,kind){
   const l=L(slug); if(!l)return;
   if(S.role!=="ceo"){toast("上架／廣告 GO 由 Ben（CEO）拍板");return;}
   l.v3go=l.v3go||{};
-  if(l.v3go[kind]){ if(confirm("撤銷「"+(kind==="shop"?"上架":"廣告")+" GO」？")){delete l.v3go[kind];log("↩ 撤銷 "+(kind==="shop"?"上架":"廣告")+" GO · "+l.name);save();render();} return; }
+  if(l.v3go[kind]){ if(await uiConfirm("撤銷「"+(kind==="shop"?"上架":"廣告")+" GO」？",true)){delete l.v3go[kind];log("↩ 撤銷 "+(kind==="shop"?"上架":"廣告")+" GO · "+l.name);save();render();} return; }
   const lights=v3Lights(l); const ok=kind==="shop"?lights.shop!=="no":lights.ads==="go";
-  if(!ok&&!confirm("燈號未全綠——仍要 GO 嗎？")) return;
+  if(!ok&&!await uiConfirm("燈號未全綠——仍要 GO 嗎？")) return;
   l.v3go[kind]={d:today,who:actor()};
   const miss=(kind==="shop"?lights.missShop:lights.missAds).map(c=>c+" "+(V3MAP[c]?v3T({en:V3MAP[c].en,zh:V3MAP[c].zh}):c)).join("、"); // 決策快照：按下當下缺什麼，一併寫進 check-in 供事後檢討
   l.checkins.unshift({d:today,a:actor(),txt:(kind==="shop"?"🚀 上架 GO":"📣 廣告 GO")+"（儀表板拍板"+(miss?"；當時缺："+miss:"；燈號全綠")+"）"});
@@ -1517,11 +1540,11 @@ function viewDigest(){
 }
 
 /* ----- new launch intake ----- */
-function newLaunch(){
-  const name=prompt("Product name?"); if(!name)return;
+async function newLaunch(){
+  const name=await uiPrompt("Product name?"); if(!name)return;
   const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
   if(!slug||L(slug)){toast("A launch with that name already exists");return;}
-  const dri=prompt("DRI department?","Product")||"Product";
+  const dri=await uiPrompt("DRI department?","Product")||"Product";
   const nl={name,slug,dri:DEPTS().includes(dri)?dri:"Product",stage:STAGES[0],target:"",
     history:[{stage:STAGES[0],start:today}],tasks:allTasks({}),risks:[],
     checkins:[{d:today,a:"system",txt:"Card created from the Shopify flow. Fill the intake Form (C1) to unlock the pipeline."}]};
@@ -1581,8 +1604,8 @@ function renderGAuth(){
     el.innerHTML=`<button class="btn ghost" style="padding:6px 12px" title="Connect the ${esc(GOOGLE_ACCOUNT)} Google account — all Sheets/Docs are created there" onclick="signInGoogle()">Connect Google</button>`;
   }
 }
-function createDriveDoc(slug,i,kind){
-  if(!frozenStepGuard(slug,i))return;        // post-design-freeze guard for 概念/開發 steps
+async function createDriveDoc(slug,i,kind){
+  if(!await frozenStepGuard(slug,i))return;        // post-design-freeze guard for 概念/開發 steps
   if(!GOOGLE_CLIENT_ID){toast("⚠️ Add a Google Client ID in the code first (see GOOGLE-SHEETS-SETUP.md)");return;}
   if(!gReady()){toast("Google still loading — try again in a second");return;}
   const t=_linkTask(slug,i); if(!t){toast("Task not found");return;}
@@ -1659,9 +1682,9 @@ function createLaunchFolder(slug,_tries){
 }
 
 /* ----- edit a launch's name / target date (keeps the slug stable so tasks & history still link) ----- */
-function editLaunch(slug){
+async function editLaunch(slug){
   const l=L(slug); if(!l)return;
-  const name=prompt("Launch name?",l.name); if(name===null)return;   // 目標日已改為自動推算的「預計上市日」，這裡只改名稱
+  const name=await uiPrompt(LANG==="zh"?"活動名稱？":"Launch name?",l.name); if(name===null)return;   // 目標日已改為自動推算的「預計上市日」，這裡只改名稱
   const nm=name.trim(); if(!nm){toast("Name can't be empty");return;}
   const oldName=l.name;
   if(nm===oldName){toast("No changes");return;}
@@ -1685,11 +1708,11 @@ function renameDriveFolder(fid,name){
 }
 
 /* ----- delete a launch (and optionally its Drive folder) ----- */
-function deleteLaunch(slug){
+async function deleteLaunch(slug){
   const l=L(slug); if(!l)return;
-  if(!confirm("Delete launch “"+l.name+"”?\n\nThis removes the card and all its tasks for everyone on the shared board. This can be undone from History.")) return;
+  if(!await uiConfirm(LANG==="zh"?("刪除活動「"+l.name+"」？\n\n這會為共用看板上的所有人移除這張卡片與其所有任務。可從歷史紀錄復原。"):("Delete launch “"+l.name+"”?\n\nThis removes the card and all its tasks for everyone on the shared board. This can be undone from History."),true,{okLabel:LANG==="zh"?"刪除":"Delete"})) return;
   let delFolder=false;
-  if(l.driveFolderId){ delFolder=confirm("Also move its Google Drive folder “BV-SuperPM-"+l.name+"” (and everything inside it) to the Drive Trash?\n\nOK = delete the Drive folder too\nCancel = keep the Drive folder"); }
+  if(l.driveFolderId){ delFolder=await uiConfirm(LANG==="zh"?("同時把 Google Drive 資料夾「BV-SuperPM-"+l.name+"」（及其中所有內容）移到垃圾桶？"):("Also move its Google Drive folder “BV-SuperPM-"+l.name+"” (and everything inside it) to the Drive Trash?"),true,{okLabel:LANG==="zh"?"連資料夾一起刪":"Delete folder too",cancelLabel:LANG==="zh"?"保留資料夾":"Keep folder"}); }
   const fid=l.driveFolderId, nm=l.name;
   const idx=LAUNCHES.findIndex(x=>x.slug===slug); if(idx<0)return;
   LAUNCHES.splice(idx,1);
@@ -1723,12 +1746,12 @@ function boom(){try{
     setTimeout(()=>{try{c.remove();}catch(e){}},1800);}
 }catch(e){}}
 function runFix(idx){ const i=autopilot()[idx]; if(i&&i.fix){i.fix(); toast(LANG==="zh"?"⚡ 已修正:"+i.msg.slice(0,60):"⚡ Fixed: "+i.msg.slice(0,60)); render();} }
-function addRisk(slug){ const t=prompt("Risk (one line)"); if(!t)return;
-  const owner=prompt("Owning department","Product")||"—"; const sc=parseInt(prompt("Score 1-9 (likelihood × impact)","6"))||5;
-  const trigger=prompt("Trigger / early warning","")||"—";
+async function addRisk(slug){ const t=await uiPrompt("Risk (one line)"); if(!t)return;
+  const owner=await uiPrompt("Owning department","Product")||"—"; const sc=parseInt(await uiPrompt("Score 1-9 (likelihood × impact)","6"))||5;
+  const trigger=await uiPrompt("Trigger / early warning","")||"—";
   (L(slug).risks=L(slug).risks||[]).push({t,owner,sc,trigger}); log("⚠️ Risk added to "+L(slug).name); toast("Risk logged"); render(); }
-function delRisk(slug,i){ const l=L(slug); if(!l||!l.risks||!l.risks[i])return;
-  const r=l.risks[i]; if(!confirm("Remove risk “"+r.t+"”?"))return;
+async function delRisk(slug,i){ const l=L(slug); if(!l||!l.risks||!l.risks[i])return;
+  const r=l.risks[i]; if(!await uiConfirm("Remove risk “"+r.t+"”?",true))return;
   l.risks.splice(i,1); log("🗑️ Risk removed from "+l.name+": "+r.t); save(); render(); toast("Risk removed"); }
 
 /* ----- persistence (guarded): autosave, export, reset ----- */
@@ -1896,7 +1919,7 @@ function roleLabel(){return S.role==="ceo"?"Ben (CEO)":S.role==="director"?"Dire
 function actor(){return USERNAME?USERNAME:roleLabel();}  // version-history "who" = the real person (falls back to role)
 // who a note/comment is attributed to: the REAL signed-in person (their set name or Google account), never the "Viewing as" role — so accountability is tied to identity, not the lens you're browsing in.
 function noteAuthor(){ return USERNAME || (ME&&ME.name) || (ME&&ME.email&&ME.email.split("@")[0]) || roleLabel(); }
-function setUsername(){const n=prompt("Your name — shown next to your questions and completed milestones in the shared activity feed (change it anytime):",USERNAME||"");if(n===null)return;USERNAME=(n||"").trim();try{localStorage.setItem("bv-username",USERNAME);}catch(e){} saveUserProfile(); renderWhoami(); toast(USERNAME?("👤 You are "+USERNAME):"Name cleared");}
+async function setUsername(){const n=await uiPrompt("Your name — shown next to your questions and completed milestones in the shared activity feed (change it anytime):",USERNAME||"");if(n===null)return;USERNAME=(n||"").trim();try{localStorage.setItem("bv-username",USERNAME);}catch(e){} saveUserProfile(); renderWhoami(); toast(USERNAME?("👤 You are "+USERNAME):"Name cleared");}
 function renderWhoami(){const el=document.getElementById("whoami");if(!el)return;
   const name=USERNAME||(ME&&ME.name)||"";
   el.innerHTML=ME
@@ -1988,12 +2011,12 @@ function recordRemoteVersion(who,newSnapStr){
     if(VERSIONS.length>80)VERSIONS.length=80; saveVersions();
   }catch(e){}
 }
-function saveCheckpoint(){const lbl=prompt("Checkpoint label — what is this version?","");if(lbl===null)return;
+async function saveCheckpoint(){const lbl=await uiPrompt("Checkpoint label — what is this version?","");if(lbl===null)return;
   const snap=verSnap(); pushVersion({ts:nowStamp(),who:actor(),summary:"📌 "+(lbl||"Checkpoint"),sections:[],changes:[],snap});
   _lastVerKey=snap; if(!fbConfigured())render(); toast("📌 Checkpoint saved");}
-function restoreVersion(id){
+async function restoreVersion(id){
   const v=VERSIONS.find(x=>String(x.id)===String(id)); if(!v){toast("Version not found");return;}
-  if(typeof confirm!=="undefined"&&!confirm("Restore version from "+v.ts+" (by "+v.who+")?\n\n“"+(v.summary||"")+"”\n\nThis replaces the current state. The restore is recorded as a new version, so you can undo it."))return;
+  if(!await uiConfirm("Restore version from "+v.ts+" (by "+v.who+")?\n\n“"+(v.summary||"")+"”\n\nThis replaces the current state. The restore is recorded as a new version, so you can undo it."))return;
   try{applySnapshot(JSON.parse(v.snap));}catch(e){toast("Restore failed");return;}
   _verNote="↩ Restored to "+v.ts+" (originally by "+v.who+")";
   log("↩ Restored version from "+v.ts);
@@ -2584,6 +2607,86 @@ const TOAST_ZH = {
   "🧠 Promoted to the company brain (Core wiki).": "🧠 已提升到公司大腦（Core wiki）。",
 };
 function toast(m){const t=document.getElementById("toast");t.textContent=LANG==="zh"?(TOAST_ZH[m]||zhText(m)):m;t.style.display="block";setTimeout(()=>t.style.display="none",3000);}
+
+/* ===== Design-language modal engine — Promise-based drop-ins for native prompt/confirm/alert.
+   uiPrompt(msg,val)→Promise<string|null> · uiConfirm(msg,danger)→Promise<bool> · uiAlert(msg)→Promise<void>.
+   Awaitable everywhere; enclosing fns become async. No-DOM/headless → native-default semantics. ===== */
+let _uimResolve=null,_uimKeyH=null,_uimLastFocus=null;
+function uiModalOpen(){return !!_uimResolve;}
+function _uimEsc(v){const w=String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");return w;}
+function _uimClose(val){
+  const wrap=document.getElementById("uimodal");
+  const r=_uimResolve;_uimResolve=null;
+  if(_uimKeyH){document.removeEventListener("keydown",_uimKeyH,true);_uimKeyH=null;}
+  if(wrap){wrap.classList.remove("on");wrap.setAttribute("aria-hidden","true");wrap.onclick=null;wrap.innerHTML="";}
+  try{if(_uimLastFocus&&_uimLastFocus.focus)_uimLastFocus.focus();}catch(e){}
+  _uimLastFocus=null;
+  if(r)r(val);
+}
+function uiModal(o){
+  o=o||{};
+  const kind=o.kind||"alert",isPrompt=kind==="prompt";
+  return new Promise(function(resolve){
+    // headless / no-DOM (ingest, screenshot harness before render) → preserve native-default behaviour
+    if(typeof document==="undefined"||!document.getElementById||!document.getElementById("uimodal")){
+      resolve(isPrompt?(o.value!=null?o.value:null):(kind==="alert"?undefined:true));return;
+    }
+    if(_uimResolve){_uimClose(isPrompt?null:(kind==="alert"?undefined:false));}
+    const wrap=document.getElementById("uimodal");
+    _uimResolve=resolve;_uimLastFocus=document.activeElement;
+    const zh=(typeof LANG!=="undefined"&&LANG==="zh"),danger=!!o.danger;
+    const okTxt=o.okLabel||(kind==="alert"?(zh?"知道了":"OK"):isPrompt?(zh?"儲存":"Save"):(zh?"確定":"Confirm"));
+    const cancelTxt=o.cancelLabel||(zh?"取消":"Cancel");
+    const dotc=danger?"var(--red)":kind==="alert"?"var(--amber)":"var(--accent)";
+    const title=o.title!=null?String(o.title):"",message=o.message!=null?String(o.message):"";
+    const okCls=danger?"btn red":"btn uim-ok";
+    let h='<div class="uimbox" role="'+(kind==="alert"?"alertdialog":"dialog")+'" aria-modal="true" aria-label="'+_uimEsc(title||message||kind)+'">';
+    h+='<div class="uimhead"><span class="uimdot" style="background:'+dotc+';box-shadow:0 0 8px '+dotc+'"></span><div class="uimttl">'+_uimEsc(title||message)+'</div></div>';
+    if(title&&message)h+='<div class="uimbody">'+_uimEsc(message)+'</div>';
+    if(isPrompt){
+      const val=o.value!=null?String(o.value):"";
+      const ph=o.placeholder?' placeholder="'+_uimEsc(o.placeholder)+'"':'';
+      h+=o.multiline?'<div class="uimfield"><textarea class="uimin" id="uiminput"'+ph+'>'+_uimEsc(val)+'</textarea></div>'
+                    :'<div class="uimfield"><input class="uimin" id="uiminput" type="text" value="'+_uimEsc(val)+'"'+ph+'></div>';
+    }
+    h+='<div class="uimacts">';
+    if(kind!=="alert")h+='<button type="button" class="btn ghost uim-cancel">'+_uimEsc(cancelTxt)+'</button>';
+    h+='<button type="button" class="'+okCls+'">'+_uimEsc(okTxt)+'</button></div></div>';
+    wrap.innerHTML=h;wrap.classList.add("on");wrap.setAttribute("aria-hidden","false");
+    const box=wrap.querySelector(".uimbox"),input=wrap.querySelector("#uiminput");
+    const okBtn=wrap.querySelector(".uim-ok, .btn.red"),cancelBtn=wrap.querySelector(".uim-cancel");
+    function done(ok){
+      let out;
+      if(kind==="alert")out=undefined;
+      else if(isPrompt)out=ok?(input?input.value:""):null;
+      else out=!!ok;
+      _uimClose(out);
+    }
+    if(okBtn)okBtn.onclick=function(){done(true);};
+    if(cancelBtn)cancelBtn.onclick=function(){done(false);};
+    wrap.onclick=function(e){if(e.target===wrap)done(false);};
+    _uimKeyH=function(e){
+      if(e.key==="Escape"){e.preventDefault();e.stopImmediatePropagation();done(false);}
+      else if(e.key==="Enter"&&!(isPrompt&&o.multiline)){
+        if(document.activeElement&&document.activeElement.tagName==="TEXTAREA")return;
+        e.preventDefault();e.stopImmediatePropagation();
+        const af=document.activeElement;                       // Enter respects the focused button (danger dialogs focus Cancel → Enter cancels, not deletes)
+        if(af&&(af===okBtn||af===cancelBtn))af.click(); else done(true);
+      }else if(e.key==="Tab"){
+        const f=box.querySelectorAll("button,input,textarea,select,[tabindex]");
+        if(!f.length)return;const first=f[0],last=f[f.length-1];
+        if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+        else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+      }
+    };
+    document.addEventListener("keydown",_uimKeyH,true);
+    setTimeout(function(){try{if(input){input.focus();if(input.select)input.select();}else if(danger&&cancelBtn){cancelBtn.focus();}else if(okBtn){okBtn.focus();}}catch(e){}},30);
+  });
+}
+// native-signature async wrappers — near drop-in replacements
+function uiPrompt(message,value,opts){opts=opts||{};return uiModal({kind:"prompt",title:message,value:value,placeholder:opts.placeholder,multiline:opts.multiline,okLabel:opts.okLabel});}
+function uiConfirm(message,danger,opts){opts=opts||{};const parts=String(message==null?"":message).split(/\n\n+/);return uiModal({kind:"confirm",title:opts.title!=null?opts.title:parts[0],message:opts.message!=null?opts.message:parts.slice(1).join("\n\n"),danger:!!danger,okLabel:opts.okLabel,cancelLabel:opts.cancelLabel});}
+function uiAlert(message,opts){opts=opts||{};const parts=String(message==null?"":message).split(/\n\n+/);return uiModal({kind:"alert",title:parts[0],message:parts.slice(1).join("\n\n"),okLabel:opts.okLabel});}
 function setRole(v){ if(!isCEO()){toast(LANG==="zh"?"只有 CEO 可以切換視角 —— 你目前是以 "+roleLabel()+" 身分登入。":"Only the CEO can switch views — you're signed in as "+roleLabel()+".");return;} if(v==="ceo"||v==="director"){S.role=v;} else {S.role="dept";S.dept=v.slice(5);} S.view="home";S.launch=null;render(); }
 function go(v){S.route=null;S.view=v;S.launch=null;render();}
 function openL(slug){S.route=null;S.view="launch";S.launch=slug;S.gateStage=null;render();}
@@ -2606,22 +2709,22 @@ function isDesignFrozen(l){ const t=l&&(l.tasks||[]).find(x=>x.t==="Design freez
 // the design phases that lock once design freezes = every stage BEFORE the one Design freeze sits in (Concept + Build)
 function isFrozenDesignStage(stage){ const fi=STAGES.indexOf(designFreezeStage()), si=STAGES.indexOf(stage); return si>=0&&fi>=0&&si<fi; }
 // returns true to PROCEED, false to ABORT the edit (user declined the post-freeze change)
-function confirmFrozenStepEdit(l,t){
+async function confirmFrozenStepEdit(l,t){
   if(!l||!t||!isDesignFrozen(l)||!isFrozenDesignStage(t.stage)) return true;
   const zh={Concept:"概念",Build:"開發"}[t.stage]||t.stage;
   const msg=LANG==="zh"
     ? "設計已凍結 ❄️\n\n「"+t.t+"」屬於"+zh+"階段。設計凍結後再變更概念／開發步驟（含改狀態、加連結、加備註等）有風險，可能牽動已定案的規格與下游作業。\n\n仍要繼續嗎？"
     : "Design is frozen ❄️\n\n“"+t.t+"” is a "+t.stage+" step. Changing concept/development steps after design freeze (status, links, notes…) is risky — it can affect locked specs and downstream work.\n\nContinue anyway?";
-  return (typeof confirm==="undefined")||confirm(msg);
+  return await uiConfirm(msg);
 }
 // resolve a launch task by (slug,i) and run the freeze guard — returns true to PROCEED, false to abort. Campaign (__camp) tasks pass through.
-function frozenStepGuard(slug,i){ const l=(typeof L==="function")?L(slug):null; return confirmFrozenStepEdit(l, l&&l.tasks&&l.tasks[i]); }
+async function frozenStepGuard(slug,i){ const l=(typeof L==="function")?L(slug):null; return confirmFrozenStepEdit(l, l&&l.tasks&&l.tasks[i]); }
 function cycle(slug,i){ stepStatus(slug,i,1); }      // left-click advances the status loop
 function cycleBack(slug,i){ stepStatus(slug,i,-1); }  // right-click steps it back (so you don't have to wrap all the way around)
-function stepStatus(slug,i,dir){ // status loop: todo → in progress → done → blocked → todo (dir<0 walks it backward)
+async function stepStatus(slug,i,dir){ // status loop: todo → in progress → done → blocked → todo (dir<0 walks it backward)
   const l=L(slug), t=l.tasks[i];
   if(taskLocked(l,t)) return;               // locked rows are read-only (left button is disabled; ignore right-clicks silently)
-  if(!confirmFrozenStepEdit(l,t)) return;   // post-design-freeze guard for 概念/開發 steps
+  if(!await confirmFrozenStepEdit(l,t)) return;   // post-design-freeze guard for 概念/開發 steps
   const nx=(dir<0?{p:"o",x:"p",b:"x",o:"b"}:{o:"p",p:"x",x:"b",b:"o"})[t.st]; // backward map is the exact inverse of forward
   const r=applyTaskStatus(l,t,nx); if(!r.ok){toast(r.reason);return;}
   if(nx==="x"){const lane=FLOW[t.d]; const ii=lane?lane.findIndex(n=>n.t===t.t):-1;
@@ -2653,26 +2756,26 @@ function unapprove(slug,i){ // revert a Ben ◆ sign-off — kept Ben-only so th
   log("↩ Ben reverted ◆ on "+l.name); v3Advance(l);
   toast("↩ Approval reverted"); render();
 }
-function addLink(slug,i){
-  if(!frozenStepGuard(slug,i))return;        // post-design-freeze guard for 概念/開發 steps
-  const u=prompt("Paste link URL (Drive doc, Figma, listing…)"); if(!u)return;
-  const n=prompt("Short label for this link","Document")||"Link";
+async function addLink(slug,i){
+  if(!await frozenStepGuard(slug,i))return;        // post-design-freeze guard for 概念/開發 steps
+  const u=await uiPrompt("Paste link URL (Drive doc, Figma, listing…)"); if(!u)return;
+  const n=await uiPrompt("Short label for this link","Document")||"Link";
   (slug==="__camp"?curCamp().tasks[i]:L(slug).tasks[i]).links.push({n,u});
   toast("🔗 Link attached to task"); render();
 }
 function _linkTask(slug,i){return slug==="__camp"?((curCamp()||{tasks:[]}).tasks[i]):L(slug).tasks[i];}
-function editLink(slug,i,li){
-  if(!frozenStepGuard(slug,i))return;
+async function editLink(slug,i,li){
+  if(!await frozenStepGuard(slug,i))return;
   const t=_linkTask(slug,i); const k=(t.links||[])[li]; if(!k)return;
-  const u=prompt("Edit link URL (blank = keep current)",k.u); if(u===null)return;
-  const n=prompt("Edit link label (blank = keep current)",k.n); if(n===null)return;
+  const u=await uiPrompt("Edit link URL (blank = keep current)",k.u); if(u===null)return;
+  const n=await uiPrompt("Edit link label (blank = keep current)",k.n); if(n===null)return;
   if(u.trim())k.u=u.trim(); if(n.trim())k.n=n.trim();
   toast("✏️ Link updated"); render();
 }
-function removeLink(slug,i,li){
-  if(!frozenStepGuard(slug,i))return;
+async function removeLink(slug,i,li){
+  if(!await frozenStepGuard(slug,i))return;
   const t=_linkTask(slug,i); if(!t.links||!t.links[li])return;
-  if(typeof confirm!=="undefined"&&!confirm("Remove “"+(t.links[li].n||"this link")+"”?"))return;
+  if(!await uiConfirm("Remove “"+(t.links[li].n||"this link")+"”?",true))return;
   t.links.splice(li,1); toast("🗑 Link removed"); render();
 }
 /* ----- HTML code attachments: paste code, preview rendered output or view source ----- */
@@ -2721,8 +2824,8 @@ function codeModal({title,label,html,url,onSave,readOnly}){
       ov.remove();};
   }
 }
-function addCode(slug,i){
-  if(!frozenStepGuard(slug,i))return;
+async function addCode(slug,i){
+  if(!await frozenStepGuard(slug,i))return;
   const t=_linkTask(slug,i);
   codeModal({title:"Attach HTML code or link",onSave:(n,obj)=>{(t.codes=t.codes||[]).push(Object.assign({n},obj)); toast("📎 Attached"); render();}});
 }
@@ -2730,18 +2833,18 @@ function viewCode(slug,i,ci){
   const c=(_linkTask(slug,i).codes||[])[ci]; if(!c)return;
   codeModal({readOnly:true,label:c.n,html:c.h,url:c.u});
 }
-function editCode(slug,i,ci){
-  if(!frozenStepGuard(slug,i))return;
+async function editCode(slug,i,ci){
+  if(!await frozenStepGuard(slug,i))return;
   const t=_linkTask(slug,i), c=(t.codes||[])[ci]; if(!c)return;
   codeModal({title:"Edit attachment",label:c.n,html:c.h,url:c.u,onSave:(n,obj)=>{c.n=n; delete c.h; delete c.u; Object.assign(c,obj); toast("✏️ Updated"); render();}});
 }
-function removeCode(slug,i,ci){
-  if(!frozenStepGuard(slug,i))return;
+async function removeCode(slug,i,ci){
+  if(!await frozenStepGuard(slug,i))return;
   const t=_linkTask(slug,i); if(!t.codes||!t.codes[ci])return;
-  if(typeof confirm!=="undefined"&&!confirm("Remove “"+(t.codes[ci].n||"this code")+"”?"))return;
+  if(!await uiConfirm("Remove “"+(t.codes[ci].n||"this code")+"”?",true))return;
   t.codes.splice(ci,1); toast("🗑 Code removed"); render();
 }
-function push(slug){
+async function push(slug){
   const l=L(slug);
   if(!allMet(l)){toast("🔒 Locked — not all exit criteria are met");return;}
   if(!canPushRole(l)){toast(`Only the DRI (${l.dri}), a mandatory department head, or Ben can push`);return;}
@@ -2750,7 +2853,7 @@ function push(slug){
   const who=S.role==="ceo"?"Ben":S.dept+" (head)";
   l.checkins.unshift({d:today,a:who,txt:`Pushed to ${l.complete?"Complete":l.stage}.${l.complete?"":" Next up: "+mandatory(l).join(", ")+" — their stage begins."}`});
   log("🚀 "+l.name+" pushed to "+(l.complete?"Complete":l.stage)+" by "+who); boom();
-  if(!l.complete){const r=prompt(`Pre-mortem (optional): biggest risk entering ${l.stage}?`);
+  if(!l.complete){const r=await uiPrompt(`Pre-mortem (optional): biggest risk entering ${l.stage}?`);
     if(r){(l.risks=l.risks||[]).push({t:r,owner:l.dri,sc:5,trigger:"—"}); log("⚠️ Pre-mortem risk logged on "+l.name);}}
   toast("🚀 Pushed — next-stage departments alerted in Slack"); render();
 }
@@ -2765,17 +2868,17 @@ function toggle(key){S.open[key]=!S.open[key];render();}
 // whole task row is clickable to expand/collapse — but ignore clicks that land on a real control inside it
 function rowToggle(e,key){ if(e.target.closest("button,input,select,textarea,a,label,.lnkmenu,.collabmenu,[data-noexp]"))return; toggle(key); }
 function setF(slug,i,f,v){ L(slug).tasks[i][f]=v; toast(f==="urg"?"Urgency set to "+v:"Assignee updated"); render(); }
-function addNote(slug,i){
-  if(!frozenStepGuard(slug,i))return;
+async function addNote(slug,i){
+  if(!await frozenStepGuard(slug,i))return;
   const el=document.getElementById(`nt-${slug}-${i}`); const v=(el&&el.value||"").trim(); if(!v)return;
   const urg=(S.noteUrg&&S.noteUrg[slug+":"+i])||"med";
   L(slug).tasks[i].notes.push({d:today,a:noteAuthor(),txt:v,urg}); toast("Note added"); render();
 }
 function delTaskNote(slug,i,ni){ const l=L(slug); const t=l&&l.tasks[i]; if(!t||!t.notes||!t.notes[ni])return; t.notes.splice(ni,1); log("🗑 Note removed from "+t.t); save(); render(); toast("Note deleted"); }
 function setTaskDate(slug,i,field,val){ const l=L(slug); const t=l&&l.tasks[i]; if(!t)return; if(val)t[field]=val; else delete t[field]; const lab=field==="shipDate"?"Ship date":"Est. arrival"; log(`📅 ${lab} · ${t.t} → ${val||"(cleared)"}`); save(); render(); toast(val?lab+" saved":lab+" cleared"); }
-function addLoom(slug,i){
-  if(!frozenStepGuard(slug,i))return;
-  const u=prompt("Paste Loom / video URL"); if(!u)return;
+async function addLoom(slug,i){
+  if(!await frozenStepGuard(slug,i))return;
+  const u=await uiPrompt("Paste Loom / video URL"); if(!u)return;
   L(slug).tasks[i].notes.push({d:today,a:noteAuthor(),txt:"Video walkthrough",v:u}); toast("🎥 Video attached"); render();
 }
 /* team editing */
@@ -2930,7 +3033,7 @@ const V3SHOTS={
 function v3ShotPlan(t,vn){ if(!Array.isArray(t.assetPlan)) t.assetPlan=(V3SHOTS[vn.shots]||[]).map(x=>({label:{zh:x.zh,en:x.en},qty:0})); return t.assetPlan; }
 function v3ShotTotal(t){ return Array.isArray(t.assetPlan)?t.assetPlan.reduce((s,r)=>s+(+r.qty||0),0):0; }
 function v3SetShotQty(slug,i,idx,v){ const l=L(slug),t=l&&l.tasks[i]; if(!t||!Array.isArray(t.assetPlan)||!t.assetPlan[idx])return; t.assetPlan[idx].qty=Math.max(0,parseInt(v,10)||0); save(); render(); }
-function v3AddShot(slug,i){ const l=L(slug),t=l&&l.tasks[i]; if(!t)return; const name=prompt(LANG==="zh"?"新增素材項目名稱":"New asset item name"); if(!name)return; (t.assetPlan=t.assetPlan||[]).push({label:{zh:name,en:name},qty:0}); save(); render(); }
+async function v3AddShot(slug,i){ const l=L(slug),t=l&&l.tasks[i]; if(!t)return; const name=await uiPrompt(LANG==="zh"?"新增素材項目名稱":"New asset item name"); if(!name)return; (t.assetPlan=t.assetPlan||[]).push({label:{zh:name,en:name},qty:0}); save(); render(); }
 function v3DelShot(slug,i,idx){ const l=L(slug),t=l&&l.tasks[i]; if(!t||!Array.isArray(t.assetPlan))return; t.assetPlan.splice(idx,1); save(); render(); }
 function v3ShotList(l,t,i,ro,vn){
   const zh=LANG==="zh", T=(z,e)=>zh?z:e; const plan=v3ShotPlan(t,vn); const total=v3ShotTotal(t);
@@ -3250,10 +3353,10 @@ function flowPopEl(){let p=document.getElementById("flowPop");
     p.addEventListener("click",e=>e.stopPropagation());
     document.body.appendChild(p);} return p;}
 // complete / reopen a step straight from the inspector (mirrors the card's status tick, jumps to done)
-function fpComplete(slug,i){
+async function fpComplete(slug,i){
   const l=L(slug),t=l&&l.tasks[i]; if(!t)return;
   if(taskLocked(l,t)){toast(LANG==="zh"?"此步驟仍鎖定，無法完成":"step is still locked");return;}
-  if(!confirmFrozenStepEdit(l,t))return;
+  if(!await confirmFrozenStepEdit(l,t))return;
   const done=t.st==="x";
   const r=applyTaskStatus(l,t,done?"o":"x"); if(!r.ok){toast(r.reason);return;}
   if(done)delete t.doneAt; else { t.doneAt=today; if(!t.startAt)t.startAt=today; }   // stamp start too — completing straight o→x skips the p step that normally sets startAt
@@ -4031,16 +4134,16 @@ function viewTimeline(){
   <div class="panel"><h3>Launch timelines</h3>${rows}</div>`;
 }
 function curCamp(){ if(!CAMPAIGNS.length)return null; if((S.camp||0)>=CAMPAIGNS.length)S.camp=0; return CAMPAIGNS[S.camp||0]; }
-function newCampaign(){
-  const name=prompt("Campaign name?"); if(!name)return;
-  const date=prompt("Target date (YYYY-MM-DD)?",today)||today;
+async function newCampaign(){
+  const name=await uiPrompt("Campaign name?"); if(!name)return;
+  const date=await uiPrompt("Target date (YYYY-MM-DD)?",today)||today;
   const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||("camp-"+(CAMPAIGNS.length+1));
   CAMPAIGNS.push({name,slug,date,products:[],tasks:[]}); S.camp=CAMPAIGNS.length-1;
   log("🆕 Campaign created: "+name); save(); render(); toast(LANG==="zh"?"🆕 Campaign「"+name+"」已建立":"🆕 Campaign “"+name+"” created");
 }
-function addCampTask(){ const c=curCamp(); if(!c)return; const t=prompt("Campaign task?"); if(!t)return;
-  const d=prompt("Department?","Marketing")||"Marketing"; (c.tasks=c.tasks||[]).push({t,d:DEPTS().includes(d)?d:"Marketing",st:"o",links:[]}); save(); render(); toast("Task added"); }
-function delCampaign(){ const c=curCamp(); if(!c)return; if(typeof confirm!=="undefined"&&!confirm("Delete campaign “"+c.name+"”?"))return; CAMPAIGNS.splice(S.camp||0,1); S.camp=0; save(); render(); toast("Campaign deleted"); }
+async function addCampTask(){ const c=curCamp(); if(!c)return; const t=await uiPrompt("Campaign task?"); if(!t)return;
+  const d=await uiPrompt("Department?","Marketing")||"Marketing"; (c.tasks=c.tasks||[]).push({t,d:DEPTS().includes(d)?d:"Marketing",st:"o",links:[]}); save(); render(); toast("Task added"); }
+async function delCampaign(){ const c=curCamp(); if(!c)return; if(!await uiConfirm("Delete campaign “"+c.name+"”?",true))return; CAMPAIGNS.splice(S.camp||0,1); S.camp=0; save(); render(); toast("Campaign deleted"); }
 function viewCampaign(){
   const addBtn=`<button class="btn" style="margin-left:8px" onclick="newCampaign()">+ New campaign</button>`;
   if(!CAMPAIGNS.length) return `<h2>Campaigns ${addBtn}</h2><div class="sub">No campaigns yet — create one to start.</div>`;
@@ -4290,10 +4393,10 @@ function chatMsgHTML(m,mi){
   return `<div class="cmsg ${cls}"><div class="av">${av}</div><div><div class="who">${esc(m.who||(m.role==="assistant"?"Claude":"User"))}${m.ts?" · "+esc(m.ts):""}${m.role==="assistant"?`<span class="cmsg-report" title="report an answer-quality issue (logged to BV Second Brain)" onclick="reportAnswer(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.55;font-size:11px">⚑ report</span>`:""}<span class="cmsg-del" title="delete this message (for everyone)" onclick="deleteChatMsg(CHAT.slug,${mi})" style="cursor:pointer;margin-left:8px;opacity:.5;font-size:11px">✕</span></div>${m.text?`<div class="bub bub-txt">${esc(m.text)}</div>`:""}${(m.log&&m.log.length)?`<details style="margin-top:6px;font-size:12px"><summary style="cursor:pointer;opacity:.65;user-select:none">▸ Section log (${m.log.length})</summary><div style="margin-top:5px;padding:6px 9px;background:rgba(127,127,127,.07);border-radius:7px;line-height:1.75">${m.log.map(esc).join("<br>")}</div></details>`:""}${atts?`<div class="catts">${atts}</div>`:""}${(m.actions&&m.actions.length)?`<div class="acts">⚡ ${m.actions.map(esc).join(" · ")}</div>`:""}${m.meta?chatMetaHTML(m.meta):""}</div></div>`;
 }
 function openMsgAtt(mi,ai){const a=(((CHAT.msgs||[])[mi]||{}).attachments||[])[ai]; if(!a)return; if(a.type==="link")window.open(a.u,"_blank"); else codeModal({readOnly:true,label:a.n,html:a.h});}
-function deleteChatMsg(slug,mi){ const arr=(CHAT.msgs||[]).slice(); if(mi<0||mi>=arr.length)return; if(typeof confirm!=="undefined"&&!confirm("Delete this message for everyone?"))return; arr.splice(mi,1); if(FB.ready){try{chatRef(slug).set({messages:arr,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){}} CHAT.msgs=arr; renderChatBody(); toast("🗑 Message deleted"); }
-function reportAnswer(slug,mi){
+async function deleteChatMsg(slug,mi){ const arr=(CHAT.msgs||[]).slice(); if(mi<0||mi>=arr.length)return; if(!await uiConfirm("Delete this message for everyone?",true))return; arr.splice(mi,1); if(FB.ready){try{chatRef(slug).set({messages:arr,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){}} CHAT.msgs=arr; renderChatBody(); toast("🗑 Message deleted"); }
+async function reportAnswer(slug,mi){
   const m=(CHAT.msgs||[])[mi]; if(!m||m.role!=="assistant")return;
-  const reason=(typeof prompt!=="undefined")?prompt("Report an answer-quality issue — what's wrong? (e.g. inaccurate, made-up, incomplete, wrong source, missing data)"):"";
+  const reason=await uiPrompt("Report an answer-quality issue — what's wrong? (e.g. inaccurate, made-up, incomplete, wrong source, missing data)",undefined,{multiline:true});
   if(reason===null)return;                       // cancelled
   let q=""; for(let j=mi-1;j>=0;j--){ if((CHAT.msgs[j]||{}).role!=="assistant"){ q=(CHAT.msgs[j].text||""); break; } }   // the question that led to this answer
   const meta=m.meta||{};
@@ -4384,7 +4487,7 @@ async function detectContradictions(l,slug,plan,parts,researchPack,acc){
     who:"Auto fact-check" }));
   return list;
 }
-function clearChat(slug){ if(typeof confirm!=="undefined"&&!confirm("Start a new chat? This clears the shared conversation for this card (for everyone)."))return; if(FB.ready){try{chatRef(slug).set({messages:[],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){}} CHAT.msgs=[]; renderChatBody(); toast("🆕 New chat started"); }
+async function clearChat(slug){ if(!await uiConfirm("Start a new chat? This clears the shared conversation for this card (for everyone).",true))return; if(FB.ready){try{chatRef(slug).set({messages:[],updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){}} CHAT.msgs=[]; renderChatBody(); toast("🆕 New chat started"); }
 /* ===== BRIEFS — collaborative, versioned documents · Marketing + Product + Ben sign-off · one Confirmed source of truth ===== */
 function briefsCol(){return firebase.firestore().collection("bv").doc("superpm").collection("briefs");}
 function briefById(id){return (BRIEFS||[]).find(b=>b.id===id);}
@@ -4484,7 +4587,7 @@ function briefApprove(id,slot){ const b=briefById(id); if(!b||b.status==="confir
   if(upd.status==="confirmed"){ toast("✓ Brief confirmed — it's now the single source of truth."); logEvent("signoff","✓ CONFIRMED brief · "+b.title+" — now the single source of truth",{card:b.card}); promoteBriefToCore(Object.assign({},b,{approvals:a,status:"confirmed"})); }
 }
 // Remove a sign-off (un-sign). Same role gate as signing; a confirmed brief drops back to "review" when a signature is pulled.
-function briefUnsign(id,slot){ const b=briefById(id); if(!b||b.status==="superseded")return;
+async function briefUnsign(id,slot){ const b=briefById(id); if(!b||b.status==="superseded")return;
   const can = slot==="ben"?canBenSign() : slot==="marketing"?canMktSign() : canProdSign();
   if(!can){ toast(slot==="ben"?"Only the CEO can change Ben's sign-off." : slot==="marketing"?"Only the Marketing lead (or CEO) can change this sign-off." : "Only the Product lead, a Director, or the CEO can change this sign-off."); return; }
   const cur=(b.approvals||{})[slot]; if(!cur)return;
@@ -4492,7 +4595,7 @@ function briefUnsign(id,slot){ const b=briefById(id); if(!b||b.status==="superse
   const msg=LANG==="zh"
     ? "移除 "+lbl+" 的簽署"+(who?"（"+who+"）":"")+"？\n\n若此簡報已確認，將退回「審核中」並失去單一事實來源鎖定。"
     : "Remove the "+lbl+" sign-off"+(who?" ("+who+")":"")+"?\n\nIf this brief is confirmed, it drops back to “In Review”.";
-  if(typeof confirm!=="undefined" && !confirm(msg)) return;
+  if(!await uiConfirm(msg)) return;
   const a=Object.assign({marketing:null,product:null,ben:null},b.approvals||{}); a[slot]=null;
   const upd={approvals:a,updatedAt:Date.now()};
   if(b.status==="confirmed"){ upd.status="review"; upd.confirmedAt=null; }   // a confirmed brief loses its source-of-truth lock when a signature is pulled
@@ -4521,12 +4624,12 @@ function briefComment(id){ const inp=document.getElementById("bc_"+id), text=inp
 }
 function briefView(id){ const b=briefById(id); if(b)codeModal({readOnly:true,label:b.title+" · v"+b.version,html:b.html}); }
 function briefToggle(id){ S.open=S.open||{}; S.open["brief_"+id]=!S.open["brief_"+id]; renderBriefs(); }
-function briefReopen(id){ const b=briefById(id); if(!b)return; if(typeof confirm!=="undefined"&&!confirm("Start a new revision round? Creates a new draft version for re-confirmation. The current confirmed brief stays the source of truth until the new one is confirmed by Marketing + Product + Ben."))return; const v=briefSave(b.card,b.title,b.html,b.type); if(v)toast(LANG==="zh"?"已開啟修訂版 v"+v+" 供審閱。":"Opened revision v"+v+" for review."); }
-function briefDelete(id){ if(typeof confirm!=="undefined"&&!confirm("Delete this brief version (for everyone)? It is also removed from Google Drive."))return; var _b=(typeof briefById==="function")?briefById(id):null; try{ if(_b&&_b.driveFileId)_briefDriveDelete(_b.driveFileId); }catch(e){} try{briefsCol().doc(id).delete();}catch(e){} }
+async function briefReopen(id){ const b=briefById(id); if(!b)return; if(!await uiConfirm("Start a new revision round? Creates a new draft version for re-confirmation. The current confirmed brief stays the source of truth until the new one is confirmed by Marketing + Product + Ben."))return; const v=briefSave(b.card,b.title,b.html,b.type); if(v)toast(LANG==="zh"?"已開啟修訂版 v"+v+" 供審閱。":"Opened revision v"+v+" for review."); }
+async function briefDelete(id){ if(!await uiConfirm("Delete this brief version (for everyone)? It is also removed from Google Drive.",true))return; var _b=(typeof briefById==="function")?briefById(id):null; try{ if(_b&&_b.driveFileId)_briefDriveDelete(_b.driveFileId); }catch(e){} try{briefsCol().doc(id).delete();}catch(e){} }
 function statusBadge(s){const m={draft:["Draft","#999"],review:["In Review","var(--amber)"],confirmed:["✓ CONFIRMED","var(--green)"],superseded:["superseded","#777"]},x=m[s]||m.review;return `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;border:1px solid ${x[1]};color:${x[1]}">${x[0]}</span>`;}
 // Rename a brief (the display title). Persists to Firestore.
-function briefRename(id){ const b=briefById(id); if(!b){toast("Brief not found");return;}
-  const name=(typeof prompt!=="undefined")?prompt("Rename this brief (this one only):",b.title||""):null;
+async function briefRename(id){ const b=briefById(id); if(!b){toast("Brief not found");return;}
+  const name=await uiPrompt("Rename this brief (this one only):",b.title||"");
   if(name==null)return; const t=String(name).trim(); if(!t||t===(b.title||""))return;
   if(!FB.ready){ toast("⚠️ Not connected — rename not saved"); return; }
   // Rename ONLY this brief — every brief/variation keeps its own independent name (no cross-changing across versions).
@@ -4783,8 +4886,8 @@ function renderResearchPanel(l){return `<div id="researchPanel">${researchInner(
 function renderResearch(){const el=document.getElementById("researchPanel"); if(el&&S.launch)el.innerHTML=researchInner(L(S.launch));}
 function toggleBriefsAll(){ try{S.briefsAll=!S.briefsAll;}catch(e){} renderBriefs(); }
 function toggleResearchAll(){ try{S.researchAll=!S.researchAll;}catch(e){} renderResearch(); }
-function deleteResearch(id){ if(!id)return; if(typeof confirm!=="undefined"&&!confirm("Delete this research request?"))return; try{ if(FB.docRef)FB.docRef.collection("research").doc(id).delete(); }catch(e){} try{ RESEARCH=(RESEARCH||[]).filter(function(r){return r.id!==id;}); }catch(e){} renderResearch(); try{toast("🗑 Research request deleted");}catch(e){} }
-function clearQueuedResearch(slug){ var ids=(RESEARCH||[]).filter(function(r){return r.card===slug;}).map(function(r){return r.id;}).filter(Boolean); if(!ids.length)return; if(typeof confirm!=="undefined"&&!confirm("Delete ALL "+ids.length+" research request(s) for this card?"))return; ids.forEach(function(id){ try{ if(FB.docRef)FB.docRef.collection("research").doc(id).delete(); }catch(e){} }); try{ RESEARCH=(RESEARCH||[]).filter(function(r){return r.card!==slug;}); }catch(e){} renderResearch(); try{toast(LANG==="zh"?"🗑 已清除 "+ids.length+" 筆研究請求":"🗑 Cleared "+ids.length+" research request(s)");}catch(e){} }
+async function deleteResearch(id){ if(!id)return; if(!await uiConfirm("Delete this research request?",true))return; try{ if(FB.docRef)FB.docRef.collection("research").doc(id).delete(); }catch(e){} try{ RESEARCH=(RESEARCH||[]).filter(function(r){return r.id!==id;}); }catch(e){} renderResearch(); try{toast("🗑 Research request deleted");}catch(e){} }
+async function clearQueuedResearch(slug){ var ids=(RESEARCH||[]).filter(function(r){return r.card===slug;}).map(function(r){return r.id;}).filter(Boolean); if(!ids.length)return; if(!await uiConfirm("Delete ALL "+ids.length+" research request(s) for this card?",true))return; ids.forEach(function(id){ try{ if(FB.docRef)FB.docRef.collection("research").doc(id).delete(); }catch(e){} }); try{ RESEARCH=(RESEARCH||[]).filter(function(r){return r.card!==slug;}); }catch(e){} renderResearch(); try{toast(LANG==="zh"?"🗑 已清除 "+ids.length+" 筆研究請求":"🗑 Cleared "+ids.length+" research request(s)");}catch(e){} }
 function loadResearchReports(force){ if(RESEARCH_REPORTS!==null&&!force)return; if(RESEARCH_REPORTS===null)RESEARCH_REPORTS=[]; fetch("https://bv-second-brain--bv-second-brain.us-east4.hosted.app/api/core/memory?limit=400").then(function(r){return r.json();}).then(function(d){ RESEARCH_REPORTS=(((d&&d.docs)||[]).filter(function(m){return /research-report/.test(m.tags||"")||/^STORM RESEARCH COMPLETE/i.test(m.text||"");})); renderResearch(); }).catch(function(){}); }
 function researchInner(l){ if(!l)return"";
   const zh=LANG==="zh", T=(z,e)=>zh?z:e;
@@ -5247,9 +5350,9 @@ async function chatSend(slug){
   // ASK BEFORE DELIVERABLES (CEO preference): a THIN brief/doc/strategy request (no sections, no audience/goal) gets 2-3 scoping questions first, then builds with the answers. Detailed requests + quick/factual questions are untouched.
   if(!CHAT.pendingClarify && looksDeliverable(text) && deliverableIsThin(text)){ input.value=""; return chatClarifyAsk(slug,text); }
   if(looksDeep(text)){   // SUGGEST deep mode for a big ask (never auto-run) — so the user doesn't have to know when
-    const canAsk=(typeof confirm!=="undefined"); const go=canAsk&&confirm("This looks like a big, multi-part deliverable.\n\nRun it in 🔬 Deep mode? It builds the whole thing section-by-section (~7–10 min, live progress) and files it as a Brief — instead of trying to write it all at once (which can time out).\n\nOK = Deep mode   ·   Cancel = just answer normally");
+    const go=await uiConfirm("This looks like a big, multi-part deliverable.\n\nRun it in 🔬 Deep mode? It builds the whole thing section-by-section (~7–10 min, live progress) and files it as a Brief — instead of trying to write it all at once (which can time out).",false,{okLabel:"Deep mode",cancelLabel:"Just answer"});
     if(go){ input.value=""; return chatSendDeep(slug,text); }
-    if(canAsk){ toast("Answering normally — if it falls short, tap 🔬 Deep or type /deep and I'll rebuild it as a full Brief."); }
+    toast("Answering normally — if it falls short, tap 🔬 Deep or type /deep and I'll rebuild it as a full Brief.");
   }
   input.value=""; const who=actor(), l=L(slug);
   const wantsCJK=!(/\b(in|to|into|as) english\b|english (version|only|please|output)/i.test(text)) && (/chinese|mandarin|cantonese|繁體|繁体|简体|中文|bilingual|翻譯|翻译/i.test(text)||(function(){var z=(String(text).match(/[㐀-鿿぀-ヿ]/g)||[]).length;return z>=8&&z>=String(text).replace(/\s+/g,"").length*0.3;})());   // EXPLICIT Chinese/bilingual ask OR predominantly-Chinese message — but an explicit "in English" always wins (so "summarize this in english: <Chinese>" still gets English-scrubbed)
@@ -5802,6 +5905,7 @@ fbInit();
 loadProjectsData();
 if(typeof document!=="undefined"&&document.addEventListener){
   document.addEventListener("keydown",e=>{
+    if(typeof uiModalOpen==="function"&&uiModalOpen())return;   // a modal owns the keyboard while open (Esc/Enter handled in capture phase); don't fire global shortcuts behind it
     if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();openPal();}
     else if(e.key==="/"&&document.activeElement&&document.activeElement.tagName!=="INPUT"&&document.activeElement.tagName!=="TEXTAREA"){e.preventDefault();const q=(S.view==="progress"&&document.getElementById("pjSearch"))||document.getElementById("q");if(q)q.focus();}
     else if(e.key==="Escape"){ if(S.route){closeFlowPop();} else if(S.pjOpen){pjClose();} else closePal(); }
