@@ -934,7 +934,7 @@ const V3PH=[
 ];
 const V3=[
  // 0 — Concept & Design
- {c:"C1", en:"Form (intake)", zh:"產品需求表", ph:0, dept:"Product", o:"Ben", days:0, req:[], out:{en:"website images",zh:"各種網站圖片"}},
+ {c:"C1", en:"Form (intake)", zh:"產品需求表", ph:0, dept:"Product", o:"Ben", days:0, req:[]},
  {c:"C2", en:"Understand WHY", zh:"概念轉化", ph:0, dept:"Product", o:"Zac", days:1, req:["C1"]},
  {c:"C3", en:"Market research", zh:"市場調查", ph:0, dept:"Product", o:"Zac", days:5, req:["C2"]},
  {c:"C4", en:"Distill", zh:"萃取", ph:0, dept:"Product", o:"Zac", days:2, req:["C3"], out:{en:"PPT / Figma",zh:"PPT or Figma"}, isNew:1},
@@ -2761,14 +2761,24 @@ function taskDetail(l,t,i,ro,vn,lk){
         :`<input type="number" min="0" class="v3days-inp${t.days==null?" unfilled":""}" value="${t.days==null?"":t.days}" placeholder="${T("需填寫","required")}" title="${T("此步驟天數每個產品不同，由負責部門填寫","varies per product — the owning dept fills it in")}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${i},this.value)"> ${T("天","d")}`)
     : (vn.days===0?T("即時 / 事件","instant"):vn.days+"d")]);
   info.push([T("負責人","Owner"), esc(vn.o)]);
-  // actual start/done — auto-stamped on status cycle, but hand-editable here so a late click doesn't skew the health/timeline math
-  if(!ro && vn.days!==0) info.push([T("實際起訖","Actual start / done"),
-    `<span style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">`
-    +`<input type="date" value="${esc(t.startAt||"")}" title="${T("實際開始日(可手動校正)","actual start — editable")}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'startAt',this.value)">`
-    +`<span class="ghostnote">→</span>`
-    +`<input type="date" value="${esc(t.doneAt||"")}" title="${T("實際完成日(可手動校正)","actual done — editable")}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'doneAt',this.value)">`
-    +(t.startAt&&t.doneAt?` <span class="ghostnote">${dayDiff(t.startAt,t.doneAt)}d ${T("實耗","elapsed")}</span>`:t.startAt&&t.st==="p"?` <span class="ghostnote">${dayDiff(t.startAt,today)}d ${T("進行中","running")}</span>`:"")
-    +`</span>`]);
+  // due-date countdown — the clock starts automatically when the predecessor step(s) finish; no manual date entry.
+  // (start/done are still auto-stamped on status change; here we just derive the target date from the day budget.)
+  if(vn.days!==0){
+    const reqs=vn.req||[]; let startClock=null;
+    if(!reqs.length){ startClock=(l.history&&l.history[0]&&l.history[0].start)||null; }   // root → project start
+    else { let latest=null,allDone=true;
+      for(const rc of reqs){ const rt=v3Task(l,rc); if(!rt||rt.st!=="x"||!rt.doneAt){allDone=false;break;} if(!latest||rt.doneAt>latest)latest=rt.doneAt; }
+      startClock=allDone?latest:null; }                                                     // all predecessors done → clock = latest doneAt
+    const days=(t.days!=null?t.days:vn.days);                                               // per-launch override wins, else the template default
+    let due;
+    if(t.st==="x"){ due=`<span class="ghostnote">${T("已完成","done")}${t.doneAt?" · "+fmt(t.doneAt):""}</span>`; }
+    else if(days==null){ due=`<span style="color:var(--amber)">⚠ ${T("天數未填，倒數無法起算","days unset — countdown can't start")}</span>`; }
+    else if(!startClock){ due=`<span class="ghostnote">${T("上一步完成後起算","starts when the previous step finishes")} · ${days}d</span>`; }
+    else { const dd=v3AddD(startClock,days), rem=dayDiff(today,dd), c=rem<0?"var(--red)":rem<=2?"var(--amber)":"var(--green)";
+      due=`${T("應完成","due")} <b>${fmt(dd)}</b> · <span style="color:${c};font-weight:600">${rem<0?T("已逾期","overdue")+" "+(-rem)+"d":T("剩","left")+" "+rem+"d"}</span>`; }
+    info.push([T("應完成日 / 倒數","Due / countdown"), due]);
+  }
+  if(!lk) info.push([T("連結","Links"), linkChips(t,l.slug,i)]);   // the actual attached links live IN the detail, not only in the outer quick-link chip
   const grid=`<div class="v3det">${info.map(([k,v])=>`<div class="v3det-r"><span class="v3det-k">${k}</span><span class="v3det-v">${v}</span></div>`).join("")}</div>`;
   const lockBlk=lk?`<div class="v3det-lock">🔒 <b>${T("鎖定中","Locked")}</b> · ${esc(lockReason(l,t))}</div>`:"";
   const shots=vn.shots?v3ShotList(l,t,i,ro,vn):"";
