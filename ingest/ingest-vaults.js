@@ -4,14 +4,15 @@
  *
  * Maps (per BV-DATA-ARCHITECTURE.md):
  *   products_info/products/ ..md            -> product_docs/{slug}      (rich per-product source-of-truth; NOT catalog)
- *   products_info/hardware/ ..md            -> hardware/{slug}          (type:'overview')
+ *   products_info/reference/五金輔料總覽.md  -> hardware/{slug}          (type:'overview'; 2026-07 moved from hardware/)
  *   products_info/products/.._LINEAGE.md    -> brand_docs/lineage      (naming evolution)
  *   products_assistant/1-Projects/ ..md     -> apps/superpm/launches/{id}            (work layer — gated, see below)
  *   products_assistant/2-Areas/suppliers/   -> apps/superpm/suppliers/{slug}
  *   products_assistant/daily/ ..md          -> apps/superpm/daily/{date}
  *   products_assistant/meetings/ ..md       -> apps/superpm/meetings/{slug}
  *   products_assistant/4-Archive/ ..md      -> apps/superpm/archive/{slug}
- *   products_assistant/3-Resources/materials/ -> apps/superpm/materials_reference/{slug}
+ *   products_info/reference/{品牌共通規格,受控料名清單}.md -> apps/superpm/materials_reference/{slug}
+ *                                              (2026-07 moved from products_assistant/3-Resources/materials/)
  *
  * catalog/{SKU} is OWNED BY the Google Sheet sync and read by the live dashboard — this
  * script NEVER writes there. Work-layer (apps/superpm/*) uploads are refused while the
@@ -204,7 +205,10 @@ function buildProductsInfo() {
       ...(Object.keys(fm).length ? { frontmatter: fm } : {}),
     }});
   }
-  for (const file of walk(path.join(INFO, "hardware"), isMd)) {
+  // 五金輔料總覽 moved: products_info/hardware/ → products_info/reference/ (2026-07 固定產品事實統一).
+  // Pinned to the one overview file — reference/ also holds non-hardware docs (SKU/退貨卡/容量方案).
+  const hwOverview = path.join(INFO, "reference", "五金輔料總覽.md");
+  for (const file of fs.existsSync(hwOverview) ? [hwOverview] : []) {
     const raw = fs.readFileSync(file, "utf8");
     // type:'overview' distinguishes this human-readable index from future
     // Sheet-synced part rows (type:'part') that share the hardware collection.
@@ -247,7 +251,24 @@ function buildProductsAssistant() {
   pushAssist("2-Areas/suppliers", "apps/superpm/suppliers", (fm, base) => slugify(base));
   pushAssist("meetings", "apps/superpm/meetings", (fm, base) => slugify(base));
   // App-private reference, NOT the Sheet-owned top-level `materials` collection.
-  pushAssist("3-Resources/materials", "apps/superpm/materials_reference", (fm, base) => slugify(base));
+  // Source moved: products_assistant/3-Resources/materials/ → products_info/reference/
+  // (2026-07 固定產品事實統一). Only the two materials docs — reference/ 的其他檔
+  // (SKU規範/退貨卡/容量方案) 不屬 materials，暫不 ingest。
+  for (const base of ["品牌共通規格.md", "受控料名清單.md"]) {
+    const file = path.join(INFO, "reference", base);
+    if (!fs.existsSync(file)) { console.error(`SKIP materials_reference: missing ${file}`); continue; }
+    const raw = fs.readFileSync(file, "utf8");
+    const { fm, body } = splitFrontmatter(raw);
+    tasks.push({ collection: "apps/superpm/materials_reference", docId: slugify(base), data: {
+      name: fm.title || firstHeading(body) || base.replace(/\.md$/, ""),
+      aliases: Array.isArray(fm.aliases) ? fm.aliases : (fm.aliases ? [fm.aliases] : []),
+      id: slugify(base),
+      category: fm.category || "", fabric: fm.fabric || "", size_label: fm.size_label || "",
+      weight: fm.weight || "", mo: fm.mo || "", status: fm.status || "", owner: fm.owner || "",
+      tags: Array.isArray(fm.tags) ? fm.tags : (fm.tags ? [fm.tags] : []),
+      text: raw, source: path.relative(INFO, file), app: "superpm", ts: NOW,
+    }});
+  }
   // daily: doc id = the date filename (already YYYY-MM-DD)
   for (const file of walk(path.join(ASSIST, "daily"), isMd)) {
     const raw = fs.readFileSync(file, "utf8");
