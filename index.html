@@ -115,6 +115,9 @@
   body[data-wide] footer{max-width:none!important}
   @keyframes glowPulse{0%,100%{opacity:1}50%{opacity:.2}}
   .glownode{animation:glowPulse 1.15s ease-in-out infinite}
+  @keyframes bvShake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(3px)}30%,50%,70%{transform:translateX(-5px)}40%,60%{transform:translateX(5px)}}
+  .bv-shake{animation:bvShake .45s cubic-bezier(.36,.07,.19,.97) both;will-change:transform}
+  @media (prefers-reduced-motion:reduce){.bv-shake{animation:none}}
   @keyframes dashmove{to{stroke-dashoffset:-32}}
   .routeline{animation:dashmove 1.1s linear infinite}
   /* red dependency arrows — prominent (glow) + animated flow so the prerequisite→step→unblocks chain reads at a glance */
@@ -1067,6 +1070,7 @@ function v3CurPhase(l){
   return V3PHASES[V3PHASES.length-1];
 }
 function v3Advance(l){ // derive stage (= first phase with open work) + complete flag; keep history for the timeline views
+  v3Reconcile(l);   // enforce "done ⇒ prerequisites done" — reopening an upstream step can never leave a downstream step falsely green
   const all=(l.tasks||[]).length>0&&(l.tasks||[]).every(t=>!t.code||t.st==="x");
   if(all){ if(!l.complete){l.complete=true;const h=l.history[l.history.length-1];if(h&&!h.end)h.end=today;} return; }
   if(l.complete)l.complete=false;
@@ -1226,6 +1230,16 @@ function unlockBlocker(l,task){ // "" if unlocked, else the blocking code ("P3s"
 function taskLocked(l,task){ return !!unlockBlocker(l,task); }
 function nodeLocked(l,d,i){ const n=FLOW[d]&&FLOW[d][i]; const t=n&&(l.tasks||[]).find(x=>x.code===n.code); return t?taskLocked(l,t):false; }
 const v3Locked=(l,task)=>unlockBlocker(l,task);  // alias kept for the dashboard/lock-text helpers
+// reverse req-DAG: every task that (transitively) depends on `code` (i.e. what breaks if `code` is un-done)
+function v3Deps(l,code){ const out=[],seen=new Set();
+  const walk=c=>(l.tasks||[]).forEach(t=>{ const n=t.code&&V3MAP[t.code];
+    if(n&&(n.req||[]).includes(c)&&!seen.has(t.code)){ seen.add(t.code); out.push(t); walk(t.code); } });
+  walk(code); return out; }
+// the completed downstream steps that reopening `task` would strand (done, but their prerequisite is about to vanish)
+function v3DoneDeps(l,task){ return (task&&task.code)? v3Deps(l,task.code).filter(t=>t.st==="x") : []; }
+// invariant: a step may be "done" only if ALL its req prerequisites are done. Reopen any done-but-locked step until stable.
+function v3Reconcile(l){ if(!l)return; let ch=true,g=0;
+  while(ch&&g++<60){ ch=false; (l.tasks||[]).forEach(t=>{ if(t.st==="x"&&taskLocked(l,t)){ t.st="o"; if(t.doneAt)delete t.doneAt; ch=true; } }); } }
 /* flow-node click → jump to the matching task card below */
 function jumpTask(slug,i){
   S.route=null;                                         // dismiss the flow popover when we jump to the card
@@ -1899,6 +1913,7 @@ function applySnapshot(d){
   // the V3 task set (state preserved by code; legacy 7-stage tasks drop away and their V3 node starts fresh).
   v3Rederive();
   LAUNCHES.forEach(v3SyncTasks);
+  LAUNCHES.forEach(v3Reconcile);             // heal legacy state where an upstream step was reopened but a downstream step stayed "done"
   LAUNCHES.forEach(syncProjected);           // 每張卡的目標日 = 依「送出日＋任務天數」推算的預計上市日
   reconcileLaunchTasks();                    // safety net (all V3 titles are in GATES, so this is a no-op now)
   applyDeptLens();                           // re-lock a signed-in non-CEO to their team once the shared TEAM email map has loaded
@@ -2607,6 +2622,8 @@ const TOAST_ZH = {
   "🧠 Promoted to the company brain (Core wiki).": "🧠 已提升到公司大腦（Core wiki）。",
 };
 function toast(m){const t=document.getElementById("toast");t.textContent=LANG==="zh"?(TOAST_ZH[m]||zhText(m)):m;t.style.display="block";setTimeout(()=>t.style.display="none",3000);}
+// brief left-right nudge to say "that action didn't take" (a locked step, or a reopen you cancelled). No-op when headless.
+function bvShake(el){ try{ if(!el||!el.classList)return; el.classList.remove("bv-shake"); void el.offsetWidth; el.classList.add("bv-shake"); setTimeout(function(){try{el.classList.remove("bv-shake");}catch(e){}},480); }catch(e){} }
 
 /* ===== Design-language modal engine — Promise-based drop-ins for native prompt/confirm/alert.
    uiPrompt(msg,val)→Promise<string|null> · uiConfirm(msg,danger)→Promise<bool> · uiAlert(msg)→Promise<void>.
@@ -2719,13 +2736,31 @@ async function confirmFrozenStepEdit(l,t){
 }
 // resolve a launch task by (slug,i) and run the freeze guard — returns true to PROCEED, false to abort. Campaign (__camp) tasks pass through.
 async function frozenStepGuard(slug,i){ const l=(typeof L==="function")?L(slug):null; return confirmFrozenStepEdit(l, l&&l.tasks&&l.tasks[i]); }
-function cycle(slug,i){ stepStatus(slug,i,1); }      // left-click advances the status loop
-function cycleBack(slug,i){ stepStatus(slug,i,-1); }  // right-click steps it back (so you don't have to wrap all the way around)
-async function stepStatus(slug,i,dir){ // status loop: todo → in progress → done → blocked → todo (dir<0 walks it backward)
+function cycle(slug,i,el){ stepStatus(slug,i,1,el); }      // left-click advances the status loop
+function cycleBack(slug,i,el){ stepStatus(slug,i,-1,el); }  // right-click steps it back (so you don't have to wrap all the way around)
+/* Reopen guard: leaving a "done" step invalidates every completed step that depends on it (via the req DAG).
+   Warn (design-language confirm) + return the downstream done steps for the caller to reset together; shake + abort on cancel. */
+async function guardReopen(l,t,el){
+  const deps=(t&&t.st==="x")?v3DoneDeps(l,t):[];
+  if(!deps.length) return {ok:true,reset:[]};
+  const zh=LANG==="zh", nm=x=>(x.code?x.code+" ":"")+flowTaskName(x);
+  const msg=zh
+    ? "重新開啟「"+flowTaskName(t)+"」\n\n後面還有 "+deps.length+" 個已完成步驟會一併退回「未完成」：\n\n"+deps.map(nm).join("、")+"\n\n要繼續嗎？"
+    : "Reopen “"+flowTaskName(t)+"”\n\nThis resets "+deps.length+" completed downstream step(s):\n\n"+deps.map(nm).join(", ")+"\n\nContinue?";
+  const ok=await uiConfirm(msg,true,{okLabel:zh?("退回 "+deps.length+" 步"):("Reopen "+deps.length+" steps")});
+  if(!ok){ bvShake(el); return {ok:false,reset:[]}; }
+  return {ok:true,reset:deps};
+}
+async function stepStatus(slug,i,dir,el){ // status loop: todo → in progress → done → blocked → todo (dir<0 walks it backward)
   const l=L(slug), t=l.tasks[i];
-  if(taskLocked(l,t)) return;               // locked rows are read-only (left button is disabled; ignore right-clicks silently)
+  if(taskLocked(l,t)){ bvShake(el); toast("🔒 "+lockReason(l,t)); return; }   // locked → can't act out of order: nudge + say why (no silent dead click)
   if(!await confirmFrozenStepEdit(l,t)) return;   // post-design-freeze guard for 概念/開發 steps
   const nx=(dir<0?{p:"o",x:"p",b:"x",o:"b"}:{o:"p",p:"x",x:"b",b:"o"})[t.st]; // backward map is the exact inverse of forward
+  if(t.st==="x"&&nx!=="x"){                        // leaving "done" → its completed downstream steps become invalid; warn + cascade-reopen them
+    const g=await guardReopen(l,t,el); if(!g.ok) return;
+    g.reset.forEach(d=>{d.st="o"; if(d.doneAt)delete d.doneAt;});
+    if(g.reset.length) toast(LANG==="zh"?("↩ 已一併退回後續 "+g.reset.length+" 個步驟"):("↩ Reset "+g.reset.length+" downstream step(s)"));
+  }
   const r=applyTaskStatus(l,t,nx); if(!r.ok){toast(r.reason);return;}
   if(nx==="x"){const lane=FLOW[t.d]; const ii=lane?lane.findIndex(n=>n.t===t.t):-1;
     if(ii>=0){const key=t.d+"|"+lane[ii].l; const others=[...new Set(routeSteps(key,t.d,ii).map(p=>p[0]))].filter(x=>x!==t.d);
@@ -2964,7 +2999,7 @@ function taskRow(l,t,extra,ro){
   const _hasPanel=open&&!t.gate;                                  // the detail panel is only rendered when open (non-gate)
   let _tpNew=""; if(_hasPanel){ if(!PANELSEEN.has(key)){PANELSEEN.add(key);_tpNew=" tp-in";} } else PANELSEEN.delete(key);  // first open → play reveal once; closed → forget so a reopen replays
   return `<div id="task-${l.slug}-${i}" class="taskwrap${_tpNew}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${t.gate?"":"cursor:pointer;"}${lk?"opacity:.38;filter:grayscale(.6)":""}"${t.gate?"":` onclick="rowToggle(event,'${key}')"`}>
-   ${t.gate?gateControl(l,t,i,lk):`<button type="button" class="st ${lk?"":t.st}" ${lk?"disabled":""} aria-label="${lk?"locked — "+esc(lockReason(l,t)):"status: "+stWord(t.st)+" — left-click to advance, right-click to step back"}" title="${lk?"locked — "+esc(lockReason(l,t)):"left-click: advance · right-click: step back"}" onclick="cycle('${l.slug}',${i})" oncontextmenu="cycleBack('${l.slug}',${i});return false">${lk?"🔒":stIcon[t.st]}</button>`}
+   ${t.gate?gateControl(l,t,i,lk):`<button type="button" class="st ${lk?"":t.st}" ${lk?'aria-disabled="true"':""} aria-label="${lk?"locked — "+esc(lockReason(l,t)):"status: "+stWord(t.st)+" — left-click to advance, right-click to step back"}" title="${lk?"locked — "+esc(lockReason(l,t)):"left-click: advance · right-click: step back"}" onclick="cycle('${l.slug}',${i},this)" oncontextmenu="cycleBack('${l.slug}',${i},this);return false">${lk?"🔒":stIcon[t.st]}</button>`}
    <span>${vn?`<span class="v3code">${esc(t.code)}</span> `:""}${esc(flowTaskName(t))}${t.gate?' <span style="color:var(--purple)">◆</span>':""}${vn&&vn.days==null&&t.days==null&&t.st!=="x"?`<span class="daysmiss" title="${LANG==="zh"?"此步驟天數尚未填寫":"this step still needs a day estimate"}">⏱ ${LANG==="zh"?"天數未填":"days unset"}</span>`:""}
     ${t.assignee&&t.assignee.trim()!==resp&&t.assignee.trim()!==owner&&!collabs.includes(t.assignee.trim())?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
     ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
@@ -3353,11 +3388,16 @@ function flowPopEl(){let p=document.getElementById("flowPop");
     p.addEventListener("click",e=>e.stopPropagation());
     document.body.appendChild(p);} return p;}
 // complete / reopen a step straight from the inspector (mirrors the card's status tick, jumps to done)
-async function fpComplete(slug,i){
+async function fpComplete(slug,i,el){
   const l=L(slug),t=l&&l.tasks[i]; if(!t)return;
-  if(taskLocked(l,t)){toast(LANG==="zh"?"此步驟仍鎖定，無法完成":"step is still locked");return;}
+  if(taskLocked(l,t)){ bvShake(el); toast("🔒 "+lockReason(l,t)); return; }   // still locked → nudge + name the missing prerequisite
   if(!await confirmFrozenStepEdit(l,t))return;
   const done=t.st==="x";
+  if(done){                                                                    // reopening → cascade-reopen the completed downstream steps that depend on it
+    const g=await guardReopen(l,t,el); if(!g.ok) return;
+    g.reset.forEach(d=>{d.st="o"; if(d.doneAt)delete d.doneAt;});
+    if(g.reset.length) toast(LANG==="zh"?("↩ 已一併退回後續 "+g.reset.length+" 個步驟"):("↩ Reset "+g.reset.length+" downstream step(s)"));
+  }
   const r=applyTaskStatus(l,t,done?"o":"x"); if(!r.ok){toast(r.reason);return;}
   if(done)delete t.doneAt; else { t.doneAt=today; if(!t.startAt)t.startAt=today; }   // stamp start too — completing straight o→x skips the p step that normally sets startAt
   v3Advance(l);   // re-derive stage / complete / history — mirrors cycle()/approve(); without it the card's phase goes stale after completing from the flow inspector
@@ -3384,7 +3424,7 @@ function flowPopHTML(d,i){
    const dTBD=dRaw==null&&!n.d;
    const daysTxt=dRaw==null?(n.d?(zh?"即時":"instant"):(zh?"待填":"TBD")):(dRaw===0?(zh?"即時":"instant"):dRaw+"d");
    const doneNow=!!(task&&task.st==="x");
-   const aMark=(task&&!locked&&!n.d)?`<button class="btn fp-mark${doneNow?" ghost":""}" onclick="fpComplete('${l.slug}',${ti})">${doneNow?(zh?"↩ 重新開啟":"↩ Reopen"):(zh?"✓ 標記完成":"✓ Complete")}</button>`
+   const aMark=(task&&!locked&&!n.d)?`<button class="btn fp-mark${doneNow?" ghost":""}" onclick="fpComplete('${l.slug}',${ti},this)">${doneNow?(zh?"↩ 重新開啟":"↩ Reopen"):(zh?"✓ 標記完成":"✓ Complete")}</button>`
      :`<span class="fp-act-note">${n.d?(zh?"◆ 由 Ben 拍板":"◆ Ben decides"):locked?(zh?"🔒 前置未完成":"🔒 waiting on prerequisites"):(zh?"無對應任務":"no linked task")}</span>`;
    h+=`<div class="fp-actbar">${aMark}<span class="fp-days${dTBD?" tbd":""}" title="${zh?"預估天數":"estimated days"}">⏱ ${daysTxt}</span></div>`;}
   // dependency panel — the same req graph the red arrows draw: what this waits on, and what finishing it unblocks
@@ -3491,7 +3531,7 @@ function homeDept(){
    ${pb.map(t=>`<div class="row"><span style="color:${DCOLOR(d)}">▸</span><span><b>${esc(t)}</b>${DOD[t]?` — <span style="color:var(--dim)">${esc(DOD[t])}</span>`:""}${EVID.has(t)?' <span class="urg" style="background:#13262e;color:#67e8f9">📎 evidence required</span>':""}</span></div>`).join("")}
    <div class="sub" style="margin-top:8px">Full version (definitions, evidence types, estimates, dependencies) lives in <b>BV-Task-Playbook.xlsx</b> — your team edits the ${d} tab and the tracker adopts your rules.</div></div>
   ${driOf.length?`<div class="panel"><h3>${LANG==="zh"?"擔任 DRI 的卡片 — "+zhText(d):`Cards where ${d} is DRI`}</h3><div class="board">${driOf.map(l=>`<div class="col">${cardHTML(l)}</div>`).join("")}</div></div>`:""}
-  <div class="panel"><h3>${d} owes the current gates</h3>${owed.length?owed.map(({l,c})=>`<div class="row"><button type="button" class="st ${c.task.st}" aria-label="status: ${stWord(c.task.st)} — left-click to advance, right-click to step back" onclick="cycle('${l.slug}',${l.tasks.indexOf(c.task)})" oncontextmenu="cycleBack('${l.slug}',${l.tasks.indexOf(c.task)});return false">${stIcon[c.task.st]}</button><span><b>${l.name}</b> · ${esc(c.t)}</span><span class="o">gates ${l.stage} → next</span></div>`).join(""):'<div class="sub">Nothing owed — no gate is waiting on this team.</div>'}</div>
+  <div class="panel"><h3>${d} owes the current gates</h3>${owed.length?owed.map(({l,c})=>`<div class="row"><button type="button" class="st ${c.task.st}" aria-label="status: ${stWord(c.task.st)} — left-click to advance, right-click to step back" onclick="cycle('${l.slug}',${l.tasks.indexOf(c.task)},this)" oncontextmenu="cycleBack('${l.slug}',${l.tasks.indexOf(c.task)},this);return false">${stIcon[c.task.st]}</button><span><b>${l.name}</b> · ${esc(c.t)}</span><span class="o">gates ${l.stage} → next</span></div>`).join(""):'<div class="sub">Nothing owed — no gate is waiting on this team.</div>'}</div>
   <div class="twocol">${[["b","Blocked"],["p","In progress"],["o","To do"]].map(([s,lbl])=>`<div class="panel"><h3>${lbl} (${grp(s).length})</h3>${grp(s).map(({l,t})=>taskRow(l,t,l.name)).join("")||'<div class="sub">None.</div>'}</div>`).join("")}</div>
   <div class="panel"><h3>Post a check-in</h3><select id="ciL">${LAUNCHES.filter(l=>!l.complete).map(l=>`<option value="${l.slug}">${l.name}</option>`).join("")}</select><div style="margin-top:8px"><textarea id="ci" placeholder="Progress: …  Blockers: …  Asks: …"></textarea></div><div style="margin-top:8px"><button class="btn" onclick="addCheckin(document.getElementById('ciL').value)">Post check-in</button> <span class="sub" style="display:inline">posts to the card + its Slack channel</span></div></div>`;
 }
@@ -5899,6 +5939,7 @@ function render(){
   renderWhoami(); renderGAuth(); renderDrawer(); save();
 }
 loadSaved();
+LAUNCHES.forEach(v3Reconcile);     // fresh seed（無 localStorage 不走 applySnapshot）也要維持「完成⇒前置完成」一致性
 LAUNCHES.forEach(syncProjected);   // seed（無 localStorage 時不走 applySnapshot）也要把目標日對齊預計上市日
 loadVersions();
 fbInit();
