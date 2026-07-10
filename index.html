@@ -888,6 +888,16 @@
   .v3anchors{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin:4px 0 10px}
   .v3anchors>div{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--dim);border:1px solid var(--line);background:var(--panel2);border-radius:6px;padding:5px 9px}
   .v3anchors b{color:var(--text)}
+  /* 🔗 Link hub — every attachment across the launch's tasks, grouped by source task so anyone can grab it from one place */
+  .v3linkhub{margin-top:14px}
+  .v3links{display:flex;flex-direction:column}
+  .v3lgrp{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line)}
+  .v3lgrp:first-child{border-top:none;padding-top:2px}
+  .v3lgrp-src{flex:0 0 auto;min-width:160px;max-width:300px;font-size:12.5px;color:var(--text)}
+  .v3lgrp-src.jump{cursor:pointer}
+  .v3lgrp-src.jump:hover{color:var(--accent)}
+  .v3lgrp-links{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 240px}
+  .v3lgrp-links .lnk{margin-left:0}
   .panel.v3cur{border-color:var(--accent)}
   .ld-cardhead{display:flex;align-items:center;gap:8px;margin:2px 0 10px}
   .ld-flowhide{margin-left:auto}
@@ -3697,6 +3707,14 @@ function v3Overview(l){
   const deptPanel=`<div class="panel"><h3>${T("部門健康 — 找瓶頸","Department health — find the bottleneck")} <span class="ghostnote">${T("條=實際耗時 · 直線=已開工預算 · 落後排最前","bar=actual · tick=started-stage budget · behind first")}</span></h3>${drows||`<div class="sub">${T("尚無資料","no data yet")}</div>`}</div>`;
   return verdict+`<div style="height:12px"></div>`+timeline+`<div style="height:12px"></div>`+deptPanel;
 }
+// copy an attachment's URL to the clipboard (from the Link hub) — looks the url up by index so no URL is embedded in the onclick (quotes-safe)
+function copyAttUrl(slug,ti,kind,idx){
+  const l=L(slug),t=l&&l.tasks[ti]; if(!t)return;
+  const u=((kind==="code"?t.codes:t.links)||[])[idx]&&((kind==="code"?t.codes:t.links)||[])[idx].u;
+  if(!u){toast(LANG==="zh"?"這個附件沒有可複製的連結":"nothing to copy");return;}
+  try{navigator.clipboard.writeText(u); toast(LANG==="zh"?"🔗 已複製連結":"🔗 Link copied");}
+  catch(e){toast(LANG==="zh"?"複製失敗 —— 請手動複製":"Copy failed — copy it manually");}
+}
 function v3Dash(l){
   const zh=LANG==="zh"; const T=(z,e)=>zh?z:e;
   const li=v3Lights(l);
@@ -3735,6 +3753,19 @@ function v3Dash(l){
     <div><span>${T("大貨到貨（L8）","Bulk arrival (L8)")}</span><b>${l8&&l8.st==="x"&&l8.doneAt?fmt(l8.doneAt):(v3EtaBulk(l)?`${T("預計","est")} ~${fmt(v3EtaBulk(l))}`:"—")}</b></div>
     ${p3&&p3.st==="p"&&p3.days!=null&&p3.startAt?`<div><span>${T("大貨倒數","Bulk countdown")}</span><b>${Math.max(0,p3.days-dayDiff(p3.startAt,today))}d</b></div>`:""}
   </div>`;
+  // 🔗 Link hub — gather every link / attachment people have put on ANY task into one place so anyone can grab it (索取), not hunt task-by-task
+  const linkGroups=(l.tasks||[]).map((t,ti)=>{
+    const ls=t.links||[], cs=t.codes||[]; if(!ls.length&&!cs.length)return "";
+    const cp=(kind,idx)=>`<button class="lnkb" title="${T("複製連結","copy link")}" onclick="event.stopPropagation();copyAttUrl('${l.slug}',${ti},'${kind}',${idx})">⧉</button>`;
+    const chips=ls.map((k,li)=>`<span class="lnkg"><a class="lnk" href="${esc(k.u)}" target="_blank" rel="noopener" title="${esc(k.u)}">🔗 ${esc(k.n||k.u)}</a>${cp("link",li)}</span>`).join("")
+      +cs.map((c,ci)=>c.u
+        ?`<span class="lnkg"><a class="lnk" href="${esc(c.u)}" target="_blank" rel="noopener" title="${esc(c.u)}">🔗 ${esc(c.n||c.u)}</a>${cp("code",ci)}</span>`
+        :`<span class="lnk" style="cursor:pointer" onclick="viewCode('${l.slug}',${ti},${ci})" title="${T("預覽 HTML","preview HTML")}">&lt;/&gt; ${esc(c.n)}</span>`).join("");
+    const who=(t.assignee&&t.assignee.trim())||t.d||"", canJump=t.code&&V3MAP[t.code];
+    return `<div class="v3lgrp"><span class="v3lgrp-src${canJump?" jump":""}"${canJump?` onclick="v3jump('${l.slug}','${t.code}')" title="${T("跳到任務","jump to task")}"`:""}>${t.code?`<span class="v3code">${esc(t.code)}</span> `:""}${esc(flowTaskName(t))}${who?` <span class="ghostnote" style="color:${DCOLOR(t.d)}">· ${esc(who)}</span>`:""}</span><span class="v3lgrp-links">${chips}</span></div>`;
+  }).filter(Boolean).join("");
+  const nLinks=(l.tasks||[]).reduce((a,t)=>a+(t.links||[]).length+(t.codes||[]).length,0);
+  const linkHub=`<div class="panel v3linkhub"><h3>🔗 ${T("連結總覽","Link hub")}${nLinks?` <span class="ghostnote" style="font-weight:400">${nLinks}</span>`:""} <span class="ghostnote">${T("各任務附上的連結彙整於此，點擊直接開啟索取","every link attached across the tasks — click to open")}</span></h3>${linkGroups?`<div class="v3links">${linkGroups}</div>`:`<div class="sub">${T("尚無連結 — 在任一任務列用 🔗 Links 附上，這裡會自動彙整。","No links yet — attach one via 🔗 Links on any task and it collects here.")}</div>`}</div>`;
   return `<div class="panel v3strip">
     <div class="v3strip-top">
       <span class="v3strip-k">🎛 ${T("上市決策","Launch decision")}</span>
@@ -3748,7 +3779,8 @@ function v3Dash(l){
   <div class="v3grid">
     <div class="panel"><h3>① ${T("素材就緒","Assets ready")} <span class="ghostnote">${T("Done 自動流入 · 點卡跳任務","auto-fed by Done · click to jump")}</span></h3><div class="v3assets">${assets}</div></div>
     <div class="panel"><h3>② ${T("物流就緒","Logistics ready")}</h3>${anchors}${["L1","L2","L3","L6","L4","L5","L7","L8"].map(lrow).join("")}</div>
-  </div>`;
+  </div>
+  ${linkHub}`;
 }
 function viewLaunch(){
   const l=L(S.launch);
