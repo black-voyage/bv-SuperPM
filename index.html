@@ -436,6 +436,9 @@
   .taskpanel{background:rgba(9,10,13,.72);background:color-mix(in srgb,var(--void) 74%,transparent);backdrop-filter:blur(18px) saturate(1.15);-webkit-backdrop-filter:blur(18px) saturate(1.15);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;margin:2px 0 12px;font-size:13px;box-shadow:inset 0 1px 0 rgba(246,248,252,.13),inset 0 -1px 0 rgba(246,248,252,.04),inset 0 -18px 36px rgba(0,0,0,.30)}
   .v3days-inp{width:66px;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:var(--r-xs);padding:2px 7px;font-size:12.5px;font-family:inherit}
   .v3days-inp.unfilled{border-color:rgba(251,191,36,.55);background:rgba(251,191,36,.06)}
+  .v3due-inp{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:var(--r-xs);padding:2px 7px;font-size:12.5px;font-family:inherit}
+  .v3due-inp.unfilled{border-color:rgba(251,191,36,.55);background:rgba(251,191,36,.06)}
+  .v3due-inp:focus{outline:none;border-color:var(--accent)}
   /* days-not-set warning on a collapsed card row — soft red (淡紅), borderless so it reads as a gentle flag, not the blocked-red / act-now-orange alarm */
   .daysmiss{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:600;color:var(--red);background:rgba(248,113,113,.12);border-radius:var(--r-pill);padding:1px 8px;margin-left:6px;vertical-align:middle;white-space:nowrap}
   .v3days-inp:focus{outline:none;border-color:var(--accent)}
@@ -1102,6 +1105,19 @@ function v3cycle(slug,i,dir){
 }
 function v3SetDays(slug,i,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;const n=parseInt(v,10);t.days=isNaN(n)?null:n;syncProjected(l);save();render();}
 function v3SetDate(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;t[k]=v||"";syncProjected(l);save();render();}
+// shared due-clock: root steps count from the project start; others from the LATEST predecessor doneAt (null until all are done)
+const v3StartClock=(l,vn)=>{const reqs=(vn&&vn.req)||[];
+  if(!reqs.length)return (l.history&&l.history[0]&&l.history[0].start)||null;
+  let latest=null; for(const rc of reqs){const rt=v3Task(l,rc); if(!rt||rt.st!=="x"||!rt.doneAt)return null; if(!latest||rt.doneAt>latest)latest=rt.doneAt;} return latest;};
+// factory quotes a DATE, not a duration — typing the due date back-fills t.days through v3SetDays,
+// so every day-consumer (critical path / float / delay trend / ETA bulk) stays on the single days source of truth
+function v3SetDue(slug,i,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;
+  if(!v){v3SetDays(slug,i,"");return;}
+  const vn=t.code&&V3MAP[t.code], sc=vn?v3StartClock(l,vn):null;
+  if(!sc){toast(LANG==="zh"?"上一步完成後才能填交期":"finish the previous step first");render();return;}
+  const d=dayDiff(sc,v);
+  if(d<0){toast((LANG==="zh"?"交期早於起算日 ":"date is before the clock start ")+fmt(sc));render();return;}
+  v3SetDays(slug,i,String(d));}
 function v3SetTarget(slug,v){const l=L(slug);if(!l)return;l.target=v||l.target;log("🎯 目標上市日 → "+l.target+" · "+l.name);save();render();}
 // 倒推紅旗: remaining calendar-days estimate to finish `code` = longest unmet req chain (memoized by VALUE —
 // a plain visited-set would zero out shared upstreams on diamond deps like D6←D5-chain vs D6←MS3b-chain)
@@ -3005,7 +3021,7 @@ function taskRow(l,t,extra,ro){
   const ctrls=t.gate?"":`${lk?"":renderLinkMenu(t,l.slug,i)}${exp}`;   // Ben ◆ gates carry no expand/notes panel — the decision button says it all
   // the step's output/explanation now lives in the ▾ details panel (taskDetail), keeping the row short; a shot-list total shows for MS3a/b
   const shotChip=(vn&&vn.shots&&!extra&&v3ShotTotal(t)>0)?`<span class="ghostnote" title="${LANG==="zh"?"素材需求合計":"asset shot-list total"}">${vn.shots==="video"?"🎬":"📸"} ${v3ShotTotal(t)}</span>`:"";
-  const sampleCtl=(vn&&vn.sample&&!extra&&!ro)?`<div class="v3sample">${LANG==="zh"?"預計大貨樣日":"planned bulk-sample date"} <input type="date" value="${esc(t.sampleDate||"")}" title="the date bulk samples can ship — P5 (Deploy marketing samples) waits for this" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)">${t.st==="p"&&t.days!=null&&t.startAt?` <span class="ghostnote">${LANG==="zh"?"倒數剩":"countdown"} ${Math.max(0,t.days-dayDiff(t.startAt,today))}d</span>`:""}</div>`:"";
+  const sampleCtl=(vn&&vn.sample&&!extra&&!ro)?`<div class="v3sample">${LANG==="zh"?"預計大貨樣日":"planned bulk-sample date"} <input type="date" value="${esc(t.sampleDate||"")}" title="${LANG==="zh"?"大貨樣可寄出的日期 — P5（部署行銷樣品）等這一天。生產期間即可寄樣，非完工日":"the date bulk samples can ship — P5 (Deploy marketing samples) waits for this. Samples ship mid-production; not the finish date"}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)"> <span class="ghostnote">${LANG==="zh"?"生產中可寄樣 · 非完工日":"mid-production · not the finish date"}</span>${t.st==="p"&&t.days!=null&&t.startAt?` <span class="ghostnote">${LANG==="zh"?"倒數剩":"countdown"} ${Math.max(0,t.days-dayDiff(t.startAt,today))}d</span>`:""}</div>`:"";
   const _hasPanel=open&&!t.gate;                                  // the detail panel is only rendered when open (non-gate)
   let _tpNew=""; if(_hasPanel){ if(!PANELSEEN.has(key)){PANELSEEN.add(key);_tpNew=" tp-in";} } else PANELSEEN.delete(key);  // first open → play reveal once; closed → forget so a reopen replays
   return `<div id="task-${l.slug}-${i}" class="taskwrap${_tpNew}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${t.gate?"":"cursor:pointer;"}${lk?"opacity:.38;filter:grayscale(.6)":""}"${t.gate?"":` onclick="rowToggle(event,'${key}')"`}>
@@ -3041,22 +3057,26 @@ function taskDetail(l,t,i,ro,vn,lk){
   if(vn.out) info.push([T("產出","Output"), esc(v3T(vn.out))]);
   if(DOD[t.t]) info.push([T("完成定義","Done means"), esc(DOD[t.t])+(EVID.has(t.t)?` <span style="color:#67e8f9">· ${T("需附證明連結","evidence link required")}</span>`:"")]);
   if(vn.note) info.push([T("備註","Note"), esc(v3T(vn.note))]);
-  info.push([T("預設天數","Default days"), vn.days==null
+  info.push([vn.c==="P3"?T("生產天數","Production days"):T("預設天數","Default days"), vn.days==null
     ? (ro?`<span style="color:var(--amber)">${T("待負責部門填寫","to be filled in")}</span>`
         :`<input type="number" min="0" class="v3days-inp${t.days==null?" unfilled":""}" value="${t.days==null?"":t.days}" placeholder="${T("需填寫","required")}" title="${T("此步驟天數每個產品不同，由負責部門填寫","varies per product — the owning dept fills it in")}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${i},this.value)"> ${T("天","d")}`)
     : (vn.days===0?T("即時 / 事件","instant"):vn.days+"d")]);
   info.push([T("負責人","Owner"), esc(vn.o)]);
-  // due-date countdown — the clock starts automatically when the predecessor step(s) finish; no manual date entry.
-  // (start/done are still auto-stamped on status change; here we just derive the target date from the day budget.)
+  // due-date countdown — the clock starts automatically when the predecessor step(s) finish.
+  // Manual-days steps (vn.days==null) take the due date DIRECTLY as a date input once the clock runs:
+  // factories quote a delivery date, not a duration — typing it back-fills t.days (v3SetDue → v3SetDays).
   if(vn.days!==0){
-    const reqs=vn.req||[]; let startClock=null;
-    if(!reqs.length){ startClock=(l.history&&l.history[0]&&l.history[0].start)||null; }   // root → project start
-    else { let latest=null,allDone=true;
-      for(const rc of reqs){ const rt=v3Task(l,rc); if(!rt||rt.st!=="x"||!rt.doneAt){allDone=false;break;} if(!latest||rt.doneAt>latest)latest=rt.doneAt; }
-      startClock=allDone?latest:null; }                                                     // all predecessors done → clock = latest doneAt
+    const startClock=v3StartClock(l,vn);
     const days=(t.days!=null?t.days:vn.days);                                               // per-launch override wins, else the template default
+    const editable=!ro&&vn.days==null&&t.st!=="x"&&!!startClock;
     let due;
     if(t.st==="x"){ due=`<span class="ghostnote">${T("已完成","done")}${t.doneAt?" · "+fmt(t.doneAt):""}</span>`; }
+    else if(editable){
+      const dd=days!=null?v3AddD(startClock,days):"";
+      const dateInp=`<input type="date" class="v3due-inp${days==null?" unfilled":""}" value="${dd}" min="${startClock}" title="${T("直接填工廠交期，天數自動回推（"+fmt(startClock)+" 起算）","type the factory-quoted date — the day budget back-fills from it (clock starts "+fmt(startClock)+")")}" onclick="event.stopPropagation()" onchange="v3SetDue('${l.slug}',${i},this.value)">`;
+      if(days==null){ due=`${dateInp} <span class="ghostnote">${T("填交期即起算，天數自動回推","sets the countdown — days back-fill automatically")}</span>`; }
+      else { const rem=dayDiff(today,dd), c=rem<0?"var(--red)":rem<=2?"var(--amber)":"var(--green)";
+        due=`${dateInp} · <span style="color:${c};font-weight:600">${rem<0?T("已逾期","overdue")+" "+(-rem)+"d":T("剩","left")+" "+rem+"d"}</span>`; } }
     else if(days==null){ due=`<span style="color:var(--amber)">⚠ ${T("天數未填，倒數無法起算","days unset — countdown can't start")}</span>`; }
     else if(!startClock){ due=`<span class="ghostnote">${T("上一步完成後起算","starts when the previous step finishes")} · ${days}d</span>`; }
     else { const dd=v3AddD(startClock,days), rem=dayDiff(today,dd), c=rem<0?"var(--red)":rem<=2?"var(--amber)":"var(--green)";
@@ -3359,8 +3379,18 @@ function flowSVG(l){
            :live==="p"?{t:"⏳ "+(LANG==="zh"?"進行中":"in progress"),bg:"#fbbf24",fg:"#111215"}
            :live==="b"?{t:"⛔ "+(LANG==="zh"?"卡關":"blocked"),bg:"#f87171",fg:"#111215"}:null;
       if(!BJ)return ""; const w=pillW(BJ.t);
-      return `<g pointer-events="none"><rect x="${x-4}" y="${y-10}" width="${w}" height="18" rx="9" fill="${BJ.bg}"/><text x="${x-4+w/2}" y="${y+3}" text-anchor="middle" fill="${BJ.fg}" font-size="11" font-weight="700">${BJ.t}</text></g>`;})()}
-    <title>${esc(n.l)} — stage: ${n.s} · click for route + quick actions${st==="fut"&&ti>=0?" · 🔒 locked until previous step is done":""}${live==="o"?(LANG==="zh"?" · 📍 已解鎖，可開始":" · 📍 unlocked — ready to start"):live==="p"?(LANG==="zh"?" · ⏳ 進行中":" · ⏳ in progress"):live==="b"?(LANG==="zh"?" · ⛔ 卡關":" · ⛔ blocked"):""}${daysMiss?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}</title></g>`;}));
+      // 📍 frontier badge carries WHO starts — owner chip to the right (V3OC color, notx-guarded name).
+      // Width is capped to this column's band (CW+GAP): compound owners collapse to "First +n", then ellipsis.
+      let ownSVG="";
+      if(isHere){ const ownFull=String((_vnn&&_vnn.o)||(_tt&&_tt.o)||"").trim();
+        if(ownFull){ const max=CW+GAP-8-(w+4), parts=ownFull.split(/\s*\+\s*/).filter(Boolean);
+          let own=ownFull;
+          if(pillW(own)>max&&parts.length>1) own=parts[0]+" +"+(parts.length-1);
+          if(pillW(own)>max){ while(own.length>1&&pillW(own+"…")>max) own=own.slice(0,-1); own+="…"; }
+          const ow=pillW(own), oc=v3OColor(ownFull);
+          ownSVG=`<rect x="${x-4+w+4}" y="${y-10}" width="${ow}" height="18" rx="9" fill="${FT.colBg}" stroke="${oc}" stroke-width="1.2"/><text x="${x-4+w+4+ow/2}" y="${y+3}" text-anchor="middle" fill="${oc}" font-size="10.5" font-weight="700"><!--notx-->${esc(own)}<!--/notx--></text>`; } }
+      return `<g pointer-events="none"><rect x="${x-4}" y="${y-10}" width="${w}" height="18" rx="9" fill="${BJ.bg}"/><text x="${x-4+w/2}" y="${y+3}" text-anchor="middle" fill="${BJ.fg}" font-size="11" font-weight="700">${BJ.t}</text>${ownSVG}</g>`;})()}
+    <title>${esc(n.l)} — stage: ${n.s} · click for route + quick actions${st==="fut"&&ti>=0?" · 🔒 locked until previous step is done":""}${live==="o"?(LANG==="zh"?" · 📍 已解鎖，可開始":" · 📍 unlocked — ready to start")+((_vnn&&_vnn.o)||(_tt&&_tt.o)?(LANG==="zh"?" · 負責人 ":" · owner: ")+"<!--notx-->"+esc(String((_vnn&&_vnn.o)||(_tt&&_tt.o)))+"<!--/notx-->":""):live==="p"?(LANG==="zh"?" · ⏳ 進行中":" · ⏳ in progress"):live==="b"?(LANG==="zh"?" · ⛔ 卡關":" · ⛔ blocked"):""}${daysMiss?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}</title></g>`;}));
   // red dependency arrows (drawn on top so they clearly reach the highlighted nodes)
   depEdges.forEach(([a,b])=>{const pa=pos(a[0],a[1]),pb=pos(b[0],b[1]),ha=hgt(a[0],a[1]),hb=hgt(b[0],b[1]); let dpath;
     if(a[0]===b[0]){ const ax=pa.x+CW/2, ay=pa.y+ha, bx=pb.x+CW/2, by=pb.y-5, my=(ay+by)/2; dpath=`M${ax} ${ay} C ${ax} ${my}, ${bx} ${my}, ${bx} ${by}`; }
