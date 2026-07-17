@@ -3289,8 +3289,8 @@ function flowSVG(l){
     if(l.complete||si<ci) return "x";
     return nodeLocked(l,d,i)?"fut":si===ci?"o":"fut";
   };
-  const here=nextUnmet(l);
-  const hereOwner=here?((l.tasks.find(t=>t&&t.t===here)||{}).d||null):null;   // the lane that OWNS the current criterion — so a re-linked node sharing its t (e.g. "Send samples to teams") doesn't double-fire the 📍 marker
+  // live-state badge width — CJK ≈11.8px, latin ≈6.4px, emoji ≈13px at font-size 11 bold (+16 padding)
+  const pillW=s=>{let w=16;for(const ch of s)w+=/\p{Extended_Pictographic}/u.test(ch)?13:/[　-鿿豈-﫿]/.test(ch)?11.8:ch===" "?3.5:6.4;return Math.round(w);};
   const hintsOn=S.flowHints!==false;                   // dependency-highlight toggle (popover); off → calm chart
   // Dependency highlight — clicking a node traces its REAL req graph: prerequisites ➜ this node ➜ what it unblocks.
   // (Replaces the old lane-polyline "route", whose meaning was unclear.)
@@ -3329,9 +3329,13 @@ function flowSVG(l){
   depts.forEach(d=>FLOW[d].forEach((n,i)=>{const {x,y}=pos(d,i);const st=stateOf(n,d,i);
     const frozen=isDesignFrozen(l)&&isFrozenDesignStage(n.s)&&st==="x";   // a done 概念/開發 node, locked by design freeze → render it iced
     const nf=frozen?FT.ice.fill:fill[st], ns=frozen?FT.ice.strk:strk[st];
-    const isHere=n.t&&n.t===here&&(hereOwner==null||d===hereOwner);
     const ti=n.t?l.tasks.findIndex(x=>x.t===n.t):-1;
     const _tt=ti>=0?l.tasks[ti]:null, _vnn=n.code&&V3MAP[n.code];
+    // live-state badges — EVERY lane's live work gets flagged, not just the single next gate criterion,
+    // so parallel departments see their own 📍 instead of the chart looking like only Product has work:
+    // frontier (unlocked, not started) → orange 📍 這裡 · in-progress → amber ⏳ 進行中 · blocked → red ⛔. Done/locked stay quiet.
+    const live=_tt?(st==="p"?"p":st==="b"?"b":st==="o"?"o":null):null;
+    const isHere=live==="o";
     const daysMiss=!n.d&&_vnn&&_vnn.days==null&&_tt&&_tt.days==null&&_tt.st!=="x";   // step still needs its day estimate typed in → soft-red corner flag
     const key=d+"|"+n.l, inHi=depOn&&depKeys.has(key);
     const isSel=S.route&&S.route.d===d&&S.route.i===i;     // currently-open node (drives the popover anchor)
@@ -3350,9 +3354,13 @@ function flowSVG(l){
       labelSVG=lay.lines.map((ln,k)=>`<text x="${x+CW/2}" y="${(cy+(k-(nl-1)/2)*lg+F*0.34).toFixed(1)}" text-anchor="middle" fill="${tcol}" font-size="${F}" letter-spacing="${FL_LS}em">${esc(ln)}</text>`).join("");
     }
     svg+=`<g${click}${depOn&&!depKeys.has(key)?' opacity="0.18"':""}>${body}${isSel?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inHi&&!isSel?`<rect class="glownode" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="1.8" opacity="0.8" pointer-events="none"/>`:""}${labelSVG}${frozen?`<text x="${x+CW-9}" y="${y+14}" text-anchor="middle" fill="${FT.ice.strk}" font-size="11" font-weight="700" pointer-events="none">❄</text>`:""}${daysMiss?`<circle cx="${x+CW-8}" cy="${y+8}" r="5.5" fill="rgba(248,113,113,.20)" pointer-events="none"/><circle cx="${x+CW-8}" cy="${y+8}" r="3" fill="rgba(248,113,113,.9)" pointer-events="none"/>`:""}
-    ${n.d?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#c084fc" font-size="11">◆ decision</text>`:""}${n.url?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#60a5fa" font-size="11">🔗 Figma</text>`:""}
-    ${isHere?`<g pointer-events="none"><rect x="${x-4}" y="${y-10}" width="${LANG==="zh"?48:46}" height="18" rx="9" fill="#EE3124"/><text x="${x-4+(LANG==="zh"?48:46)/2}" y="${y+3}" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">📍 ${LANG==="zh"?"這裡":"here"}</text></g>`:""}
-    <title>${esc(n.l)} — stage: ${n.s} · click for route + quick actions${st==="fut"&&ti>=0?" · 🔒 locked until previous step is done":""}${daysMiss?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}</title></g>`;}));
+    ${n.d&&!live?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#c084fc" font-size="11">◆ decision</text>`:""}${n.url?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#60a5fa" font-size="11">🔗 Figma</text>`:""}
+    ${(()=>{const BJ=live==="o"?{t:"📍 "+(LANG==="zh"?"這裡":"here"),bg:"#EE3124",fg:"#fff"}
+           :live==="p"?{t:"⏳ "+(LANG==="zh"?"進行中":"in progress"),bg:"#fbbf24",fg:"#111215"}
+           :live==="b"?{t:"⛔ "+(LANG==="zh"?"卡關":"blocked"),bg:"#f87171",fg:"#111215"}:null;
+      if(!BJ)return ""; const w=pillW(BJ.t);
+      return `<g pointer-events="none"><rect x="${x-4}" y="${y-10}" width="${w}" height="18" rx="9" fill="${BJ.bg}"/><text x="${x-4+w/2}" y="${y+3}" text-anchor="middle" fill="${BJ.fg}" font-size="11" font-weight="700">${BJ.t}</text></g>`;})()}
+    <title>${esc(n.l)} — stage: ${n.s} · click for route + quick actions${st==="fut"&&ti>=0?" · 🔒 locked until previous step is done":""}${live==="o"?(LANG==="zh"?" · 📍 已解鎖，可開始":" · 📍 unlocked — ready to start"):live==="p"?(LANG==="zh"?" · ⏳ 進行中":" · ⏳ in progress"):live==="b"?(LANG==="zh"?" · ⛔ 卡關":" · ⛔ blocked"):""}${daysMiss?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}</title></g>`;}));
   // red dependency arrows (drawn on top so they clearly reach the highlighted nodes)
   depEdges.forEach(([a,b])=>{const pa=pos(a[0],a[1]),pb=pos(b[0],b[1]),ha=hgt(a[0],a[1]),hb=hgt(b[0],b[1]); let dpath;
     if(a[0]===b[0]){ const ax=pa.x+CW/2, ay=pa.y+ha, bx=pb.x+CW/2, by=pb.y-5, my=(ay+by)/2; dpath=`M${ax} ${ay} C ${ax} ${my}, ${bx} ${my}, ${bx} ${by}`; }
@@ -3413,6 +3421,19 @@ async function fpComplete(slug,i,el){
   v3Advance(l);   // re-derive stage / complete / history — mirrors cycle()/approve(); without it the card's phase goes stale after completing from the flow inspector
   save(); render();
 }
+// approve / revoke a Ben ◆ gate straight from the inspector — same verbs as the card's approve()/unapprove(),
+// plus the cascade-reopen guard so revoking a gate can't leave done downstream steps hanging off an undone prerequisite
+async function fpApprove(slug,i,el){
+  const l=L(slug),t=l&&l.tasks[i]; if(!t)return;
+  if(S.role!=="ceo"){ bvShake(el); toast("◆ gates can only be approved by Ben (CEO)"); return; }
+  if(t.st!=="x"&&taskLocked(l,t)){ bvShake(el); toast("🔒 "+lockReason(l,t)); return; }
+  if(t.st==="x"){
+    const g=await guardReopen(l,t,el); if(!g.ok)return;
+    g.reset.forEach(dd=>{dd.st="o"; if(dd.doneAt)delete dd.doneAt;});
+    if(g.reset.length) toast(LANG==="zh"?("↩ 已一併退回後續 "+g.reset.length+" 個步驟"):("↩ Reset "+g.reset.length+" downstream step(s)"));
+    unapprove(slug,i);
+  } else approve(slug,i);
+}
 function flowPopHTML(d,i){
   const n=FLOW[d]&&FLOW[d][i]; if(!n)return"";
   const l=L(S._flowSlug)||(S.launch&&L(S.launch))||LAUNCHES[0];
@@ -3434,8 +3455,11 @@ function flowPopHTML(d,i){
    const dTBD=dRaw==null&&!n.d;
    const daysTxt=dRaw==null?(n.d?(zh?"即時":"instant"):(zh?"待填":"TBD")):(dRaw===0?(zh?"即時":"instant"):dRaw+"d");
    const doneNow=!!(task&&task.st==="x");
-   const aMark=(task&&!locked&&!n.d)?`<button class="btn fp-mark${doneNow?" ghost":""}" onclick="fpComplete('${l.slug}',${ti},this)">${doneNow?(zh?"↩ 重新開啟":"↩ Reopen"):(zh?"✓ 標記完成":"✓ Complete")}</button>`
-     :`<span class="fp-act-note">${n.d?(zh?"◆ 由 Ben 拍板":"◆ Ben decides"):locked?(zh?"🔒 前置未完成":"🔒 waiting on prerequisites"):(zh?"無對應任務":"no linked task")}</span>`;
+   const aMark=(task&&!locked)
+     ?(n.d
+       ?`<button class="btn fp-mark${doneNow?" ghost":""}" title="${zh?"◆ 關卡由 Ben（CEO）拍板":"◆ gates are decided by Ben (CEO)"}" onclick="fpApprove('${l.slug}',${ti},this)">${doneNow?(zh?"↩ 撤銷核准":"↩ Revoke ◆"):(zh?"◆ 核准":"◆ Approve")}</button>`
+       :`<button class="btn fp-mark${doneNow?" ghost":""}" onclick="fpComplete('${l.slug}',${ti},this)">${doneNow?(zh?"↩ 重新開啟":"↩ Reopen"):(zh?"✓ 標記完成":"✓ Complete")}</button>`)
+     :`<span class="fp-act-note">${locked?(zh?"🔒 前置未完成"+(n.d?"，Ben 尚無法拍板":""):(n.d?"🔒 waiting on prerequisites — not yet Ben's call":"🔒 waiting on prerequisites")):(zh?"無對應任務":"no linked task")}</span>`;
    h+=`<div class="fp-actbar">${aMark}<span class="fp-days${dTBD?" tbd":""}" title="${zh?"預估天數":"estimated days"}">⏱ ${daysTxt}</span></div>`;}
   // dependency panel — the same req graph the red arrows draw: what this waits on, and what finishing it unblocks
   {const zh=LANG==="zh";
