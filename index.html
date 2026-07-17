@@ -792,6 +792,20 @@
   .o-hasowner{position:relative;cursor:help;outline:none}
   .o-hasowner::after{content:attr(data-owner);position:absolute;left:100%;top:50%;transform:translateY(-50%);margin-left:8px;white-space:nowrap;background:#0d0f13;border:1px solid var(--line);border-left:3px solid var(--oc,var(--line));color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .12s;z-index:40;box-shadow:0 4px 14px rgba(0,0,0,.45)}
   .o-hasowner:hover::after,.o-hasowner:focus-visible::after{opacity:1}
+  /* collapsible dept playbook header */
+  .pb-h{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
+  .pb-tog{margin-left:auto;font-size:12px;font-weight:400;color:var(--faint)}
+  /* owner presence chips — person-colored, dimmed at rest; hover lifts + brightens, co-owners slide out from the right */
+  .ownerchips{display:inline-flex;align-items:baseline;font-weight:600;transition:transform .18s cubic-bezier(.16,1,.3,1)}
+  .ownerchips:hover{transform:translateY(-2px)}
+  .ownerchip{color:var(--pc,var(--dim));opacity:.5;transition:opacity .18s ease-out}
+  .ownerchips:hover .ownerchip{opacity:1}
+  .ownerchip-slot{display:inline-flex;max-width:0;overflow:hidden;transition:max-width .26s cubic-bezier(.16,1,.3,1)}
+  .ownerchips:hover .ownerchip-slot{max-width:14em}
+  .ownerchip-2{opacity:0;transform:translateX(10px);white-space:nowrap;transition:opacity .2s ease-out,transform .26s cubic-bezier(.16,1,.3,1)}
+  .ownerchips:hover .ownerchip-2{opacity:1;transform:none}
+  .ownerchip-2::before{content:"+";margin:0 5px 0 6px;color:var(--faint);font-weight:400}
+  @media (prefers-reduced-motion:reduce){.ownerchips,.ownerchip,.ownerchip-slot,.ownerchip-2{transition:none}.ownerchips{transform:none}.ownerchip{opacity:1}.ownerchip-slot{max-width:none;overflow:visible}.ownerchip-2{opacity:1;transform:none}}
   .o-stage{color:var(--faint);font-size:12px}
   .o-collabs{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
   .o-collab{font-size:11px;padding:0 6px;border:1px solid var(--line);border-radius:var(--r-xs);line-height:1.7}
@@ -1171,6 +1185,16 @@ function v3SyncTasks(l){
 }
 const V3OC={"Ben":"#c084fc","Zac":"#60a5fa","Ann":"#f472b6","Angel":"#fb923c","LC":"#34d399","Design Team":"#a78bfa","各攝影師":"#67e8f9"};
 const v3OColor=o=>{o=String(o||"");for(const k in V3OC){if(o.indexOf(k)>=0)return V3OC[k];}return "#9aa3af";};
+// owner presence chips: split "Zac + Ben" / "各攝影師 · 阿訊" into person-colored names; first shown dimmed,
+// co-owners tucked to the right and revealed on hover (CSS .ownerchips). Full list kept in title for a11y / reduced-motion.
+function ownerChips(o){
+  const names=String(o||"").split(/\s*[+·・]\s*/).map(s=>s.trim()).filter(Boolean);
+  if(names.length<2 && !names[0]) return esc(String(o||""));
+  const full=(LANG==="zh"?"負責人 · ":"Owner · ")+names.join(" · ");
+  return `<span class="ownerchips" title="${esc(full)}"><span class="ownerchip" style="--pc:${v3OColor(names[0])}">${esc(names[0])}</span>`
+    + names.slice(1).map(nm=>`<span class="ownerchip-slot"><span class="ownerchip ownerchip-2" style="--pc:${v3OColor(nm)}">${esc(nm)}</span></span>`).join("")
+    + `</span>`;
+}
 const ntx=s=>s; // (was a language-lock wrapper; V3 is now bilingual via the ZH/FLOWZH dict, so this is a pass-through)
 const v3AddD=(s,n)=>new Date(D(s).getTime()+n*864e5).toISOString().slice(0,10);
 function v3EtaBulk(l){ // 預計大貨到貨日 = P3 完成日(實際或 startAt+days 推估) + L5 海運(填的天數或參考 30) + L7 1 天
@@ -1584,8 +1608,7 @@ async function newLaunch(){
   const name=await uiPrompt("Product name?"); if(!name)return;
   const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
   if(!slug||L(slug)){toast("A launch with that name already exists");return;}
-  const dri=await uiPrompt("DRI department?","Product")||"Product";
-  const nl={name,slug,dri:DEPTS().includes(dri)?dri:"Product",stage:STAGES[0],target:"",
+  const nl={name,slug,dri:"Product",stage:STAGES[0],target:"",   // DRI defaults silently — the field feeds push-permissions; no longer prompted on create
     history:[{stage:STAGES[0],start:today}],tasks:allTasks({}),risks:[],
     checkins:[{d:today,a:"system",txt:"Card created from the Shopify flow. Fill the intake Form (C1) to unlock the pipeline."}]};
   LAUNCHES.push(nl); syncProjected(nl);   // 預計上市日改由「送出日＋任務天數」自動推算，不再手填目標日
@@ -3021,7 +3044,7 @@ function taskRow(l,t,extra,ro){
   const ctrls=t.gate?"":`${lk?"":renderLinkMenu(t,l.slug,i)}${exp}`;   // Ben ◆ gates carry no expand/notes panel — the decision button says it all
   // the step's output/explanation now lives in the ▾ details panel (taskDetail), keeping the row short; a shot-list total shows for MS3a/b
   const shotChip=(vn&&vn.shots&&!extra&&v3ShotTotal(t)>0)?`<span class="ghostnote" title="${LANG==="zh"?"素材需求合計":"asset shot-list total"}">${vn.shots==="video"?"🎬":"📸"} ${v3ShotTotal(t)}</span>`:"";
-  const sampleCtl=(vn&&vn.sample&&!extra&&!ro)?`<div class="v3sample">${LANG==="zh"?"預計大貨樣日":"planned bulk-sample date"} <input type="date" value="${esc(t.sampleDate||"")}" title="${LANG==="zh"?"大貨樣可寄出的日期 — P5（部署行銷樣品）等這一天。生產期間即可寄樣，非完工日":"the date bulk samples can ship — P5 (Deploy marketing samples) waits for this. Samples ship mid-production; not the finish date"}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)"> <span class="ghostnote">${LANG==="zh"?"生產中可寄樣 · 非完工日":"mid-production · not the finish date"}</span>${t.st==="p"&&t.days!=null&&t.startAt?` <span class="ghostnote">${LANG==="zh"?"倒數剩":"countdown"} ${Math.max(0,t.days-dayDiff(t.startAt,today))}d</span>`:""}</div>`:"";
+  const sampleCtl=(vn&&vn.sample&&!extra&&!ro)?`<div class="v3sample">${LANG==="zh"?"預計大貨樣日":"planned bulk-sample date"} <input type="date" value="${esc(t.sampleDate||"")}" title="${LANG==="zh"?"大貨樣可寄出的日期 — P5（部署行銷樣品）等這一天。生產期間即可寄樣，非完工日":"the date bulk samples can ship — P5 (Deploy marketing samples) waits for this. Samples ship mid-production; not the finish date"}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)">${t.st==="p"&&t.days!=null&&t.startAt?` <span class="ghostnote">${LANG==="zh"?"倒數剩":"countdown"} ${Math.max(0,t.days-dayDiff(t.startAt,today))}d</span>`:""}</div>`:"";
   const _hasPanel=open&&!t.gate;                                  // the detail panel is only rendered when open (non-gate)
   let _tpNew=""; if(_hasPanel){ if(!PANELSEEN.has(key)){PANELSEEN.add(key);_tpNew=" tp-in";} } else PANELSEEN.delete(key);  // first open → play reveal once; closed → forget so a reopen replays
   return `<div id="task-${l.slug}-${i}" class="taskwrap${_tpNew}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${t.gate?"":"cursor:pointer;"}${lk?"opacity:.38;filter:grayscale(.6)":""}"${t.gate?"":` onclick="rowToggle(event,'${key}')"`}>
@@ -3054,6 +3077,7 @@ function taskDetail(l,t,i,ro,vn,lk){
   const zh=LANG==="zh", T=(z,e)=>zh?z:e;
   if(!vn) return lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>${T("已鎖定","Locked")}</b> — ${esc(lockReason(l,t))}</div>`:taskPanel(l,t,i,ro);
   const info=[];
+  info.push([T("負責人","Owner"), ownerChips(vn.o)]);   // owner first — hover-reveal person chips
   if(vn.out) info.push([T("產出","Output"), esc(v3T(vn.out))]);
   if(DOD[t.t]) info.push([T("完成定義","Done means"), esc(DOD[t.t])+(EVID.has(t.t)?` <span style="color:#67e8f9">· ${T("需附證明連結","evidence link required")}</span>`:"")]);
   if(vn.note) info.push([T("備註","Note"), esc(v3T(vn.note))]);
@@ -3061,7 +3085,6 @@ function taskDetail(l,t,i,ro,vn,lk){
     ? (ro?`<span style="color:var(--amber)">${T("待負責部門填寫","to be filled in")}</span>`
         :`<input type="number" min="0" class="v3days-inp${t.days==null?" unfilled":""}" value="${t.days==null?"":t.days}" placeholder="${T("需填寫","required")}" title="${T("此步驟天數每個產品不同，由負責部門填寫","varies per product — the owning dept fills it in")}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${i},this.value)"> ${T("天","d")}`)
     : (vn.days===0?T("即時 / 事件","instant"):vn.days+"d")]);
-  info.push([T("負責人","Owner"), esc(vn.o)]);
   // due-date countdown — the clock starts automatically when the predecessor step(s) finish.
   // Manual-days steps (vn.days==null) take the due date DIRECTLY as a date input once the clock runs:
   // factories quote a delivery date, not a duration — typing it back-fills t.days (v3SetDue → v3SetDays).
@@ -3585,16 +3608,14 @@ function homeDept(){
   const d=S.dept;
   const mine=LAUNCHES.filter(l=>!l.complete).flatMap(l=>l.tasks.filter(t=>t.d===d).map(t=>({l,t})));
   const owed=LAUNCHES.filter(l=>!l.complete).flatMap(l=>gateState(l).cs.filter(c=>c.d===d&&c.task.st!=="x").map(c=>({l,c})));
-  const driOf=LAUNCHES.filter(l=>!l.complete&&l.dri===d);
   const UO={urgent:0,high:1,med:2,low:3};
   const grp=s=>mine.filter(x=>x.t.st===s).sort((a,b)=>(UO[a.t.urg]??2)-(UO[b.t.urg]??2));
   const pb=[...new Set(LAUNCHES[0].tasks.filter(t=>t.d===d).map(t=>t.t))];
   return `<h2>Department lens — <select onchange="S.dept=this.value;render()">${DEPTS().map(x=>`<option value="${x}" ${x===d?"selected":""}>${x}</option>`).join("")}</select></h2>
   <div class="sub">${esc((TEAM.find(t=>t.name===d)||{}).role||"")}</div>
-  <div class="panel"><h3>📘 Our playbook — how ${d} updates tasks</h3>
-   ${pb.map(t=>`<div class="row"><span style="color:${DCOLOR(d)}">▸</span><span><b>${esc(t)}</b>${DOD[t]?` — <span style="color:var(--dim)">${esc(DOD[t])}</span>`:""}${EVID.has(t)?' <span class="urg" style="background:#13262e;color:#67e8f9">📎 evidence required</span>':""}</span></div>`).join("")}
-   <div class="sub" style="margin-top:8px">Full version (definitions, evidence types, estimates, dependencies) lives in <b>BV-Task-Playbook.xlsx</b> — your team edits the ${d} tab and the tracker adopts your rules.</div></div>
-  ${driOf.length?`<div class="panel"><h3>${LANG==="zh"?"擔任 DRI 的卡片 — "+zhText(d):`Cards where ${d} is DRI`}</h3><div class="board">${driOf.map(l=>`<div class="col">${cardHTML(l)}</div>`).join("")}</div></div>`:""}
+  <div class="panel"><h3 class="pb-h" onclick="S.pbOpen=!S.pbOpen;render()" title="${LANG==="zh"?"點擊展開／收合":"click to expand / collapse"}">📘 Our playbook — how ${d} updates tasks<span class="pb-tog">${S.pbOpen?"▾":"▸ "+pb.length}</span></h3>
+   ${S.pbOpen?`${pb.map(t=>`<div class="row"><span style="color:${DCOLOR(d)}">▸</span><span><b>${esc(t)}</b>${DOD[t]?` — <span style="color:var(--dim)">${esc(DOD[t])}</span>`:""}${EVID.has(t)?' <span class="urg" style="background:#13262e;color:#67e8f9">📎 evidence required</span>':""}</span></div>`).join("")}
+   <div class="sub" style="margin-top:8px">Full version (definitions, evidence types, estimates, dependencies) lives in <b>BV-Task-Playbook.xlsx</b> — your team edits the ${d} tab and the tracker adopts your rules.</div>`:""}</div>
   <div class="panel"><h3>${d} owes the current gates</h3>${owed.length?owed.map(({l,c})=>`<div class="row"><button type="button" class="st ${c.task.st}" aria-label="status: ${stWord(c.task.st)} — left-click to advance, right-click to step back" onclick="cycle('${l.slug}',${l.tasks.indexOf(c.task)},this)" oncontextmenu="cycleBack('${l.slug}',${l.tasks.indexOf(c.task)},this);return false">${stIcon[c.task.st]}</button><span><b>${l.name}</b> · ${esc(c.t)}</span><span class="o">gates ${l.stage} → next</span></div>`).join(""):'<div class="sub">Nothing owed — no gate is waiting on this team.</div>'}</div>
   <div class="twocol">${[["b","Blocked"],["p","In progress"],["o","To do"]].map(([s,lbl])=>`<div class="panel"><h3>${lbl} (${grp(s).length})</h3>${grp(s).map(({l,t})=>taskRow(l,t,l.name)).join("")||'<div class="sub">None.</div>'}</div>`).join("")}</div>
   <div class="panel"><h3>Post a check-in</h3><select id="ciL">${LAUNCHES.filter(l=>!l.complete).map(l=>`<option value="${l.slug}">${l.name}</option>`).join("")}</select><div style="margin-top:8px"><textarea id="ci" placeholder="Progress: …  Blockers: …  Asks: …"></textarea></div><div style="margin-top:8px"><button class="btn" onclick="addCheckin(document.getElementById('ciL').value)">Post check-in</button> <span class="sub" style="display:inline">posts to the card + its Slack channel</span></div></div>`;
