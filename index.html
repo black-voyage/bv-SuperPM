@@ -426,6 +426,37 @@
   .legend i{display:inline-block;width:11px;height:11px;border-radius:4px;margin-right:5px;vertical-align:-1px}   /* literal — var(--r-xs)=6px turns an 11px swatch into a circle */
   .deptchip{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-xs);padding:2px 10px;font-size:11.5px;margin:2px 3px 2px 0}
   .deptchip.rdy{background:#14331f;color:var(--green);border-color:#1f4a2e}
+  /* ---- Dept Pulse (contribution heatmap): flat data zone · blue ordinal ramp (CVD-validated per theme) · orange = "this week" only ---- */
+  .pulse{--hm1:#35598F;--hm2:#4878BC;--hm3:#659EE6;--hm4:#8FC3FB;--pidle:rgba(251,191,36,.55)}
+  [data-theme="light"] .pulse{--hm1:#7FB0E8;--hm2:#4F86C9;--hm3:#2C619F;--hm4:#123F74;--pidle:rgba(180,83,9,.6)}
+  .pscroll{overflow-x:auto;overflow-y:hidden;padding-top:2px}
+  .prow{display:grid;grid-template-columns:108px repeat(16,minmax(22px,32px)) minmax(150px,1fr);column-gap:3px;align-items:center;min-width:680px;padding:2px 0;border-radius:8px}
+  .prow.pclick{cursor:pointer}
+  .prow.pclick:hover{background:var(--panel2)}
+  .phead span{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .phead .pnow{color:var(--accent);font-weight:600;text-align:center;border-bottom:2px solid var(--accent);border-radius:1px;line-height:1.5}
+  .pname{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:4px}
+  .pname i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px}
+  .pname.ptot{color:var(--dim)}
+  .pcell{width:100%;height:22px;border-radius:5px;background:var(--panel2)}
+  .pcell.l1{background:var(--hm1)}.pcell.l2{background:var(--hm2)}.pcell.l3{background:var(--hm3)}.pcell.l4{background:var(--hm4)}
+  .pcell.none{background:radial-gradient(circle at center,var(--line) 0 1.5px,transparent 2.1px)}
+  .pcell.idle{background:transparent;border:1.5px dashed var(--pidle)}
+  .pchips{display:flex;gap:5px;justify-content:flex-end;padding-right:4px;white-space:nowrap}
+  .pchip{font-family:var(--font-mono);font-size:10px;color:var(--dim);background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-xs);padding:1px 7px}
+  .pchip.hot{color:var(--text)}
+  .pchip.warn{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 35%,var(--line))}
+  .pchip.ghost{color:var(--faint);background:transparent}
+  .psep{border-top:1px solid var(--line);margin:6px 0 4px}
+  .pdaily{margin:2px 0 8px}
+  .pdrow{padding:0;margin-bottom:2px;min-width:680px}
+  .pdlab{font-family:var(--font-mono);font-size:9px;color:var(--faint);text-align:right;padding-right:8px}
+  .pdcell{width:100%;height:9px;border-radius:3px;background:var(--panel2)}
+  .pdcell.l2{background:var(--hm2)}.pdcell.l3{background:var(--hm3)}.pdcell.l4{background:var(--hm4)}
+  .plegend{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:10px;color:var(--faint);margin-top:10px;flex-wrap:wrap}
+  .plegend .pcell{width:12px;height:12px;border-radius:3px}
+  .plegend .pcell.idle{border-width:1px}
+  .pgap{width:8px}
   .urg{display:inline-block;padding:1px 8px;border-radius:var(--r-xs);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-left:4px}
   .urg.low{background:#1a2333;color:var(--blue)} .urg.med{background:#2a2a1a;color:#d4c44a}
   .urg.high{background:#33260f;color:#fb923c} .urg.urgent{background:#331414;color:var(--red)}
@@ -3558,6 +3589,98 @@ if(typeof window!=="undefined"&&!window._bvFlowPopInit){ window._bvFlowPopInit=t
   });
 }
 
+/* ================= DEPT PULSE (contribution heatmap) =================
+   Dept × 16-week grid. Cell shade = completion ratio (done ÷ available that week), NOT raw
+   volume — a small team that clears its own plate lights up as bright as a big one.
+   Three distinct states: idle (nothing unlocked that week · neutral dot) ≠ stalled (unlocked
+   tasks but zero done · dashed) ≠ done (blue ramp). "Available" is replayed from the req-DAG
+   via doneAt timestamps; legacy tasks done before doneAt existed read as pre-history. */
+const PULSE_W=16;
+function pulseWeeks(){ const dow=(D(today).getDay()+6)%7;            // 0 = Monday
+  const w0=v3AddD(today,-dow-(PULSE_W-1)*7);
+  return Array.from({length:PULSE_W},(_,i)=>v3AddD(w0,i*7)); }
+function pulseData(){
+  const weeks=pulseWeeks(), w0=weeks[0], wEnd=v3AddD(weeks[PULSE_W-1],6);
+  const mk=()=>({a:Array(PULSE_W).fill(0),d:Array(PULSE_W).fill(0)});
+  const M={}; DEPTS().forEach(dp=>M[dp]=mk()); const tot=mk();
+  LAUNCHES.forEach(l=>(l.tasks||[]).forEach(t=>{
+    const r=M[t.d]; if(!r) return;
+    if(t.st==="x"&&t.doneAt&&t.doneAt>=w0&&t.doneAt<=wEnd){
+      const wi=Math.floor(dayDiff(w0,t.doneAt)/7); r.d[wi]++; tot.d[wi]++; }
+    if(t.st==="x"&&!t.doneAt) return;                      // legacy done w/o date → pre-history
+    if(t.st!=="x"&&taskLocked(l,t)) return;                // locked right now → never been available
+    let from=w0; const n=t.code&&V3MAP[t.code];
+    ((n&&n.req)||[]).forEach(rc=>{ const rt=(l.tasks||[]).find(x=>x.code===rc);
+      if(rt&&rt.doneAt&&rt.doneAt>from) from=rt.doneAt; }); // undated done reqs = unlocked long ago
+    if(t.code==="P5"){ const p3=(l.tasks||[]).find(x=>x.code==="P3");
+      if(p3&&p3.sampleDate&&p3.sampleDate>from) from=p3.sampleDate; }
+    const to=t.st==="x"?t.doneAt:today;
+    if(to<from) from=to;                                   // doneAt-order drift guard
+    if(to<w0||from>wEnd) return;
+    const a0=Math.max(0,Math.floor(dayDiff(w0,from)/7));
+    const a1=Math.min(PULSE_W-1,Math.floor(dayDiff(w0,to)/7));
+    for(let i=a0;i<=a1;i++){ r.a[i]++; tot.a[i]++; }
+  }));
+  return {weeks,M,tot};
+}
+const pulseCls=(a,d)=>!a?"none":!d?"idle":(d/a)<.5?"l1":(d/a)<.75?"l2":(d/a)<1?"l3":"l4";
+function pulseStreak(r){ let s=0; for(let i=PULSE_W-1;i>=0;i--){ if(!r.a[i]) continue; if(r.d[i]>0)s++; else break; } return s; }
+function pulseIdleRun(r){ let s=0; for(let i=PULSE_W-1;i>=0&&!r.a[i];i--) s++; return s; }
+function pulseToggle(dp){ S.pulseOpen=S.pulseOpen===dp?null:dp; render(); }
+function pulsePanel(){
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  const {weeks,M,tot}=pulseData();
+  const md=s=>{const x=D(s);return (x.getMonth()+1)+"/"+x.getDate();};
+  const mLab=s=>{const x=D(s);return zh?(x.getMonth()+1)+"月":["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][x.getMonth()];};
+  const cellTitle=(dp,i,a,d)=>{
+    const base=md(weeks[i])+"–"+md(v3AddD(weeks[i],6))+" · "+dp+" — ";
+    if(!a) return base+T("空窗：該週流程沒輪到這個部門","idle: nothing unlocked this week");
+    if(!d) return base+a+T(" 件可做，尚未完成"," task(s) open, none done");
+    return base+T("完成 "+d+"/"+a+" 件（"+Math.round(d/a*100)+"%）","done "+d+"/"+a+" ("+Math.round(d/a*100)+"%)");
+  };
+  const row=(label,key,r,click)=>{
+    let cells=""; for(let i=0;i<PULSE_W;i++)
+      cells+=`<span class="pcell ${pulseCls(r.a[i],r.d[i])}" title="${cellTitle(key,i,r.a[i],r.d[i])}"></span>`;
+    const s=pulseStreak(r), idle=pulseIdleRun(r), a=r.a[PULSE_W-1], d=r.d[PULSE_W-1];
+    let chips="";
+    if(s>=4) chips+=`<span class="pchip hot">🔥 ${s}${T("週","w")}</span>`;
+    else if(s>0) chips+=`<span class="pchip">${T("連 ","run ")}${s}${T("週","w")}</span>`;
+    if(!a) chips+=`<span class="pchip ghost">${T("空窗 ","idle ")}${idle}${T("週","w")}</span>`;
+    else if(!d) chips+=`<span class="pchip warn">⚠ ${T("待動 ","stalled ")}${a}</span>`;
+    else chips+=`<span class="pchip">${T("本週 ","wk ")}${d}/${a}</span>`;
+    return `<div class="prow${click?" pclick":""}"${click?` data-pd="${esc(key)}" onclick="pulseToggle(this.dataset.pd)"`:""}>${label}${cells}<span class="pchips">${chips}</span></div>`;
+  };
+  const daily=dp=>{
+    const w0=weeks[0]; const cnt=Array.from({length:PULSE_W},()=>Array(7).fill(0));
+    LAUNCHES.forEach(l=>(l.tasks||[]).forEach(t=>{
+      if(t.d!==dp||t.st!=="x"||!t.doneAt) return;
+      const off=dayDiff(w0,t.doneAt); if(off<0||off>=PULSE_W*7) return;
+      cnt[Math.floor(off/7)][off%7]++; }));
+    const wd=zh?["週一","週二","週三","週四","週五","週六","週日"]:["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    let h=`<div class="pdaily">`;
+    for(let dy=0;dy<7;dy++){
+      h+=`<div class="prow pdrow"><span class="pdlab">${dy%2===0?wd[dy]:""}</span>`;
+      for(let i=0;i<PULSE_W;i++){ const v=cnt[i][dy], ds=v3AddD(weeks[i],dy);
+        h+=`<span class="pdcell ${v===0?"":v===1?"l2":v===2?"l3":"l4"}" title="${md(ds)} · ${v} ${T("件完成","done")}"></span>`; }
+      h+=`<span></span></div>`;
+    }
+    return h+`</div>`;
+  };
+  let head=`<div class="prow phead"><span></span>`, lastM="";
+  weeks.forEach((w,i)=>{ const m=mLab(w);
+    head+= i===PULSE_W-1 ? `<span class="pnow">${T("本週","now")}</span>` : `<span>${m!==lastM?m:""}</span>`;
+    lastM=m; });
+  head+=`<span></span></div>`;
+  let body=head;
+  DEPTS().forEach(dp=>{ body+=row(`<span class="pname"><i style="background:${DCOLOR(dp)}"></i>${esc(dp)}</span>`,dp,M[dp],true);
+    if(S.pulseOpen===dp) body+=daily(dp); });
+  body+=`<div class="psep"></div>`+row(`<span class="pname ptot">${T("全公司","All depts")}</span>`,T("全公司","All depts"),tot,false);
+  return `<div class="panel pulse"><h3>🟦 ${T("部門脈動","Dept pulse")} <span class="ghostnote">${T("過去 16 週 · 深淺＝完成÷可做 · 空窗不扣分","last 16 weeks · shade = done ÷ available · idle weeks don't count against you")}</span></h3>
+  <div class="pscroll">${body}</div>
+  <div class="plegend"><span class="pcell none"></span>${T("空窗（無排程）","idle (nothing unlocked)")}<span class="pcell idle"></span>${T("待動（有任務未動）","stalled (open, none done)")}<span class="pgap"></span><span class="pcell l1"></span><span class="pcell l2"></span><span class="pcell l3"></span><span class="pcell l4"></span>${T("消化率 低→高","completion low → high")}</div>
+  <div class="ghostnote" style="margin-top:6px">${T("任務少的部門清完自己的盤子一樣亮；點部門列展開日粒度。","A small team that clears its plate is just as bright. Click a row for the daily view.")}</div></div>`;
+}
+
 /* ================= VIEWS ================= */
 function homeCEO(){
   const q=benQueue(), blocked=LAUNCHES.flatMap(l=>l.tasks.filter(t=>t.st==="b").map(t=>({l,t})));
@@ -3573,6 +3696,7 @@ function homeCEO(){
   <div class="kpi"><div class="n" style="color:var(--red)">${blocked.length}</div><div class="l">Blocked tasks</div></div>
   <div class="kpi" style="cursor:pointer" onclick="toggleDrawer()"><div class="n" style="color:var(--amber)">${issues.length}</div><div class="l">Autopilot issues — click to triage</div></div>
   <div class="kpi"><div class="n">${bf}d</div><div class="l">to Black Friday</div></div></div>
+  ${pulsePanel()}
   <div class="panel"><h3>◆ My decision queue <span class="ghostnote">(SLA: ${SLA_DAYS} days)</span></h3>${q.length?q.map(({l,c})=>{const i=l.tasks.indexOf(c.task);const age=decisionAge(l,c.t);return `<div class="gatecard"><b>${l.name}</b> — ${esc(c.t)} <span class="sla ${age>SLA_DAYS?"over":"ok"}">${age}d ${age>SLA_DAYS?"· SLA BREACHED":"in SLA"}</span><div class="sub" style="margin:4px 0 8px">All other ${l.stage} exit criteria are met. Approving unblocks the push to ${STAGES[STAGES.indexOf(l.stage)+1]||"done"}. DRI: ${l.dri}.</div><button class="btn" onclick="approve('${l.slug}',${i})">✓ Approve</button> <button class="btn red" onclick="toast('Reject flow: Slack modal asks for a reason → lands in check-in log')">✕ Reject</button> <button class="btn ghost" onclick="openL('${l.slug}')">Open card</button></div>`;}).join(""):'<div class="empty-hero">Nothing waiting on you. 🎉</div>'}</div>
   <div class="panel"><h3>🎯 Focus — the one task per launch that moves the date</h3>
    ${LAUNCHES.filter(l=>!l.complete).map(l=>{const cn=criticalNext(l);const fl=floatDays(l);return `<div class="row" style="cursor:pointer" onclick="openL('${l.slug}')"><span style="color:${DCOLOR(l.dri)}">■</span><span><b>${l.name}</b> → ${cn?esc(cn.t)+" <span class='ghostnote'>("+cn.d+")</span>":"—"}</span><span class="o"><span class="pill ${fl<0?"bad":fl<7?"risk":"ok"}">float ${fl}d</span> <span class="ghostnote">forecast ${fmt(forecastDate(l))}</span></span></div>`;}).join("")}
