@@ -170,6 +170,13 @@
   .fp-act-note{font-size:11px;color:var(--dim)}
   .fp-days{font-family:var(--font-mono);font-size:10.5px;color:var(--dim);border:1px solid var(--line);background:var(--panel2);border-radius:var(--r-xs);padding:3px 8px;white-space:nowrap;flex:none}
   .fp-days.tbd{color:var(--red);border-color:rgba(248,113,113,.45);background:rgba(248,113,113,.1)}   /* estimate not typed yet → soft-red, matches the days-pending flags */
+  .fp-days-edit{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;cursor:text;transition:border-color .15s ease,background .15s ease}
+  .fp-days-edit:focus-within{border-color:var(--accent);background:var(--panel2)}
+  .fp-days-edit input{width:34px;background:transparent;border:none;color:inherit;font-family:var(--font-mono);font-size:11px;text-align:right;padding:0;-moz-appearance:textfield}
+  .fp-days-edit input:focus{outline:none}
+  .fp-days-edit input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .fp-days-edit input::placeholder{color:currentColor;opacity:.65}
+  .fp-days-u{opacity:.7}
   /* the 4 add-link buttons sit as an aligned 2×2 grid (was a ragged 3+1 wrap); existing link/code chips span full width above them */
   .fp-linkgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:4px}
   .fp-linkgrid>*:not(.addlnk){grid-column:1/-1;margin-left:0}
@@ -3476,6 +3483,26 @@ function flowPopEl(){let p=document.getElementById("flowPop");
   if(!p){p=document.createElement("div"); p.id="flowPop";
     p.addEventListener("click",e=>e.stopPropagation());
     document.body.appendChild(p);} return p;}
+// after finishing a step in the inspector, walk the popover to the sensible NEXT step so the flow
+// reads as a continuous path: the dependent this step just unblocked (earliest in V3 order, open &
+// actionable) → else the next open node in the same lane → else a still-locked dependent (shows what
+// it now waits on). Returns a pop-route ({key,d,i,pop}) or null when nothing sensible comes next.
+function flowAdvanceRoute(l,fromCode,curD,curI){
+  if(!l||!fromCode)return null;
+  const depts=Object.keys(FLOW);
+  const taskOf=c=>(l.tasks||[]).find(x=>x.code===c);
+  const ord=c=>{const k=V3.findIndex(v=>v.c===c);return k<0?9999:k;};
+  const mk=(d,i)=>{const nn=FLOW[d]&&FLOW[d][i];return nn?{key:d+"|"+nn.l,d,i,pop:true}:null;};
+  const deps=[];
+  depts.forEach(dd=>(FLOW[dd]||[]).forEach((nn,k)=>{ if(nn.code&&(nn.req||[]).includes(fromCode)) deps.push([dd,k,nn.code]); }));
+  deps.sort((a,b)=>ord(a[2])-ord(b[2]));
+  for(const[dd,k,c]of deps){const t=taskOf(c); if(t&&t.st!=="x"&&!taskLocked(l,t))return mk(dd,k);}     // unblocked & actionable
+  const lane=FLOW[curD]||[];                                                                            // else same-lane continuation
+  for(let k=(curI==null?-1:curI)+1;k<lane.length;k++){const t=taskOf(lane[k].code); if(t&&t.st!=="x")return mk(curD,k);}
+  for(const[dd,k,c]of deps){const t=taskOf(c); if(t&&t.st!=="x")return mk(dd,k);}                        // else the waiting-on dependent
+  return null;
+}
+function flowStepTo(nx){ if(!nx)return; S.route=nx; toast(LANG==="zh"?("→ 下一步："+flowTL((FLOW[nx.d][nx.i]||{}).l)):("→ Next: "+((FLOW[nx.d][nx.i]||{}).l||""))); }
 // complete / reopen a step straight from the inspector (mirrors the card's status tick, jumps to done)
 async function fpComplete(slug,i,el){
   const l=L(slug),t=l&&l.tasks[i]; if(!t)return;
@@ -3490,6 +3517,7 @@ async function fpComplete(slug,i,el){
   const r=applyTaskStatus(l,t,done?"o":"x"); if(!r.ok){toast(r.reason);return;}
   if(done)delete t.doneAt; else { t.doneAt=today; if(!t.startAt)t.startAt=today; }   // stamp start too — completing straight o→x skips the p step that normally sets startAt
   v3Advance(l);   // re-derive stage / complete / history — mirrors cycle()/approve(); without it the card's phase goes stale after completing from the flow inspector
+  if(!done) flowStepTo(flowAdvanceRoute(l,t.code,S.route&&S.route.d,S.route&&S.route.i));   // just completed → step the popover to the next node in the path
   save(); render();
 }
 // approve / revoke a Ben ◆ gate straight from the inspector — same verbs as the card's approve()/unapprove(),
@@ -3503,7 +3531,11 @@ async function fpApprove(slug,i,el){
     g.reset.forEach(dd=>{dd.st="o"; if(dd.doneAt)delete dd.doneAt;});
     if(g.reset.length) toast(LANG==="zh"?("↩ 已一併退回後續 "+g.reset.length+" 個步驟"):("↩ Reset "+g.reset.length+" downstream step(s)"));
     unapprove(slug,i);
-  } else approve(slug,i);
+  } else {
+    approve(slug,i);
+    const nx=flowAdvanceRoute(l,t.code,S.route&&S.route.d,S.route&&S.route.i);   // gate cleared → step the popover to the next node (approve() already toasted)
+    if(nx){ S.route=nx; render(); }
+  }
 }
 function flowPopHTML(d,i){
   const n=FLOW[d]&&FLOW[d][i]; if(!n)return"";
@@ -3531,7 +3563,13 @@ function flowPopHTML(d,i){
        ?`<button class="btn fp-mark${doneNow?" ghost":""}" title="${zh?"◆ 關卡由 Ben（CEO）拍板":"◆ gates are decided by Ben (CEO)"}" onclick="fpApprove('${l.slug}',${ti},this)">${doneNow?(zh?"↩ 撤銷核准":"↩ Revoke ◆"):(zh?"◆ 核准":"◆ Approve")}</button>`
        :`<button class="btn fp-mark${doneNow?" ghost":""}" onclick="fpComplete('${l.slug}',${ti},this)">${doneNow?(zh?"↩ 重新開啟":"↩ Reopen"):(zh?"✓ 標記完成":"✓ Complete")}</button>`)
      :`<span class="fp-act-note">${locked?(zh?"🔒 前置未完成"+(n.d?"，Ben 尚無法拍板":""):(n.d?"🔒 waiting on prerequisites — not yet Ben's call":"🔒 waiting on prerequisites")):(zh?"無對應任務":"no linked task")}</span>`;
-   h+=`<div class="fp-actbar">${aMark}<span class="fp-days${dTBD?" tbd":""}" title="${zh?"預估天數":"estimated days"}">⏱ ${daysTxt}</span></div>`;}
+   // this step's day estimate — for the per-product manual steps (no template default, not a ◆ gate) it's an inline
+   // input you fill right here (v3SetDays), soft-red until typed; everything else stays a static ⏱ badge
+   const editDays=!!task&&ti>=0&&!n.d&&vn.days==null&&vn.est==null;
+   const daysEl=editDays
+     ?`<span class="fp-days fp-days-edit${task.days==null?" tbd":""}" title="${zh?"填寫此步驟預估天數":"type this step's estimate"}">⏱ <input type="number" min="0" inputmode="numeric" value="${task.days==null?"":task.days}" placeholder="${zh?"待填":"TBD"}" aria-label="${zh?"預估天數":"estimated days"}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${ti},this.value)"><span class="fp-days-u">${zh?"天":"d"}</span></span>`
+     :`<span class="fp-days${dTBD?" tbd":""}" title="${zh?"預估天數":"estimated days"}">⏱ ${daysTxt}</span>`;
+   h+=`<div class="fp-actbar">${aMark}${daysEl}</div>`;}
   // dependency panel — the same req graph the red arrows draw: what this waits on, and what finishing it unblocks
   {const zh=LANG==="zh";
    const named=code=>{const nn=V3MAP[code]; return code+(nn?" "+esc(zh?nn.zh:nn.en):"");};
