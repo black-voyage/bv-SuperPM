@@ -173,6 +173,7 @@
   .fp-days-edit{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;cursor:text;transition:border-color .15s ease,background .15s ease}
   .fp-days-edit:focus-within{border-color:var(--accent);background:var(--panel2)}
   .fp-days-edit input{width:34px;background:transparent;border:none;color:inherit;font-family:var(--font-mono);font-size:11px;text-align:right;padding:0;-moz-appearance:textfield}
+  .fp-days-edit input[type=date]{width:auto;text-align:left;cursor:pointer}
   .fp-days-edit input:focus{outline:none}
   .fp-days-edit input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .fp-days-edit input::placeholder{color:currentColor;opacity:.65}
@@ -886,8 +887,6 @@
   .v3days-in{color:var(--faint);font-size:11px;margin-left:10px;white-space:nowrap}
   .v3days-in input{width:52px;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:4px;padding:2px 4px;font-size:11px}
   .v3note{color:var(--faint);font-size:11px;margin:-4px 0 6px 34px}
-  .v3sample{color:var(--dim);font-size:12px;margin:-2px 0 6px 34px}
-  .v3sample input{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:4px;padding:2px 6px;font-size:12px}
   /* V3 detail panel — coherent info block shared by locked + open rows */
   /* KV info grid — labels align in one column, values in the next (DESIGN.md §Components KV rows); display:contents lets each row's k/v join the parent grid so nothing packs 2-per-row */
   .v3det{display:grid;grid-template-columns:max-content 1fr;gap:8px 18px;margin:2px 0 6px;font-size:13px;align-items:baseline}
@@ -1468,9 +1467,31 @@ const openDate=l=>(l.history&&l.history[0]&&l.history[0].start)||"";
 const formSubmitDate=l=>{const t=v3Task(l,"C1"); if(!t||t.st!=="x")return ""; return t.doneAt||openDate(l);}; // C1 完成＝送出；舊卡沒蓋章就退回開啟日
 const isSubmitted=l=>!!formSubmitDate(l);
 const v3PlanDays=l=>v3CriticalPath(l).reduce((a,c)=>a+v3DayOf(l,c),0);   // 關鍵路徑（最長 req 鏈）總天數
+/* 預計上市日 v2 — 依「實際狀態」沿 req-DAG 正向排程，不再是送出日＋固定計畫天數：
+   · 已完成步驟 → 用真實 doneAt（提早完成 ⇒ 下游全部提前）
+   · 倒數進行中（startAt 已蓋）→ startAt＋days（＝面板上的應完成日）
+   · 未開始 → 前置們的預期完成日取最大者起算＋自己的天數
+   未完成的工作不可能在過去完成 ⇒ 預期完成日下限＝今天：逾期每過一天就往後推一天。
+   天數未填仍以 0 併入（⚠ 待補徽章照常提醒）；P5 另外等 P3 的預計大貨樣日。 */
 function projLaunchDate(l){                                              // 預計上市日
   if(l.complete){const h=(l.history||[]).slice(-1)[0]; return (h&&h.end)||l.target||openDate(l);}
-  return v3AddD(formSubmitDate(l)||today, v3PlanDays(l));                 // 未送出時以今天暫估（送出後鎖在送出日）
+  const sub=formSubmitDate(l);
+  if(!sub) return v3AddD(today, v3PlanDays(l));                          // 未送出 → 今天＋計畫關鍵路徑（暫估）
+  const fin={};                                                          // code → 預期完成日（memo）
+  const walk=c=>{
+    if(c in fin)return fin[c];
+    fin[c]=sub;                                                          // 循環守衛（模板是 DAG，僅防壞編輯）
+    const n=V3MAP[c]||{}, t=v3Task(l,c);
+    if(t&&t.st==="x")return fin[c]=t.doneAt||sub;                        // 真實完成日；舊資料沒蓋章＝視為早已完成
+    let start=sub;
+    (n.req||[]).forEach(r=>{if(V3MAP[r]){const f=walk(r); if(f>start)start=f;}});
+    if(c==="P5"){const p3=v3Task(l,"P3"); if(p3&&p3.sampleDate&&p3.sampleDate>start)start=p3.sampleDate;}   // 行銷樣等大貨樣日
+    let end=(t&&t.startAt)?v3AddD(t.startAt,v3DayOf(l,c)):v3AddD(start,v3DayOf(l,c));
+    if(end<today)end=today;                                              // 未完成 ⇒ 至少今天才可能完成（逾期往後推）
+    return fin[c]=end;
+  };
+  let latest=sub; V3.forEach(n=>{const f=walk(n.c); if(f>latest)latest=f;});
+  return latest;
 }
 function syncProjected(l){ if(l&&!l.complete){const p=projLaunchDate(l); if(p)l.target=p;} } // 讓 l.target 鏡射預計上市日
 // days:null 且未填的任務：miss＝無 est 退路（當 0，預計日偏早，必填）；soft＝有 est 預設可頂著（建議確認）。onCP＝落在關鍵路徑上。
@@ -3067,7 +3088,7 @@ function taskRow(l,t,extra,ro){
   const ctrls=t.gate?"":`${lk?"":renderLinkMenu(t,l.slug,i)}${exp}`;   // Ben ◆ gates carry no expand/notes panel — the decision button says it all
   // the step's output/explanation now lives in the ▾ details panel (taskDetail), keeping the row short; a shot-list total shows for MS3a/b
   const shotChip=(vn&&vn.shots&&!extra&&v3ShotTotal(t)>0)?`<span class="ghostnote" title="${LANG==="zh"?"素材需求合計":"asset shot-list total"}">${vn.shots==="video"?"🎬":"📸"} ${v3ShotTotal(t)}</span>`:"";
-  const sampleCtl=(vn&&vn.sample&&!extra&&!ro)?`<div class="v3sample">${LANG==="zh"?"預計大貨樣日":"planned bulk-sample date"} <input type="date" value="${esc(t.sampleDate||"")}" title="${LANG==="zh"?"大貨樣可寄出的日期 — P5（部署行銷樣品）等這一天。生產期間即可寄樣，非完工日":"the date bulk samples can ship — P5 (Deploy marketing samples) waits for this. Samples ship mid-production; not the finish date"}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)">${t.st==="p"&&t.days!=null&&t.startAt?` <span class="ghostnote">${LANG==="zh"?"倒數剩":"countdown"} ${Math.max(0,t.days-dayDiff(t.startAt,today))}d</span>`:""}</div>`:"";
+  // 預計大貨樣日 moved INTO the detail panel (taskDetail's 應完成日 block) — no more duplicate outer strip
   const _hasPanel=open&&!t.gate;                                  // the detail panel is only rendered when open (non-gate)
   let _tpNew=""; if(_hasPanel){ if(!PANELSEEN.has(key)){PANELSEEN.add(key);_tpNew=" tp-in";} } else PANELSEEN.delete(key);  // first open → play reveal once; closed → forget so a reopen replays
   return `<div id="task-${l.slug}-${i}" class="taskwrap${_tpNew}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${t.gate?"":"cursor:pointer;"}${lk?"opacity:.38;filter:grayscale(.6)":""}"${t.gate?"":` onclick="rowToggle(event,'${key}')"`}>
@@ -3076,7 +3097,7 @@ function taskRow(l,t,extra,ro){
     ${t.assignee&&t.assignee.trim()!==resp&&t.assignee.trim()!==owner&&!collabs.includes(t.assignee.trim())?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
     ${EVID.has(t.t)&&!lk?'<span class="urg" style="background:#13262e;color:#67e8f9" title="a link must be attached before this can be checked">📎 evidence</span>':""}
     ${shotChip}${ctrls}</span>
-   ${meta}</div>${sampleCtl}
+   ${meta}</div>
    ${open&&!t.gate?taskDetail(l,t,i,ro,vn,lk):""}</div>`;
 }
 function taskPanel(l,t,i,ro){ return `<div class="taskpanel">${taskPanelBody(l,t,i,ro)}</div>`; }
@@ -3128,6 +3149,13 @@ function taskDetail(l,t,i,ro,vn,lk){
     else { const dd=v3AddD(startClock,days), rem=dayDiff(today,dd), c=rem<0?"var(--red)":rem<=2?"var(--amber)":"var(--green)";
       due=`${T("應完成","due")} <b>${fmt(dd)}</b> · <span style="color:${c};font-weight:600">${rem<0?T("已逾期","overdue")+" "+(-rem)+"d":T("剩","left")+" "+rem+"d"}</span>`; }
     info.push([T("應完成日 / 倒數","Due / countdown"), due]);
+  }
+  // 大貨樣步驟（P3）：預計大貨樣日就住在詳情裡（原本的外層列已移除）— 生產期間即可寄樣，P5 等這一天
+  if(vn.sample){
+    const sTip=T("大貨樣可寄出的日期 — P5（部署行銷樣品）等這一天。生產期間即可寄樣，非完工日","the date bulk samples can ship — P5 (Deploy marketing samples) waits for this. Ships mid-production; not the finish date");
+    info.push([T("預計大貨樣日","Bulk-sample date"),
+      ro?(t.sampleDate?fmt(t.sampleDate):"—")
+        :`<input type="date" class="v3due-inp${t.sampleDate?"":" unfilled"}" value="${esc(t.sampleDate||"")}" title="${sTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)"> <span class="ghostnote">${t.sampleDate?T("P5（部署行銷樣品）等這一天","P5 waits for this day"):T("未填 — P5 部署行銷樣品無法解鎖","unset — P5 stays locked")}</span>`]);
   }
   if(!lk) info.push([T("連結","Links"), linkChips(t,l.slug,i)]);   // the actual attached links live IN the detail, not only in the outer quick-link chip
   const grid=`<div class="v3det">${info.map(([k,v])=>`<div class="v3det-r"><span class="v3det-k">${k}</span><span class="v3det-v">${v}</span></div>`).join("")}</div>`;
@@ -3563,12 +3591,20 @@ function flowPopHTML(d,i){
        ?`<button class="btn fp-mark${doneNow?" ghost":""}" title="${zh?"◆ 關卡由 Ben（CEO）拍板":"◆ gates are decided by Ben (CEO)"}" onclick="fpApprove('${l.slug}',${ti},this)">${doneNow?(zh?"↩ 撤銷核准":"↩ Revoke ◆"):(zh?"◆ 核准":"◆ Approve")}</button>`
        :`<button class="btn fp-mark${doneNow?" ghost":""}" onclick="fpComplete('${l.slug}',${ti},this)">${doneNow?(zh?"↩ 重新開啟":"↩ Reopen"):(zh?"✓ 標記完成":"✓ Complete")}</button>`)
      :`<span class="fp-act-note">${locked?(zh?"🔒 前置未完成"+(n.d?"，Ben 尚無法拍板":""):(n.d?"🔒 waiting on prerequisites — not yet Ben's call":"🔒 waiting on prerequisites")):(zh?"無對應任務":"no linked task")}</span>`;
-   // this step's day estimate — for the per-product manual steps (no template default, not a ◆ gate) it's an inline
-   // input you fill right here (v3SetDays), soft-red until typed; everything else stays a static ⏱ badge
-   const editDays=!!task&&ti>=0&&!n.d&&vn.days==null&&vn.est==null;
-   const daysEl=editDays
-     ?`<span class="fp-days fp-days-edit${task.days==null?" tbd":""}" title="${zh?"填寫此步驟預估天數":"type this step's estimate"}">⏱ <input type="number" min="0" inputmode="numeric" value="${task.days==null?"":task.days}" placeholder="${zh?"待填":"TBD"}" aria-label="${zh?"預估天數":"estimated days"}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${ti},this.value)"><span class="fp-days-u">${zh?"天":"d"}</span></span>`
-     :`<span class="fp-days${dTBD?" tbd":""}" title="${zh?"預估天數":"estimated days"}">⏱ ${daysTxt}</span>`;
+   // this step's day estimate — per-product manual steps (vn.days==null, not a ◆ gate) edit right here:
+   // once the clock runs (prereqs done) the factory quotes a DATE, so show a date picker (v3SetDue back-fills
+   // days, mirroring the detail panel); before the clock starts it's a plain days input; all else static ⏱
+   const manual=!!task&&ti>=0&&!n.d&&vn.days==null&&task.st!=="x";
+   const _sc=manual?v3StartClock(l,vn):null;
+   let daysEl;
+   if(manual&&_sc){
+     const dd=task.days!=null?v3AddD(_sc,task.days):"";
+     daysEl=`<span class="fp-days fp-days-edit${task.days==null?" tbd":""}" title="${zh?"應完成日 — 直接選日期，天數自動回推（"+fmt(_sc)+" 起算）":"due date — pick the quoted date; days back-fill (clock starts "+fmt(_sc)+")"}">⏱ <input type="date" value="${dd}" min="${_sc}" aria-label="${zh?"應完成日":"due date"}" onclick="event.stopPropagation()" onchange="v3SetDue('${l.slug}',${ti},this.value)"></span>`;
+   }else if(manual&&vn.est==null){
+     daysEl=`<span class="fp-days fp-days-edit${task.days==null?" tbd":""}" title="${zh?"填寫此步驟預估天數":"type this step's estimate"}">⏱ <input type="number" min="0" inputmode="numeric" value="${task.days==null?"":task.days}" placeholder="${zh?"待填":"TBD"}" aria-label="${zh?"預估天數":"estimated days"}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${ti},this.value)"><span class="fp-days-u">${zh?"天":"d"}</span></span>`;
+   }else{
+     daysEl=`<span class="fp-days${dTBD?" tbd":""}" title="${zh?"預估天數":"estimated days"}">⏱ ${daysTxt}</span>`;
+   }
    h+=`<div class="fp-actbar">${aMark}${daysEl}</div>`;}
   // dependency panel — the same req graph the red arrows draw: what this waits on, and what finishing it unblocks
   {const zh=LANG==="zh";
