@@ -1046,7 +1046,10 @@ const V3=[
  {c:"P3", en:"Mass production", zh:"大貨生產", ph:1, dept:"Product", o:"Zac", days:null, req:["P1"], sample:1, out:{en:"day countdown",zh:"天數倒數"}, note:{en:"packaging (D3) to factory during production",zh:"包裝檔（D3）於生產期間交廠"}},
  // 2 — Launch Prep
  {c:"P2", en:"Product intro video", zh:"產品介紹", ph:2, dept:"Product", o:"Zac", days:1, req:["P1"], asset:1, out:{en:"quick how-to video → whole company",zh:"簡單操作影片 → 全公司"}, isNew:1},
- {c:"P4", en:"Catalog data setup", zh:"Catalog 資料建制", ph:2, dept:"Catalog", o:"LC", days:1, req:["P1"], out:{en:"Shopify SKU + Shipbob SKU",zh:"Shopify SKU＋Shipbob SKU"}},
+ {c:"CT1", en:"Factory order created", zh:"工廠訂單建立", ph:2, dept:"Catalog", o:"Zac", days:1, req:["P1"], note:{en:"do at P3 start (= P1 done)",zh:"大貨生產開啟（＝P1 完成）即做"}},
+ {c:"CT2", en:"Catalog site updated", zh:"目錄網站更新", ph:2, dept:"Catalog", o:"Zac", days:1, req:["MB1"], note:{en:"opens alongside MB1 finalized",zh:"行銷簡報 V1 結束後同步開啟"}},
+ {c:"CT3", en:"COGS & bundle setup", zh:"COGS＆BUNDLE", ph:2, dept:"Catalog", o:"LC", days:1, req:["CT1"]},
+ {c:"CT4", en:"Shopify product created", zh:"Shopify 商品建立", ph:2, dept:"Catalog", o:"Zac", days:1, req:["CT3"], out:{en:"Shopify SKU",zh:"Shopify SKU"}},
  {c:"D1", en:"Identity design", zh:"識別設計", ph:2, dept:"Design", o:"Design Team", days:7, req:["C10"], out:{en:"packaging, label…",zh:"Packaging、Label…"}, isNew:1},
  {c:"D2", en:"Ben identity sign-off", zh:"Ben 決策", ph:2, dept:"Design", o:"Ben", days:2, req:["D1"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
  {c:"D3", en:"Packaging finalized", zh:"包裝設計定稿", ph:2, dept:"Design", o:"Design Team", days:2, req:["D2"], note:{en:"to factory between PPS and mass production",zh:"於產前樣確定～大貨生產期間交付工廠"}},
@@ -1071,7 +1074,7 @@ const V3=[
  {c:"L1", en:"Master order sheet updated", zh:"更新主訂單表", ph:4, dept:"Logistics", o:"LC", days:1, req:["P1"], note:{en:"do at P3 start (= P1 done)",zh:"P3 開始（＝P1 完成）即做"}},
  {c:"L2", en:"Logistics planning", zh:"物流規劃", ph:4, dept:"Logistics", o:"LC", days:1, req:["L1"]},
  {c:"L3", en:"Logistics sheet updated", zh:"更新物流表", ph:4, dept:"Logistics", o:"LC", days:1, req:["L2"]},
- {c:"L6", en:"Shipping labels + to factory", zh:"出貨標籤＋交付工廠", ph:4, dept:"Logistics", o:"LC", days:1, req:["P4"], note:{en:"Shipbob labels; must reach factory before bulk boxing",zh:"Shipbob 標籤；大貨裝箱前必達"}},
+ {c:"L6", en:"Shipping labels + to factory", zh:"出貨標籤＋交付工廠", ph:4, dept:"Logistics", o:"LC", days:1, req:["CT1"], note:{en:"Shipbob labels; must reach factory before bulk boxing",zh:"Shipbob 標籤；大貨裝箱前必達"}},
  {c:"L4", en:"Dispatch & tracking", zh:"出貨與追蹤", ph:4, dept:"Logistics", o:"LC", days:0, req:["P3"]},
  {c:"L5", en:"Freight (sea bulk)", zh:"運輸：海運大貨", ph:4, dept:"Logistics", o:"LC", days:null, ref:{en:"30",zh:"30"}, est:30, req:["L4"]},
  {c:"L7", en:"Ship to Shipbob", zh:"送 Shipbob", ph:4, dept:"Logistics", o:"LC", days:1, req:["L5"]},
@@ -2491,7 +2494,7 @@ const ZH={
  // — stages —
  "Listing creation":"上架建立","Concept":"概念","Build":"開發","Production":"生產","Live":"上線",
  // — departments (Content/Marketing double as stages) —
- "Product":"產品","Design":"設計","Catalog":"目錄","Content":"內容行銷","Social":"社群","Marketing":"行銷",
+ "Product":"產品","Design":"設計","Catalog":"商品目錄","Content":"內容行銷","Social":"社群","Marketing":"行銷",
  "Ads":"廣告","Email":"電郵","CRM":"客戶關係","Logistics":"物流",
  "PRODUCT":"產品","DESIGN":"設計","CATALOG":"目錄","CONTENT":"內容行銷","SOCIAL":"社群","MARKETING":"行銷",
  "ADS":"廣告","EMAIL":"電郵","LOGISTICS":"物流",
