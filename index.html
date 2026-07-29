@@ -1081,7 +1081,7 @@ const V3=[
  {c:"KOL2", en:"Normal influencer sourcing", zh:"一般網紅尋找", ph:3, dept:"Marketing", o:"Angel", days:null, req:["MB2"]},
  {c:"KOL3", en:"Mega influencer shooting", zh:"Mega 網紅拍攝", ph:3, dept:"Marketing", o:"Angel", days:null, req:["P5","KOL1"], asset:1, note:{en:"Ongoing",zh:"Ongoing"}},
  // 4 — Logistics
- {c:"FB1", en:"First batch on sale", zh:"首批開賣日", ph:4, dept:"Logistics", o:"LC", days:31, req:["P3"], arrival:1, out:{en:"arrival date → whole company",zh:"到貨日 → 全公司"}, note:{en:"LC runs shipping end-to-end; only the arrival date is tracked here — once set it becomes the projected launch. Unset → 31d (sea 30 + intake 1) placeholder.",zh:"LC 一條龍處理出貨，這裡只追到貨日 —— 填了就以它為預計上市日；未填前用 31d（海運 30＋入庫 1）暫估"}},
+ {c:"FB1", en:"First batch on sale", zh:"首波開賣日", ph:4, dept:"Logistics", o:"LC", days:31, req:["P3"], arrival:1, out:{en:"arrival date → whole company",zh:"到貨日 → 全公司"}, note:{en:"LC runs shipping end-to-end; only the arrival date is tracked here — once set it becomes the projected launch. Unset → 31d (sea 30 + intake 1) placeholder.",zh:"LC 一條龍處理出貨，這裡只追到貨日 —— 填了就以它為預計上市日；未填前用 31d（海運 30＋入庫 1）暫估"}},
  // 5 — KOL
  {c:"KOL4", en:"Normal influencer outreach", zh:"一般網紅接洽", ph:5, dept:"Marketing", o:"Angel", days:null, req:["KOL2","MB3"]},
  {c:"KOL5", en:"Influencer shooting", zh:"網紅拍攝", ph:5, dept:"Marketing", o:"Angel", days:null, req:["KOL4"], asset:1, note:{en:"Ongoing; record usage rights",zh:"Ongoing；需記錄 usage rights"}},
@@ -1190,7 +1190,7 @@ function v3EstRemain(l,code,memo){
 function v3Lights(l){
   // v1 simplification (agreed in FLOW-V3.md sync scope): ads light = D6×MS3b×stock-in. The 五-D extras —
   // ad-ready 版位子清單, usage-rights expiry, 入庫數量門檻 — are deferred with the ADS framework round 2.
-  // 2026-07-29: the stock condition moved from L8 監控入庫 to FB1 首批開賣日 (the L-chain collapsed into it).
+  // 2026-07-29: the stock condition moved from L8 監控入庫 to FB1 首波開賣日 (the L-chain collapsed into it).
   const d=c=>v3Done(l,c);
   // 2026-07-29: 照片拆成 MS3c 產品照片（棚拍，供 listing／PDP）與 MS3a 情境照片；上架燈號認產品照片。
   const shop=d("MS3c")&&(d("D4")||d("D6"))&&d("FB1")?"go":(d("MS3c")&&d("D4"))?"pre":"no";
@@ -1232,7 +1232,7 @@ const V3OC={"Ben":"#c084fc","Zac":"#60a5fa","Ann":"#f472b6","Angel":"#fb923c","L
 const v3OColor=o=>{o=String(o||"");for(const k in V3OC){if(o.indexOf(k)>=0)return V3OC[k];}return "#9aa3af";};
 const ntx=s=>s; // (was a language-lock wrapper; V3 is now bilingual via the ZH/FLOWZH dict, so this is a pass-through)
 const v3AddD=(s,n)=>new Date(D(s).getTime()+n*864e5).toISOString().slice(0,10);
-// 到貨日（＝首批開賣日）。LC 在 FB1 填的日期是唯一真實來源；沒填就用 P3 完成日＋FB1 天數暫估。
+// 到貨日（＝首波開賣日）。LC 在 FB1 填的日期是唯一真實來源；沒填就用 P3 完成日＋FB1 天數暫估。
 const v3Arrival=l=>{const fb=v3Task(l,"FB1"); return (fb&&fb.arrivalDate)||"";};
 function v3EtaBulk(l){ // 到貨日：已填 → 直接回傳；未填 → P3 完成日(實際或 startAt+days 推估) + FB1 前置天數
   const filled=v3Arrival(l); if(filled)return filled;
@@ -3174,10 +3174,10 @@ function taskDetail(l,t,i,ro,vn,lk){
       ro?(t.sampleDate?fmt(t.sampleDate):"—")
         :`<input type="date" class="v3due-inp${t.sampleDate?"":" unfilled"}" value="${esc(t.sampleDate||"")}" title="${sTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)"> <span class="ghostnote">${t.sampleDate?T("P5（部署行銷樣品）等這一天","P5 waits for this day"):T("未填 — P5 部署行銷樣品無法解鎖","unset — P5 stays locked")}</span>`]);
   }
-  // 首批開賣日（FB1）：LC 一條龍處理出貨，系統只追這一個日期 — 填了就直接當預計上市日，全公司看卡片抬頭即可
+  // 首波開賣日（FB1）：LC 一條龍處理出貨，系統只追這一個日期 — 填了就直接當預計上市日，全公司看卡片抬頭即可
   if(vn.arrival){
     const aTip=T("大貨到貨、可以開賣的那一天。填了就直接成為這張卡的『預計上市日』，蓋過自動推算","the day stock lands and selling can start. Once set it becomes this card's projected launch, overriding the auto-projection");
-    info.push([T("到貨日 / 首批開賣日","Arrival / on-sale date"),
+    info.push([T("到貨日 / 首波開賣日","Arrival / on-sale date"),
       ro?(t.arrivalDate?fmt(t.arrivalDate):"—")
         :`<input type="date" class="v3due-inp${t.arrivalDate?"":" unfilled"}" value="${esc(t.arrivalDate||"")}" title="${aTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'arrivalDate',this.value)"> <span class="ghostnote">${t.arrivalDate?T("＝本卡預計上市日","= this card's projected launch"):T("未填 — 預計上市日仍用自動推算","unset — projected launch stays auto-computed")}</span>`]);
   }
@@ -3657,11 +3657,11 @@ function flowPopHTML(d,i){
      daysEl=`<span class="fp-days${dTBD?" tbd":""}" title="${zh?"預估天數":"estimated days"}">⏱ ${daysTxt}</span>`;
    }
    h+=`<div class="fp-actbar">${aMark}${daysEl}</div>`;}
-  // 到貨日（FB1 首批開賣日）— 這是 LC 唯一要填的東西，所以直接開在流程圖的節點卡片上，不用先跳進卡片詳情
+  // 到貨日（FB1 首波開賣日）— 這是 LC 唯一要填的東西，所以直接開在流程圖的節點卡片上，不用先跳進卡片詳情
   {const vn=V3MAP[n.code]||{};
    if(vn.arrival&&task&&ti>=0){
      const set=!!task.arrivalDate;
-     h+=`<div class="fp-sec"><div class="fp-lab">${zh?"到貨日 / 首批開賣":"Arrival / on-sale date"}</div>`
+     h+=`<div class="fp-sec"><div class="fp-lab">${zh?"到貨日 / 首波開賣":"Arrival / on-sale date"}</div>`
        +`<div class="fp-daterow"><span class="fp-days fp-days-edit${set?"":" tbd"}">📦 <input type="date" value="${esc(task.arrivalDate||"")}" aria-label="${zh?"到貨日":"arrival date"}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${ti},'arrivalDate',this.value)"></span>`
        +`<span class="fp-date-note">${set?(zh?"＝本卡預計上市日":"= this card's projected launch"):(zh?"未填 — 預計上市日仍用自動推算":"unset — projection stays auto-computed")}</span></div></div>`;
    }}
@@ -4073,7 +4073,7 @@ function v3Dash(l){
   const anchors=`<div class="v3anchors">
     <div><span>${T("預計大貨樣日","Planned bulk-sample")}</span><b>${p3&&p3.sampleDate?fmt(p3.sampleDate):"—"}</b></div>
     <div><span>${T("樣品到貨（P5）","Sample arrival (P5)")}</span><b>${p5&&p5.doneAt?fmt(p5.doneAt):"—"}</b></div>
-    <div><span>${T("到貨日 / 首批開賣","Arrival / on sale")}</span><b>${v3Arrival(l)?fmt(v3Arrival(l)):(v3EtaBulk(l)?`${T("預計","est")} ~${fmt(v3EtaBulk(l))}`:"—")}</b></div>
+    <div><span>${T("到貨日 / 首波開賣","Arrival / on sale")}</span><b>${v3Arrival(l)?fmt(v3Arrival(l)):(v3EtaBulk(l)?`${T("預計","est")} ~${fmt(v3EtaBulk(l))}`:"—")}</b></div>
     ${p3&&p3.st==="p"&&p3.days!=null&&p3.startAt?`<div><span>${T("大貨倒數","Bulk countdown")}</span><b>${Math.max(0,p3.days-dayDiff(p3.startAt,today))}d</b></div>`:""}
   </div>`;
   // 🔗 Link hub — gather every link / attachment people have put on ANY task into one place so anyone can grab it (索取), not hunt task-by-task
@@ -4101,7 +4101,7 @@ function v3Dash(l){
   </div>
   <div class="v3grid">
     <div class="panel"><h3>① ${T("素材就緒","Assets ready")} <span class="ghostnote">${T("Done 自動流入 · 點卡跳任務","auto-fed by Done · click to jump")}</span></h3><div class="v3assets">${assets}</div></div>
-    <div class="panel"><h3>② ${T("物流就緒","Logistics ready")}</h3>${anchors}${["P5","FB1"].map(lrow).join("")}<div class="sub" style="margin-top:6px">${T("出貨作業由 LC 一條龍處理，系統只追這兩個日期：樣品到貨、大貨到貨（＝首批開賣日）。","LC runs shipping end-to-end; the board tracks only two dates — sample arrival and bulk arrival (= first batch on sale).")}</div></div>
+    <div class="panel"><h3>② ${T("物流就緒","Logistics ready")}</h3>${anchors}${["P5","FB1"].map(lrow).join("")}<div class="sub" style="margin-top:6px">${T("出貨作業由 LC 一條龍處理，系統只追這兩個日期：樣品到貨、大貨到貨（＝首波開賣日）。","LC runs shipping end-to-end; the board tracks only two dates — sample arrival and bulk arrival (= first batch on sale).")}</div></div>
   </div>
   ${linkHub}`;
 }
@@ -4129,8 +4129,8 @@ function viewLaunch(){
     <div class="ld-stat"><span class="ld-stat-k">${T("開啟","Opened")}</span><span class="ld-stat-v">${fmt(openDate(l))}</span></div>
     <div class="ld-stat"><span class="ld-stat-k">${T("送出","Submitted")}</span><span class="ld-stat-v">${submitted?fmt(formSubmitDate(l)):`<span style="color:var(--faint);font-weight:500">${T("未送出","—")}</span>`}</span></div>
     <div class="ld-stat"><span class="ld-stat-k">${T("預計上市","Projected")}</span><span class="ld-stat-v"><b>${fmt(proj)}</b>${l.complete?"":submitted?(pend.miss.length?` <span class="v3pdwarn" title="${T("有任務未填天數，預計日偏早","unfilled durations — projection runs early")}">⚠${pend.miss.length}</span>`:""):` <span class="ghostnote">${T("暫估","est.")}</span>`}</span></div>
-    ${(()=>{ const arr=v3Arrival(l), eta=arr?"":v3EtaBulk(l);   // 到貨日＝LC 在 FB1 填的首批開賣日；未填時顯示由 P3 推估的預計值
-      const tip=T("大貨到貨、可以開賣的那一天 — 由 LC 在物流〈首批開賣日〉填寫；填了就成為預計上市日","the day stock lands and selling can start — LC fills it on Logistics › First batch on sale; once set it becomes the projected launch");
+    ${(()=>{ const arr=v3Arrival(l), eta=arr?"":v3EtaBulk(l);   // 到貨日＝LC 在 FB1 填的首波開賣日；未填時顯示由 P3 推估的預計值
+      const tip=T("大貨到貨、可以開賣的那一天 — 由 LC 在物流〈首波開賣日〉填寫；填了就成為預計上市日","the day stock lands and selling can start — LC fills it on Logistics › First batch on sale; once set it becomes the projected launch");
       return `<div class="ld-stat" title="${tip}"><span class="ld-stat-k">${T("到貨日","Arrival")}</span><span class="ld-stat-v">${arr?`<b>${fmt(arr)}</b>`:eta?`<span style="color:var(--dim);font-weight:500">~${fmt(eta)} <span class="ghostnote">${T("預估","est.")}</span></span>`:`<span style="color:var(--faint);font-weight:500">${T("未填","—")}</span>`}</span></div>`; })()}
     ${l.complete?"":`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"速度":"Velocity"}</span><span class="ld-stat-v">${velocity(l).toFixed(1)}/wk</span></div>
     <div class="ld-stat ld-stat-rd ld-readycluster"><span class="ld-ready-item"><span class="ld-stat-k">Gate readiness</span>${readinessPop(l)}</span><span class="ld-ready-item"><span class="ld-stat-k">${LANG==="zh"?"待填天數":"Days pending"}</span>${daysPendingPop(l)}</span></div>`}
