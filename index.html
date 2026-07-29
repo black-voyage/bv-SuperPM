@@ -1145,7 +1145,11 @@ function v3Advance(l){ // derive stage (= first phase with open work) + complete
   if(all){ if(!l.complete){l.complete=true;const h=l.history[l.history.length-1];if(h&&!h.end)h.end=today;} return; }
   if(l.complete)l.complete=false;
   const ph=v3CurPhase(l);
-  if(ph!==l.stage){ const h=l.history[l.history.length-1]; if(h&&!h.end)h.end=today; l.history.push({stage:ph,start:today}); l.stage=ph; }
+  if(ph!==l.stage){ const h=l.history[l.history.length-1];
+    // 回到「最後一段本來就是這個階段」（DAG 下游退回會這樣走）⇒ 那段其實還沒結束，不要再開一段同名的
+    if(h&&h.stage===ph){ if(h.end)delete h.end; }
+    else { if(h&&!h.end)h.end=today; l.history.push({stage:ph,start:today}); }
+    l.stage=ph; }
   syncProjected(l);   // 任一狀態變更（勾完成 C1、gate 核准…）都經 v3Advance → 重算預計上市日並鏡射到 l.target
 }
 function v3cycle(slug,i,dir){
@@ -1161,7 +1165,15 @@ function v3cycle(slug,i,dir){
   v3Advance(l); syncProjected(l); save(); render();
 }
 function v3SetDays(slug,i,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;const n=parseInt(v,10);t.days=isNaN(n)?null:n;syncProjected(l);save();render();}
-function v3SetDate(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;t[k]=v||"";syncProjected(l);save();render();}
+// 日期寫入口（大貨樣日／到貨日）。到貨日守門照 v3SetDue 的模式：擋不可能的輸入，不擋「過去」。
+// 寫完必須 reconcile —— P5 的 "P3s" 解鎖條件看的就是 sampleDate，改日期會讓已完成的下游重新變成 locked（假綠）。
+function v3SetDate(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;
+  if(k==="arrivalDate"&&v){
+    const lk=v3ArrivalLock(l,t); if(lk){toast((LANG==="zh"?"到貨日尚不可填 · ":"arrival date not fillable yet · ")+lk);render();return;}
+    const fl=v3ArrivalFloor(l);
+    if(fl&&v<fl){toast(LANG==="zh"?("到貨日不可早於大貨完工日 "+fmt(fl)):("arrival can't be before mass production finished "+fmt(fl)));render();return;}}
+  t[k]=v||"";
+  v3ReconcileLoud(l); syncProjected(l); save(); render();}
 // shared due-clock: root steps count from the project start; others from the LATEST predecessor doneAt (null until all are done)
 const v3StartClock=(l,vn)=>{const reqs=(vn&&vn.req)||[];
   if(!reqs.length)return (l.history&&l.history[0]&&l.history[0].start)||null;
@@ -1235,7 +1247,18 @@ const ntx=s=>s; // (was a language-lock wrapper; V3 is now bilingual via the ZH/
 const fmtYMD=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const v3AddD=(s,n)=>{const d=D(s); d.setDate(d.getDate()+n); return fmtYMD(d);};
 // 到貨日（＝首波開賣日）。LC 在 FB1 填的日期是唯一真實來源；沒填就用 P3 完成日＋FB1 天數暫估。
-const v3Arrival=l=>{const fb=v3Task(l,"FB1"); return (fb&&fb.arrivalDate)||"";};
+// FB1 已標完成卻沒填日期 → 退回 doneAt（fb:true），否則「首波開賣日已完成」與「到貨日 —」會並存。
+const v3ArrivalSrc=l=>{const fb=v3Task(l,"FB1"); if(!fb)return null;
+  if(fb.arrivalDate)return {d:fb.arrivalDate,fb:false};
+  if(fb.st==="x"&&fb.doneAt)return {d:fb.doneAt,fb:true};
+  return null;};
+const v3Arrival=l=>{const s=v3ArrivalSrc(l); return s?s.d:"";};
+// FB1 未解鎖（P3 未完成）時不可填到貨日 —— 填了就直接決定上市日，而貨根本還沒生產完。回傳 disabled 的原因。
+const v3ArrivalLock=(l,t)=>(t&&v3Locked(l,t))?(LANG==="zh"?"大貨生產（P3）完成後才能填":"available once mass production (P3) is done"):"";
+// 到貨日不得早於大貨完工日（物理上不可能）；過去的日期本身合法 —— 貨昨天到了很正常
+const v3ArrivalFloor=l=>{const p3=v3Task(l,"P3"); return (p3&&p3.st==="x"&&p3.doneAt)||"";};
+// 到貨日已到卻還沒標完成 → 燈號與上市日的真相會分岔，要當場提醒去勾
+const v3ArrivalNudge=l=>{const fb=v3Task(l,"FB1"); return !!(fb&&fb.arrivalDate&&fb.arrivalDate<=today&&fb.st!=="x");};
 function v3EtaBulk(l){ // 到貨日：已填 → 直接回傳；未填 → P3 完成日(實際或 startAt+days 推估) + FB1 前置天數
   const filled=v3Arrival(l); if(filled)return filled;
   const p3=v3Task(l,"P3"),fb=v3Task(l,"FB1");
@@ -1282,7 +1305,9 @@ seed("apex","C8","Prototype QC v3","https://drive.google.com/drive/folders/apex-
 seed("cyclone","MS3a","Shot list + selects","https://drive.google.com/drive/folders/cyclone-shoot");
 const seedT=(slug,code,f)=>{const c=LAUNCHES.find(l=>l.slug===slug);const t=c&&c.tasks.find(t=>t.code===code); if(t)Object.assign(t,f);};
 seedT("cyclone","MS3a",{urg:"high",assignee:"各攝影師 · 阿訊",notes:[{d:"2026-06-09",a:"Content",txt:"Hero set done; lifestyle selects with Ann for approval."}]});
-LAUNCHES.forEach(l=>{ if(STAGES.indexOf(l.stage)>=0){const h=l.history&&l.history[l.history.length-1]; l.stage=v3CurPhase(l); if(h)h.stage=l.stage;} }); // normalize seed cards' current phase to the derived one (keeps demo consistent)
+// 只推導「目前階段」。history 是走過的紀錄 —— 改寫最後一筆會製造相鄰重複段（同一份階段預算被比對兩次）
+// 並吃掉真正待過的階段（Cyclone 的 Marketing Prep 段整段消失，8/12 步的進度變成「還沒開始」）。
+LAUNCHES.forEach(l=>{ if(STAGES.indexOf(l.stage)>=0) l.stage=v3CurPhase(l); });
 /* 種子卡的完成時間戳 —— 只宣告，呼叫點在 `const today=pjToday()` 之後：這裡用到的 dayDiff／taskDayLimit／today
    都宣告在本行之下，module-eval 時全在 TDZ（allTasks 的 try/catch 就是被這件事咬到，結果四張卡一個 doneAt 都沒有，
    熱力圖全 0、到貨日推不出來、正向排程全部退回送出日）。做法：每個階段的已完成步驟依 req 深度平均散在該階段的
@@ -1359,6 +1384,15 @@ function v3DoneDeps(l,task){ return (task&&task.code)? v3Deps(l,task.code).filte
 // invariant: a step may be "done" only if ALL its req prerequisites are done. Reopen any done-but-locked step until stable.
 function v3Reconcile(l){ if(!l)return; let ch=true,g=0;
   while(ch&&g++<60){ ch=false; (l.tasks||[]).forEach(t=>{ if(t.st==="x"&&taskLocked(l,t)){ t.st="o"; if(t.doneAt)delete t.doneAt; ch=true; } }); } }
+// 有聲版：改一個日期就可能讓下游整批退回，靜默退回會讓人以為資料自己壞了（guardReopen 那條路才有確認）
+function v3ReconcileLoud(l){
+  const was=((l&&l.tasks)||[]).filter(t=>t.code&&t.st==="x").map(t=>t.code);
+  v3Reconcile(l);
+  const back=was.filter(c=>{const t=v3Task(l,c); return t&&t.st!=="x";});
+  if(back.length){const zh=LANG==="zh";
+    toast((zh?"↩ 已退回 "+back.length+" 步（前置變更）：":"↩ Reopened "+back.length+" step(s) — prerequisite changed: ")
+      +back.slice(0,5).join(zh?"、":", ")+(back.length>5?"…":""));}
+  return back; }
 /* flow-node click → jump to the matching task card below */
 function jumpTask(slug,i){
   S.route=null;                                         // dismiss the flow popover when we jump to the card
@@ -1392,16 +1426,21 @@ function stageDayBudget(l,stage){
   return PLAN[stage]||0;   // 0＝這個階段沒有任何已知天數（KOL 全是 Ongoing）；顯示端出「—」，不要編一個 14／21 天的假預算
 }
 const deptStageBudget=(l,stage,d)=>(l.tasks||[]).filter(t=>t.stage===stage&&t.d===d).reduce((a,t)=>a+(taskDayLimit(t)||0),0);
+// 段落＝正規化後的 history：相鄰同名段先合併（DAG 下游退回、或既存 snapshot 裡的重複段都會產生），
+// 否則同一份階段預算會被比對兩次、逾期歸咎也跟著分裂。每段自帶 start/end，消費者不要再靠 index 去撈 history。
 function segments(l){
-  return (l.history||[]).map((h,i)=>{
-    const end=h.end||(l.history[i+1]?l.history[i+1].start:today);
-    const days=Math.max(1,dayDiff(h.start,end));
-    const plan=stageDayBudget(l,h.stage);
-    const unk=(l.tasks||[]).filter(t=>t.stage===h.stage&&t.code&&taskDaysUnknown(t)).length;
+  const hs=l.history||[], mg=[];
+  hs.forEach((h,i)=>{ const end=h.end||(hs[i+1]?hs[i+1].start:today), open=(i===hs.length-1)&&!h.end, p=mg[mg.length-1];
+    if(p&&p.stage===h.stage){ if(end>p.end)p.end=end; p.delayBy=p.delayBy||h.delayBy; p.open=p.open||open; }
+    else mg.push({stage:h.stage,start:h.start,end,delayBy:h.delayBy,open}); });
+  return mg.map(s=>{
+    const days=Math.max(1,dayDiff(s.start,s.end));
+    const plan=stageDayBudget(l,s.stage);
+    const unk=(l.tasks||[]).filter(t=>t.stage===s.stage&&t.code&&taskDaysUnknown(t)).length;
     const over=unk?0:Math.max(0,days-plan);   // 有步驟沒填天數 ⇒ plan 不可比較，超時歸零（否則「沒人填打樣天數」會變成「Product 落後 107 天」）
-    const cur=!h.end&&!l.history[i+1]&&!l.complete;
-    const blame=over?(h.delayBy||(cur?curBlame(l):[])):[];
-    return {stage:h.stage,days,plan,unk,over,cur,blame};
+    const cur=s.open&&!l.complete;
+    const blame=over?(s.delayBy||(cur?curBlame(l):[])):[];
+    return {stage:s.stage,start:s.start,end:s.end,days,plan,unk,over,cur,blame};
   });
 }
 // overrun split among the blamed departments, weighted by each one's share of the stage's day budget
@@ -1426,12 +1465,11 @@ function strugglingDepts(){
 // each overrun accrues linearly from the day its stage's budget ran out to the day the stage ended
 function delayTrend(N=24){
   const iv=[];
-  LAUNCHES.forEach(l=>{const hs=l.history||[];segments(l).forEach((s,i)=>{
-    if(!(s.over&&s.blame.length)||!hs[i])return;
-    const end=hs[i].end||(hs[i+1]?hs[i+1].start:today);
-    const start=v3AddD(hs[i].start,s.plan);
-    blameShares(l,s).forEach(({d,amt})=>iv.push({dept:d,start,end,amt}));
-  });});
+  LAUNCHES.forEach(l=>segments(l).forEach(s=>{
+    if(!(s.over&&s.blame.length))return;
+    const start=v3AddD(s.start,s.plan);
+    blameShares(l,s).forEach(({d,amt})=>iv.push({dept:d,start,end:s.end,amt}));
+  }));
   if(!iv.length)return {};
   const t0=iv.reduce((a,x)=>x.start<a?x.start:a,today);
   const span=Math.max(1,D(today)-D(t0));
@@ -1449,12 +1487,10 @@ function delayTrend(N=24){
 // {t0, series:{name:number[N]}} so a real time-axis chart can be drawn. Portfolio total = sum of series per sample.
 function delayTrendByLaunch(N=24){
   const iv=[];
-  LAUNCHES.forEach(l=>{const hs=l.history||[]; segments(l).forEach((s,i)=>{
-    if(!s.over||!hs[i])return;
-    const end=hs[i].end||(hs[i+1]?hs[i+1].start:today);
-    const start=v3AddD(hs[i].start,s.plan);   // the day the stage's day-budget ran out
-    iv.push({slug:l.slug,start,end,amt:s.over});   // key by slug (unique) — two launches can share a display name
-  });});
+  LAUNCHES.forEach(l=>segments(l).forEach(s=>{
+    if(!s.over)return;
+    iv.push({slug:l.slug,start:v3AddD(s.start,s.plan),end:s.end,amt:s.over});   // start＝該階段預算用盡的那天；key by slug（唯一）—— 兩張卡可能同名
+  }));
   const series={};
   if(!iv.length)return {t0:today,N,series,total:new Array(N).fill(0)};
   const t0=iv.reduce((a,x)=>x.start<a?x.start:a,today);
@@ -1467,13 +1503,12 @@ function delayTrendByLaunch(N=24){
   }
   return {t0,N,span,series,total};
 }
-function projectedSlip(l){ // projected finish vs target
-  if(l.complete) return 0;
-  const cur=segments(l).find(s=>s.cur); if(!cur) return 0;
-  const remainCur=Math.max(0,cur.plan-cur.days); // optimistic: rest of the day budget
-  const future=STAGES.slice(STAGES.indexOf(l.stage)+1).reduce((a,s)=>a+stageDayBudget(l,s),0);
-  const finish=new Date(D(today).getTime()+(remainCur+future)*864e5);
-  return Math.round((finish-D(l.target))/864e5);
+/* 預估延遲／Float 都對「基準上市日」（l.baselineTarget＝C1 送出當下凍結的預計上市日）量測，剩餘工作一律走
+   同一個 DAG 引擎（projLaunchDate）。舊模型是「目前階段剩餘＋所有後續階段預算相加」＝把 DAG 並行當串接
+   （六階段 216d vs 關鍵路徑 102d），每張活躍卡永遠 -89～-123d 紅字，紅燈被訓練成噪音。 */
+function projectedSlip(l){ if(l.complete) return 0;                    // ＝比基準晚幾天（不晚就 0）
+  const b=l.baselineTarget, p=projLaunchDate(l);
+  return (b&&p)?Math.max(0,dayDiff(b,p)):0;
 }
 
 /* ================= PRODUCT HEALTH OVERVIEW (V3) =================
@@ -1522,13 +1557,10 @@ const v3PlanDays=l=>v3CriticalPath(l).reduce((a,c)=>a+v3DayOf(l,c),0);   // 關�
    · 倒數進行中（startAt 已蓋）→ startAt＋days（＝面板上的應完成日）
    · 未開始 → 前置們的預期完成日取最大者起算＋自己的天數
    未完成的工作不可能在過去完成 ⇒ 預期完成日下限＝今天：逾期每過一天就往後推一天。
-   天數未填仍以 0 併入（⚠ 待補徽章照常提醒）；P5 另外等 P3 的預計大貨樣日。 */
-function projLaunchDate(l){                                              // 預計上市日
-  if(l.complete){const h=(l.history||[]).slice(-1)[0]; return (h&&h.end)||l.target||openDate(l);}
-  const arr=v3Arrival(l); if(arr)return arr;                             // LC 在 FB1 填了到貨日 → 以實填日期為準，蓋過正向排程的推估
-  const sub=formSubmitDate(l);
-  if(!sub) return v3AddD(today, v3PlanDays(l));                          // 未送出 → 今天＋計畫關鍵路徑（暫估）
-  const fin={};                                                          // code → 預期完成日（memo）
+   天數未填仍以 0 併入（⚠ 待補徽章照常提醒）；P5 另外等 P3 的大貨樣日／大貨開跑日。 */
+function v3ProjFin(l){                                                   // code → 預期完成日（memo）；未送出回 null
+  const sub=formSubmitDate(l); if(!sub)return null;
+  const fin={}, beg={};                                                  // beg＝各步驟的預期起算日（P5 的大貨下限要用）
   const walk=c=>{
     if(c in fin)return fin[c];
     fin[c]=sub;                                                          // 循環守衛（模板是 DAG，僅防壞編輯）
@@ -1536,18 +1568,36 @@ function projLaunchDate(l){                                              // 預�
     if(t&&t.st==="x")return fin[c]=t.doneAt||sub;                        // 真實完成日；舊資料沒蓋章＝視為早已完成
     let start=sub;
     (n.req||[]).forEach(r=>{if(V3MAP[r]){const f=walk(r); if(f>start)start=f;}});
-    if(c==="P5"){const p3=v3Task(l,"P3"); if(p3&&p3.sampleDate&&p3.sampleDate>start)start=p3.sampleDate;}   // 行銷樣等大貨樣日
+    // 行銷樣不可能早於大貨：填了大貨樣日以它為準，沒填就至少不早於 P3 的（實際或推算）起跑日 ——
+    // 排程端與解鎖端的 "P3s" 特例同源。沒有這個下限，sampleDate 空（新卡的預設）就等於假設樣品在 MS1 完成當天到。
+    if(c==="P5"){const p3=v3Task(l,"P3"); walk("P3");
+      const fl=(p3&&p3.sampleDate)||(p3&&p3.startAt)||beg.P3;
+      if(fl&&fl>start)start=fl;}
     const d=v3DayOf(l,c);
     // 夾的是「起算日」不是完成日：未開工的步驟最早只能今天起跑，剩餘工期才不會整段蒸發（夾完成日會把 35d 的影片壓成今天完成）
     let end;
-    if(t&&t.startAt){ end=v3AddD(t.startAt,d); if(end<today)end=today; } // 已開工：startAt＋天數，但不可能落在過去
-    else { if(start<today)start=today; end=v3AddD(start,d); }            // 未開工：起算日＝max(前置完成日, 今天)
+    if(t&&t.startAt){ beg[c]=t.startAt; end=v3AddD(t.startAt,d); if(end<today)end=today; }   // 已開工：startAt＋天數，但不可能落在過去
+    else { if(start<today)start=today; beg[c]=start; end=v3AddD(start,d); }                  // 未開工：起算日＝max(前置完成日, 今天)
     return fin[c]=end;
   };
-  let latest=sub; V3.forEach(n=>{const f=walk(n.c); if(f>latest)latest=f;});
+  V3.forEach(n=>walk(n.c));
+  return fin;
+}
+function projLaunchDate(l){                                              // 預計上市日
+  if(l.complete){const h=(l.history||[]).slice(-1)[0]; return (h&&h.end)||l.target||openDate(l);}
+  const arr=v3Arrival(l); if(arr)return arr;                             // LC 在 FB1 填了到貨日 → 以實填日期為準，蓋過正向排程的推估
+  const fin=v3ProjFin(l);
+  if(!fin) return v3AddD(today, v3PlanDays(l));                          // 未送出 → 今天＋計畫關鍵路徑（暫估）
+  let latest=formSubmitDate(l); V3.forEach(n=>{const f=fin[n.c]; if(f>latest)latest=f;});
   return latest;
 }
-function syncProjected(l){ if(l&&!l.complete){const p=projLaunchDate(l); if(p)l.target=p;} } // 讓 l.target 鏡射預計上市日
+/* 到貨日一填就蓋過正向排程（使用者裁決，保留），但兩者衡量的是不同事件：到貨＝可開賣；素材鏈＝正式 PDP／影片／FAQ
+   齊備。v3ReadyDate＝非物流節點的正向排程完成日，讓 UI 在覆蓋發生時把差異講明白，而不是沿用同一個標籤與 tooltip。 */
+function v3ReadyDate(l){ const fin=l.complete?null:v3ProjFin(l); if(!fin)return "";
+  let m=""; V3.forEach(n=>{ if(n.dept==="Logistics")return; const d=fin[n.c]; if(d&&d>m)m=d; }); return m; }
+function syncProjected(l){ if(!l||l.complete)return; const p=projLaunchDate(l); if(!p)return; l.target=p;   // l.target 鏡射預計上市日
+  // 基準上市日：C1 送出當下的預計上市日凍結一次，之後 float／預估延遲都對它量測（既有卡在此一次性補存）
+  if(!l.baselineTarget&&formSubmitDate(l))l.baselineTarget=p; }
 /* 上市日的兩個定義端點：FB1（大貨到貨＝首波開賣）與 D6（正式 PDP）。沿 req 正向可達其中之一 ⇒ 這個步驟的天數
    會參與預計上市日的推算（未填就當 0，日期偏早）；不可達 ⇒ 影響「未知」，絕不可寫成「不影響上市日」。 */
 const V3LAUNCH_ENDS=["FB1","D6"];
@@ -1565,12 +1615,11 @@ function v3PendingDays(l){
   return {miss:miss.sort(rank), soft:soft.sort(rank), nAff:miss.filter(r=>r.aff).length};
 }
 // per-department health: planned-day budget vs actual elapsed vs remaining, a RAG status, and whether
-// the dept sits on the critical path. Actual is derived from the stage timeline (history) — each started
-// stage's real elapsed is split across its departments by their planned day-budget weight — so it's
-// meaningful WITHOUT per-task timestamps (hand-filled dates refine plannedEnd/late, not this figure).
+// the dept sits on the critical path. Actual comes from TASK-level stamps (startAt/doneAt) — the old
+// stage-history apportionment handed actual=0 to every dept whose work sits in a phase with no history
+// segment, so a dept with 5 逾期步驟 read「準時」. 一步都沒開工 ⇒ actual null ⇒ UI 印「—」，不是準時。
 function v3DeptHealth(l){
   const sched=v3Schedule(l), cp=new Set(v3CriticalPath(l)), depts={};
-  const segBy={}; segments(l).forEach(s=>segBy[s.stage]=s);
   V3.forEach(n=>{
     const t=v3Task(l,n.c); if(!t)return;
     const g=depts[n.dept]||(depts[n.dept]={dept:n.dept,budget:0,actual:0,remain:0,done:0,total:0,late:0,onCP:false,blocked:false});
@@ -1578,31 +1627,41 @@ function v3DeptHealth(l){
     if(cp.has(n.c))g.onCP=true;
     if(t.st==="b")g.blocked=true;
     if(t.st==="x")g.done++;
-    const s=sched[n.c]; if(t.st!=="x"&&s&&s.plannedEnd<today)g.late++;
+    // 逾期只算「已解鎖」的步驟：前置沒完成的步驟根本不能動，把它算成擁有者的落後會把瓶頸指到被卡住的下游部門
+    const s=sched[n.c]; if(t.st!=="x"&&s&&s.plannedEnd<today&&!taskLocked(l,t))g.late++;
   });
-  Object.keys(depts).forEach(d=>{ let act=0,bud=0;
-    // sum actual elapsed AND budget over the SAME started stages so the ratio is like-for-like — comparing
-    // partial actual against the whole-launch budget would never flag a dept that's over on its current stage.
-    STAGES.forEach(st=>{ const seg=segBy[st]; if(!seg)return; const db=deptStageBudget(l,st,d); if(db){act+=seg.days*(db/(seg.plan||db)); bud+=db;} });
-    const g=depts[d]; g.actual=Math.round(act); g.budgetSoFar=Math.round(bud); g.remain=Math.max(0,g.budget-g.actual);
+  Object.keys(depts).forEach(d=>{ let act=0,bud=0,started=0;
+    // actual 與 budget 只累計「已開工的步驟」，比才是同一把尺；天數未知的步驟兩邊都不計（沒填 ≠ 0 天）。
+    (l.tasks||[]).forEach(t=>{ if(!t.code||t.d!==d||taskDaysUnknown(t))return;
+      const lim=taskDayLimit(t)||0;
+      if(t.st==="x"){ started++; bud+=lim; act+=(t.startAt&&t.doneAt)?Math.max(0,dayDiff(t.startAt,t.doneAt)):lim; }   // 完成卻沒時間戳 ⇒ 以預算計（中性），別當 0 天
+      else if(t.startAt){ started++; bud+=lim; act+=Math.max(0,dayDiff(t.startAt,today)); } });
+    const g=depts[d]; g.actual=started?Math.round(act):null; g.budgetSoFar=Math.round(bud); g.remain=Math.max(0,g.budget-(g.actual||0));
   });
   return Object.values(depts).map(g=>{
-    const base=g.budgetSoFar||g.budget, ratio=base?g.actual/base:0;   // vs budget of STARTED stages, not whole launch
-    let status="ontrack";
-    if(g.blocked||ratio>1.1) status="behind";
-    else if(g.total&&g.done===g.total) status=(g.actual<base*0.95?"ahead":g.actual<=base*1.1?"ontrack":"behind");
+    const base=g.budgetSoFar||g.budget, ratio=(g.actual!=null&&base)?g.actual/base:0;
+    let status;
+    // 全做完的部門不可能是瓶頸 —— 完工先判，否則 ratio>1.1 會把 4/4 的部門標成「落後」並排到最前面
+    if(g.total&&g.done===g.total) status=(g.actual!=null&&g.actual<base*0.95)?"ahead":"done";
+    else if(g.blocked||g.late) status="behind";        // 已逾期的步驟就是落後，不必等 ratio（沒開工的步驟不會累積 actual）
+    else if(g.actual==null) status="nodata";           // 一步都還沒開工：無從比較
+    else status=ratio>1.1?"behind":"ontrack";
     return {...g,ratio,status};
-  }).sort((a,b)=>{const rk=s=>s.status==="behind"?0:s.status==="ontrack"?1:2; return (rk(a)-rk(b))||(b.onCP-a.onCP)||(b.ratio-a.ratio)||(b.budget-a.budget);});
+  }).sort((a,b)=>{const rk=s=>s.status==="behind"?0:s.status==="ontrack"?1:s.status==="nodata"?2:s.status==="ahead"?3:4;
+    return (rk(a)-rk(b))||(b.onCP-a.onCP)||(b.late-a.late)||(b.ratio-a.ratio)||(b.budget-a.budget);});
 }
 // one-line verdict: overall slip + the bottleneck dept (a behind dept on the critical path, else the worst behind dept).
 function v3Narrative(l){
   const zh=LANG==="zh";
   if(l.complete)return zh?"已完成上市。":"Launch complete.";
+  if(!isSubmitted(l))return zh?"需求表（C1）還沒送出,排程尚未起算。":"Intake form (C1) not submitted — scheduling hasn't started.";
   const slip=projectedSlip(l), dh=v3DeptHealth(l), behind=dh.filter(g=>g.status==="behind");
   const bott=behind.find(g=>g.onCP)||behind[0], dn=bott?bott.dept:"";
-  if(slip>0)return (zh?`預計晚 ${slip} 天上市`:`Projected ${slip}d late`)+(bott?(zh?`,瓶頸在 ${dn}`:`, bottleneck: ${dn}`):"");
+  if(slip>0)return (zh?`預計比基準晚 ${slip} 天上市`:`Projected ${slip}d later than baseline`)+(bott?(zh?`,瓶頸在 ${dn}`:`, bottleneck: ${dn}`):"");
   if(bott)return zh?`整體在排程內,但 ${dn} 落後,留意別波及關鍵路徑`:`On schedule overall, but ${dn} is behind — watch the critical path`;
-  return (zh?`順利,緩衝 ${floatDays(l)} 天`:`On track — ${floatDays(l)}d of float`);
+  const fl=floatDays(l);
+  return fl>0?(zh?`順利,比基準早 ${fl} 天`:`On track — ${fl}d ahead of baseline`)
+             :(zh?"順利,與基準上市日一致":"On track — on the baseline date");
 }
 // jump to the most-actionable open task in a department (blocked → in-progress → next unlocked → first open).
 function v3jumpDept(slug,dept){
@@ -1618,10 +1677,9 @@ function v3jumpDept(slug,dept){
 const SLA_DAYS=2, WIP_LIMIT=4;
 const LOG=[{d:"2026-06-10 08:00",m:"SuperPM fork initialized from Tracker v2"}];
 function log(m){LOG.unshift({d:today+" "+String(8+LOG.length%9).padStart(2,"0")+":"+String(LOG.length*7%60).padStart(2,"0"),m}); if(LOG.length>250)LOG.pop(); save();}
-function floatDays(l){ if(l.complete) return 0;
-  const cur=segments(l).find(s=>s.cur); const remainCur=cur?Math.max(0,cur.plan-cur.days):0;
-  const future=STAGES.slice(STAGES.indexOf(l.stage)+1).reduce((a,s)=>a+stageDayBudget(l,s),0);
-  return dayDiff(today,l.target)-(remainCur+future);
+function floatDays(l){ if(l.complete) return 0;   // 正＝比基準早，負＝比基準晚（絕對值＝projectedSlip）；沒基準日可比就是 0
+  const b=l.baselineTarget, p=projLaunchDate(l);
+  return (b&&p)?dayDiff(p,b):0;
 }
 function velocity(l){ const weeks=Math.max(1,dayDiff(l.history[0].start,today)/7);
   return l.tasks.filter(t=>t.st==="x").length/weeks; }
@@ -1650,8 +1708,17 @@ function autopilot(){ // the auto-correct brain: detect → propose → one-clic
     l.tasks.filter(t=>t.st==="x"&&EVID.has(t.t)&&!(t.links||[]).length).forEach(t=>issues.push({sev:"amber",
       msg:`📎 ${l.name}: “${t.t}” marked done without evidence`,fixLabel:"Reopen",
       fix:()=>{t.st="p";l.checkins.unshift({d:today,a:"Autopilot",txt:`Reopened “${t.t}” — evidence link missing (playbook rule).`});log("⚡ Reopened "+l.name+" / "+t.t);}}));
-    const fl=floatDays(l);
-    if(fl<0) issues.push({sev:"red",msg:`📉 ${l.name}: float ${fl}d — forecast ${fmt(forecastDate(l))} vs target ${fmt(l.target)}`,fixLabel:null,fix:null});
+    // 比基準晚才報，且必須修得掉：舊模型（階段預算相加）對每張活躍卡都報一筆 fix:null 的紅字，永遠清不掉＝噪音
+    const fl=floatDays(l), bt=l.baselineTarget;
+    if(fl<0&&bt) issues.push({sev:fl<-7?"red":"amber",
+      msg:LANG==="zh"?`📉 ${l.name}：預計上市 ${fmt(l.target)} 比基準 ${fmt(bt)} 晚 ${-fl} 天`
+                     :`📉 ${l.name}: projected ${fmt(l.target)} is ${-fl}d later than the ${fmt(bt)} baseline`,
+      fixLabel:LANG==="zh"?"重設基準":"Rebaseline",
+      fix:()=>{l.baselineTarget=l.target;
+        l.checkins.unshift({d:today,a:"Autopilot",txt:LANG==="zh"
+          ?`基準上市日重設為 ${fmt(l.target)}（原 ${fmt(bt)},延後 ${-fl} 天）—— 之後的 Float／預估延遲對新基準量測。`
+          :`Baseline launch date reset to ${fmt(l.target)} (was ${fmt(bt)}, ${-fl}d later) — float/slip now measure against it.`});
+        log("⚡ Rebaselined "+l.name+" → "+l.target);}});
   });
   DEPTS().forEach(d=>{const w=wip(d); if(w>WIP_LIMIT) issues.push({sev:"amber",msg:`🌊 ${d}: WIP ${w} over limit ${WIP_LIMIT}`,fix:null});});
   return issues;
@@ -3224,9 +3291,11 @@ function taskDetail(l,t,i,ro,vn,lk){
   // 首波開賣日（FB1）：LC 一條龍處理出貨，系統只追這一個日期 — 填了就直接當預計上市日，全公司看卡片抬頭即可
   if(vn.arrival){
     const aTip=T("大貨到貨、可以開賣的那一天。填了就直接成為這張卡的『預計上市日』，蓋過自動推算","the day stock lands and selling can start. Once set it becomes this card's projected launch, overriding the auto-projection");
+    const aLk=v3ArrivalLock(l,t), aFl=v3ArrivalFloor(l);   // min＝大貨完工日：過去的到貨日合法，早於完工日不可能
     info.push([T("到貨日 / 首波開賣日","Arrival / on-sale date"),
       ro?(t.arrivalDate?fmt(t.arrivalDate):"—")
-        :`<input type="date" class="v3due-inp${t.arrivalDate?"":" unfilled"}" value="${esc(t.arrivalDate||"")}" title="${aTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'arrivalDate',this.value)"> <span class="ghostnote">${t.arrivalDate?T("＝本卡預計上市日","= this card's projected launch"):T("未填 — 預計上市日仍用自動推算","unset — projected launch stays auto-computed")}</span>`]);
+      :aLk?`<input type="date" class="v3due-inp unfilled" value="${esc(t.arrivalDate||"")}" disabled aria-disabled="true"> <span class="ghostnote">🔒 ${esc(aLk)}</span>`
+        :`<input type="date" class="v3due-inp${t.arrivalDate?"":" unfilled"}" value="${esc(t.arrivalDate||"")}"${aFl?` min="${aFl}"`:""} title="${aTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'arrivalDate',this.value)"> <span class="ghostnote">${t.arrivalDate?T("＝本卡預計上市日","= this card's projected launch"):T("未填 — 預計上市日仍用自動推算","unset — projected launch stays auto-computed")}</span>${v3ArrivalNudge(l)?` <span class="urg high">${T("已到貨？記得標記完成","arrived? mark this step done")}</span>`:""}`]);
   }
   if(!lk) info.push([T("連結","Links"), linkChips(t,l.slug,i)]);   // the actual attached links live IN the detail, not only in the outer quick-link chip
   const grid=`<div class="v3det">${info.map(([k,v])=>`<div class="v3det-r"><span class="v3det-k">${k}</span><span class="v3det-v">${v}</span></div>`).join("")}</div>`;
@@ -3336,7 +3405,7 @@ const cardHTML=l=>{const g=gateState(l),[h,cls]=health(l);const si=STAGES.indexO
   <div style="margin:9px 0 0">${dots}</div>
   <div class="bar"><i style="width:${Math.round(done/l.tasks.length*100)}%"></i></div>
   <div class="card-cnt">${g.met}/${g.total} gate criteria · ${done}/${l.tasks.length} tasks overall</div>
-  <div class="card-ft"><span class="pill ${cls}">${h}</span>${l.complete?"":` <span class="pill ${floatDays(l)<0?"bad":"ok"}">float ${floatDays(l)}d</span>`}${l.driveFolderUrl?` <a class="pill" style="cursor:pointer;text-decoration:none;border:1px solid var(--line,#3a414b)" href="${l.driveFolderUrl}" target="_blank" title="Open this launch's Google Drive folder — anyone with the link can open it" onclick="event.stopPropagation()">📁 Drive</a>`:""}</div></div>`;};
+  <div class="card-ft"><span class="pill ${cls}">${h}</span>${l.complete||!l.baselineTarget?"":` <span class="pill ${floatDays(l)<0?"bad":"ok"}">float ${floatDays(l)}d</span>`}${l.driveFolderUrl?` <a class="pill" style="cursor:pointer;text-decoration:none;border:1px solid var(--line,#3a414b)" href="${l.driveFolderUrl}" target="_blank" title="Open this launch's Google Drive folder — anyone with the link can open it" onclick="event.stopPropagation()">📁 Drive</a>`:""}</div></div>`;};
 
 /* ================= MASTER FLOW CHART RENDER (SVG, live-colored per launch) ================= */
 /* ===== flow-chart label i18n (isolated from the global ZH dict) =====
@@ -3707,10 +3776,12 @@ function flowPopHTML(d,i){
   // 到貨日（FB1 首波開賣日）— 這是 LC 唯一要填的東西，所以直接開在流程圖的節點卡片上，不用先跳進卡片詳情
   {const vn=V3MAP[n.code]||{};
    if(vn.arrival&&task&&ti>=0){
-     const set=!!task.arrivalDate;
+     const set=!!task.arrivalDate, aLk=v3ArrivalLock(l,task), aFl=v3ArrivalFloor(l);
      h+=`<div class="fp-sec"><div class="fp-lab">${zh?"到貨日 / 首波開賣":"Arrival / on-sale date"}</div>`
-       +`<div class="fp-daterow"><span class="fp-days fp-days-edit${set?"":" tbd"}">📦 <input type="date" value="${esc(task.arrivalDate||"")}" aria-label="${zh?"到貨日":"arrival date"}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${ti},'arrivalDate',this.value)"></span>`
-       +`<span class="fp-date-note">${set?(zh?"＝本卡預計上市日":"= this card's projected launch"):(zh?"未填 — 預計上市日仍用自動推算":"unset — projection stays auto-computed")}</span></div></div>`;
+       +`<div class="fp-daterow"><span class="fp-days fp-days-edit${set?"":" tbd"}">📦 <input type="date" value="${esc(task.arrivalDate||"")}"${aFl?` min="${aFl}"`:""}${aLk?` disabled aria-disabled="true"`:""} aria-label="${zh?"到貨日":"arrival date"}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${ti},'arrivalDate',this.value)"></span>`
+       +`<span class="fp-date-note">${aLk?"🔒 "+esc(aLk):set?(zh?"＝本卡預計上市日":"= this card's projected launch"):(zh?"未填 — 預計上市日仍用自動推算":"unset — projection stays auto-computed")}</span>`
+       +(v3ArrivalNudge(l)?`<span class="fp-date-note" style="color:var(--amber)">${zh?"已到貨？記得標記完成":"arrived? mark this step done"}</span>`:"")
+       +`</div></div>`;
    }}
   // dependency panel — the same req graph the red arrows draw: what this waits on, and what finishing it unblocks
   {const zh=LANG==="zh";
@@ -3883,7 +3954,7 @@ function homeCEO(){
   ${pulsePanel()}
   <div class="panel"><h3>◆ My decision queue <span class="ghostnote">(SLA: ${SLA_DAYS} days)</span></h3>${q.length?q.map(({l,c})=>{const i=l.tasks.indexOf(c.task);const age=decisionAge(l,c.t);return `<div class="gatecard"><b>${l.name}</b> — ${esc(c.t)} <span class="sla ${age>SLA_DAYS?"over":"ok"}">${age}d ${age>SLA_DAYS?"· SLA BREACHED":"in SLA"}</span><div class="sub" style="margin:4px 0 8px">All other ${l.stage} exit criteria are met. Approving unblocks the push to ${STAGES[STAGES.indexOf(l.stage)+1]||"done"}. DRI: ${l.dri}.</div><button class="btn" onclick="approve('${l.slug}',${i})">✓ Approve</button> <button class="btn red" onclick="toast('Reject flow: Slack modal asks for a reason → lands in check-in log')">✕ Reject</button> <button class="btn ghost" onclick="openL('${l.slug}')">Open card</button></div>`;}).join(""):'<div class="empty-hero">Nothing waiting on you. 🎉</div>'}</div>
   <div class="panel"><h3>🎯 Focus — the one task per launch that moves the date</h3>
-   ${LAUNCHES.filter(l=>!l.complete).map(l=>{const cn=criticalNext(l);const fl=floatDays(l);return `<div class="row" style="cursor:pointer" onclick="openL('${l.slug}')"><span style="color:${DCOLOR(l.dri)}">■</span><span><b>${l.name}</b> → ${cn?esc(cn.t)+" <span class='ghostnote'>("+cn.d+")</span>":"—"}</span><span class="o"><span class="pill ${fl<0?"bad":fl<7?"risk":"ok"}">float ${fl}d</span> <span class="ghostnote">forecast ${fmt(forecastDate(l))}</span></span></div>`;}).join("")}
+   ${LAUNCHES.filter(l=>!l.complete).map(l=>{const cn=criticalNext(l);const fl=floatDays(l);return `<div class="row" style="cursor:pointer" onclick="openL('${l.slug}')"><span style="color:${DCOLOR(l.dri)}">■</span><span><b>${l.name}</b> → ${cn?esc(cn.t)+" <span class='ghostnote'>("+cn.d+")</span>":"—"}</span><span class="o">${l.baselineTarget?`<span class="pill ${fl<0?"bad":"ok"}">float ${fl}d</span> `:""}<span class="ghostnote">forecast ${fmt(forecastDate(l))}</span></span></div>`;}).join("")}
    <div class="ghostnote" style="margin-top:6px">Float = days of slack before the target date is at risk. Negative = late on paper.</div></div>
   <div class="panel"><h3>Exceptions</h3>${blocked.length?blocked.map(({l,t})=>`<div class="row"><span class="st b">!</span><span><b>${l.name}</b> · ${esc(t.t)}</span><span class="o">${t.d}</span></div>`).join(""):'<div class="empty-hero">No blocked tasks.</div>'}</div>
   ${portfolioBoard()}`;
@@ -3947,6 +4018,7 @@ function portfolioOverview(){
   const rowHTML=r=>{const l=r.l; const act=`S.cardView='overview';openL('${l.slug}')`;
     const sched=l.complete?`<span style="color:var(--green)">${T("已完成","done")}</span>`
       :r.slip>0?`<span style="color:var(--red)">+${r.slip}d ${T("延遲","late")}</span>`
+      :!l.baselineTarget?`<span class="ghostnote" title="${T("需求表未送出 — 還沒有基準上市日可比","intake form not submitted — no baseline to measure against yet")}">${T("未起算","not started")}</span>`
       :`<span style="color:${r.fl<0?"var(--red)":"var(--green)"}">float ${r.fl}d</span>`;
     const bt=r.bott?`<span style="color:${DCOLOR(r.bott.dept)};font-weight:600">${r.bott.onCP?"🔴 ":""}${esc(r.bott.dept)}</span>`:`<span class="ghostnote">—</span>`;
     return `<div onclick="${act}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${act}}" role="button" tabindex="0" title="${esc(v3Narrative(l))}" style="display:grid;${cols};align-items:center;padding:10px 0;border-top:1px solid var(--line);cursor:pointer">
@@ -4037,44 +4109,52 @@ function v3Overview(l){
   const zh=LANG==="zh", T=(z,e)=>zh?z:e;
   const [h,cls]=health(l), slip=projectedSlip(l), fl=floatDays(l);
   // ---- ① verdict strip ----
-  const kv=(k,v,c)=>`<span style="display:inline-flex;gap:6px;align-items:baseline"><span class="ld-stat-k">${k}</span><b${c?` style="color:${c}"`:""}>${v}</b></span>`;
+  const kv=(k,v,c,ti)=>`<span${ti?` title="${ti}"`:""} style="display:inline-flex;gap:6px;align-items:baseline"><span class="ld-stat-k">${k}</span><b${c?` style="color:${c}"`:""}>${v}</b></span>`;
+  // 基準日跟著 Float 一起出，Float 才有可讀性 —— 它量的是「預計上市 vs 基準」，不是「距今天還剩多少緩衝」
+  const bt=l.complete?"":l.baselineTarget;
+  const fTip=T("預計上市日比基準早幾天（負＝晚）","days the projected launch is ahead of baseline (negative = later)");
   const verdict=`<div class="panel" style="display:flex;flex-wrap:wrap;align-items:center;gap:14px 20px">
     <span class="pill ${cls}" style="font-size:13.5px">${h}</span>
     <b style="font-size:15px;flex:1 1 240px">${esc(v3Narrative(l))}</b>
-    <span style="display:flex;gap:18px;flex-wrap:wrap">${kv(T("開啟","Opened"),fmt(openDate(l)))}${kv(T("送出","Submitted"),isSubmitted(l)?fmt(formSubmitDate(l)):T("未送出","—"))}${kv(T("預計上市","Projected"),fmt(projLaunchDate(l)))}${kv("Float",fl+"d",fl<0?"var(--red)":"var(--green)")}${slip>0?kv(T("預估延遲","Slip"),slip+"d","var(--red)"):""}</span>
+    <span style="display:flex;gap:18px;flex-wrap:wrap">${kv(T("開啟","Opened"),fmt(openDate(l)))}${kv(T("送出","Submitted"),isSubmitted(l)?fmt(formSubmitDate(l)):T("未送出","—"))}${kv(T("預計上市","Projected"),fmt(projLaunchDate(l)))}${bt?kv(T("基準","Baseline"),fmt(bt),"",T("送出需求表當下凍結的預計上市日","the projected launch frozen when the intake form was submitted")):""}${bt?kv("Float",(fl>0?"+":"")+fl+"d",fl<0?"var(--red)":"var(--green)",fTip):""}${slip>0?kv(T("預估延遲","Slip"),slip+"d","var(--red)"):""}</span>
   </div>`;
   // ---- ② plan vs actual, by phase ----
   const segBy={}; segments(l).forEach(s=>segBy[s.stage]=s);
   const maxD=Math.max(1,...STAGES.map(s=>Math.max(stageDayBudget(l,s),segBy[s]?segBy[s].days:0)));
   const barW=d=>Math.max(2,d/maxD*100);
+  // DAG 讓階段並行推進，所以「待進」不能只看 STAGES 序號：該階段自己的完成度才算數（已完成 8/12 不是「83d 待進」）
+  const phProg=st=>{const ts=(l.tasks||[]).filter(t=>t.code&&t.stage===st);
+    return {n:ts.filter(t=>t.st==="x").length,tot:ts.length,rem:ts.filter(t=>t.st!=="x").reduce((a,t)=>a+(taskDayLimit(t)||0),0)};};
   const trows=STAGES.map((s,i)=>{ const plan=stageDayBudget(l,s), seg=segBy[s], pl=plan?plan+"d":"—";   // 0＝這階段沒有任何已知天數（KOL）
-    const passed=l.complete||STAGES.indexOf(l.stage)>i, cur=seg&&seg.cur, over=seg?seg.over:0;
+    const passed=l.complete||STAGES.indexOf(l.stage)>i, cur=seg&&seg.cur, over=seg?seg.over:0, pg=phProg(s);
+    const now=!l.complete&&s===l.stage;   // ● 跟卡片抬頭的「階段」同一個定義（＝還有未完成工作的第一個階段），不是「最後開的那一段」
     const aCol=over>0?"var(--red)":cur?"var(--amber)":"var(--green)";
     return `<div style="display:grid;grid-template-columns:118px 1fr 84px;gap:10px;align-items:center;padding:4px 0">
-      <span style="font-size:12px;color:${cur?"var(--text)":"var(--dim)"};font-weight:${cur?700:400}">${esc(s)}${cur?" ●":""}</span>
+      <span style="font-size:12px;color:${now?"var(--text)":"var(--dim)"};font-weight:${now?700:400}">${esc(s)}${now?" ●":""}</span>
       <div style="display:flex;flex-direction:column;gap:3px">
         <div style="height:8px;border-radius:5px;background:var(--line);width:${barW(plan)}%" title="${T("規劃","plan")} ${pl}"></div>
         ${seg?`<div style="height:8px;border-radius:5px;background:${aCol};width:${barW(seg.days)}%" title="${T("實際","actual")} ${seg.days}d"></div>`:`<div style="height:8px"></div>`}
       </div>
-      <span class="ghostnote" style="font-size:11px;text-align:right"${seg&&seg.unk?` title="${T(`此階段有 ${seg.unk} 步未填天數，預算不可比`,`${seg.unk} step(s) here have no duration — budget not comparable`)}"`:""}>${seg?`${seg.days}/${pl}${over>0?` <span style="color:var(--red)">+${over}</span>`:seg.unk?" ◐":""}`:passed?pl:`${pl} ${T("待進","soon")}`}</span>
+      <span class="ghostnote" style="font-size:11px;text-align:right"${seg&&seg.unk?` title="${T(`此階段有 ${seg.unk} 步未填天數，預算不可比`,`${seg.unk} step(s) here have no duration — budget not comparable`)}"`:pg.n&&!passed?` title="${T(`此階段已完成 ${pg.n}/${pg.tot} 步（DAG 並行推進），未完成的合計 ${pg.rem}d`,`${pg.n}/${pg.tot} steps done here (phases run in parallel); ${pg.rem}d left across the rest`)}"`:""}>${seg?`${seg.days}/${pl}${over>0?` <span style="color:var(--red)">+${over}</span>`:seg.unk?" ◐":""}`:passed?pl:pg.n?`${pg.n}/${pg.tot}✓ · ${pg.rem}d`:`${pg.rem?pg.rem+"d":pl} ${T("待進","soon")}`}</span>
     </div>`;}).join("");
   const timeline=`<div class="panel"><h3>${T("規劃 vs 實際 — 各階段","Plan vs actual — by phase")} <span class="ghostnote">${T("灰=規劃 · 綠/黃/紅=實際(紅=超時)","grey=plan · green/amber/red=actual (red=over)")}</span></h3>${trows}</div>`;
   // ---- ③ department comparison (bullet bars; behind first) ----
-  const dh=v3DeptHealth(l), maxB=Math.max(1,...dh.map(g=>Math.max(g.budgetSoFar||g.budget,g.actual)));
-  const sMap={behind:["var(--red)",T("落後","behind")],ontrack:["var(--amber)",T("準時","on track")],ahead:["var(--green)",T("超前","ahead")]};
+  const dh=v3DeptHealth(l), maxB=Math.max(1,...dh.map(g=>Math.max(g.budgetSoFar||g.budget,g.actual||0)));
+  const sMap={behind:["var(--red)",T("落後","behind")],ontrack:["var(--amber)",T("準時","on track")],
+    ahead:["var(--green)",T("超前","ahead")],done:["var(--green)",T("完工","done")],nodata:["var(--faint)","—"]};
   const drows=dh.map(g=>{ const col=DCOLOR(g.dept), base=g.budgetSoFar||g.budget, behind=g.status==="behind", [sc,st]=sMap[g.status];
     const act=`v3jumpDept('${l.slug}','${esc(g.dept)}')`;
     return `<div onclick="${act}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${act}}" role="button" tabindex="0" style="display:grid;grid-template-columns:118px 1fr auto auto;gap:12px;align-items:center;padding:7px 0;border-top:1px solid var(--line);cursor:pointer" title="${T("點擊跳到此部門最該處理的任務","jump to this dept's most-actionable task")}">
       <span style="font-size:12.5px;color:${col};font-weight:600">${esc(g.dept)}${g.onCP&&behind?` <span title="${T("在關鍵路徑上 — 直接拖累上市日","on the critical path — delays the launch date")}">🔴</span>`:""}</span>
       <div style="position:relative;height:12px">
         <div style="position:absolute;inset:0;border-radius:6px;background:var(--void)"></div>
-        <div style="position:absolute;height:12px;border-radius:6px;background:${behind?"var(--red)":col};opacity:.85;width:${Math.max(3,Math.min(100,g.actual/maxB*100))}%" title="${T("實際","actual")} ${g.actual}d"></div>
+        ${g.actual==null?"":`<div style="position:absolute;height:12px;border-radius:6px;background:${g.actual>base*1.05?"var(--red)":col};opacity:.85;width:${Math.max(3,Math.min(100,g.actual/maxB*100))}%" title="${T("實際","actual")} ${g.actual}d"></div>`}
         <div style="position:absolute;top:-2px;height:16px;width:2px;background:var(--text);left:${Math.min(100,base/maxB*100)}%" title="${T("已開工預算","budget so far")} ${base}d"></div>
       </div>
-      <span class="ghostnote" style="font-size:11px;text-align:right;min-width:96px;font-variant-numeric:tabular-nums" title="${T("實際耗時／已開工階段預算 · 已完成／總步驟","actual / started-stage budget · done/total steps")}">${g.actual}/${base}d · ${g.done}/${g.total}✓</span>
+      <span class="ghostnote" style="font-size:11px;text-align:right;min-width:96px;font-variant-numeric:tabular-nums" title="${T("已開工步驟的實際耗時／預算 · 已完成／總步驟；⚠＝應完成日已過的步驟數","actual / budget over STARTED steps · done/total steps; ⚠ = steps past their planned end")}">${g.actual==null?T("未開工","not started"):g.actual+"/"+base+"d"} · ${g.done}/${g.total}✓${g.late?` <span style="color:var(--red)">⚠${g.late}</span>`:""}</span>
       <span style="color:${sc};font-weight:600;font-size:11.5px;min-width:44px;text-align:right">${st}</span>
     </div>`;}).join("");
-  const deptPanel=`<div class="panel"><h3>${T("部門健康 — 找瓶頸","Department health — find the bottleneck")} <span class="ghostnote">${T("條=實際耗時 · 直線=已開工預算 · 落後排最前","bar=actual · tick=started-stage budget · behind first")}</span></h3>${drows||`<div class="sub">${T("尚無資料","no data yet")}</div>`}</div>`;
+  const deptPanel=`<div class="panel"><h3>${T("部門健康 — 找瓶頸","Department health — find the bottleneck")} <span class="ghostnote">${T("條=已開工步驟的實際耗時 · 直線=其預算 · ⚠=逾期步驟數 · 落後排最前","bar=actual on started steps · tick=their budget · ⚠=steps past due · behind first")}</span></h3>${drows||`<div class="sub">${T("尚無資料","no data yet")}</div>`}</div>`;
   return verdict+`<div style="height:12px"></div>`+timeline+`<div style="height:12px"></div>`+deptPanel;
 }
 // copy an attachment's URL to the clipboard (from the Link hub) — looks the url up by index so no URL is embedded in the onclick (quotes-safe)
@@ -4117,12 +4197,19 @@ function v3Dash(l){
   const p3=v3Task(l,"P3"),p5=v3Task(l,"P5"),fb=v3Task(l,"FB1");
   const lrow=c=>{const t=v3Task(l,c);if(!t)return "";const n=V3MAP[c];const lkT=v3LockText(l,t);
     return `<div class="v3lrow${t.st==="x"?" done":""}" onclick="v3jump('${l.slug}','${c}')"><span class="st ${t.st}" style="width:20px;height:20px;font-size:10px">${lkT?"🔒":stIcon[t.st]}</span><span class="v3code">${esc(c)}</span> ${esc(t.t)}<span class="o ghostnote">${n.days!=null?(n.days||"—")+(n.days?"d":""):(t.days!=null?t.days+"d":esc(v3T(n.ref)||"?"))}</span></div>`;};
+  // 到貨日這一列承載三件事的提醒：FB1 完成卻沒填實際日期、日期已到卻沒標完成、以及「到貨日蓋過素材鏈」時的差異
+  const asrc=v3ArrivalSrc(l), rdy=asrc?v3ReadyDate(l):"";
+  const aNotes=[
+    asrc&&asrc.fb?`<span style="color:var(--amber)">${T("到貨日用的是完成日 — 請補填實際到貨日","arrival shown is the completion date — fill in the real arrival")}</span>`:"",
+    v3ArrivalNudge(l)?`<span class="urg high">${T("已到貨？記得把首波開賣日標記完成","arrived? mark First batch on sale done")}</span>`:"",
+    rdy&&asrc&&rdy>asrc.d?`<span>${T(`素材鏈預計 ${fmt(rdy)} 齊備（到貨日以實填為準）`,`asset chain ready ~${fmt(rdy)} (the filled arrival date wins)`)}</span>`:""
+  ].filter(Boolean).join("");
   const anchors=`<div class="v3anchors">
     <div><span>${T("預計大貨樣日","Planned bulk-sample")}</span><b>${p3&&p3.sampleDate?fmt(p3.sampleDate):"—"}</b></div>
     <div><span>${T("樣品到貨（P5）","Sample arrival (P5)")}</span><b>${p5&&p5.doneAt?fmt(p5.doneAt):"—"}</b></div>
-    <div><span>${T("到貨日 / 首波開賣","Arrival / on sale")}</span><b>${v3Arrival(l)?fmt(v3Arrival(l)):(v3EtaBulk(l)?`${T("預計","est")} ~${fmt(v3EtaBulk(l))}`:"—")}</b></div>
+    <div><span>${T("到貨日 / 首波開賣","Arrival / on sale")}</span><b>${asrc?fmt(asrc.d):(v3EtaBulk(l)?`${T("預計","est")} ~${fmt(v3EtaBulk(l))}`:"—")}</b></div>
     ${p3&&p3.st==="p"&&p3.days!=null&&p3.startAt?`<div><span>${T("大貨倒數","Bulk countdown")}</span><b>${Math.max(0,p3.days-dayDiff(p3.startAt,today))}d</b></div>`:""}
-  </div>`;
+  </div>${aNotes?`<div class="sub" style="margin:-6px 0 10px;display:flex;flex-wrap:wrap;gap:10px;align-items:baseline">${aNotes}</div>`:""}`;
   // 🔗 Link hub — gather every link / attachment people have put on ANY task into one place so anyone can grab it (索取), not hunt task-by-task
   const linkGroups=(l.tasks||[]).map((t,ti)=>{
     const ls=t.links||[], cs=t.codes||[]; if(!ls.length&&!cs.length)return "";
@@ -4176,9 +4263,10 @@ function viewLaunch(){
     <div class="ld-stat"><span class="ld-stat-k">${T("開啟","Opened")}</span><span class="ld-stat-v">${fmt(openDate(l))}</span></div>
     <div class="ld-stat"><span class="ld-stat-k">${T("送出","Submitted")}</span><span class="ld-stat-v">${submitted?fmt(formSubmitDate(l)):`<span style="color:var(--faint);font-weight:500">${T("未送出","—")}</span>`}</span></div>
     <div class="ld-stat"><span class="ld-stat-k">${T("預計上市","Projected")}</span><span class="ld-stat-v"><b>${fmt(proj)}</b>${l.complete?"":submitted?(pend.nAff?` <span class="v3pdwarn" title="${T("推算上市日需要的天數還沒填，目前當 0 天算 ⇒ 日期偏早","durations the projection needs are unset — counted as 0 days, so it runs early")}">⚠${pend.nAff}</span>`:""):` <span class="ghostnote">${T("暫估","est.")}</span>`}</span></div>
-    ${(()=>{ const arr=v3Arrival(l), eta=arr?"":v3EtaBulk(l);   // 到貨日＝LC 在 FB1 填的首波開賣日；未填時顯示由 P3 推估的預計值
-      const tip=T("大貨到貨、可以開賣的那一天 — 由 LC 在物流〈首波開賣日〉填寫；填了就成為預計上市日","the day stock lands and selling can start — LC fills it on Logistics › First batch on sale; once set it becomes the projected launch");
-      return `<div class="ld-stat" title="${tip}"><span class="ld-stat-k">${T("到貨日","Arrival")}</span><span class="ld-stat-v">${arr?`<b>${fmt(arr)}</b>`:eta?`<span style="color:var(--dim);font-weight:500">~${fmt(eta)} <span class="ghostnote">${T("預估","est.")}</span></span>`:`<span style="color:var(--faint);font-weight:500">${T("未填","—")}</span>`}</span></div>`; })()}
+    ${(()=>{ const src=v3ArrivalSrc(l), eta=src?"":v3EtaBulk(l);   // 到貨日＝LC 在 FB1 填的首波開賣日；未填時顯示由 P3 推估的預計值
+      const tip=src&&src.fb?T("首波開賣日已標完成但沒填實際到貨日 — 這裡顯示的是完成日，請補填","First batch on sale is done but the real arrival date is unset — showing the completion date; please fill it in")
+        :T("大貨到貨、可以開賣的那一天 — 由 LC 在物流〈首波開賣日〉填寫；填了就成為預計上市日","the day stock lands and selling can start — LC fills it on Logistics › First batch on sale; once set it becomes the projected launch");
+      return `<div class="ld-stat" title="${tip}"><span class="ld-stat-k">${T("到貨日","Arrival")}</span><span class="ld-stat-v">${src?`<b>${fmt(src.d)}</b>${src.fb?` <span class="ghostnote">${T("待補填","unset")}</span>`:""}`:eta?`<span style="color:var(--dim);font-weight:500">~${fmt(eta)} <span class="ghostnote">${T("預估","est.")}</span></span>`:`<span style="color:var(--faint);font-weight:500">${T("未填","—")}</span>`}</span></div>`; })()}
     ${l.complete?"":`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"速度":"Velocity"}</span><span class="ld-stat-v">${velocity(l).toFixed(1)}/wk</span></div>
     <div class="ld-stat ld-stat-rd ld-readycluster"><span class="ld-ready-item"><span class="ld-stat-k">Gate readiness</span>${readinessPop(l)}</span><span class="ld-ready-item"><span class="ld-stat-k">${LANG==="zh"?"待填天數":"Days pending"}</span>${daysPendingPop(l)}</span></div>`}
   </div>
