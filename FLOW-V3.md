@@ -6,6 +6,7 @@
 > 你的回答逐字收在附錄；每條決策如何落地見第一節。
 > **V3 最大的結構轉變**：ADS／上市時點**不再是流程節點**——改由「素材 × 物流」狀態儀表板做人工決策（你 Q-B 提的框架，構想在第五節）。
 > **2026-07-28 修訂 —— 商品目錄流程重新編排**：原單一節點 **P4「Catalog 資料建制」已移除**，改為 CT1 工廠訂單建立 → CT3 COGS＆BUNDLE → CT4 Shopify 商品建立，外加獨立觸發的 CT2 目錄網站更新（← MB1）。L6 出貨標籤的觸發由 P4 改為 CT1（時序不變：兩者都是 P1＋1d）。第一節與附錄中提到 P4 的段落為當時的決策紀錄，保留原文不追改。
+> **2026-07-28 修訂 —— 設計流程重新編排**：**D1 識別設計移到「概念＆設計」階段**，觸發改為 ← C5（＝整合設計 C6 一開始就同步製作），不再等 C10 設計凍結；**C7 Ben 決策改為 ← C6 & D1**（整合設計＋識別設計都完成才決策）。**原 D2「Ben 決策（識別）」取消**——該決策已併入 C7。D3 包裝設計定稿觸發改為 ← C7（＝原型打樣 C8 一開跑就同步做包裝）。新增 **D7 棚拍需求 ← P1**，位置排在識別設計之後（設計車道第二格）。四個 Ben ◆ 決策因此減為三個（C7／C9／D5）。
 
 ---
 
@@ -42,15 +43,16 @@
 - C2 - 概念轉化 Understand WHY / 1d / N/A / to C3 / Zac
 - C3 - 市場調查 Market Research / 5d / N/A / to C4 / Zac
 - C4 - 萃取 / 2d / PPT or Figma / to C5 / Zac
-- C5 - 腦力激盪 / 2d / 會議 / to C6 / Zac + Design Team
+- C5 - 腦力激盪 / 2d / 會議 / to C6 & D1 / Zac + Design Team
 - C6 - 整合設計 / 4d / PPT or Figma ＋ 型號名稱 ＋ 品牌語言確認 / to C7 / Zac
-- C7 - Ben 決策 / 5d / Yes or No / to C8 / Ben
+- D1 - 識別設計 / 7d / Packaging、Label… / ← C5（整合設計 C6 一開始就同步製作）→ to C7 / Design Team
+- C7 - Ben 決策 / 5d / Yes or No / ← C6 & D1（整合設計＋識別設計都完成才決策）→ to C8 & D3 / Ben
 
 **打樣＆交付**
 - C8 - 原型打樣 / 【手動】/ 原型 / to C9 / Zac ｜ *成本表貼於此（打樣期間來回議定成本）
 - C9 - Ben 決策 / 11d（運輸 9＋決策 2）/ Yes or No / to C10 / Ben
-- C10 - 設計凍結 / N/A / 凍結資料＝產品資料建檔（供 MB1）/ to P1 & D1 & MB1 / Zac + Ben
-- P1 - 產前樣＆BOM / 14d（製作 7＋運輸 7）/ 送台灣＆BOM 歸檔 / to P2 & P3 & CT1 / Zac
+- C10 - 設計凍結 / N/A / 凍結資料＝產品資料建檔（供 MB1）/ to P1 & MB1 / Zac + Ben
+- P1 - 產前樣＆BOM / 14d（製作 7＋運輸 7）/ 送台灣＆BOM 歸檔 / to P2 & P3 & CT1 & D7 / Zac
 - P3 - 大貨生產 / 【手動】/ 天數倒數 / 開始 → L1；【預計大貨樣日（卡上欄位）】→ P5；完成 → L4 / Zac ｜ *包裝檔（D3）於生產期間交廠
 
 **上市準備（原 Soft Launch 準備）**
@@ -59,9 +61,8 @@
 - CT2 - 目錄網站更新 / 1d / — / ← MB1（行銷簡報 V1 結束後同步開啟）/ Zac
 - CT3 - COGS＆BUNDLE / 1d / — / ← CT1 / to CT4 / LC
 - CT4 - Shopify 商品建立 / 1d / Shopify SKU / ← CT3 / Zac
-- D1 - 識別設計 / 7d / Packaging、Label… / to D2 / Design Team
-- D2 - Ben 決策 / 2d / Yes or No / to D3 / Ben
-- D3 - 包裝設計定稿 / 2d / Done / Design Team ｜ *於產前樣確定～大貨生產期間交付工廠（不硬鎖 P3）
+- D7 - 棚拍需求 / 1d / — / ← P1（產前樣＆BOM 完成後開啟）/ Design Team
+- D3 - 包裝設計定稿 / 2d / Done / ← C7（原型打樣 C8 一開跑即可製作）/ Design Team ｜ *於產前樣確定～大貨生產期間交付工廠（不硬鎖 P3）
 - D4 - PDP+Infographics draft / 14d / PDP → 儀表板 / to D5 / Design Team ｜ *等 MB3 完成後開始（＝照片完成＋10 天）
 - D5 - Ben 決策 / 2d / Yes or No / to D6 / Ben
 - D6 - Official PDP + infographics / 5d / Done → 儀表板 / — / Design Team ｜ *MS3b 影片完成才能定稿（← D5 & MS3b）

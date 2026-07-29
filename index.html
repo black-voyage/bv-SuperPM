@@ -1037,7 +1037,8 @@ const V3=[
  {c:"C4", en:"Distill", zh:"萃取", ph:0, dept:"Product", o:"Zac", days:2, req:["C3"], out:{en:"PPT / Figma",zh:"PPT or Figma"}, isNew:1},
  {c:"C5", en:"Brainstorming", zh:"腦力激盪", ph:0, dept:"Product", o:"Zac + Design Team", days:2, req:["C4"], out:{en:"meeting",zh:"會議"}},
  {c:"C6", en:"Design integration", zh:"整合設計", ph:0, dept:"Product", o:"Zac", days:4, req:["C5"], out:{en:"PPT/Figma + model name + brand language",zh:"PPT／Figma＋型號名稱＋品牌語言確認"}, isNew:1},
- {c:"C7", en:"Ben concept sign-off", zh:"Ben 決策", ph:0, dept:"Product", o:"Ben", days:5, req:["C6"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
+ {c:"D1", en:"Identity design", zh:"識別設計", ph:0, dept:"Design", o:"Design Team", days:7, req:["C5"], out:{en:"packaging, label…",zh:"Packaging、Label…"}, note:{en:"starts when design integration (C6) starts",zh:"整合設計（C6）一開始就同步製作"}, isNew:1},
+ {c:"C7", en:"Ben concept sign-off", zh:"Ben 決策", ph:0, dept:"Product", o:"Ben", days:5, req:["C6","D1"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}, note:{en:"needs BOTH design integration and identity design done",zh:"整合設計＋識別設計都完成才決策"}},
  // 1 — Prototype & Delivery
  {c:"C8", en:"Prototyping", zh:"原型打樣", ph:1, dept:"Product", o:"Zac", days:null, req:["C7"], out:{en:"prototype",zh:"原型"}, note:{en:"cost sheet lives here (negotiated during sampling)",zh:"成本表貼於此（打樣期間來回議定成本）"}},
  {c:"C9", en:"Ben prototype sign-off", zh:"Ben 決策", ph:1, dept:"Product", o:"Ben", days:11, req:["C8"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}, note:{en:"ship 9 + decide 2",zh:"運輸 9＋決策 2"}},
@@ -1050,9 +1051,8 @@ const V3=[
  {c:"CT2", en:"Catalog site updated", zh:"目錄網站更新", ph:2, dept:"Catalog", o:"Zac", days:1, req:["MB1"], note:{en:"opens alongside MB1 finalized",zh:"行銷簡報 V1 結束後同步開啟"}},
  {c:"CT3", en:"COGS & bundle setup", zh:"COGS＆BUNDLE", ph:2, dept:"Catalog", o:"LC", days:1, req:["CT1"]},
  {c:"CT4", en:"Shopify product created", zh:"Shopify 商品建立", ph:2, dept:"Catalog", o:"Zac", days:1, req:["CT3"], out:{en:"Shopify SKU",zh:"Shopify SKU"}},
- {c:"D1", en:"Identity design", zh:"識別設計", ph:2, dept:"Design", o:"Design Team", days:7, req:["C10"], out:{en:"packaging, label…",zh:"Packaging、Label…"}, isNew:1},
- {c:"D2", en:"Ben identity sign-off", zh:"Ben 決策", ph:2, dept:"Design", o:"Ben", days:2, req:["D1"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
- {c:"D3", en:"Packaging finalized", zh:"包裝設計定稿", ph:2, dept:"Design", o:"Design Team", days:2, req:["D2"], note:{en:"to factory between PPS and mass production",zh:"於產前樣確定～大貨生產期間交付工廠"}},
+ {c:"D7", en:"Studio shoot requirements", zh:"棚拍需求", ph:2, dept:"Design", o:"Design Team", days:1, req:["P1"], note:{en:"opens once PPS + BOM is filed",zh:"產前樣＆BOM 完成後開啟"}},
+ {c:"D3", en:"Packaging finalized", zh:"包裝設計定稿", ph:2, dept:"Design", o:"Design Team", days:2, req:["C7"], note:{en:"opens when prototyping (C8) starts; to factory between PPS and mass production",zh:"原型打樣（C8）一開跑即可製作；於產前樣確定～大貨生產期間交付工廠"}},
  {c:"D4", en:"PDP + infographics draft", zh:"PDP 草稿", ph:2, dept:"Design", o:"Design Team", days:14, req:["MB3"], asset:1, note:{en:"starts after MB3 (= photos + 10d)",zh:"等 MB3 完成後開始（＝照片完成＋10 天）"}},
  {c:"D5", en:"Ben PDP sign-off", zh:"Ben 決策", ph:2, dept:"Design", o:"Ben", days:2, req:["D4"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
  {c:"D6", en:"Official PDP + infographics", zh:"正式 PDP", ph:2, dept:"Design", o:"Design Team", days:5, req:["D5","MS3b"], asset:1, note:{en:"finalized only after MS3b video",zh:"MS3b 影片完成才能定稿"}},
@@ -1248,11 +1248,11 @@ const LAUNCHES = [
   checkins:[{d:"2026-06-08",a:"Product",txt:"Card created from the Shopify flow. Next: fill the intake Form — the pipeline unlocks from there."}]},
  {name:"Apex",slug:"apex",dri:"Product",stage:STAGES[1],target:"2026-08-12",
   history:[{stage:STAGES[0],start:"2026-03-02"},{stage:STAGES[1],start:"2026-04-06"}],
-  tasks:allTasks({C1:"x",C2:"x",C3:"x",C4:"x",C5:"x",C6:"x",C7:"x",C8:"p"}),
+  tasks:allTasks({C1:"x",C2:"x",C3:"x",C4:"x",C5:"x",C6:"x",D1:"x",C7:"x",C8:"p"}),
   checkins:[{d:"2026-06-09",a:"Product",txt:"Concept signed off by Ben. Prototyping underway — costing being negotiated during sampling."}]},
  {name:"Cyclone",slug:"cyclone",dri:"Marketing",stage:STAGES[3],target:"2026-09-30",
   history:[{stage:STAGES[0],start:"2026-02-02"},{stage:STAGES[1],start:"2026-02-25"},{stage:STAGES[2],start:"2026-04-10"},{stage:STAGES[3],start:"2026-05-18"}],
-  tasks:allTasks({C1:"x",C2:"x",C3:"x",C4:"x",C5:"x",C6:"x",C7:"x",C8:"x",C9:"x",C10:"x",P1:"x",P2:"x",P4:"x",P3:"x",D1:"x",D2:"x",D3:"x",MB1:"x",MB2:"x",MS1:"x",P5:"x",MS2:"x",MS3a:"x",MB3:"x",D4:"p",CRM1:"x",L1:"x",L2:"x"}),
+  tasks:allTasks({C1:"x",C2:"x",C3:"x",C4:"x",C5:"x",C6:"x",D1:"x",C7:"x",C8:"x",C9:"x",C10:"x",P1:"x",P2:"x",P3:"x",CT1:"x",CT2:"x",CT3:"x",CT4:"x",D7:"x",D3:"x",MB1:"x",MB2:"x",MS1:"x",P5:"x",MS2:"x",MS3a:"x",MB3:"x",D4:"p",CRM1:"x",L1:"x",L2:"x"}),
   checkins:[{d:"2026-06-09",a:"Marketing",txt:"Photos done, MB3 finalized — PDP draft (D4) in progress. Video (MS3b) still shooting; bulk on the water."}]},
  {name:"Zephyr",slug:"zephyr",dri:"Marketing",stage:STAGES[STAGES.length-1],target:"2026-04-15",complete:true,
   history:STAGES.map((s,i)=>({stage:s,start:"2026-0"+(1+i)+"-05",end:i===STAGES.length-1?"2026-07-20":undefined})),
@@ -1287,7 +1287,7 @@ const health = l => {
   return ["In progress","risk"];
 };
 // DAG-aware: surface EVERY ◆ that is unlocked (all its req met) and not yet approved, regardless of phase —
-// the old current-phase/all-peers-done heuristic never surfaced mid-phase gates (C9/D2/D5) under the trigger DAG.
+// the old current-phase/all-peers-done heuristic never surfaced mid-phase gates (C9/D5) under the trigger DAG.
 const benQueue = () => LAUNCHES.filter(l=>!l.complete).flatMap(l=>l.tasks.filter(t=>t.gate&&t.st!=="x"&&!taskLocked(l,t)).map(c=>({l,c})));
 const nextUnmet = l => { const g=gateState(l); const c=g.cs.find(c=>c.task.st!=="x"); return c?c.t:null; };
 
