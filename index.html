@@ -148,7 +148,11 @@
   [data-theme="light"] #flowPop{background:rgba(255,255,255,.82)}   /* the base is dark glass; on white the inspector needs a LIGHT glass or its var(--text) black copy sits on a dark panel (illegible) */
   @keyframes fpIn{from{opacity:0;transform:translateY(6px);filter:blur(6px)}to{opacity:1;transform:none;filter:blur(0)}}
   .fn-sel{filter:drop-shadow(0 0 4px rgba(238,49,36,.55))}
-  .fp-head{display:flex;align-items:flex-start;gap:10px;padding:11px 12px 9px;border-bottom:1px solid var(--line)}
+  /* the head doubles as the drag handle — the popover otherwise parks itself over the routing lines it is explaining */
+  .fp-head{display:flex;align-items:flex-start;gap:10px;padding:11px 12px 9px;border-bottom:1px solid var(--line);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+  .fp-head:active{cursor:grabbing}
+  .fp-head .fp-x,.fp-head .fp-x:active{cursor:pointer}
+  #flowPop.fp-dragging{animation:none;cursor:grabbing;box-shadow:inset 0 1px 0 var(--edge),0 22px 60px rgba(0,0,0,.5)}
   .fp-h-main{flex:1;min-width:0}
   .fp-title{font-size:13px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
   .fp-meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px}
@@ -933,7 +937,10 @@
   .v3lrow{display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--line)}
   .v3lrow:last-child{border-bottom:none}
   .v3lrow.done{color:var(--dim)}
-  .v3lrow .o{margin-left:auto}
+  /* .o is overloaded — it is BOTH the right-aligned meta span AND the "open" status code on .st.
+     Match the meta one only, or an unfinished row's status icon inherits margin-left:auto and the
+     whole row shunts right (very visible now that Logistics is two rows instead of eight). */
+  .v3lrow .o.ghostnote{margin-left:auto}
   .v3anchors{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin:4px 0 10px}
   .v3anchors>div{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--dim);border:1px solid var(--line);background:var(--panel2);border-radius:6px;padding:5px 9px}
   .v3anchors b{color:var(--text)}
@@ -1071,19 +1078,16 @@ const V3=[
  {c:"KOL2", en:"Normal influencer sourcing", zh:"一般網紅尋找", ph:3, dept:"Marketing", o:"Angel", days:null, req:["MB2"]},
  {c:"KOL3", en:"Mega influencer shooting", zh:"Mega 網紅拍攝", ph:3, dept:"Marketing", o:"Angel", days:null, req:["P5","KOL1"], asset:1, note:{en:"Ongoing",zh:"Ongoing"}},
  // 4 — Logistics
- {c:"L1", en:"Master order sheet updated", zh:"更新主訂單表", ph:4, dept:"Logistics", o:"LC", days:1, req:["P1"], note:{en:"do at P3 start (= P1 done)",zh:"P3 開始（＝P1 完成）即做"}},
- {c:"L2", en:"Logistics planning", zh:"物流規劃", ph:4, dept:"Logistics", o:"LC", days:1, req:["L1"]},
- {c:"L3", en:"Logistics sheet updated", zh:"更新物流表", ph:4, dept:"Logistics", o:"LC", days:1, req:["L2"]},
- {c:"L6", en:"Shipping labels + to factory", zh:"出貨標籤＋交付工廠", ph:4, dept:"Logistics", o:"LC", days:1, req:["CT1"], note:{en:"Shipbob labels; must reach factory before bulk boxing",zh:"Shipbob 標籤；大貨裝箱前必達"}},
- {c:"L4", en:"Dispatch & tracking", zh:"出貨與追蹤", ph:4, dept:"Logistics", o:"LC", days:0, req:["P3"]},
- {c:"L5", en:"Freight (sea bulk)", zh:"運輸：海運大貨", ph:4, dept:"Logistics", o:"LC", days:null, ref:{en:"30",zh:"30"}, est:30, req:["L4"]},
- {c:"L7", en:"Ship to Shipbob", zh:"送 Shipbob", ph:4, dept:"Logistics", o:"LC", days:1, req:["L5"]},
- {c:"L8", en:"Inventory received", zh:"監控入庫", ph:4, dept:"Logistics", o:"LC", days:0, req:["L7"], note:{en:"done = bulk arrival day",zh:"完成＝大貨到貨日"}},
+ {c:"FB1", en:"First batch on sale", zh:"首批開賣日", ph:4, dept:"Logistics", o:"LC", days:31, req:["P3"], arrival:1, out:{en:"arrival date → whole company",zh:"到貨日 → 全公司"}, note:{en:"LC runs shipping end-to-end; only the arrival date is tracked here — once set it becomes the projected launch. Unset → 31d (sea 30 + intake 1) placeholder.",zh:"LC 一條龍處理出貨，這裡只追到貨日 —— 填了就以它為預計上市日；未填前用 31d（海運 30＋入庫 1）暫估"}},
  // 5 — KOL
  {c:"KOL4", en:"Normal influencer outreach", zh:"一般網紅接洽", ph:5, dept:"Marketing", o:"Angel", days:null, req:["KOL2","MB3"]},
  {c:"KOL5", en:"Influencer shooting", zh:"網紅拍攝", ph:5, dept:"Marketing", o:"Angel", days:null, req:["KOL4"], asset:1, note:{en:"Ongoing; record usage rights",zh:"Ongoing；需記錄 usage rights"}},
 ];
 const V3MAP=Object.fromEntries(V3.map(n=>[n.c,n]));
+// flow-chart lane order (left → right). Without this, lanes fall in V3 array order (first appearance),
+// which put CRM mid-chart; CRM is the tail of the pipeline so it reads better last. Depts missing here
+// still render — they get appended in array order after the listed ones.
+const V3DEPTS=["Product","Design","Catalog","Logistics","Marketing","Content","CRM"];
 const V3ASSETS=V3.filter(n=>n.asset).map(n=>n.c);
 const V3PHASES=V3PH.map(p=>p.en);          // alias used by the v3 helpers (= STAGES)
 const v3T=x=>!x?"":(typeof x==="string"?x:(LANG==="zh"?x.zh:x.en));  // pick language for {en,zh} fields
@@ -1096,6 +1100,7 @@ const PLAN={};
 const CROSS=[];
 function v3Rederive(){
   STAGES.forEach(s=>GATES[s]=[]); Object.keys(FLOW).forEach(k=>delete FLOW[k]); Object.keys(XROUTES).forEach(k=>delete XROUTES[k]); CROSS.length=0;
+  V3DEPTS.forEach(d=>{ if(V3.some(n=>n.dept===d)) FLOW[d]=[]; });   // seed key order → lane order (everything downstream reads Object.keys(FLOW))
   V3.forEach(n=>{ const ph=V3PH[n.ph].en;
     GATES[ph].push({t:n.en, d:n.dept, ben:n.ben, code:n.c});
     (FLOW[n.dept]=FLOW[n.dept]||[]).push({l:n.en, s:ph, t:n.en, d:n.ben, code:n.c, req:(n.req||[]).slice()});
@@ -1180,12 +1185,13 @@ function v3EstRemain(l,code,memo){
   return memo[code]=own+pre;
 }
 function v3Lights(l){
-  // v1 simplification (agreed in FLOW-V3.md sync scope): ads light = D6×MS3b×L8-done. The 五-D extras —
+  // v1 simplification (agreed in FLOW-V3.md sync scope): ads light = D6×MS3b×stock-in. The 五-D extras —
   // ad-ready 版位子清單, usage-rights expiry, 入庫數量門檻 — are deferred with the ADS framework round 2.
+  // 2026-07-29: the stock condition moved from L8 監控入庫 to FB1 首批開賣日 (the L-chain collapsed into it).
   const d=c=>v3Done(l,c);
-  const shop=d("MS3a")&&(d("D4")||d("D6"))&&d("L8")?"go":(d("MS3a")&&d("D4"))?"pre":"no";
-  const ads=d("D6")&&d("MS3b")&&d("L8")?"go":"no";
-  return {shop,ads,missShop:["MS3a","D4","L8"].filter(c=>!d(c)),missAds:["D6","MS3b","L8"].filter(c=>!d(c))};
+  const shop=d("MS3a")&&(d("D4")||d("D6"))&&d("FB1")?"go":(d("MS3a")&&d("D4"))?"pre":"no";
+  const ads=d("D6")&&d("MS3b")&&d("FB1")?"go":"no";
+  return {shop,ads,missShop:["MS3a","D4","FB1"].filter(c=>!d(c)),missAds:["D6","MS3b","FB1"].filter(c=>!d(c))};
 }
 async function v3Go(slug,kind){
   const l=L(slug); if(!l)return;
@@ -1222,13 +1228,16 @@ const V3OC={"Ben":"#c084fc","Zac":"#60a5fa","Ann":"#f472b6","Angel":"#fb923c","L
 const v3OColor=o=>{o=String(o||"");for(const k in V3OC){if(o.indexOf(k)>=0)return V3OC[k];}return "#9aa3af";};
 const ntx=s=>s; // (was a language-lock wrapper; V3 is now bilingual via the ZH/FLOWZH dict, so this is a pass-through)
 const v3AddD=(s,n)=>new Date(D(s).getTime()+n*864e5).toISOString().slice(0,10);
-function v3EtaBulk(l){ // 預計大貨到貨日 = P3 完成日(實際或 startAt+days 推估) + L5 海運(填的天數或參考 30) + L7 1 天
-  const p3=v3Task(l,"P3"),l5=v3Task(l,"L5"),l8=v3Task(l,"L8");
-  if(!p3||(l8&&l8.st==="x"))return null;
+// 到貨日（＝首批開賣日）。LC 在 FB1 填的日期是唯一真實來源；沒填就用 P3 完成日＋FB1 天數暫估。
+const v3Arrival=l=>{const fb=v3Task(l,"FB1"); return (fb&&fb.arrivalDate)||"";};
+function v3EtaBulk(l){ // 到貨日：已填 → 直接回傳；未填 → P3 完成日(實際或 startAt+days 推估) + FB1 前置天數
+  const filled=v3Arrival(l); if(filled)return filled;
+  const p3=v3Task(l,"P3"),fb=v3Task(l,"FB1");
+  if(!p3||(fb&&fb.st==="x"))return null;
   const p3done=p3.doneAt||(p3.startAt&&p3.days!=null?v3AddD(p3.startAt,p3.days):null);
   if(!p3done)return null;
-  const sea=(l5&&l5.st==="x"&&l5.doneAt)?null:((l5&&l5.days!=null)?l5.days:30);
-  return sea==null?v3AddD(l5.doneAt,1):v3AddD(p3done,sea+1);
+  const lead=(fb&&fb.days!=null)?fb.days:((V3MAP.FB1&&V3MAP.FB1.days)||31);
+  return v3AddD(p3done,lead);
 }
 
 /* ================= LAUNCH DATA (DRI = a department, not a person) ================= */
@@ -1252,7 +1261,7 @@ const LAUNCHES = [
   checkins:[{d:"2026-06-09",a:"Product",txt:"Concept signed off by Ben. Prototyping underway — costing being negotiated during sampling."}]},
  {name:"Cyclone",slug:"cyclone",dri:"Marketing",stage:STAGES[3],target:"2026-09-30",
   history:[{stage:STAGES[0],start:"2026-02-02"},{stage:STAGES[1],start:"2026-02-25"},{stage:STAGES[2],start:"2026-04-10"},{stage:STAGES[3],start:"2026-05-18"}],
-  tasks:allTasks({C1:"x",C2:"x",C3:"x",C4:"x",C5:"x",C6:"x",D1:"x",C7:"x",C8:"x",C9:"x",C10:"x",P1:"x",P2:"x",P3:"x",CT1:"x",CT2:"x",CT3:"x",CT4:"x",D7:"x",D3:"x",MB1:"x",MB2:"x",MS1:"x",P5:"x",MS2:"x",MS3a:"x",MB3:"x",D4:"p",CRM1:"x",L1:"x",L2:"x"}),
+  tasks:allTasks({C1:"x",C2:"x",C3:"x",C4:"x",C5:"x",C6:"x",D1:"x",C7:"x",C8:"x",C9:"x",C10:"x",P1:"x",P2:"x",P3:"x",CT1:"x",CT2:"x",CT3:"x",CT4:"x",D7:"x",D3:"x",MB1:"x",MB2:"x",MS1:"x",P5:"x",MS2:"x",MS3a:"x",MB3:"x",D4:"p",CRM1:"x"}),
   checkins:[{d:"2026-06-09",a:"Marketing",txt:"Photos done, MB3 finalized — PDP draft (D4) in progress. Video (MS3b) still shooting; bulk on the water."}]},
  {name:"Zephyr",slug:"zephyr",dri:"Marketing",stage:STAGES[STAGES.length-1],target:"2026-04-15",complete:true,
   history:STAGES.map((s,i)=>({stage:s,start:"2026-0"+(1+i)+"-05",end:i===STAGES.length-1?"2026-07-20":undefined})),
@@ -1478,6 +1487,7 @@ const v3PlanDays=l=>v3CriticalPath(l).reduce((a,c)=>a+v3DayOf(l,c),0);   // 關�
    天數未填仍以 0 併入（⚠ 待補徽章照常提醒）；P5 另外等 P3 的預計大貨樣日。 */
 function projLaunchDate(l){                                              // 預計上市日
   if(l.complete){const h=(l.history||[]).slice(-1)[0]; return (h&&h.end)||l.target||openDate(l);}
+  const arr=v3Arrival(l); if(arr)return arr;                             // LC 在 FB1 填了到貨日 → 以實填日期為準，蓋過正向排程的推估
   const sub=formSubmitDate(l);
   if(!sub) return v3AddD(today, v3PlanDays(l));                          // 未送出 → 今天＋計畫關鍵路徑（暫估）
   const fin={};                                                          // code → 預期完成日（memo）
@@ -3160,6 +3170,13 @@ function taskDetail(l,t,i,ro,vn,lk){
       ro?(t.sampleDate?fmt(t.sampleDate):"—")
         :`<input type="date" class="v3due-inp${t.sampleDate?"":" unfilled"}" value="${esc(t.sampleDate||"")}" title="${sTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)"> <span class="ghostnote">${t.sampleDate?T("P5（部署行銷樣品）等這一天","P5 waits for this day"):T("未填 — P5 部署行銷樣品無法解鎖","unset — P5 stays locked")}</span>`]);
   }
+  // 首批開賣日（FB1）：LC 一條龍處理出貨，系統只追這一個日期 — 填了就直接當預計上市日，全公司看卡片抬頭即可
+  if(vn.arrival){
+    const aTip=T("大貨到貨、可以開賣的那一天。填了就直接成為這張卡的『預計上市日』，蓋過自動推算","the day stock lands and selling can start. Once set it becomes this card's projected launch, overriding the auto-projection");
+    info.push([T("到貨日 / 首批開賣日","Arrival / on-sale date"),
+      ro?(t.arrivalDate?fmt(t.arrivalDate):"—")
+        :`<input type="date" class="v3due-inp${t.arrivalDate?"":" unfilled"}" value="${esc(t.arrivalDate||"")}" title="${aTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'arrivalDate',this.value)"> <span class="ghostnote">${t.arrivalDate?T("＝本卡預計上市日","= this card's projected launch"):T("未填 — 預計上市日仍用自動推算","unset — projected launch stays auto-computed")}</span>`]);
+  }
   if(!lk) info.push([T("連結","Links"), linkChips(t,l.slug,i)]);   // the actual attached links live IN the detail, not only in the outer quick-link chip
   const grid=`<div class="v3det">${info.map(([k,v])=>`<div class="v3det-r"><span class="v3det-k">${k}</span><span class="v3det-v">${v}</span></div>`).join("")}</div>`;
   const lockBlk=lk?`<div class="v3det-lock">🔒 <b>${T("鎖定中","Locked")}</b> · ${esc(lockReason(l,t))}</div>`:"";
@@ -3510,9 +3527,34 @@ function fpAddLink(slug,i){
   toast("🔗 Link attached"); render();
   setTimeout(()=>{const x=document.getElementById("fpLinkU"); if(x)x.focus();},30);
 }
+/* Manual drag position for the inspector, in viewport px. The popover auto-parks beside its node, which
+   often lands right on top of the dependency lines it is describing — grabbing the head overrides the
+   auto-placement until the popover closes or a DIFFERENT node is opened (FP_DRAG.key guards that). */
+let FP_DRAG=null;
 function flowPopEl(){let p=document.getElementById("flowPop");
   if(!p){p=document.createElement("div"); p.id="flowPop";
     p.addEventListener("click",e=>e.stopPropagation());
+    p.addEventListener("pointerdown",e=>{
+      const head=e.target.closest&&e.target.closest(".fp-head");
+      if(!head||e.button||(e.target.closest&&e.target.closest("button,input,select,textarea,a")))return;
+      // grab offset off the LOGICAL position (style.left/top), not getBoundingClientRect — the fpIn
+      // entrance animates translateY(6px), so a rect read within that 180ms window drifts the drag.
+      const b=p.getBoundingClientRect();
+      const bx=parseFloat(p.style.left), by=parseFloat(p.style.top);
+      const dx=e.clientX-(isNaN(bx)?b.left:bx), dy=e.clientY-(isNaN(by)?b.top:by);
+      const key=S.route?S.route.d+"|"+S.route.i:"";
+      p.classList.add("fp-dragging");
+      try{head.setPointerCapture(e.pointerId);}catch(_){}
+      const move=ev=>{ const pad=6;
+        FP_DRAG={key,
+          x:Math.max(pad,Math.min(ev.clientX-dx,innerWidth-p.offsetWidth-pad)),
+          y:Math.max(pad,Math.min(ev.clientY-dy,innerHeight-p.offsetHeight-pad))};
+        p.style.left=Math.round(FP_DRAG.x)+"px"; p.style.top=Math.round(FP_DRAG.y)+"px"; };
+      const up=()=>{ p.classList.remove("fp-dragging");
+        head.removeEventListener("pointermove",move); head.removeEventListener("pointerup",up); head.removeEventListener("pointercancel",up); };
+      head.addEventListener("pointermove",move); head.addEventListener("pointerup",up); head.addEventListener("pointercancel",up);
+      e.preventDefault();
+    });
     document.body.appendChild(p);} return p;}
 // after finishing a step in the inspector, walk the popover to the sensible NEXT step so the flow
 // reads as a continuous path: the dependent this step just unblocked (earliest in V3 order, open &
@@ -3635,6 +3677,10 @@ function flowPopHTML(d,i){
 }
 function placeFlowPop(){
   const p=document.getElementById("flowPop"); if(!p||p.style.display!=="block"||!S.route)return;
+  if(FP_DRAG&&FP_DRAG.key===S.route.d+"|"+S.route.i){        // user dragged it somewhere — respect that, only re-clamp to the viewport
+    const pad=6, x=Math.max(pad,Math.min(FP_DRAG.x,innerWidth-p.offsetWidth-pad)), y=Math.max(pad,Math.min(FP_DRAG.y,innerHeight-p.offsetHeight-pad));
+    p.style.left=Math.round(x)+"px"; p.style.top=Math.round(y)+"px"; return;
+  }
   const node=document.getElementById("fn-"+S.route.d+"-"+S.route.i); if(!node)return;
   const b=node.getBoundingClientRect(), w=p.offsetWidth, ht=p.offsetHeight, pad=10, gap=10;
   let x,y;
@@ -3647,7 +3693,7 @@ function placeFlowPop(){
 function syncFlowPop(){
   const p=document.getElementById("flowPop");
   const node=(S.route&&S.route.pop)?document.getElementById("fn-"+S.route.d+"-"+S.route.i):null;   // popover only for node-click routes
-  if(!node){ if(p)p.style.display="none";
+  if(!node){ if(p)p.style.display="none"; FP_DRAG=null;                            // closed → next open starts from the auto-placement again
     if(S.route&&S.route.pop&&!document.querySelector(".flowwrap")) S.route=null;   // navigated off the chart → drop the popover selection
     return; }
   const el=flowPopEl();
@@ -4007,13 +4053,13 @@ function v3Dash(l){
       <div class="v3asset-n">${esc(n.en)}</div>
       <div class="v3asset-s">${st}${late}</div>
       <div class="v3asset-m"><span style="color:${v3OColor(n.o)}">${esc(n.o)}</span>${(t.links||[]).length?`<span class="ghostnote">🔗${t.links.length}</span>`:""}${!done&&rem?`<span class="ghostnote">≈${rem}d</span>`:""}</div></div>`;}).join("");
-  const p3=v3Task(l,"P3"),p5=v3Task(l,"P5"),l8=v3Task(l,"L8");
+  const p3=v3Task(l,"P3"),p5=v3Task(l,"P5"),fb=v3Task(l,"FB1");
   const lrow=c=>{const t=v3Task(l,c);if(!t)return "";const n=V3MAP[c];const lkT=v3LockText(l,t);
     return `<div class="v3lrow${t.st==="x"?" done":""}" onclick="v3jump('${l.slug}','${c}')"><span class="st ${t.st}" style="width:20px;height:20px;font-size:10px">${lkT?"🔒":stIcon[t.st]}</span><span class="v3code">${esc(c)}</span> ${esc(t.t)}<span class="o ghostnote">${n.days!=null?(n.days||"—")+(n.days?"d":""):(t.days!=null?t.days+"d":esc(v3T(n.ref)||"?"))}</span></div>`;};
   const anchors=`<div class="v3anchors">
     <div><span>${T("預計大貨樣日","Planned bulk-sample")}</span><b>${p3&&p3.sampleDate?fmt(p3.sampleDate):"—"}</b></div>
     <div><span>${T("樣品到貨（P5）","Sample arrival (P5)")}</span><b>${p5&&p5.doneAt?fmt(p5.doneAt):"—"}</b></div>
-    <div><span>${T("大貨到貨（L8）","Bulk arrival (L8)")}</span><b>${l8&&l8.st==="x"&&l8.doneAt?fmt(l8.doneAt):(v3EtaBulk(l)?`${T("預計","est")} ~${fmt(v3EtaBulk(l))}`:"—")}</b></div>
+    <div><span>${T("到貨日 / 首批開賣","Arrival / on sale")}</span><b>${v3Arrival(l)?fmt(v3Arrival(l)):(v3EtaBulk(l)?`${T("預計","est")} ~${fmt(v3EtaBulk(l))}`:"—")}</b></div>
     ${p3&&p3.st==="p"&&p3.days!=null&&p3.startAt?`<div><span>${T("大貨倒數","Bulk countdown")}</span><b>${Math.max(0,p3.days-dayDiff(p3.startAt,today))}d</b></div>`:""}
   </div>`;
   // 🔗 Link hub — gather every link / attachment people have put on ANY task into one place so anyone can grab it (索取), not hunt task-by-task
@@ -4041,7 +4087,7 @@ function v3Dash(l){
   </div>
   <div class="v3grid">
     <div class="panel"><h3>① ${T("素材就緒","Assets ready")} <span class="ghostnote">${T("Done 自動流入 · 點卡跳任務","auto-fed by Done · click to jump")}</span></h3><div class="v3assets">${assets}</div></div>
-    <div class="panel"><h3>② ${T("物流就緒","Logistics ready")}</h3>${anchors}${["L1","L2","L3","L6","L4","L5","L7","L8"].map(lrow).join("")}</div>
+    <div class="panel"><h3>② ${T("物流就緒","Logistics ready")}</h3>${anchors}${["P5","FB1"].map(lrow).join("")}<div class="sub" style="margin-top:6px">${T("出貨作業由 LC 一條龍處理，系統只追這兩個日期：樣品到貨、大貨到貨（＝首批開賣日）。","LC runs shipping end-to-end; the board tracks only two dates — sample arrival and bulk arrival (= first batch on sale).")}</div></div>
   </div>
   ${linkHub}`;
 }
@@ -4069,6 +4115,9 @@ function viewLaunch(){
     <div class="ld-stat"><span class="ld-stat-k">${T("開啟","Opened")}</span><span class="ld-stat-v">${fmt(openDate(l))}</span></div>
     <div class="ld-stat"><span class="ld-stat-k">${T("送出","Submitted")}</span><span class="ld-stat-v">${submitted?fmt(formSubmitDate(l)):`<span style="color:var(--faint);font-weight:500">${T("未送出","—")}</span>`}</span></div>
     <div class="ld-stat"><span class="ld-stat-k">${T("預計上市","Projected")}</span><span class="ld-stat-v"><b>${fmt(proj)}</b>${l.complete?"":submitted?(pend.miss.length?` <span class="v3pdwarn" title="${T("有任務未填天數，預計日偏早","unfilled durations — projection runs early")}">⚠${pend.miss.length}</span>`:""):` <span class="ghostnote">${T("暫估","est.")}</span>`}</span></div>
+    ${(()=>{ const arr=v3Arrival(l), eta=arr?"":v3EtaBulk(l);   // 到貨日＝LC 在 FB1 填的首批開賣日；未填時顯示由 P3 推估的預計值
+      const tip=T("大貨到貨、可以開賣的那一天 — 由 LC 在物流〈首批開賣日〉填寫；填了就成為預計上市日","the day stock lands and selling can start — LC fills it on Logistics › First batch on sale; once set it becomes the projected launch");
+      return `<div class="ld-stat" title="${tip}"><span class="ld-stat-k">${T("到貨日","Arrival")}</span><span class="ld-stat-v">${arr?`<b>${fmt(arr)}</b>`:eta?`<span style="color:var(--dim);font-weight:500">~${fmt(eta)} <span class="ghostnote">${T("預估","est.")}</span></span>`:`<span style="color:var(--faint);font-weight:500">${T("未填","—")}</span>`}</span></div>`; })()}
     ${l.complete?"":`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"速度":"Velocity"}</span><span class="ld-stat-v">${velocity(l).toFixed(1)}/wk</span></div>
     <div class="ld-stat ld-stat-rd ld-readycluster"><span class="ld-ready-item"><span class="ld-stat-k">Gate readiness</span>${readinessPop(l)}</span><span class="ld-ready-item"><span class="ld-stat-k">${LANG==="zh"?"待填天數":"Days pending"}</span>${daysPendingPop(l)}</span></div>`}
   </div>
