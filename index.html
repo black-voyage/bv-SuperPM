@@ -188,6 +188,8 @@
   .fp-linkgrid .addlnk{margin-left:0;width:100%;display:inline-flex;align-items:center;justify-content:center;gap:3px;padding:7px 6px;font-size:11px;white-space:nowrap}
   .fp-dep::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--dc,var(--faint));flex:none}
   .fp-sec{padding:10px 12px;border-bottom:1px solid var(--line)}
+  .fp-daterow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .fp-date-note{font-size:11px;color:var(--faint);flex:1;min-width:120px}
   .fp-lab{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);margin-bottom:8px}
   .fp-links{display:flex;flex-direction:column;gap:5px;margin-bottom:8px;max-height:150px;overflow:auto}
   .fp-lnk{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:2px;padding:3px 4px 3px 8px}
@@ -1069,10 +1071,11 @@ const V3=[
  {c:"P5", en:"Deploy marketing samples", zh:"部署行銷樣品", ph:3, dept:"Logistics", o:"LC", days:null, ref:{en:"air9/sea21",zh:"空9／海21"}, est:9, req:["MS1"], out:{en:"samples to teams",zh:"寄樣各部門"}, note:{en:"samples = bulk units; done = sample arrival",zh:"樣品＝大貨樣；完成＝樣品到貨日"}},
  {c:"MB1", en:"Marketing Brief V1", zh:"行銷簡報 V1", ph:3, dept:"Marketing", o:"Zac + Ben", days:5, req:["C10"]},
  {c:"MB2", en:"Marketing Brief V2", zh:"行銷簡報 V2", ph:3, dept:"Marketing", o:"Ann + Angel", days:7, req:["MB1"]},
- {c:"MB3", en:"Marketing Brief V3", zh:"行銷簡報 V3", ph:3, dept:"Marketing", o:"Ann + Angel", days:10, req:["MS3a"]},
- {c:"MS1", en:"Shoot requirements", zh:"行銷拍攝需求", ph:3, dept:"Marketing", o:"Ben + Ann + Angel", days:7, req:["MB2"], out:{en:"tally needs",zh:"統計需求"}, note:{en:"阿訊, Gonzalo, 小海, Brian",zh:"阿訊、Gonzalo、小海、Brian"}},
- {c:"MS2", en:"Shoot plan finalized", zh:"行銷拍攝定稿", ph:3, dept:"Marketing", o:"Ben + Ann + Angel", days:10, req:["MS1"], out:{en:"concept locked",zh:"概念定稿"}, note:{en:"deadline = sample arrival (can start 1d late)",zh:"死線＝樣品到貨日（可晚 1 天開拍）"}},
- {c:"MS3a", en:"Marketing photos", zh:"行銷照片", ph:3, dept:"Content", o:"各攝影師", days:null, req:["MS2","P5"], asset:1, shots:"photo"},
+ {c:"MB3", en:"Marketing Brief V3", zh:"行銷簡報 V3", ph:3, dept:"Marketing", o:"Ann + Angel", days:10, req:["MS3c"]},
+ {c:"MS1", en:"Shoot requirements", zh:"行銷拍攝需求", ph:3, dept:"Content", o:"Ben + Ann + Angel", days:7, req:["MB2"], out:{en:"tally needs",zh:"統計需求"}, note:{en:"阿訊, Gonzalo, 小海, Brian",zh:"阿訊、Gonzalo、小海、Brian"}},
+ {c:"MS2", en:"Shoot plan finalized", zh:"行銷拍攝定稿", ph:3, dept:"Content", o:"Ben + Ann + Angel", days:10, req:["MS1"], out:{en:"concept locked",zh:"概念定稿"}, note:{en:"deadline = sample arrival (can start 1d late)",zh:"死線＝樣品到貨日（可晚 1 天開拍）"}},
+ {c:"MS3c", en:"Product photos", zh:"產品照片", ph:3, dept:"Content", o:"各攝影師", days:null, req:["D7"], asset:1, shots:"product", note:{en:"studio set — opens once the shoot brief (D7) is done; feeds MB3 + the PDP",zh:"棚拍 — 棚拍需求（D7）結束後開啟；供 MB3 與 PDP 使用"}},
+ {c:"MS3a", en:"Lifestyle photos", zh:"情境照片", ph:3, dept:"Content", o:"各攝影師", days:null, req:["MS2","P5"], asset:1, shots:"lifestyle"},
  {c:"MS3b", en:"Marketing video", zh:"行銷影片", ph:3, dept:"Content", o:"各攝影師", days:null, ref:{en:"35",zh:"35"}, est:35, req:["MS2","P5"], asset:1, shots:"video"},
  {c:"KOL1", en:"Mega influencer outreach", zh:"Mega 網紅接洽", ph:3, dept:"Marketing", o:"Angel", days:null, req:["MB2"]},
  {c:"KOL2", en:"Normal influencer sourcing", zh:"一般網紅尋找", ph:3, dept:"Marketing", o:"Angel", days:null, req:["MB2"]},
@@ -1189,9 +1192,10 @@ function v3Lights(l){
   // ad-ready 版位子清單, usage-rights expiry, 入庫數量門檻 — are deferred with the ADS framework round 2.
   // 2026-07-29: the stock condition moved from L8 監控入庫 to FB1 首批開賣日 (the L-chain collapsed into it).
   const d=c=>v3Done(l,c);
-  const shop=d("MS3a")&&(d("D4")||d("D6"))&&d("FB1")?"go":(d("MS3a")&&d("D4"))?"pre":"no";
+  // 2026-07-29: 照片拆成 MS3c 產品照片（棚拍，供 listing／PDP）與 MS3a 情境照片；上架燈號認產品照片。
+  const shop=d("MS3c")&&(d("D4")||d("D6"))&&d("FB1")?"go":(d("MS3c")&&d("D4"))?"pre":"no";
   const ads=d("D6")&&d("MS3b")&&d("FB1")?"go":"no";
-  return {shop,ads,missShop:["MS3a","D4","FB1"].filter(c=>!d(c)),missAds:["D6","MS3b","FB1"].filter(c=>!d(c))};
+  return {shop,ads,missShop:["MS3c","D4","FB1"].filter(c=>!d(c)),missAds:["D6","MS3b","FB1"].filter(c=>!d(c))};
 }
 async function v3Go(slug,kind){
   const l=L(slug); if(!l)return;
@@ -1261,7 +1265,7 @@ const LAUNCHES = [
   checkins:[{d:"2026-06-09",a:"Product",txt:"Concept signed off by Ben. Prototyping underway — costing being negotiated during sampling."}]},
  {name:"Cyclone",slug:"cyclone",dri:"Marketing",stage:STAGES[3],target:"2026-09-30",
   history:[{stage:STAGES[0],start:"2026-02-02"},{stage:STAGES[1],start:"2026-02-25"},{stage:STAGES[2],start:"2026-04-10"},{stage:STAGES[3],start:"2026-05-18"}],
-  tasks:allTasks({C1:"x",C2:"x",C3:"x",C4:"x",C5:"x",C6:"x",D1:"x",C7:"x",C8:"x",C9:"x",C10:"x",P1:"x",P2:"x",P3:"x",CT1:"x",CT2:"x",CT3:"x",CT4:"x",D7:"x",D3:"x",MB1:"x",MB2:"x",MS1:"x",P5:"x",MS2:"x",MS3a:"x",MB3:"x",D4:"p",CRM1:"x"}),
+  tasks:allTasks({C1:"x",C2:"x",C3:"x",C4:"x",C5:"x",C6:"x",D1:"x",C7:"x",C8:"x",C9:"x",C10:"x",P1:"x",P2:"x",P3:"x",CT1:"x",CT2:"x",CT3:"x",CT4:"x",D7:"x",D3:"x",MB1:"x",MB2:"x",MS1:"x",P5:"x",MS2:"x",MS3c:"x",MS3a:"x",MB3:"x",D4:"p",CRM1:"x"}),
   checkins:[{d:"2026-06-09",a:"Marketing",txt:"Photos done, MB3 finalized — PDP draft (D4) in progress. Video (MS3b) still shooting; bulk on the water."}]},
  {name:"Zephyr",slug:"zephyr",dri:"Marketing",stage:STAGES[STAGES.length-1],target:"2026-04-15",complete:true,
   history:STAGES.map((s,i)=>({stage:s,start:"2026-0"+(1+i)+"-05",end:i===STAGES.length-1?"2026-07-20":undefined})),
@@ -3186,7 +3190,9 @@ function taskDetail(l,t,i,ro,vn,lk){
 }
 // per-launch shot list — starter proposals differ by product, so quantities are editable and rows can be added/removed
 const V3SHOTS={
-  photo:[{zh:"情境照",en:"Lifestyle"},{zh:"白底 / 去背",en:"White-bg / cutout"},{zh:"細節 · 材質",en:"Detail · texture"},{zh:"使用示範",en:"In-use"},{zh:"尺寸 · 規格圖",en:"Size · spec"}],
+  // 照片拆成兩步後，各給各的預設清單（仍可在卡上自行增減）：棚拍＝規格導向，情境＝場景導向
+  product:[{zh:"白底 / 去背",en:"White-bg / cutout"},{zh:"細節 · 材質",en:"Detail · texture"},{zh:"尺寸 · 規格圖",en:"Size · spec"},{zh:"多角度",en:"Multi-angle"}],
+  lifestyle:[{zh:"情境照",en:"Lifestyle"},{zh:"使用示範",en:"In-use"},{zh:"人物 · 場景",en:"Model · scene"}],
   video:[{zh:"主打形象片",en:"Hero film"},{zh:"開箱 · 教學",en:"Unboxing · how-to"},{zh:"短影音 Reels",en:"Shorts / Reels"},{zh:"使用情境",en:"Scenario"}]
 };
 function v3ShotPlan(t,vn){ if(!Array.isArray(t.assetPlan)) t.assetPlan=(V3SHOTS[vn.shots]||[]).map(x=>({label:{zh:x.zh,en:x.en},qty:0})); return t.assetPlan; }
@@ -3651,6 +3657,14 @@ function flowPopHTML(d,i){
      daysEl=`<span class="fp-days${dTBD?" tbd":""}" title="${zh?"預估天數":"estimated days"}">⏱ ${daysTxt}</span>`;
    }
    h+=`<div class="fp-actbar">${aMark}${daysEl}</div>`;}
+  // 到貨日（FB1 首批開賣日）— 這是 LC 唯一要填的東西，所以直接開在流程圖的節點卡片上，不用先跳進卡片詳情
+  {const vn=V3MAP[n.code]||{};
+   if(vn.arrival&&task&&ti>=0){
+     const set=!!task.arrivalDate;
+     h+=`<div class="fp-sec"><div class="fp-lab">${zh?"到貨日 / 首批開賣":"Arrival / on-sale date"}</div>`
+       +`<div class="fp-daterow"><span class="fp-days fp-days-edit${set?"":" tbd"}">📦 <input type="date" value="${esc(task.arrivalDate||"")}" aria-label="${zh?"到貨日":"arrival date"}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${ti},'arrivalDate',this.value)"></span>`
+       +`<span class="fp-date-note">${set?(zh?"＝本卡預計上市日":"= this card's projected launch"):(zh?"未填 — 預計上市日仍用自動推算":"unset — projection stays auto-computed")}</span></div></div>`;
+   }}
   // dependency panel — the same req graph the red arrows draw: what this waits on, and what finishing it unblocks
   {const zh=LANG==="zh";
    const named=code=>{const nn=V3MAP[code]; return code+(nn?" "+esc(zh?nn.zh:nn.en):"");};
