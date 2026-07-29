@@ -1077,14 +1077,14 @@ const V3=[
  {c:"MS3c", en:"Product photos", zh:"產品照片", ph:3, dept:"Content", o:"各攝影師", days:null, req:["D7"], asset:1, shots:"product", note:{en:"studio set — opens once the shoot brief (D7) is done; feeds MB3 + the PDP",zh:"棚拍 — 棚拍需求（D7）結束後開啟；供 MB3 與 PDP 使用"}},
  {c:"MS3a", en:"Lifestyle photos", zh:"情境照片", ph:3, dept:"Content", o:"各攝影師", days:null, req:["MS2","P5"], asset:1, shots:"lifestyle"},
  {c:"MS3b", en:"Marketing video", zh:"行銷影片", ph:3, dept:"Content", o:"各攝影師", days:null, ref:{en:"35",zh:"35"}, est:35, req:["MS2","P5"], asset:1, shots:"video"},
- {c:"KOL1", en:"Mega influencer outreach", zh:"Mega 網紅接洽", ph:3, dept:"Marketing", o:"Angel", days:null, req:["MB2"]},
- {c:"KOL2", en:"Normal influencer sourcing", zh:"一般網紅尋找", ph:3, dept:"Marketing", o:"Angel", days:null, req:["MB2"]},
- {c:"KOL3", en:"Mega influencer shooting", zh:"Mega 網紅拍攝", ph:3, dept:"Marketing", o:"Angel", days:null, req:["P5","KOL1"], asset:1, note:{en:"Ongoing",zh:"Ongoing"}},
+ {c:"KOL1", en:"Mega influencer outreach", zh:"Mega 網紅接洽", ph:3, dept:"Marketing", o:"Angel", days:null, ongoing:1, req:["MB2"]},
+ {c:"KOL2", en:"Normal influencer sourcing", zh:"一般網紅尋找", ph:3, dept:"Marketing", o:"Angel", days:null, ongoing:1, req:["MB2"]},
+ {c:"KOL3", en:"Mega influencer shooting", zh:"Mega 網紅拍攝", ph:3, dept:"Marketing", o:"Angel", days:null, ongoing:1, req:["P5","KOL1"], asset:1, note:{en:"Ongoing",zh:"Ongoing"}},
  // 4 — Logistics
  {c:"FB1", en:"First batch on sale", zh:"首波開賣日", ph:4, dept:"Logistics", o:"LC", days:31, req:["P3"], arrival:1, out:{en:"arrival date → whole company",zh:"到貨日 → 全公司"}, note:{en:"LC runs shipping end-to-end; only the arrival date is tracked here — once set it becomes the projected launch. Unset → 31d (sea 30 + intake 1) placeholder.",zh:"LC 一條龍處理出貨，這裡只追到貨日 —— 填了就以它為預計上市日；未填前用 31d（海運 30＋入庫 1）暫估"}},
  // 5 — KOL
- {c:"KOL4", en:"Normal influencer outreach", zh:"一般網紅接洽", ph:5, dept:"Marketing", o:"Angel", days:null, req:["KOL2","MB3"]},
- {c:"KOL5", en:"Influencer shooting", zh:"網紅拍攝", ph:5, dept:"Marketing", o:"Angel", days:null, req:["KOL4"], asset:1, note:{en:"Ongoing; record usage rights",zh:"Ongoing；需記錄 usage rights"}},
+ {c:"KOL4", en:"Normal influencer outreach", zh:"一般網紅接洽", ph:5, dept:"Marketing", o:"Angel", days:null, ongoing:1, req:["KOL2","MB3"]},
+ {c:"KOL5", en:"Influencer shooting", zh:"網紅拍攝", ph:5, dept:"Marketing", o:"Angel", days:null, ongoing:1, req:["KOL4"], asset:1, note:{en:"Ongoing; record usage rights",zh:"Ongoing；需記錄 usage rights"}},
 ];
 const V3MAP=Object.fromEntries(V3.map(n=>[n.c,n]));
 // flow-chart lane order (left → right). Without this, lanes fall in V3 array order (first appearance),
@@ -1112,7 +1112,7 @@ function v3Rederive(){
     V3.forEach(m=>{ if((m.req||[]).indexOf(n.c)>=0) steps.push([m.dept,m.en]); });
     if(steps.length>1) XROUTES[key]=steps;
   });
-  STAGES.forEach((s,i)=>{ PLAN[s]=V3.filter(n=>n.ph===i).reduce((a,n)=>a+(n.days!=null?n.days:(n.est||0)),0)||14; });
+  STAGES.forEach((s,i)=>{ PLAN[s]=V3.filter(n=>n.ph===i).reduce((a,n)=>a+(n.days!=null?n.days:(n.est||0)),0); });   // 0 是合法值（KOL 階段全無天數）——不要 ||14 補一個假預算
   const idx=(dept,en)=>(FLOW[dept]||[]).findIndex(x=>x.l===en);
   V3.forEach(n=>{ (n.req||[]).forEach(rc=>{ const r=V3MAP[rc]; if(r&&r.dept!==n.dept){ const a=idx(r.dept,r.en),b=idx(n.dept,n.en); if(a>=0&&b>=0)CROSS.push([r.dept,a,n.dept,b]); } }); });
 }
@@ -1231,25 +1231,29 @@ function v3SyncTasks(l){
 const V3OC={"Ben":"#c084fc","Zac":"#60a5fa","Ann":"#f472b6","Angel":"#fb923c","LC":"#34d399","Design Team":"#a78bfa","各攝影師":"#67e8f9"};
 const v3OColor=o=>{o=String(o||"");for(const k in V3OC){if(o.indexOf(k)>=0)return V3OC[k];}return "#9aa3af";};
 const ntx=s=>s; // (was a language-lock wrapper; V3 is now bilingual via the ZH/FLOWZH dict, so this is a pass-through)
-const v3AddD=(s,n)=>new Date(D(s).getTime()+n*864e5).toISOString().slice(0,10);
+// 日期一律以本地時區格式化：toISOString() 先退回 UTC，在 UTC+8 每次運算就少一天（誤差＝關鍵路徑跳數）
+const fmtYMD=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const v3AddD=(s,n)=>{const d=D(s); d.setDate(d.getDate()+n); return fmtYMD(d);};
 // 到貨日（＝首波開賣日）。LC 在 FB1 填的日期是唯一真實來源；沒填就用 P3 完成日＋FB1 天數暫估。
 const v3Arrival=l=>{const fb=v3Task(l,"FB1"); return (fb&&fb.arrivalDate)||"";};
 function v3EtaBulk(l){ // 到貨日：已填 → 直接回傳；未填 → P3 完成日(實際或 startAt+days 推估) + FB1 前置天數
   const filled=v3Arrival(l); if(filled)return filled;
   const p3=v3Task(l,"P3"),fb=v3Task(l,"FB1");
   if(!p3||(fb&&fb.st==="x"))return null;
-  const p3done=p3.doneAt||(p3.startAt&&p3.days!=null?v3AddD(p3.startAt,p3.days):null);
+  // 舊資料（Firestore 上 doneAt 之前完成的卡）P3 已完成卻沒有任何時間戳 → 退回送出日推估，不要整格變「—」
+  const p3done=p3.doneAt||(p3.startAt&&p3.days!=null?v3AddD(p3.startAt,p3.days):null)||(p3.st==="x"?(formSubmitDate(l)||openDate(l)||null):null);
   if(!p3done)return null;
   const lead=(fb&&fb.days!=null)?fb.days:((V3MAP.FB1&&V3MAP.FB1.days)||31);
-  return v3AddD(p3done,lead);
+  return v3AddD(p3done<today?today:p3done,lead);   // 與 projLaunchDate 的正向排程同一條規則：未完成的 FB1 最早只能從今天起算，否則儀表板的「到貨日」會給出已過去的日期
+
 }
 
 /* ================= LAUNCH DATA (DRI = a department, not a person) ================= */
 function allTasks(overrides){
   const list=[];
   for(const s of STAGES) for(const c of GATES[s]) list.push({t:c.t,code:c.code,d:c.d,st:"o",gate:!!c.ben,stage:s,days:(c.code&&V3MAP[c.code]?V3MAP[c.code].days:null),links:[],codes:[],assignee:"",urg:"med",notes:[]});
-  let _t=null; try{_t=today;}catch(e){} // allTasks runs at module-eval (before the `today` const) for seed cards → typeof still throws in TDZ, so read via try/catch
-  for(const [k,st] of Object.entries(overrides||{})){const x=list.find(t=>t.code===k||t.t===k); if(x){x.st=st; if(_t){if(st==="x")x.doneAt=_t; else if(st==="p")x.startAt=_t;}}} // overrides keyed by CODE (C1…) or title
+  const _t=pjToday(); // allTasks runs at module-eval for the seed cards, i.e. inside the `today` const's TDZ — call pjToday() directly (seedStamps() later spreads the seeds' stamps out over their real stage windows)
+  for(const [k,st] of Object.entries(overrides||{})){const x=list.find(t=>t.code===k||t.t===k); if(x){x.st=st; if(st==="x")x.doneAt=_t; else if(st==="p")x.startAt=_t;}} // overrides keyed by CODE (C1…) or title
   return list;
 }
 const doneThrough = stage => { const o={}; STAGES.slice(0,STAGES.indexOf(stage)).forEach(s=>GATES[s].forEach(c=>o[c.t]="x")); return o; };
@@ -1279,6 +1283,33 @@ seed("cyclone","MS3a","Shot list + selects","https://drive.google.com/drive/fold
 const seedT=(slug,code,f)=>{const c=LAUNCHES.find(l=>l.slug===slug);const t=c&&c.tasks.find(t=>t.code===code); if(t)Object.assign(t,f);};
 seedT("cyclone","MS3a",{urg:"high",assignee:"各攝影師 · 阿訊",notes:[{d:"2026-06-09",a:"Content",txt:"Hero set done; lifestyle selects with Ann for approval."}]});
 LAUNCHES.forEach(l=>{ if(STAGES.indexOf(l.stage)>=0){const h=l.history&&l.history[l.history.length-1]; l.stage=v3CurPhase(l); if(h)h.stage=l.stage;} }); // normalize seed cards' current phase to the derived one (keeps demo consistent)
+/* 種子卡的完成時間戳 —— 只宣告，呼叫點在 `const today=pjToday()` 之後：這裡用到的 dayDiff／taskDayLimit／today
+   都宣告在本行之下，module-eval 時全在 TDZ（allTasks 的 try/catch 就是被這件事咬到，結果四張卡一個 doneAt 都沒有，
+   熱力圖全 0、到貨日推不出來、正向排程全部退回送出日）。做法：每個階段的已完成步驟依 req 深度平均散在該階段的
+   實際起訖內，再沿 req 前推一次，保證前置的 doneAt 不晚於後續。v3CurPhase 會把最後一段 history 改寫回較早的階段，
+   所以沒登記到的階段沿用前一段的區間。 */
+function seedStamps(){
+  const rank={}, dep=c=>{ if(c in rank)return rank[c]; rank[c]=0; let m=0;
+    ((V3MAP[c]||{}).req||[]).forEach(q=>{ if(V3MAP[q])m=Math.max(m,dep(q)+1); }); return rank[c]=m; };
+  V3.forEach(n=>dep(n.c));
+  LAUNCHES.forEach(l=>{
+    const hs=l.history||[]; if(!hs.length)return;
+    const rec={}; hs.forEach((h,i)=>{ const e=h.end||(hs[i+1]?hs[i+1].start:today), r=rec[h.stage];
+      rec[h.stage]=r?{a:r.a<h.start?r.a:h.start,b:r.b>e?r.b:e}:{a:h.start,b:e}; });
+    let w=null; const wins={}; STAGES.forEach(s=>{ if(rec[s])w=rec[s]; wins[s]=w||{a:hs[0].start,b:hs[hs.length-1].end||today}; });
+    const slot={};
+    STAGES.forEach(s=>{ const wn=wins[s], sp=Math.max(1,dayDiff(wn.a,wn.b));
+      const ds=(l.tasks||[]).filter(t=>t.code&&t.st==="x"&&t.stage===s).sort((a,b)=>rank[a.code]-rank[b.code]);
+      ds.forEach((t,k)=>slot[t.code]=v3AddD(wn.a,Math.round(sp*(k+1)/(ds.length+1)))); });
+    const at={}, fix=c=>{ if(c in at)return at[c]; let d=at[c]=slot[c]||"";
+      ((V3MAP[c]||{}).req||[]).forEach(q=>{ if(slot[q]){const p=fix(q); if(p>d)d=p;} }); return at[c]=d; };
+    (l.tasks||[]).forEach(t=>{ if(!t.code)return;
+      if(t.st==="x"){ const d=fix(t.code); if(d){ t.doneAt=d; t.startAt=v3AddD(d,-Math.max(1,taskDayLimit(t))); } }
+      else if(t.st==="p"){ const rq=((V3MAP[t.code]||{}).req||[]).map(q=>slot[q]?fix(q):"").filter(Boolean).sort().pop();
+        t.startAt=rq||wins[t.stage].a; }   // 進行中的步驟從「前置完成那天」起算，而不是今天
+    });
+  });
+}
 const CAMPAIGNS=[{name:"Black Friday 2026",slug:"bf-2026",date:"2026-11-27",products:["apex","cyclone","zephyr"],
  tasks:[{t:"BF landing page",d:"Design",st:"p",links:[]},{t:"BF deals & pricing locked",d:"Marketing",st:"p",links:[]},
         {t:"BF email sequence drafted",d:"Email",st:"o",links:[]},{t:"BF ad creatives",d:"Ads",st:"o",links:[]},
@@ -1353,10 +1384,12 @@ function curBlame(l){ // who is holding the current stage: unmet criteria owners
    A stage's budget for a LAUNCH = the sum of its own tasks' day limits (manual t.days overrides
    the V3 default), so hand-tuned launches get their real plan; falls back to the template PLAN. */
 const taskDayLimit=t=>{const n=V3MAP[t.code]||{};return t.days!=null?t.days:(n.days!=null?n.days:(n.est||0));};
+// 天數「真未知」：任務沒填、節點也沒有 days／est 可退。算式只能當 0，但預算比對與延誤歸咎必須排除它 —— 沒填 ≠ 0 天。
+const taskDaysUnknown=t=>{const n=V3MAP[t.code]||{}; return t.days==null&&n.days==null&&n.est==null;};
 function stageDayBudget(l,stage){
   const own=(l.tasks||[]).filter(t=>t.stage===stage);
   if(own.length){const s=own.reduce((a,t)=>a+(taskDayLimit(t)||0),0); if(s>0)return s;}
-  return PLAN[stage]||21;
+  return PLAN[stage]||0;   // 0＝這個階段沒有任何已知天數（KOL 全是 Ongoing）；顯示端出「—」，不要編一個 14／21 天的假預算
 }
 const deptStageBudget=(l,stage,d)=>(l.tasks||[]).filter(t=>t.stage===stage&&t.d===d).reduce((a,t)=>a+(taskDayLimit(t)||0),0);
 function segments(l){
@@ -1364,10 +1397,11 @@ function segments(l){
     const end=h.end||(l.history[i+1]?l.history[i+1].start:today);
     const days=Math.max(1,dayDiff(h.start,end));
     const plan=stageDayBudget(l,h.stage);
-    const over=Math.max(0,days-plan);
+    const unk=(l.tasks||[]).filter(t=>t.stage===h.stage&&t.code&&taskDaysUnknown(t)).length;
+    const over=unk?0:Math.max(0,days-plan);   // 有步驟沒填天數 ⇒ plan 不可比較，超時歸零（否則「沒人填打樣天數」會變成「Product 落後 107 天」）
     const cur=!h.end&&!l.history[i+1]&&!l.complete;
     const blame=over?(h.delayBy||(cur?curBlame(l):[])):[];
-    return {stage:h.stage,days,plan,over,cur,blame};
+    return {stage:h.stage,days,plan,unk,over,cur,blame};
   });
 }
 // overrun split among the blamed departments, weighted by each one's share of the stage's day budget
@@ -1395,7 +1429,7 @@ function delayTrend(N=24){
   LAUNCHES.forEach(l=>{const hs=l.history||[];segments(l).forEach((s,i)=>{
     if(!(s.over&&s.blame.length)||!hs[i])return;
     const end=hs[i].end||(hs[i+1]?hs[i+1].start:today);
-    const start=new Date(D(hs[i].start).getTime()+s.plan*864e5).toISOString().slice(0,10);
+    const start=v3AddD(hs[i].start,s.plan);
     blameShares(l,s).forEach(({d,amt})=>iv.push({dept:d,start,end,amt}));
   });});
   if(!iv.length)return {};
@@ -1469,7 +1503,7 @@ function v3CriticalPath(l){
     if(c in memo)return memo[c];
     memo[c]={len:0,path:[c]};                            // guard
     const n=V3MAP[c]||{}; let bl=0,bp=[];
-    (n.req||[]).forEach(r=>{if(V3MAP[r]){const b=best(r); if(b.len>bl){bl=b.len;bp=b.path;}}});
+    (n.req||[]).forEach(r=>{if(V3MAP[r]){const b=best(r); if(!bp.length||b.len>bl){bl=b.len;bp=b.path;}}}); // !bp.length: a 0-day predecessor chain (C1 root) must still be adopted, or the path starts at C2
     return memo[c]={len:bl+v3DayOf(l,c),path:[...bp,c]};
   };
   let top={len:-1,path:[]};
@@ -1503,20 +1537,32 @@ function projLaunchDate(l){                                              // 預�
     let start=sub;
     (n.req||[]).forEach(r=>{if(V3MAP[r]){const f=walk(r); if(f>start)start=f;}});
     if(c==="P5"){const p3=v3Task(l,"P3"); if(p3&&p3.sampleDate&&p3.sampleDate>start)start=p3.sampleDate;}   // 行銷樣等大貨樣日
-    let end=(t&&t.startAt)?v3AddD(t.startAt,v3DayOf(l,c)):v3AddD(start,v3DayOf(l,c));
-    if(end<today)end=today;                                              // 未完成 ⇒ 至少今天才可能完成（逾期往後推）
+    const d=v3DayOf(l,c);
+    // 夾的是「起算日」不是完成日：未開工的步驟最早只能今天起跑，剩餘工期才不會整段蒸發（夾完成日會把 35d 的影片壓成今天完成）
+    let end;
+    if(t&&t.startAt){ end=v3AddD(t.startAt,d); if(end<today)end=today; } // 已開工：startAt＋天數，但不可能落在過去
+    else { if(start<today)start=today; end=v3AddD(start,d); }            // 未開工：起算日＝max(前置完成日, 今天)
     return fin[c]=end;
   };
   let latest=sub; V3.forEach(n=>{const f=walk(n.c); if(f>latest)latest=f;});
   return latest;
 }
 function syncProjected(l){ if(l&&!l.complete){const p=projLaunchDate(l); if(p)l.target=p;} } // 讓 l.target 鏡射預計上市日
-// days:null 且未填的任務：miss＝無 est 退路（當 0，預計日偏早，必填）；soft＝有 est 預設可頂著（建議確認）。onCP＝落在關鍵路徑上。
+/* 上市日的兩個定義端點：FB1（大貨到貨＝首波開賣）與 D6（正式 PDP）。沿 req 正向可達其中之一 ⇒ 這個步驟的天數
+   會參與預計上市日的推算（未填就當 0，日期偏早）；不可達 ⇒ 影響「未知」，絕不可寫成「不影響上市日」。 */
+const V3LAUNCH_ENDS=["FB1","D6"];
+const v3AffectsLaunch=(()=>{ const memo={};
+  const walk=c=>{ if(c in memo)return memo[c]; memo[c]=false;                       // 先寫 false＝循環守衛（模板是 DAG）
+    return memo[c]=V3LAUNCH_ENDS.indexOf(c)>=0||V3.some(m=>(m.req||[]).indexOf(c)>=0&&walk(m.c)); };
+  return c=>walk(c); })();
+// days:null 且未填的任務：miss＝無 est 退路（當 0 天算，必填）；soft＝有 est 預設可頂著（建議確認）。
+// aff＝天數會走進上市日推算。ongoing 節點（KOL 全線）設計上就沒有天數，不列待補。
 function v3PendingDays(l){
-  const cp=new Set(v3CriticalPath(l)), miss=[], soft=[];
-  V3.forEach(n=>{ if(n.days!=null)return; const t=v3Task(l,n.c); if(!t||t.st==="x"||t.days!=null)return;
-    (n.est!=null?soft:miss).push({code:n.c, t:t.t, d:n.dept, onCP:cp.has(n.c)}); });
-  const rank=(a,b)=>(b.onCP-a.onCP); return {miss:miss.sort(rank), soft:soft.sort(rank)};
+  const miss=[], soft=[];
+  V3.forEach(n=>{ if(n.days!=null||n.ongoing)return; const t=v3Task(l,n.c); if(!t||t.st==="x"||t.days!=null)return;
+    (n.est!=null?soft:miss).push({code:n.c, t:t.t, d:n.dept, aff:v3AffectsLaunch(n.c)}); });
+  const rank=(a,b)=>(b.aff-a.aff);
+  return {miss:miss.sort(rank), soft:soft.sort(rank), nAff:miss.filter(r=>r.aff).length};
 }
 // per-department health: planned-day budget vs actual elapsed vs remaining, a RAG status, and whether
 // the dept sits on the critical path. Actual is derived from the stage timeline (history) — each started
@@ -1581,7 +1627,7 @@ function velocity(l){ const weeks=Math.max(1,dayDiff(l.history[0].start,today)/7
   return l.tasks.filter(t=>t.st==="x").length/weeks; }
 function forecastDate(l){ if(l.complete) return l.target;
   const rem=l.tasks.filter(t=>t.st!=="x").length; const vpd=Math.max(velocity(l)/7,0.05);
-  return new Date(D(today).getTime()+Math.ceil(rem/vpd)*864e5).toISOString().slice(0,10); }
+  return v3AddD(today,Math.ceil(rem/vpd)); }
 function criticalNext(l){ const g=gateState(l); const c=g.cs.find(c=>c.task.st!=="x"); return c?{t:c.t,d:c.d}:null; }
 // which department progress is currently sitting with — derived from the next unmet gate criterion, NOT a manually-chosen DRI
 function progressDept(l){ if(l.complete)return ""; const cn=criticalNext(l); return cn?cn.d:""; }
@@ -2385,6 +2431,7 @@ const NAVS=[["home","Home"],["portfolio","Portfolio"],["progress","Progress"],["
 const stIcon={x:"✓",p:"…",b:"!",o:"○"};
 const fmt=d=>new Date(d+"T00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
 const today=pjToday();   // real current date (Asia/Taipei) — was hardcoded "2026-06-10", which made launch-board due/overdue math stale
+seedStamps();            // 種子卡 doneAt/startAt：要等 today 與所有日期 helper 都出了 TDZ 才能跑（宣告處有完整說明）
 const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
 
 /* ================= LANGUAGE TOGGLE (EN / 中文) =================
@@ -3220,7 +3267,7 @@ function readinessPop(l){
 // steps whose day estimate must be typed in by the owning dept but is still blank — scans ALL tasks (data-completeness gap), not just the current stage's exit criteria
 function daysPending(l){
   return (l.tasks||[]).map((t,i)=>({t,i,n:V3MAP[t.code]}))
-    .filter(x=>x.n && x.n.days==null && x.t.days==null && x.t.st!=="x");
+    .filter(x=>x.n && !x.n.ongoing && x.n.days==null && x.t.days==null && x.t.st!=="x");   // ongoing（KOL）本來就沒有天數可填
 }
 // sibling of readinessPop — surfaces WHO still owes a day estimate, in a soft-red (淡紅) voice distinct from the amber gate-criteria warning
 function daysPendingPop(l){
@@ -4000,16 +4047,16 @@ function v3Overview(l){
   const segBy={}; segments(l).forEach(s=>segBy[s.stage]=s);
   const maxD=Math.max(1,...STAGES.map(s=>Math.max(stageDayBudget(l,s),segBy[s]?segBy[s].days:0)));
   const barW=d=>Math.max(2,d/maxD*100);
-  const trows=STAGES.map((s,i)=>{ const plan=stageDayBudget(l,s), seg=segBy[s];
+  const trows=STAGES.map((s,i)=>{ const plan=stageDayBudget(l,s), seg=segBy[s], pl=plan?plan+"d":"—";   // 0＝這階段沒有任何已知天數（KOL）
     const passed=l.complete||STAGES.indexOf(l.stage)>i, cur=seg&&seg.cur, over=seg?seg.over:0;
     const aCol=over>0?"var(--red)":cur?"var(--amber)":"var(--green)";
     return `<div style="display:grid;grid-template-columns:118px 1fr 84px;gap:10px;align-items:center;padding:4px 0">
       <span style="font-size:12px;color:${cur?"var(--text)":"var(--dim)"};font-weight:${cur?700:400}">${esc(s)}${cur?" ●":""}</span>
       <div style="display:flex;flex-direction:column;gap:3px">
-        <div style="height:8px;border-radius:5px;background:var(--line);width:${barW(plan)}%" title="${T("規劃","plan")} ${plan}d"></div>
+        <div style="height:8px;border-radius:5px;background:var(--line);width:${barW(plan)}%" title="${T("規劃","plan")} ${pl}"></div>
         ${seg?`<div style="height:8px;border-radius:5px;background:${aCol};width:${barW(seg.days)}%" title="${T("實際","actual")} ${seg.days}d"></div>`:`<div style="height:8px"></div>`}
       </div>
-      <span class="ghostnote" style="font-size:11px;text-align:right">${seg?`${seg.days}/${plan}d${over>0?` <span style="color:var(--red)">+${over}</span>`:""}`:passed?`${plan}d`:`${plan}d ${T("待進","soon")}`}</span>
+      <span class="ghostnote" style="font-size:11px;text-align:right"${seg&&seg.unk?` title="${T(`此階段有 ${seg.unk} 步未填天數，預算不可比`,`${seg.unk} step(s) here have no duration — budget not comparable`)}"`:""}>${seg?`${seg.days}/${pl}${over>0?` <span style="color:var(--red)">+${over}</span>`:seg.unk?" ◐":""}`:passed?pl:`${pl} ${T("待進","soon")}`}</span>
     </div>`;}).join("");
   const timeline=`<div class="panel"><h3>${T("規劃 vs 實際 — 各階段","Plan vs actual — by phase")} <span class="ghostnote">${T("灰=規劃 · 綠/黃/紅=實際(紅=超時)","grey=plan · green/amber/red=actual (red=over)")}</span></h3>${trows}</div>`;
   // ---- ③ department comparison (bullet bars; behind first) ----
@@ -4056,7 +4103,7 @@ function v3Dash(l){
       :left<=4?`<span class="urg high">${T("FAQ 死線剩","FAQ deadline in")} ${left}d</span>`:"";}
   const k4=v3Task(l,"KOL4"),k5=v3Task(l,"KOL5");
   const kolChip=`<span class="ghostnote" title="${T("KOL 波次（手動節奏，對齊目標上市日）","KOL cadence (manual, aligned to target launch)")}">KOL4 ${k4?stIcon[k4.st]:"—"} · KOL5 ${k5?stIcon[k5.st]:"—"}</span>`;
-  const dtt=l.target?dayDiff(today,l.target):null;
+  const dtt=l.target?dayDiff(today,l.target):null, pendD=v3PendingDays(l);
   const assets=V3ASSETS.map(c=>{const t=v3Task(l,c);const n=V3MAP[c];if(!t)return "";
     const lkT=v3LockText(l,t); const done=t.st==="x";
     const cls=done?"ok":t.st==="p"?"warn":t.st==="b"?"bad":lkT?"lock":"todo";
@@ -4093,7 +4140,7 @@ function v3Dash(l){
     <div class="v3strip-top">
       <span class="v3strip-k">🎛 ${T("上市決策","Launch decision")}</span>
       ${shopChip}${adsChip}
-      <span class="v3target" title="${T("送出日＋關鍵路徑天數自動推算；不再手填","auto = Form-submit day + critical-path days; no longer hand-typed")}">${T("預計上市日","Projected launch")} <b>${fmt(projLaunchDate(l))}</b>${isSubmitted(l)?(v3PendingDays(l).miss.length?` <span class="v3pdwarn" title="${T("有任務未填天數，日期偏早","unfilled durations — runs early")}">⚠${v3PendingDays(l).miss.length}</span>`:""):` <span class="ghostnote">${T("暫估·未送出","est. · unsubmitted")}</span>`}</span>
+      <span class="v3target" title="${T("送出日＋關鍵路徑天數自動推算；不再手填","auto = Form-submit day + critical-path days; no longer hand-typed")}">${T("預計上市日","Projected launch")} <b>${fmt(projLaunchDate(l))}</b>${isSubmitted(l)?(pendD.nAff?` <span class="v3pdwarn" title="${T("推算上市日需要的天數還沒填，目前當 0 天算 ⇒ 日期偏早","durations the projection needs are unset — counted as 0 days, so it runs early")}">⚠${pendD.nAff}</span>`:""):` <span class="ghostnote">${T("暫估·未送出","est. · unsubmitted")}</span>`}</span>
       ${crmWarn}${kolChip}
       <span class="v3strip-go">${go("shop",T("上架","List"),"🚀")} ${go("ads",T("廣告","Ads"),"📣")}</span>
     </div>
@@ -4128,7 +4175,7 @@ function viewLaunch(){
     <div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"階段":"Stage"}</span><span class="ld-stat-v">${l.complete?(LANG==="zh"?"已完成":"Complete"):esc(l.stage)}</span></div>
     <div class="ld-stat"><span class="ld-stat-k">${T("開啟","Opened")}</span><span class="ld-stat-v">${fmt(openDate(l))}</span></div>
     <div class="ld-stat"><span class="ld-stat-k">${T("送出","Submitted")}</span><span class="ld-stat-v">${submitted?fmt(formSubmitDate(l)):`<span style="color:var(--faint);font-weight:500">${T("未送出","—")}</span>`}</span></div>
-    <div class="ld-stat"><span class="ld-stat-k">${T("預計上市","Projected")}</span><span class="ld-stat-v"><b>${fmt(proj)}</b>${l.complete?"":submitted?(pend.miss.length?` <span class="v3pdwarn" title="${T("有任務未填天數，預計日偏早","unfilled durations — projection runs early")}">⚠${pend.miss.length}</span>`:""):` <span class="ghostnote">${T("暫估","est.")}</span>`}</span></div>
+    <div class="ld-stat"><span class="ld-stat-k">${T("預計上市","Projected")}</span><span class="ld-stat-v"><b>${fmt(proj)}</b>${l.complete?"":submitted?(pend.nAff?` <span class="v3pdwarn" title="${T("推算上市日需要的天數還沒填，目前當 0 天算 ⇒ 日期偏早","durations the projection needs are unset — counted as 0 days, so it runs early")}">⚠${pend.nAff}</span>`:""):` <span class="ghostnote">${T("暫估","est.")}</span>`}</span></div>
     ${(()=>{ const arr=v3Arrival(l), eta=arr?"":v3EtaBulk(l);   // 到貨日＝LC 在 FB1 填的首波開賣日；未填時顯示由 P3 推估的預計值
       const tip=T("大貨到貨、可以開賣的那一天 — 由 LC 在物流〈首波開賣日〉填寫；填了就成為預計上市日","the day stock lands and selling can start — LC fills it on Logistics › First batch on sale; once set it becomes the projected launch");
       return `<div class="ld-stat" title="${tip}"><span class="ld-stat-k">${T("到貨日","Arrival")}</span><span class="ld-stat-v">${arr?`<b>${fmt(arr)}</b>`:eta?`<span style="color:var(--dim);font-weight:500">~${fmt(eta)} <span class="ghostnote">${T("預估","est.")}</span></span>`:`<span style="color:var(--faint);font-weight:500">${T("未填","—")}</span>`}</span></div>`; })()}
@@ -4139,12 +4186,13 @@ function viewLaunch(){
   ${(()=>{ if(l.complete) return "";
     if(!submitted) return `<div class="ld-formnudge">📋 <b>${T("尚未送出需求表","Intake form not submitted")}</b> — ${T("勾選 C1〈產品需求表〉完成即開始排程，並鎖定預計上市日的起算點。","complete C1 (intake Form) to start scheduling and lock the projected-launch anchor.")} <button class="pdchip cp" onclick="v3jump('${l.slug}','C1')">→ C1 ${T("產品需求表","Intake form")}</button></div>`;
     const all=[...pend.miss.map(r=>({...r,est:false})), ...pend.soft.map(r=>({...r,est:true}))];
-    const oncp=all.filter(r=>r.onCP), off=all.filter(r=>!r.onCP);
-    if(!oncp.length && !off.length) return "";
-    const chip=r=>`<button class="pdchip${r.onCP?" cp":""}" title="${esc(r.d)} · ${r.est?T("目前用預設值，建議確認實際天數","using the default — confirm the real duration"):T("尚未填天數，目前當 0 天計","no duration set — counts as 0 days")}" onclick="v3jump('${l.slug}','${r.code}')">${esc(r.code)} ${esc(r.t)}</button>`;
-    const r1=oncp.length?`<div class="pdrow"><span class="pdlbl red">⚠ ${T("影響上市日","Moves launch date")} ${oncp.length}</span>${oncp.map(chip).join("")}</div>`:"";
-    const r2=off.length?`<div class="pdrow"><span class="pdlbl">◐ ${T("其他待補","Also unset")} ${off.length}</span>${off.map(chip).join("")}</div>`:"";
-    return `<div class="ld-pending">${r1}${r2}<div class="sub">${T("關鍵路徑上沒填天數的任務會被當 0 天算，預計上市日因此偏早；填了就自動重算。","Unset durations on the critical path count as 0 days, so the projected launch runs early — fill them and it recalculates automatically.")}</div></div>`;
+    const aff=all.filter(r=>r.aff), off=all.filter(r=>!r.aff);
+    if(!aff.length && !off.length) return "";
+    const chip=r=>`<button class="pdchip${r.aff?" cp":""}" title="${esc(r.d)} · ${r.est?T("目前用預設值，建議確認實際天數","using the default — confirm the real duration"):T("尚未填天數，目前當 0 天計","no duration set — counts as 0 days")}" onclick="v3jump('${l.slug}','${r.code}')">${esc(r.code)} ${esc(r.t)}</button>`;
+    const affU=aff.filter(r=>!r.est).length;   // 拆給徽章對帳：⚠N 只數「未填＝當 0 天」的那些，有 est 預設的不會讓日期偏早
+    const r1=aff.length?`<div class="pdrow"><span class="pdlbl red">⚠ ${T("上市日推算需要","Needed to project the launch")} ${aff.length}</span>${affU<aff.length?`<span class="ghostnote">${T(`${affU} 未填當 0 天 · ${aff.length-affU} 用預設值`,`${affU} unset (count as 0) · ${aff.length-affU} on defaults`)}</span>`:""}${aff.map(chip).join("")}</div>`:"";
+    const r2=off.length?`<div class="pdrow"><span class="pdlbl">◐ ${T("一般待補","Also unset")} ${off.length}</span>${off.map(chip).join("")}</div>`:"";
+    return `<div class="ld-pending">${r1}${r2}<div class="sub">${T("沒填天數目前一律當 0 天算。⚠ 那些步驟會沿流程走到到貨日（FB1）或正式 PDP（D6），所以直接讓預計上市日偏早；◐ 的影響還無法判斷（未知天數＝未知影響）。填了就自動重算。","Unset durations count as 0 days today. The ⚠ ones feed forward into arrival (FB1) or the official PDP (D6), so they pull the projected launch early; the ◐ ones' impact can't be judged yet (unknown duration = unknown impact). Fill them and it recalculates.")}</div></div>`;
   })()}
 
   ${(()=>{const zh=LANG==="zh";const view=S.cardView==="dash"?"dash":S.cardView==="overview"?"overview":"flow";
@@ -4505,11 +4553,12 @@ function viewTimeline(){
         ${segs.map(s=>{const si=STAGES.indexOf(s.stage);const wpx=Math.round(s.days*PXD);const ink=si<INKFLIP?"#fff":"#0C1220";
           const lbl=wpx>=92?`${s.stage} ${s.days}d`:(wpx>=34?`${s.days}d`:"");
           const overb=s.over&&lbl?` <b style="color:${si<INKFLIP?"#fecaca":"#7f1d1d"}">+${s.over}</b>`:"";
-          return `<div class="tl-seg${s.cur?" cur":""}" style="width:${wpx}px;background:${SEGRAMP[si]};color:${ink}" title="${s.stage}: ${s.days}d / ${s.plan}d${s.over?" · +"+s.over+"d · "+s.blame.join(", "):""}">
+          return `<div class="tl-seg${s.cur?" cur":""}" style="width:${wpx}px;background:${SEGRAMP[si]};color:${ink}" title="${s.stage}: ${s.days}d / ${s.unk?(zh?`? （${s.unk} 步未填天數，無預算可比）`:`? (${s.unk} step(s) with no duration — no comparable budget)`):s.plan+"d"}${s.over?" · +"+s.over+"d · "+s.blame.join(", "):""}">
             ${s.over?`<span class="ov" style="width:${Math.min(s.over*PXD,wpx)}px"></span>`:""}
             ${lbl?`<span style="position:relative;z-index:1">${lbl}${overb}</span>`:""}</div>`;}).join("")}
       </div>
-      <div class="tl-leg">${segs.filter(s=>s.over).map(s=>`<span style="color:var(--red)">▲ ${s.stage} +${s.over}d</span>${s.blame.length?` — held by <b>${s.blame.join(", ")}</b>`:""}`).join(" · ")||"On plan so far."}</div>
+      <div class="tl-leg">${[...segs.filter(s=>s.over).map(s=>`<span style="color:var(--red)">▲ ${s.stage} +${s.over}d</span>${s.blame.length?` — held by <b>${s.blame.join(", ")}</b>`:""}`),
+        ...segs.filter(s=>s.unk).map(s=>`<span class="ghostnote">◐ ${s.stage} — ${zh?`此階段有 ${s.unk} 步未填天數，超時無法計算`:`${s.unk} step(s) here have no duration — overrun not computable`}</span>`)].join(" · ")||"On plan so far."}</div>
     </div>`;}).join("");
   const lead=ranks.length?(zh
     ?`目前最大瓶頸：<b style="color:var(--text)">${ranks[0].d}</b>（${ranks[0].v} 天${hot.has(ranks[0].d)?"，且仍在累積":""}）`
