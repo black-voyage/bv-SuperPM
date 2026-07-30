@@ -168,6 +168,12 @@
   .fp-deplabel{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
   .fp-deplabel.fp-deplock{font-size:14px;letter-spacing:0}   /* lock / unlock icon replaces the verbose 等待 / 完成後解鎖 label */
   .fp-dep{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:10.5px;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:2px;padding:1px 7px}
+  .fp-dep.done{color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,transparent)}
+  .fp-dep.miss{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 45%,transparent)}
+  .fp-dep-o{font-size:9.5px;opacity:.72;font-family:var(--font-sans,inherit)}
+  .fp-ownr{font-size:10.5px;color:var(--dim);border:1px solid var(--line);border-radius:2px;padding:1px 6px;white-space:nowrap}
+  .fp-note{font-size:11.5px;color:var(--dim);line-height:1.5}
+  .fp-note b{color:var(--text);font-weight:600;margin-right:4px}
   /* action bar — primary Complete verb lifted to the top, paired with the step's day estimate on the right */
   .fp-actbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line)}
   .fp-actbar .btn{padding:7px 14px;font-size:12px}
@@ -671,6 +677,9 @@
   .gatebtn.ready:hover{filter:brightness(1.08)}
   .gatebtn.done{background:rgba(192,132,252,.16);color:var(--purple);border-color:rgba(192,132,252,.55)}
   .gatebtn.locked{background:var(--panel2);color:var(--faint);border-color:var(--line);cursor:not-allowed}
+  .gatebtn.rej{background:transparent;color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent);padding:5px 9px}
+  .gatebtn.rej:hover{background:color-mix(in srgb,var(--red) 12%,transparent)}
+  .gaterej{font-size:10.5px;color:var(--red);border:1px solid color-mix(in srgb,var(--red) 45%,transparent);border-radius:2px;padding:1px 6px;white-space:nowrap}
   /* Links button: a SOLID fill (not a faint "(1)") makes "has files" obvious at a glance */
   .lnkmenu>summary.has{background:var(--blue);border-color:var(--blue);color:#08213d;font-weight:700}
   .lnkmenu>summary.has:hover,.lnkmenu[open]>summary.has{color:#08213d;border-color:var(--blue)}
@@ -1130,10 +1139,17 @@ function routeSteps(key,d,i){
 }
 // returns false when unlocked, else the blocking code ("P3s" = waiting for the bulk-sample date)
 // v3Locked is defined as an alias of unlockBlocker() next to the unlock engine below.
+// single source for every "why is this locked" string (popover, detail panel, dashboard chips, toasts):
+// lists ALL unmet prerequisites with their owner, so it names who to chase on each parallel line.
 function v3LockText(l,t){
-  const blk=v3Locked(l,t); if(!blk)return ""; const zh=LANG==="zh";
-  if(blk==="P3s")return zh?"等大貨樣（在 P3 填「預計大貨樣日」）":"waiting on the bulk-sample date (set it on P3)";
-  const n=V3MAP[blk]; return n?(zh?("等 "+blk+" "+n.zh):("waiting on "+blk+" "+n.en)):(zh?"等前置完成":"waiting on prerequisites");
+  const blks=unlockBlockers(l,t); if(!blks.length)return ""; const zh=LANG==="zh";
+  const pre=[],notes=[];
+  blks.forEach(b=>{
+    if(b==="P3s"){notes.push(zh?("等大貨樣：請在 P3 填「預計大貨樣日」（"+V3MAP.P3.o+"）"):("waiting on the bulk-sample date — set it on P3 ("+V3MAP.P3.o+")"));return;}
+    if(b==="P3w"){const p3=v3Task(l,"P3");notes.push(zh?("大貨樣預計 "+fmt(p3.sampleDate)+" 到，屆時自動解鎖"):("bulk sample due "+fmt(p3.sampleDate)+" — unlocks then"));return;}
+    const n=V3MAP[b]; pre.push(n?(zh?(b+" "+n.zh+"（"+n.o+"）"):(b+" "+n.en+" ("+n.o+")")):b);
+  });
+  return [pre.length?(zh?"等 "+pre.join("、"):"waiting on "+pre.join(", ")):"",...notes].filter(Boolean).join(zh?"；":"; ");
 }
 function v3CurPhase(l){
   for(let i=0;i<V3PHASES.length;i++){ if((l.tasks||[]).some(t=>t.code&&V3MAP[t.code]&&V3MAP[t.code].ph===i&&t.st!=="x")) return V3PHASES[i]; }
@@ -1174,6 +1190,20 @@ function v3SetDate(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;
     if(fl&&v<fl){toast(LANG==="zh"?("到貨日不可早於大貨完工日 "+fmt(fl)):("arrival can't be before mass production finished "+fmt(fl)));render();return;}}
   t[k]=v||"";
   v3ReconcileLoud(l); syncProjected(l); save(); render();}
+// 完成日／開工日的修正入口 —— 每條蓋章路徑都寫死 today，補勾一天就把整條 DAG（含預計上市日）往後推，
+// 而退回重勾只會再蓋今天。守門：完成日不可早於任一前置的完成日（否則排程倒著跑），也不可填未來。
+function v3SetStamp(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;
+  if(v){
+    if(v>today){toast(LANG==="zh"?"不可填未來日期":"can't be a future date");render();return;}
+    if(k==="doneAt"){const vn=t.code&&V3MAP[t.code];
+      for(const rc of (vn&&vn.req)||[]){const rt=v3Task(l,rc);
+        if(rt&&rt.doneAt&&v<rt.doneAt){toast((LANG==="zh"?"完成日不可早於前置 "+rc+" 的完成日 ":"can't be earlier than prerequisite "+rc+"'s completion ")+fmt(rt.doneAt));render();return;}}}
+  }
+  if(v)t[k]=v; else delete t[k];
+  if(k==="doneAt"&&t.startAt&&t.doneAt&&t.startAt>t.doneAt)t.startAt=t.doneAt;   // 開工不可晚於完成
+  v3ReconcileLoud(l); syncProjected(l); save(); render();}
+// 指派真人（各攝影師這種通稱節點需要指名）—— 選單來自 render() 每次重建的 #people datalist
+function v3SetField(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;t[k]=(v||"").trim();save();render();}
 // shared due-clock: root steps count from the project start; others from the LATEST predecessor doneAt (null until all are done)
 const v3StartClock=(l,vn)=>{const reqs=(vn&&vn.req)||[];
   if(!reqs.length)return (l.history&&l.history[0]&&l.history[0].start)||null;
@@ -1357,20 +1387,27 @@ const health = l => {
 };
 // DAG-aware: surface EVERY ◆ that is unlocked (all its req met) and not yet approved, regardless of phase —
 // the old current-phase/all-peers-done heuristic never surfaced mid-phase gates (C9/D5) under the trigger DAG.
-const benQueue = () => LAUNCHES.filter(l=>!l.complete).flatMap(l=>l.tasks.filter(t=>t.gate&&t.st!=="x"&&!taskLocked(l,t)).map(c=>({l,c})));
+// carries the task INDEX too — consumers need it for approve()/gateReject() and re-deriving it downstream is
+// what silently produced approve(slug,-1) (the queue is a filtered list, so positions don't survive the filter)
+const benQueue = () => LAUNCHES.filter(l=>!l.complete).flatMap(l=>l.tasks.filter(t=>t.gate&&t.st!=="x"&&!taskLocked(l,t)).map(c=>({l,c,i:l.tasks.indexOf(c)})));
 const nextUnmet = l => { const g=gateState(l); const c=g.cs.find(c=>c.task.st!=="x"); return c?c.t:null; };
 
 /* ================= TRIGGER-DAG UNLOCK ENGINE (V3) =================
    A step unlocks when ALL its `req` predecessors are done (cross-lane, cross-phase). C1 (the
    intake Form) is the root. P5 additionally waits for the bulk-sample date on P3. Purely req-based
    — the flow chart lanes and phases are just how it's laid out, not the gating. */
-function unlockBlocker(l,task){ // "" if unlocked, else the blocking code ("P3s" = waiting on the bulk-sample date)
-  const code=task&&task.code, n=code&&V3MAP[code]; if(!n) return "";
-  if(code==="C1") return "";
-  for(const r of (n.req||[])){ const rt=(l.tasks||[]).find(t=>t.code===r); if(!rt||rt.st!=="x") return r; }
-  if(code==="P5"){ const p3=(l.tasks||[]).find(t=>t.code==="P3"); if(p3&&p3.st!=="x"&&!(p3.sampleDate&&today>=p3.sampleDate)) return "P3s"; }
-  return "";
+// EVERY unmet prerequisite, in req order — double-req steps (C7←C6+D1, D6←D5+MS3b) must name both lines or the
+// owner thinks one thing is missing. P5's bulk-sample condition is not a req edge, so it lands last as either
+// "P3s" (no date yet) or "P3w" (date set but not reached) — two codes so the text stops telling someone to fill
+// a field they already filled.
+function unlockBlockers(l,task){
+  const code=task&&task.code, n=code&&V3MAP[code]; if(!n||code==="C1") return [];
+  const out=(n.req||[]).filter(r=>{const rt=(l.tasks||[]).find(t=>t.code===r); return !rt||rt.st!=="x";});
+  if(code==="P5"){ const p3=(l.tasks||[]).find(t=>t.code==="P3");
+    if(p3&&p3.st!=="x"&&!(p3.sampleDate&&today>=p3.sampleDate)) out.push(p3.sampleDate?"P3w":"P3s"); }
+  return out;
 }
+function unlockBlocker(l,task){ return unlockBlockers(l,task)[0]||""; } // "" if unlocked, else the FIRST blocking code
 function taskLocked(l,task){ return !!unlockBlocker(l,task); }
 function nodeLocked(l,d,i){ const n=FLOW[d]&&FLOW[d][i]; const t=n&&(l.tasks||[]).find(x=>x.code===n.code); return t?taskLocked(l,t):false; }
 const v3Locked=(l,task)=>unlockBlocker(l,task);  // alias kept for the dashboard/lock-text helpers
@@ -2408,40 +2445,35 @@ const EVID=new Set(["Prototype 1-2-3 approved","Pre-production sample approved +
  "Hero / lifestyle shoot done","Content exported (instruction / lifestyle / social clips / ads)","A+ / infographic assets ready",
  "Amazon SKU created","Shopify SKU created","Shipbob SKU created","Next Smart Ship SKU created","All ASINs sheet updated","Shopify COGS sheet updated","Shipping labels created (Amazon + Shipbob)","Listings published live (Amazon + Shopify)",
  "Marketing brief finalized & ready","Launch ads running"]);
-/* short definition-of-done lines (full versions live in BV-Task-Playbook.xlsx) */
-const DOD={"Form (intake)":"Intake complete: why, spec, look, material, customer, price.",
- "Market research":"Competitor set + product strengths documented.",
- "Concept definition":"Definition written, brainstorm held, Figma updated.",
- "Prototype 1-2-3 approved":"Final iteration accepted; QC notes attached.",
- "Costing & profit signed off":"Costing sheet + margin target approved.",
- "Design freeze":"No further changes; freeze announced to all departments.",
- "Pre-production sample approved + BOM":"Two samples (factory + US); BOM filed.",
- "Mass production complete":"Factory confirms completion; QC report attached.",
- "Packaging / insert / manual locked":"Dielines final; print-ready files in Drive.",
- "Model name set":"Name confirmed with Ben; brand check done.",
- "A+ / infographic assets ready":"All A+ modules + infographics exported to spec.",
- "Listing imagery / A+ uploaded":"Imagery live in Amazon/Shopify backends.",
- "Marketing brief rough draft":"Rough draft by Marketing at design freeze — guides content & listing prep.",
- "Deploy marketing samples":"Logistics ships marketing/content samples to the teams after mass production.",
- "Dispatch details & tracking filed":"Sample dispatch details + tracking numbers on the card.",
- "Shipbob SKU created":"SKU exists in Shipbob.",
- "Next Smart Ship SKU created":"SKU exists in Next Smart Ship.",
- "All ASINs sheet updated":"All-ASINs sheet row added/updated.",
- "Shopify COGS sheet updated":"COGS sheet updated with landed cost.",
- "Shipping labels created (Amazon + Shipbob)":"Labels created and sent to manufacturer.",
- "Inventory received (Amazon + Shipbob)":"Receiving confirmed at both warehouses.",
- "Amazon SKU created":"SKU exists in Seller Central with core attributes.",
- "Shopify SKU created":"SKU exists in Shopify with core attributes.",
- "Product data filed → marketing brief":"Product page data filed; feeds the brief.",
- "Listings published live (Amazon + Shopify)":"Both listings public and purchasable.",
- "Hero / lifestyle shoot done":"Shoot complete; selects folder shared.",
- "Post-production done":"Edits final; color/sound approved.",
- "Content exported (instruction / lifestyle / social clips / ads)":"All formats exported & filed by type.",
- "Channel posts live (IG / YouTube / TikTok)":"Launch posts live on all three channels.",
- "Marketing brief finalized & ready":"Brief v2 final — unblocks influencer outreach.",
- "KOL / influencer projects live":"First KOL wave live.",
- "Launch ads running":"Launch campaigns active.",
- "Launch email sequence sent":"Full launch sequence delivered."};
+/* short definition-of-done lines, keyed by V3 code (the old七-stage task-title keys matched only 4 of the 40
+   current nodes, so 36 節點 never showed one). Every line is restated from that node's own out/note facts —
+   nothing here invents process. Nodes without an entry simply show no 完成定義 row. */
+const DOD={
+ C1:{en:"Intake complete: why, spec, look, material, customer, price. Completing it stamps the submit date the whole schedule counts from.",
+     zh:"需求表填齊：why、規格、外觀、材質、客群、價格。標記完成＝蓋下送出日，整張卡的排程從這天起算。"},
+ C3:{en:"Competitor set + product strengths documented.", zh:"競品清單與產品優勢已記錄成文件。"},
+ C7:{en:"Yes or No on the concept — both C6 design integration and D1 identity design must be done first.",
+     zh:"對概念給出 Yes or No —— 需整合設計（C6）與識別設計（D1）都完成才決策。"},
+ C10:{en:"No further changes; freeze announced to all departments. The freeze data IS the product-data filing that feeds MB1.",
+      zh:"不再變更，凍結公告給所有部門。凍結資料＝產品資料建檔，供行銷簡報 V1（MB1）使用。"},
+ P1:{en:"Pre-production sample sent to Taiwan and the BOM filed (make 7d + ship 7d).",
+     zh:"產前樣已送台灣、BOM 已歸檔（製作 7＋運輸 7）。"},
+ P3:{en:"Factory confirms the bulk run is finished. The bulk-sample date is filled in so P5 can start mid-production, and packaging (D3) went to the factory during the run.",
+     zh:"工廠確認大貨完工。預計大貨樣日已填（P5 才能在生產期間就開工），包裝檔（D3）已於生產期間交廠。"},
+ CT4:{en:"Shopify SKU exists for this product.", zh:"此產品的 Shopify SKU 已建立。"},
+ D3:{en:"Dielines final and delivered to the factory between the pre-production sample and mass production.",
+     zh:"包裝檔定稿，並於產前樣確定～大貨生產期間交付工廠。"},
+ D5:{en:"Yes or No on the PDP draft + infographics.", zh:"對 PDP 草稿與資訊圖給出 Yes or No。"},
+ MS3c:{en:"Studio set shot to the agreed shot list; selects filed for MB3 and the PDP.",
+       zh:"棚拍依素材需求清單拍完，精選檔案已歸檔供 MB3 與 PDP 使用。"},
+ MS3a:{en:"Lifestyle set shot against the finalized plan, with the bulk sample in hand; selects filed.",
+       zh:"情境照依定稿的拍攝計畫、用大貨樣拍完，精選檔案已歸檔。"},
+ MS3b:{en:"Every video item on the shot list is exported and filed — D6 (official PDP) can't be finalized before this.",
+       zh:"素材需求清單上的影片全部輸出並歸檔 —— 正式 PDP（D6）要等這一步才能定稿。"},
+ P5:{en:"Logistics shipped the bulk-sample units to the teams; done = the samples ARRIVED (not the day they shipped).",
+     zh:"物流已把大貨樣寄給各部門；完成＝樣品到貨（不是寄出日）。"},
+ FB1:{en:"The real arrival date is filled in — it becomes this card's projected launch and goes out to the whole company.",
+      zh:"實際到貨日已填 —— 它直接成為本卡的預計上市日，並公告全公司。"}};
 /* tasks that carry shipping dates — render Ship date + ETA inputs in the task panel */
 const SHIPDATE_TASKS=new Set(["Freight booked (sea + air samples)"]);
 
@@ -2623,6 +2655,7 @@ const ZH={
  "Listing creation":"上架建立","Concept":"概念","Build":"開發","Production":"生產","Live":"上線",
  // — departments (Content/Marketing double as stages) —
  "Product":"產品","Design":"設計","Catalog":"商品目錄","Content":"內容行銷","Social":"社群","Marketing":"行銷",
+ "Design Team":"Design Team",   // 同一性映射：人名/團隊名保持原文 — ZHRE 鍵長優先，先吃掉整串才不會被 Design/Team 分頭拆譯（lockReason 會進 title 屬性與 toast，包不了 notx）
  "Ads":"廣告","Email":"電郵","CRM":"客戶關係","Logistics":"物流",
  "PRODUCT":"產品","DESIGN":"設計","CATALOG":"目錄","CONTENT":"內容行銷","SOCIAL":"社群","MARKETING":"行銷",
  "ADS":"廣告","EMAIL":"電郵","LOGISTICS":"物流",
@@ -2709,11 +2742,14 @@ const ZH={
 // V3 bilingual: EN base → ZH (auto-generated). tx() runs on ESCAPED html, so names containing "&"
 // also need their &amp; form registered, else e.g. "Prototype & Delivery" won't match and stays English.
 [...V3,...V3PH].forEach(o=>{const e=o.en,z=o.zh;ZH[e]=z; if(e.indexOf("&")>=0)ZH[e.replace(/&/g,"&amp;")]=z;});
-const ZHRE=Object.entries(ZH).sort((a,b)=>b[0].length-a[0].length).map(([k,v])=>{
+// 單次掃描 alternation（不是逐條循序 replace）：循序取代會把「前一條的輸出」再餵給後面的鍵 —
+// identity 映射（如 "Design Team"→"Design Team"）換完字面不變，接著 \bDesign\b／\bTeam\b 照樣拆譯。
+// 合成一支 regex 後，每個位置只被「最長的」鍵消費一次，替換結果不再回鍋。
+const ZHRE=new RegExp(Object.keys(ZH).sort((a,b)=>b.length-a.length).map(k=>{
   const e=k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
-  return [new RegExp((/^\w/.test(k)?"\\b":"")+e+(/\w$/.test(k)?"\\b":""),"g"),v];
-});
-const zhText=s=>{if(!s.trim())return s;for(const [re,v] of ZHRE)s=s.replace(re,v);return s;};
+  return (/^\w/.test(k)?"\\b":"")+e+(/\w$/.test(k)?"\\b":"");
+}).join("|"),"g");
+const zhText=s=>{if(!s.trim())return s;return s.replace(ZHRE,m=>ZH[m]!==undefined?ZH[m]:m);};
 // <!--notx-->…<!--/notx--> marks language-fixed regions (V3 labels are the user's own zh/EN mix — zhText's
 // sequential key replacement would mangle them, e.g. "Catalog 資料建制"→"目錄 資料建制"). No marker → behavior unchanged.
 const tx=html=>{
@@ -2994,24 +3030,33 @@ async function stepStatus(slug,i,dir,el){ // status loop: todo → in progress �
   v3Advance(l);   // no manual push — the phase auto-derives from what's still open
   render();
 }
-function lockReason(l,t){
-  const blk=unlockBlocker(l,t); if(!blk)return "complete the previous step first";
-  if(blk==="P3s")return LANG==="zh"?"等大貨樣（在 P3 填「預計大貨樣日」）":"waiting on the bulk-sample date (set it on P3)";
-  const n=V3MAP[blk]; return n?(LANG==="zh"?`先完成 ${blk} ${n.zh}`:`finish ${blk} “${n.en}” first`):"complete the previous step first";
-}
+function lockReason(l,t){ return v3LockText(l,t)||(LANG==="zh"?"先完成前置步驟":"complete the previous step first"); }
 function approve(slug,i){
   const l=L(slug), t=l.tasks[i];
   if(S.role!=="ceo"){toast("◆ gates can only be approved by Ben (CEO)");return;}
   if(taskLocked(l,t)){toast("🔒 "+lockReason(l,t));return;}
-  t.st="x"; t.doneAt=today; l.checkins.unshift({d:today,a:"Ben",txt:`Approved “${t.t}” via Slack. (Mock: committed as [x] + audit line.)`});
+  t.st="x"; t.doneAt=today; if(t.decision)delete t.decision;   // approving supersedes an earlier ✗
+  l.checkins.unshift({d:today,a:"Ben",txt:`Approved “${t.t}” via Slack. (Mock: committed as [x] + audit line.)`});
   if(l.decisionRequested) delete l.decisionRequested[t.t];
   log("✓ Ben approved ◆ on "+l.name); v3Advance(l);
   toast("✓ Approved — committed to repo, Slack message updated"); render();
 }
+// ◆ 的 No 有落點：狀態留在「未完成」（否決不是完成），另記 decision 讓看板分得出「還沒看」與「已駁回、正在重做」
+function gateReject(slug,i){
+  const l=L(slug), t=l&&l.tasks[i]; if(!t)return;
+  if(S.role!=="ceo"){toast("◆ gates can only be decided by Ben (CEO)");return;}
+  if(t.st==="x"){toast(LANG==="zh"?"已核准的關卡請先撤銷核准":"revoke the approval first");return;}
+  t.decision={v:"no",at:today}; t.st="o"; if(t.doneAt)delete t.doneAt;
+  l.checkins.unshift({d:today,a:"Ben",txt:`Rejected “${t.t}” — sent back for rework.`});
+  logEvent("blocked","✗ 否決 · "+l.name+" — "+t.code+" "+t.t,{card:l.slug});
+  log("✗ Ben rejected ◆ on "+l.name); v3Advance(l);
+  toast(LANG==="zh"?"✗ 已否決 — 修正後可再送":"✗ Rejected — fix it and resubmit"); save(); render();
+}
 function unapprove(slug,i){ // revert a Ben ◆ sign-off — kept Ben-only so the gate is fully his to control
   const l=L(slug), t=l.tasks[i];
   if(S.role!=="ceo"){toast("◆ gates can only be changed by Ben (CEO)");return;}
-  t.st="o"; if(t.doneAt)delete t.doneAt; l.checkins.unshift({d:today,a:"Ben",txt:`Reverted approval on “${t.t}”.`});
+  t.st="o"; if(t.doneAt)delete t.doneAt; if(t.decision)delete t.decision;
+  l.checkins.unshift({d:today,a:"Ben",txt:`Reverted approval on “${t.t}”.`});
   log("↩ Ben reverted ◆ on "+l.name); v3Advance(l);
   toast("↩ Approval reverted"); render();
 }
@@ -3195,7 +3240,9 @@ const flowTaskOrd=t=>{ const m=flowMetaFor(t.t,t.d); return m?m.ord:1e9; };     
 function gateControl(l,t,i,lk){ // Ben ◆ decision gate → a prominent button (like the advance button), not a tick-box, because Ben is the decision-maker
   if(lk) return `<button type="button" class="gatebtn locked" disabled title="locked — ${esc(lockReason(l,t))}" aria-label="Ben decision — locked, ${esc(lockReason(l,t))}">🔒</button>`;
   if(t.st==="x") return `<button type="button" class="gatebtn done" title="Ben approved this gate — click to revert" aria-label="Ben approved this gate — click to revert" onclick="unapprove('${l.slug}',${i})">✓ Approved</button>`;
-  return `<button type="button" class="gatebtn ready" title="Ben's decision — approve to unblock the next stage" aria-label="Ben decision — approve" onclick="approve('${l.slug}',${i})">◆ Approve</button>`;
+  const zh=LANG==="zh";
+  const rej=(t.decision&&t.decision.v==="no")?`<span class="gaterej" title="${zh?"Ben 已否決（"+fmt(t.decision.at)+"）— 修正後可再送":"rejected by Ben ("+fmt(t.decision.at)+") — fix and resubmit"}">✗ ${zh?"已否決":"rejected"}</span> `:"";
+  return rej+`<button type="button" class="gatebtn ready" title="Ben's decision — approve to unblock the next stage" aria-label="Ben decision — approve" onclick="approve('${l.slug}',${i})">◆ Approve</button> <button type="button" class="gatebtn rej" title="${zh?"否決 — 退回重做（狀態留在未完成）":"reject — send back for rework"}" aria-label="Ben decision — reject" onclick="gateReject('${l.slug}',${i})">✕</button>`;
 }
 function taskRow(l,t,extra,ro){
   const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
@@ -3236,7 +3283,7 @@ function taskPanel(l,t,i,ro){ return `<div class="taskpanel">${taskPanelBody(l,t
 function taskPanelBody(l,t,i,ro,noDod){
   const zh=LANG==="zh";
   const notes=t.notes||[]; const tk=l.slug+":tools:"+i; const tools=S.open[tk]; const nk=l.slug+":"+i; const pend=(S.noteUrg&&S.noteUrg[nk])||"med";
-  return `${DOD[t.t]&&!noDod?`<div class="v3dod">✅ <b>${zh?"完成定義":"Done means"}</b> ${esc(DOD[t.t])}${EVID.has(t.t)?` <span style="color:#67e8f9">· ${zh?"需附證明連結":"evidence link required"}</span>`:""}</div>`:""}
+  return `${DOD[t.code]&&!noDod?`<div class="v3dod">✅ <b>${zh?"完成定義":"Done means"}</b> ${esc(v3T(DOD[t.code]))}${EVID.has(t.t)?` <span style="color:#67e8f9">· ${zh?"需附證明連結":"evidence link required"}</span>`:""}</div>`:""}
    ${SHIPDATE_TASKS.has(t.t)?`<div class="tnotes-head">🚢 ${zh?"運輸日期":"Shipping dates"}</div>
    <div class="shipdates" style="display:flex;flex-wrap:wrap;gap:14px;margin:2px 0 12px">
      <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--dim)">${zh?"出貨日":"Ship date"}<input type="date" value="${esc(t.shipDate||"")}" ${ro?"disabled":""} onchange="setTaskDate('${l.slug}',${i},'shipDate',this.value)"></label>
@@ -3253,12 +3300,16 @@ function taskDetail(l,t,i,ro,vn,lk){
   if(!vn) return lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>${T("已鎖定","Locked")}</b> — ${esc(lockReason(l,t))}</div>`:taskPanel(l,t,i,ro);
   const info=[];
   info.push([T("負責人","Owner"), esc(vn.o)]);   // owner first
+  // 指派真人 — 「各攝影師」這類通稱節點要能指名；datalist 由 render() 每次重建（#people）
+  info.push([T("指派","Assignee"),
+    ro?(t.assignee?`<!--notx-->${esc(t.assignee)}<!--/notx-->`:"—")
+      :`<!--notx--><input list="people" class="v3days-inp" style="width:130px" value="${esc(t.assignee||"")}" placeholder="${vn.o==="各攝影師"?T("指名攝影師…","name the photographer…"):T("指派給…","assign to…")}" onclick="event.stopPropagation()" onchange="v3SetField('${l.slug}',${i},'assignee',this.value)"><!--/notx-->`]);
   if(vn.out) info.push([T("產出","Output"), esc(v3T(vn.out))]);
-  if(DOD[t.t]) info.push([T("完成定義","Done means"), esc(DOD[t.t])+(EVID.has(t.t)?` <span style="color:#67e8f9">· ${T("需附證明連結","evidence link required")}</span>`:"")]);
+  if(DOD[t.code]) info.push([T("完成定義","Done means"), esc(v3T(DOD[t.code]))+(EVID.has(t.t)?` <span style="color:#67e8f9">· ${T("需附證明連結","evidence link required")}</span>`:"")]);
   if(vn.note) info.push([T("備註","Note"), esc(v3T(vn.note))]);
   info.push([vn.c==="P3"?T("生產天數","Production days"):T("預設天數","Default days"), vn.days==null
     ? (ro?`<span style="color:var(--amber)">${T("待負責部門填寫","to be filled in")}</span>`
-        :`<input type="number" min="0" class="v3days-inp${t.days==null?" unfilled":""}" value="${t.days==null?"":t.days}" placeholder="${T("需填寫","required")}" title="${T("此步驟天數每個產品不同，由負責部門填寫","varies per product — the owning dept fills it in")}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${i},this.value)"> ${T("天","d")}`)
+        :`<input type="number" min="0" class="v3days-inp${t.days==null?" unfilled":""}" value="${t.days==null?"":t.days}" placeholder="${vn.est!=null?vn.est:T("需填寫","required")}" title="${T("此步驟天數每個產品不同，由負責部門填寫","varies per product — the owning dept fills it in")}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${i},this.value)"> ${T("天","d")}${vn.est!=null?` <span class="ghostnote">${T("預估 "+vn.est+"d","est "+vn.est+"d")}</span>`:""}`)
     : (vn.days===0?T("即時 / 事件","instant"):vn.days+"d")]);
   // due-date countdown — the clock starts automatically when the predecessor step(s) finish.
   // Manual-days steps (vn.days==null) take the due date DIRECTLY as a date input once the clock runs:
@@ -3281,6 +3332,13 @@ function taskDetail(l,t,i,ro,vn,lk){
       due=`${T("應完成","due")} <b>${fmt(dd)}</b> · <span style="color:${c};font-weight:600">${rem<0?T("已逾期","overdue")+" "+(-rem)+"d":T("剩","left")+" "+rem+"d"}</span>`; }
     info.push([T("應完成日 / 倒數","Due / countdown"), due]);
   }
+  // 完成日／開工日的更正入口 — 蓋章一律蓋「今天」，補記錄整條排程就歪；v3SetStamp 有前置日/未來日守門
+  if(t.st==="x") info.push([T("完成日","Done on"),
+    ro?(t.doneAt?fmt(t.doneAt):"—")
+      :`<input type="date" class="v3due-inp" value="${esc(t.doneAt||"")}" max="${today}" onclick="event.stopPropagation()" onchange="v3SetStamp('${l.slug}',${i},'doneAt',this.value)"> <span class="ghostnote">${T("補正實際完成日 — 排程與統計跟著這天","correct the actual completion date — schedule & stats follow it")}</span>`]);
+  else if(t.st==="p") info.push([T("開工日","Started on"),
+    ro?(t.startAt?fmt(t.startAt):"—")
+      :`<input type="date" class="v3due-inp" value="${esc(t.startAt||"")}" max="${today}" onclick="event.stopPropagation()" onchange="v3SetStamp('${l.slug}',${i},'startAt',this.value)"> <span class="ghostnote">${T("補正實際開工日","correct the actual start date")}</span>`]);
   // 大貨樣步驟（P3）：預計大貨樣日就住在詳情裡（原本的外層列已移除）— 生產期間即可寄樣，P5 等這一天
   if(vn.sample){
     const sTip=T("大貨樣可寄出的日期 — P5（部署行銷樣品）等這一天。生產期間即可寄樣，非完工日","the date bulk samples can ship — P5 (Deploy marketing samples) waits for this. Ships mid-production; not the finish date");
@@ -3690,6 +3748,8 @@ function flowAdvanceRoute(l,fromCode,curD,curI){
   const mk=(d,i)=>{const nn=FLOW[d]&&FLOW[d][i];return nn?{key:d+"|"+nn.l,d,i,pop:true}:null;};
   const deps=[];
   depts.forEach(dd=>(FLOW[dd]||[]).forEach((nn,k)=>{ if(nn.code&&(nn.req||[]).includes(fromCode)) deps.push([dd,k,nn.code]); }));
+  // P5 掛在 P3 的大貨樣特例（P3s）上、不是 req 邊 —— P3 完成也算放行，候選裡要有它
+  if(fromCode==="P3"&&!deps.some(x=>x[2]==="P5")) depts.forEach(dd=>(FLOW[dd]||[]).forEach((nn,k)=>{ if(nn.code==="P5") deps.push([dd,k,"P5"]); }));
   deps.sort((a,b)=>ord(a[2])-ord(b[2]));
   for(const[dd,k,c]of deps){const t=taskOf(c); if(t&&t.st!=="x"&&!taskLocked(l,t))return mk(dd,k);}     // unblocked & actionable
   const lane=FLOW[curD]||[];                                                                            // else same-lane continuation
@@ -3697,7 +3757,9 @@ function flowAdvanceRoute(l,fromCode,curD,curI){
   for(const[dd,k,c]of deps){const t=taskOf(c); if(t&&t.st!=="x")return mk(dd,k);}                        // else the waiting-on dependent
   return null;
 }
-function flowStepTo(nx){ if(!nx)return; S.route=nx; toast(LANG==="zh"?("→ 下一步："+flowTL((FLOW[nx.d][nx.i]||{}).l)):("→ Next: "+((FLOW[nx.d][nx.i]||{}).l||""))); }
+function flowStepTo(nx){ if(!nx)return; S.route=nx; toast(LANG==="zh"?("→ 下一步："+flowTL((FLOW[nx.d][nx.i]||{}).l)):("→ Next: "+((FLOW[nx.d][nx.i]||{}).l||""))); flowScrollTo(nx); }
+// 自動跳下一步後把目標節點帶進視野 — render 之後才有新 DOM，延遲一拍再捲
+function flowScrollTo(nx){ if(!nx)return; setTimeout(()=>{const el=document.getElementById("fn-"+nx.d+"-"+nx.i); if(el&&el.scrollIntoView)el.scrollIntoView({behavior:"smooth",block:"nearest",inline:"center"});},80); }
 // complete / reopen a step straight from the inspector (mirrors the card's status tick, jumps to done)
 async function fpComplete(slug,i,el){
   const l=L(slug),t=l&&l.tasks[i]; if(!t)return;
@@ -3729,7 +3791,7 @@ async function fpApprove(slug,i,el){
   } else {
     approve(slug,i);
     const nx=flowAdvanceRoute(l,t.code,S.route&&S.route.d,S.route&&S.route.i);   // gate cleared → step the popover to the next node (approve() already toasted)
-    if(nx){ S.route=nx; render(); }
+    if(nx){ S.route=nx; render(); flowScrollTo(nx); }
   }
 }
 function flowPopHTML(d,i){
@@ -3742,10 +3804,13 @@ function flowPopHTML(d,i){
   const ph=LANG==="zh"?"貼上連結網址…":"paste a URL…";
   const cls=LANG==="zh"?"關閉":"Close", rm=LANG==="zh"?"移除":"remove";
   const tip=LANG==="zh"?"開啟時，點擊步驟會用紅線標出它的『前置』與『完成後解鎖』的步驟；用熟了可關閉":"Trace this step's prerequisites and what finishing it unblocks, in red on the chart";
+  const vnH=V3MAP[n.code]||{};
   let h=`<div class="fp-head"><div class="fp-h-main"><div class="fp-title">${esc(flowTL(n.l))}</div>`
     +`<div class="fp-meta"><span class="fp-stage">${esc(n.s)}</span>`
+    +(vnH.o?`<span class="fp-ownr" title="${zh?"負責人":"owner"}">👤 <!--notx-->${esc(vnH.o)}<!--/notx--></span>`:"")
     +(n.d?'<span class="fp-dec">◆ decision</span>':"")
-    +(locked?'<span class="fp-lock">🔒 locked</span>':"")
+    +(task&&task.decision&&task.decision.v==="no"?`<span class="fp-dec" style="color:var(--red)">✗ ${zh?"已否決":"rejected"}</span>`:"")
+    +(locked?`<span class="fp-lock">🔒 ${zh?"鎖定":"locked"}</span>`:"")
     +`</div></div><button class="fp-x" title="${cls}" aria-label="${cls}" onclick="closeFlowPop()">✕</button></div>`;
   // action bar — the primary Complete verb lifted UP to right under the head, paired with this step's day estimate (待填 shows soft-red)
   {const vn=V3MAP[n.code]||{};
@@ -3756,8 +3821,9 @@ function flowPopHTML(d,i){
    const aMark=(task&&!locked)
      ?(n.d
        ?`<button class="btn fp-mark${doneNow?" ghost":""}" title="${zh?"◆ 關卡由 Ben（CEO）拍板":"◆ gates are decided by Ben (CEO)"}" onclick="fpApprove('${l.slug}',${ti},this)">${doneNow?(zh?"↩ 撤銷核准":"↩ Revoke ◆"):(zh?"◆ 核准":"◆ Approve")}</button>`
+        +(doneNow?"":`<button class="btn ghost fp-mark" title="${zh?"否決 — 退回重做":"reject — send back for rework"}" onclick="gateReject('${l.slug}',${ti})">✕ ${zh?"駁回":"Reject"}</button>`)
        :`<button class="btn fp-mark${doneNow?" ghost":""}" onclick="fpComplete('${l.slug}',${ti},this)">${doneNow?(zh?"↩ 重新開啟":"↩ Reopen"):(zh?"✓ 標記完成":"✓ Complete")}</button>`)
-     :`<span class="fp-act-note">${locked?(zh?"🔒 前置未完成"+(n.d?"，Ben 尚無法拍板":""):(n.d?"🔒 waiting on prerequisites — not yet Ben's call":"🔒 waiting on prerequisites")):(zh?"無對應任務":"no linked task")}</span>`;
+     :`<span class="fp-act-note">${locked?("🔒 "+esc(lockReason(l,task))+(n.d?(zh?"，Ben 尚無法拍板":" — not yet Ben's call"):"")):(zh?"無對應任務":"no linked task")}</span>`;
    // this step's day estimate — per-product manual steps (vn.days==null, not a ◆ gate) edit right here:
    // once the clock runs (prereqs done) the factory quotes a DATE, so show a date picker (v3SetDue back-fills
    // days, mirroring the detail panel); before the clock starts it's a plain days input; all else static ⏱
@@ -3767,12 +3833,14 @@ function flowPopHTML(d,i){
    if(manual&&_sc){
      const dd=task.days!=null?v3AddD(_sc,task.days):"";
      daysEl=`<span class="fp-days fp-days-edit${task.days==null?" tbd":""}" title="${zh?"應完成日 — 直接選日期，天數自動回推（"+fmt(_sc)+" 起算）":"due date — pick the quoted date; days back-fill (clock starts "+fmt(_sc)+")"}">⏱ <input type="date" value="${dd}" min="${_sc}" aria-label="${zh?"應完成日":"due date"}" onclick="event.stopPropagation()" onchange="v3SetDue('${l.slug}',${ti},this.value)"></span>`;
-   }else if(manual&&vn.est==null){
-     daysEl=`<span class="fp-days fp-days-edit${task.days==null?" tbd":""}" title="${zh?"填寫此步驟預估天數":"type this step's estimate"}">⏱ <input type="number" min="0" inputmode="numeric" value="${task.days==null?"":task.days}" placeholder="${zh?"待填":"TBD"}" aria-label="${zh?"預估天數":"estimated days"}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${ti},this.value)"><span class="fp-days-u">${zh?"天":"d"}</span></span>`;
+   }else if(manual){
+     // est 只是參考值，不是「已填」——照樣給輸入框（放 placeholder），不然圖上紅點喊待填、彈窗卻只有靜態 ⏱ 35d
+     daysEl=`<span class="fp-days fp-days-edit${task.days==null?" tbd":""}" title="${zh?"填寫此步驟預估天數":"type this step's estimate"}">⏱ <input type="number" min="0" inputmode="numeric" value="${task.days==null?"":task.days}" placeholder="${vn.est!=null?vn.est:(zh?"待填":"TBD")}" aria-label="${zh?"預估天數":"estimated days"}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${ti},this.value)"><span class="fp-days-u">${zh?"天":"d"}${vn.est!=null?(zh?"（預估 "+vn.est+"d）":" (est "+vn.est+"d)"):""}</span></span>`;
    }else{
      daysEl=`<span class="fp-days${dTBD?" tbd":""}" title="${zh?"預估天數":"estimated days"}">⏱ ${daysTxt}</span>`;
    }
-   h+=`<div class="fp-actbar">${aMark}${daysEl}</div>`;}
+   const doneOn=(doneNow&&task.doneAt)?`<span class="fp-date-note" style="flex:none" title="${zh?"完成日（可在詳情面板更正）":"completion date (correct it in the detail panel)"}">✓ ${fmt(task.doneAt)}</span>`:"";
+   h+=`<div class="fp-actbar">${aMark}${daysEl}${doneOn}</div>`;}
   // 到貨日（FB1 首波開賣日）— 這是 LC 唯一要填的東西，所以直接開在流程圖的節點卡片上，不用先跳進卡片詳情
   {const vn=V3MAP[n.code]||{};
    if(vn.arrival&&task&&ti>=0){
@@ -3783,13 +3851,32 @@ function flowPopHTML(d,i){
        +(v3ArrivalNudge(l)?`<span class="fp-date-note" style="color:var(--amber)">${zh?"已到貨？記得標記完成":"arrived? mark this step done"}</span>`:"")
        +`</div></div>`;
    }}
+  // 預計大貨樣日（P3）— P5 的解鎖鑰匙，跟 FB1 到貨日一樣直接開在流程圖節點卡片上，不用先跳進卡片詳情
+  {const vn=V3MAP[n.code]||{};
+   if(vn.sample&&task&&ti>=0){
+     const set=!!task.sampleDate, sDone=task.st==="x";   // P3 完工後日期只剩記錄用途 → 唯讀
+     h+=`<div class="fp-sec"><div class="fp-lab">${zh?"預計大貨樣日":"Bulk-sample date"}</div>`
+       +`<div class="fp-daterow"><span class="fp-days fp-days-edit${set||sDone?"":" tbd"}">📅 <input type="date" value="${esc(task.sampleDate||"")}"${sDone?` disabled aria-disabled="true"`:""} aria-label="${zh?"預計大貨樣日":"bulk-sample date"}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${ti},'sampleDate',this.value)"></span>`
+       +`<span class="fp-date-note">${sDone?(zh?"大貨已完工 — 此日期僅供記錄":"production finished — record only"):set?(zh?"P5 部署行銷樣品於此日解鎖":"P5 (deploy samples) unlocks on this date"):(zh?"未填 — P5 要等大貨完工才解鎖":"unset — P5 waits for mass production to finish")}</span></div></div>`;
+   }}
+  // 產出與備註 — 流程真相原本只活在詳情面板，節點卡片自己要說得清楚這步交付什麼
+  {const vn=V3MAP[n.code]||{};
+   if(vn.out||vn.note) h+=`<div class="fp-sec">${vn.out?`<div class="fp-note"><b>${zh?"產出":"Output"}</b>${esc(v3T(vn.out))}</div>`:""}${vn.note?`<div class="fp-note"><b>${zh?"備註":"Note"}</b>${esc(v3T(vn.note))}</div>`:""}</div>`;
+   if(vn.shots&&task&&ti>=0){const tot=v3ShotTotal(task);
+     h+=`<div class="fp-sec"><div class="fp-lab">${vn.shots==="video"?"🎬":"📸"} ${zh?"素材需求":"Shot list"}</div>`
+       +`<div class="fp-daterow"><span class="fp-date-note${tot>0?"":" tbd"}">${tot>0?(zh?("合計 "+tot+" 項數量已規劃"):("planned total: "+tot)):(zh?"尚未規劃數量":"quantities not planned yet")}</span>`
+       +`<button class="btn ghost fp-open" onclick="v3jump('${l.slug}','${n.code}')">${zh?"開啟清單":"open the list"}</button></div></div>`;
+   }}
   // dependency panel — the same req graph the red arrows draw: what this waits on, and what finishing it unblocks
   {const zh=LANG==="zh";
    const named=code=>{const nn=V3MAP[code]; return code+(nn?" "+esc(zh?nn.zh:nn.en):"");};
    const reqs=(n.req||[]);
+   // 前置 chips 帶狀態：已完成打勾、未完成標色＋負責人 —— 鎖住時一眼看出「還缺誰、該催誰」
+   const reqChip=c=>{const rt=(l.tasks||[]).find(t=>t.code===c), dn=!!(rt&&rt.st==="x"), nn=V3MAP[c];
+     return `<span class="fp-dep ${dn?"done":"miss"}">${dn?"✓ ":""}${named(c)}${!dn&&nn&&nn.o?` <span class="fp-dep-o"><!--notx-->${esc(nn.o)}<!--/notx--></span>`:""}</span>`;};
    const dependents=[]; Object.keys(FLOW).forEach(dd=>(FLOW[dd]||[]).forEach(nn=>{ if(nn.code&&(nn.req||[]).includes(n.code)&&!dependents.includes(nn.code)) dependents.push(nn.code); }));
    let r=`<div class="fp-route">`;
-   if(reqs.length) r+=`<div class="fp-deps"><span class="fp-deplabel fp-deplock" title="${zh?"等待這些步驟完成":"waits on these"}" aria-label="${zh?"等待":"waits on"}">🔒</span>${reqs.map(c=>`<span class="fp-dep">${named(c)}</span>`).join("")}</div>`;
+   if(reqs.length) r+=`<div class="fp-deps"><span class="fp-deplabel fp-deplock" title="${zh?"等待這些步驟完成":"waits on these"}" aria-label="${zh?"等待":"waits on"}">🔒</span>${reqs.map(reqChip).join("")}</div>`;
    if(dependents.length) r+=`<div class="fp-deps"><span class="fp-deplabel fp-deplock" title="${zh?"完成後解鎖這些步驟":"unlocks these when done"}" aria-label="${zh?"完成後解鎖":"unlocks"}">🔓</span>${dependents.map(c=>`<span class="fp-dep">${named(c)}</span>`).join("")}</div>`;
    if(!reqs.length&&!dependents.length) r+=`<span class="fp-deplabel">${zh?"流程起點":"starting step"}</span>`;
    h+=r+`</div>`;}
@@ -3952,7 +4039,7 @@ function homeCEO(){
   <div class="kpi" style="cursor:pointer" onclick="toggleDrawer()"><div class="n" style="color:var(--amber)">${issues.length}</div><div class="l">Autopilot issues — click to triage</div></div>
   <div class="kpi"><div class="n">${bf}d</div><div class="l">to Black Friday</div></div></div>
   ${pulsePanel()}
-  <div class="panel"><h3>◆ My decision queue <span class="ghostnote">(SLA: ${SLA_DAYS} days)</span></h3>${q.length?q.map(({l,c})=>{const i=l.tasks.indexOf(c.task);const age=decisionAge(l,c.t);return `<div class="gatecard"><b>${l.name}</b> — ${esc(c.t)} <span class="sla ${age>SLA_DAYS?"over":"ok"}">${age}d ${age>SLA_DAYS?"· SLA BREACHED":"in SLA"}</span><div class="sub" style="margin:4px 0 8px">All other ${l.stage} exit criteria are met. Approving unblocks the push to ${STAGES[STAGES.indexOf(l.stage)+1]||"done"}. DRI: ${l.dri}.</div><button class="btn" onclick="approve('${l.slug}',${i})">✓ Approve</button> <button class="btn red" onclick="toast('Reject flow: Slack modal asks for a reason → lands in check-in log')">✕ Reject</button> <button class="btn ghost" onclick="openL('${l.slug}')">Open card</button></div>`;}).join(""):'<div class="empty-hero">Nothing waiting on you. 🎉</div>'}</div>
+  <div class="panel"><h3>◆ My decision queue <span class="ghostnote">(SLA: ${SLA_DAYS} days)</span></h3>${q.length?q.map(({l,c,i})=>{const age=decisionAge(l,c.t);return `<div class="gatecard"><b>${l.name}</b> — ${esc(c.t)} <span class="sla ${age>SLA_DAYS?"over":"ok"}">${age}d ${age>SLA_DAYS?"· SLA BREACHED":"in SLA"}</span>${c.decision&&c.decision.v==="no"?`<span class="gaterej" style="margin-left:6px">✗ rejected ${fmt(c.decision.at)}</span>`:""}<div class="sub" style="margin:4px 0 8px">All other ${l.stage} exit criteria are met. Approving unblocks the push to ${STAGES[STAGES.indexOf(l.stage)+1]||"done"}. DRI: ${l.dri}.</div><button class="btn" onclick="approve('${l.slug}',${i})">✓ Approve</button> <button class="btn red" onclick="gateReject('${l.slug}',${i})">✕ Reject</button> <button class="btn ghost" onclick="openL('${l.slug}')">Open card</button></div>`;}).join(""):'<div class="empty-hero">Nothing waiting on you. 🎉</div>'}</div>
   <div class="panel"><h3>🎯 Focus — the one task per launch that moves the date</h3>
    ${LAUNCHES.filter(l=>!l.complete).map(l=>{const cn=criticalNext(l);const fl=floatDays(l);return `<div class="row" style="cursor:pointer" onclick="openL('${l.slug}')"><span style="color:${DCOLOR(l.dri)}">■</span><span><b>${l.name}</b> → ${cn?esc(cn.t)+" <span class='ghostnote'>("+cn.d+")</span>":"—"}</span><span class="o">${l.baselineTarget?`<span class="pill ${fl<0?"bad":"ok"}">float ${fl}d</span> `:""}<span class="ghostnote">forecast ${fmt(forecastDate(l))}</span></span></div>`;}).join("")}
    <div class="ghostnote" style="margin-top:6px">Float = days of slack before the target date is at risk. Negative = late on paper.</div></div>
@@ -3976,11 +4063,11 @@ function homeDept(){
   const owed=LAUNCHES.filter(l=>!l.complete).flatMap(l=>gateState(l).cs.filter(c=>c.d===d&&c.task.st!=="x").map(c=>({l,c})));
   const UO={urgent:0,high:1,med:2,low:3};
   const grp=s=>mine.filter(x=>x.t.st===s).sort((a,b)=>(UO[a.t.urg]??2)-(UO[b.t.urg]??2));
-  const pb=[...new Set(LAUNCHES[0].tasks.filter(t=>t.d===d).map(t=>t.t))];
+  const pb=[...new Map(LAUNCHES[0].tasks.filter(t=>t.d===d).map(t=>[t.t,t])).values()];   // keep the task (DOD is keyed by code now), dedup by title
   return `<h2>Department lens — <select onchange="S.dept=this.value;render()">${DEPTS().map(x=>`<option value="${x}" ${x===d?"selected":""}>${x}</option>`).join("")}</select></h2>
   <div class="sub">${esc((TEAM.find(t=>t.name===d)||{}).role||"")}</div>
   <div class="panel"><h3 class="pb-h" onclick="S.pbOpen=!S.pbOpen;render()" title="${LANG==="zh"?"點擊展開／收合":"click to expand / collapse"}">📘 Our playbook — how ${d} updates tasks<span class="pb-tog">${S.pbOpen?"▾":"▸ "+pb.length}</span></h3>
-   ${S.pbOpen?`${pb.map(t=>`<div class="row"><span style="color:${DCOLOR(d)}">▸</span><span><b>${esc(t)}</b>${DOD[t]?` — <span style="color:var(--dim)">${esc(DOD[t])}</span>`:""}${EVID.has(t)?' <span class="urg" style="background:#13262e;color:#67e8f9">📎 evidence required</span>':""}</span></div>`).join("")}
+   ${S.pbOpen?`${pb.map(t=>`<div class="row"><span style="color:${DCOLOR(d)}">▸</span><span><b>${esc(t.t)}</b>${DOD[t.code]?` — <span style="color:var(--dim)">${esc(v3T(DOD[t.code]))}</span>`:""}${EVID.has(t.t)?' <span class="urg" style="background:#13262e;color:#67e8f9">📎 evidence required</span>':""}</span></div>`).join("")}
    <div class="sub" style="margin-top:8px">Full version (definitions, evidence types, estimates, dependencies) lives in <b>BV-Task-Playbook.xlsx</b> — your team edits the ${d} tab and the tracker adopts your rules.</div>`:""}</div>
   <div class="panel"><h3>${d} owes the current gates</h3>${owed.length?owed.map(({l,c})=>`<div class="row"><button type="button" class="st ${c.task.st}" aria-label="status: ${stWord(c.task.st)} — left-click to advance, right-click to step back" onclick="cycle('${l.slug}',${l.tasks.indexOf(c.task)},this)" oncontextmenu="cycleBack('${l.slug}',${l.tasks.indexOf(c.task)},this);return false">${stIcon[c.task.st]}</button><span><b>${l.name}</b> · ${esc(c.t)}</span><span class="o">gates ${l.stage} → next</span></div>`).join(""):'<div class="sub">Nothing owed — no gate is waiting on this team.</div>'}</div>
   <div class="twocol">${[["b","Blocked"],["p","In progress"],["o","To do"]].map(([s,lbl])=>`<div class="panel"><h3>${lbl} (${grp(s).length})</h3>${grp(s).map(({l,t})=>taskRow(l,t,l.name)).join("")||'<div class="sub">None.</div>'}</div>`).join("")}</div>
@@ -4090,13 +4177,12 @@ function chatResizeStart(e){
   document.addEventListener("pointermove",mv); document.addEventListener("pointerup",up);
 }
 /* ================= V3 LAUNCH VIEW (Shopify flow) — dashboard (五-D) + phase checklist ================= */
+// every "go fill this in" CTA lands here. The inputs live in taskDetail, which only renders inside the flow
+// tab's stage list and only when S.open is set — so switch tabs first, then hand off to jumpTask (which owns
+// the :stl: accordion key, S.open, scroll + highlight). Setting a private stageOpen key here reached nothing.
 function v3jump(slug,code){
   const l=L(slug); if(!l)return; const i=l.tasks.findIndex(t=>t.code===code); if(i<0)return;
-  const n=V3MAP[code]; (S.stageOpen=S.stageOpen||{})[slug+":v3ph:"+n.ph]=true; render();
-  setTimeout(()=>{const el=document.getElementById("task-"+slug+"-"+i);
-    if(el&&el.scrollIntoView){el.scrollIntoView({behavior:"smooth",block:"center"});
-      el.style.outline="2px solid var(--accent)"; el.style.outlineOffset="2px";
-      setTimeout(()=>{el.style.outline="";},1800);}},60);
+  S.cardView="flow"; jumpTask(slug,i);
 }
 function v3DaysCtl(l,t,i){
   const n=V3MAP[t.code]||{};
@@ -4196,7 +4282,7 @@ function v3Dash(l){
       <div class="v3asset-m"><span style="color:${v3OColor(n.o)}">${esc(n.o)}</span>${(t.links||[]).length?`<span class="ghostnote">🔗${t.links.length}</span>`:""}${!done&&rem?`<span class="ghostnote">≈${rem}d</span>`:""}</div></div>`;}).join("");
   const p3=v3Task(l,"P3"),p5=v3Task(l,"P5"),fb=v3Task(l,"FB1");
   const lrow=c=>{const t=v3Task(l,c);if(!t)return "";const n=V3MAP[c];const lkT=v3LockText(l,t);
-    return `<div class="v3lrow${t.st==="x"?" done":""}" onclick="v3jump('${l.slug}','${c}')"><span class="st ${t.st}" style="width:20px;height:20px;font-size:10px">${lkT?"🔒":stIcon[t.st]}</span><span class="v3code">${esc(c)}</span> ${esc(t.t)}<span class="o ghostnote">${n.days!=null?(n.days||"—")+(n.days?"d":""):(t.days!=null?t.days+"d":esc(v3T(n.ref)||"?"))}</span></div>`;};
+    return `<div class="v3lrow${t.st==="x"?" done":""}"${lkT?` title="🔒 ${esc(lkT)}"`:""} onclick="v3jump('${l.slug}','${c}')"><span class="st ${t.st}" style="width:20px;height:20px;font-size:10px">${lkT?"🔒":stIcon[t.st]}</span><span class="v3code">${esc(c)}</span> ${esc(t.t)}<span class="o ghostnote">${n.days!=null?(n.days||"—")+(n.days?"d":""):(t.days!=null?t.days+"d":esc(v3T(n.ref)||"?"))}</span></div>`;};
   // 到貨日這一列承載三件事的提醒：FB1 完成卻沒填實際日期、日期已到卻沒標完成、以及「到貨日蓋過素材鏈」時的差異
   const asrc=v3ArrivalSrc(l), rdy=asrc?v3ReadyDate(l):"";
   const aNotes=[
