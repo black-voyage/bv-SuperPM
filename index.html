@@ -3486,9 +3486,7 @@ function flowSVG(l){
   const depts=Object.keys(FLOW);   // every lane v3Rederive seeds already has ≥1 node — no empty lane to filter out
   // spacing rhythm: related nodes group TIGHT inside a lane (VG 64 → 26px gaps), distinct lanes separate GENEROUSLY (GAP 46).
   // No lane boxes — grouping comes from proximity on an open dotted field, so the chart breathes instead of being walled in.
-  // NH grew 38→46 (and VG with it, so the 26px inter-row gap is unchanged) to make room for the meta line
-  // `code · Nd` under every label — the code is what the popover's req chips and 卡關 texts speak in.
-  const CW=118,GAP=46,NH=46,VG=72,TOP=76,MTA=12,MF=8.6;   // MTA = meta band reserved at the node's bottom; MF = its font size (label clearance is measured against it)
+  const CW=118,GAP=46,NH=38,VG=64,TOP=76;
   FL_LS=(LANG==="zh")?0.06:0;                         // 繁中 node labels get wider tracking; latin stays tight (factored into flowDW sizing + applied to <text>)
   const nodeH=()=>NH;   // every V3 node is a flat tile (no nested sub-items) — height is uniform
   const LY={};                                        // per-lane cumulative Y — supports variable node heights
@@ -3544,27 +3542,21 @@ function flowSVG(l){
     (n.req||[]).forEach(rc=>{ const j=FLOW[d].findIndex(x=>x.code===rc); if(j<0||j===i)return;
       const sp=pos(d,j),dn=j<i,sy=dn?sp.y+hgt(d,j)+2:sp.y-2,ey=dn?tp.y-3:tp.y+hgt(d,i)+3,_ed=Math.min(140+c*12+i*14,300);
       const dp=Math.abs(i-j)===1?`M${cx} ${sy}L${cx} ${ey}`
-        :(()=>{const bow=87+14*(Math.abs(i-j)-2)+(e++)*6,k=dn?18:-18;return `M${cx} ${sy} C ${cx+bow} ${sy+k}, ${cx+bow} ${ey-k}, ${cx} ${ey}`;})();
+        // cap on the SAMPLED extent, not the control point: a cubic only reaches ~0.75× its control offset, so
+        // clamping the control point itself pulls the belly back INTO the rows it is supposed to skip.
+        :(()=>{const bow=Math.min(87+14*(Math.abs(i-j)-2)+(e++)*6,(CW/2+GAP-8)/0.75),k=dn?18:-18;
+               return `M${cx} ${sy} C ${cx+bow} ${sy+k}, ${cx+bow} ${ey-k}, ${cx} ${ey}`;})();
       svg+=`<path class="flowedge" pathLength="1" style="--d:${_ed}ms" d="${dp}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" marker-end="url(#ar)"/><circle class="flowdot" style="--d:${_ed+90}ms" cx="${cx}" cy="${sy}" r="3" fill="${FT.arrow}"/>`;});}));
-  // cross links — origin dot + dashed run + arrowhead (direction matters across lanes, and 6 of these edges
-  // run right→left / 8 run bottom→top). Adjacent lanes keep the smooth S (it only crosses one empty gutter);
-  // spans of 2+ lanes are routed instead through the gutter beside the source lane and then across inside the
-  // 26px gap ABOVE the target's row, so they stop ploughing through the node boxes in between.
-  const _sp=CROSS.map(([fd,fi,td,ti])=>Math.abs(depts.indexOf(td)-depts.indexOf(fd)));
-  const _gN={},_rN={},_gI={},_rI={};                    // how many long edges share each gutter / each target row → fan them apart
-  CROSS.forEach(([fd,fi,td,ti],ci)=>{ if(_sp[ci]<2)return; const k=fd+(depts.indexOf(td)>depts.indexOf(fd)?">r":">l");
-    _gN[k]=(_gN[k]||0)+1; _rN[td+"|"+ti]=(_rN[td+"|"+ti]||0)+1; });
+  // cross links — origin dot + dashed run + arrowhead (direction matters across lanes: 6 run right→left,
+  // 8 bottom→top). ONE smooth cubic with a horizontal ease at both ends — geometrically identical to the red
+  // dependency arrows below, so the chart speaks a single curve language and only the emphasis differs.
+  // (A rectilinear "route it down the gutter" variant avoided overlapping the lanes in between, but it stacked
+  // parallel dashed rails in every gutter and turned four corners per edge — far noisier than the overlap it
+  // dodged, and pointless besides: the node loop paints AFTER the edges, so tiles already occlude them.)
   CROSS.forEach(([fd,fi,td,ti],ci)=>{ if(!FLOW[fd]||!FLOW[td])return; const a=pos(fd,fi),b=pos(td,ti);
-    const l2r=depts.indexOf(td)>depts.indexOf(fd), sx=l2r?1:-1;
-    const ax=l2r?a.x+CW:a.x, ay=a.y+hgt(fd,fi)/2, by=b.y+hgt(td,ti)/2, bx=l2r?b.x-2:b.x+CW+2;
-    let dp;
-    if(_sp[ci]<2){ const mx=(ax+bx)/2; dp=`M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx} ${by}`; }
-    else{ const gk=fd+(l2r?">r":">l"), gi=(_gI[gk]=(_gI[gk]||0)+1)-1, gn=_gN[gk];
-      const gx=+(ax+sx*(13+(gn>1?gi*(23/(gn-1)):0))).toFixed(1);
-      const rk=td+"|"+ti, ri=(_rI[rk]=(_rI[rk]||0)+1)-1, rn=_rN[rk];
-      const my=+(b.y-24+(rn>1?ri*(14/(rn-1)):7)).toFixed(1);
-      const hx=bx-sx*24, sy=my>ay?1:-1, R=Math.max(0,Math.min(8,Math.abs(my-ay)/2,Math.abs(hx-gx)/2));
-      dp=`M${ax} ${ay} H${gx-sx*R} Q${gx} ${ay} ${gx} ${ay+sy*R} V${my-sy*R} Q${gx} ${my} ${gx+sx*R} ${my} H${hx} C ${hx+sx*14} ${my}, ${bx-sx*14} ${by}, ${bx} ${by}`; }
+    const l2r=depts.indexOf(td)>depts.indexOf(fd);
+    const ax=l2r?a.x+CW:a.x, ay=a.y+hgt(fd,fi)/2, bx=l2r?b.x-2:b.x+CW+2, by=b.y+hgt(td,ti)/2, mx=(ax+bx)/2;
+    const dp=`M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx} ${by}`;
     svg+=`<g class="flowcross" opacity="0.6" style="--d:${Math.min(240+ci*6,300)}ms"><circle cx="${ax}" cy="${ay}" r="3" fill="${FT.arrow}"/><path d="${dp}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar)"/></g>`;});
   // nodes
   depts.forEach(d=>FLOW[d].forEach((n,i)=>{const {x,y}=pos(d,i);const st=stateOf(n,d,i);
@@ -3597,31 +3589,17 @@ function flowSVG(l){
       ?`<polygon id="fn-${d}-${i}" filter="url(#nsh)" points="${x+CW/2},${y-2} ${x+CW+4},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-4},${y+NH/2}" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"${dash}/>`
       :`<rect id="fn-${d}-${i}" filter="url(#nsh)" x="${x}" y="${y}" width="${CW}" height="${h}" rx="5" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"${dash}/>`;
     const tcol=frozen?FT.ice.txt:(FT.txt[st]||FT.txt.o);
-    // meta line — `code · Nd`, the only thing on the tile that tells C7 / C9 / D5 apart in 中文 (all three read
-    // 「Ben 決策」) and the only place the day budget shows. days: task override > template > ~est > ? ; ongoing → ↻.
-    const _md=(_tt&&_tt.days!=null)?_tt.days:(_vnn?_vnn.days:null);
-    // state glyph: 🔒 locked · ❄ design-frozen · ⏱/📅 needs input. On a DIAMOND it rides this line instead of the
-    // top-right corner — the wedge is only ~40px half-wide up there, so the corner glyph floated in dead space
-    // outside the shape AND (via _corner) squeezed the label into a 3-line stack that printed through the meta.
-    // The three states are mutually exclusive (fut / x+frozen / live), so at most one prefix ever applies.
-    const _pre=st==="fut"?"🔒 ":n.d&&frozen?"❄ ":n.d&&needIn?needIn+" ":"";
-    const metaTxt=_pre+(n.code?n.code+" · ":"")
-      +(_vnn&&_vnn.ongoing?"↻":_md!=null?_md+"d":(_vnn&&_vnn.est!=null?"~"+_vnn.est+"d":"?d"));
-    const metaY=n.d?y+NH/2+13:y+h-6;
-    const metaSVG=`<text x="${x+CW/2}" y="${metaY}" text-anchor="middle" fill="${tcol}" opacity="${st==="fut"?1:.72}" font-size="${MF}" letter-spacing=".02em" style="font-family:var(--font-mono)" pointer-events="none">${esc(metaTxt)}</text>`;
-    // label sits in NH−MTA; the 3-line branch of flowLabel keeps the 11.5 max (nothing constrains it there),
-    // which is how en CRM2 used to stack 3×11.5×1.18=40.7px into a 38px tile — clamp it to the box.
+    // the tile carries the step NAME and nothing else — code, day budget and lock state live in the popover,
+    // one click away. (A `code · Nd` meta line under every label read as visual noise at chart scale.)
     // the ⏱/📅/❄ corner glyph owns the top-right ~24px; give the label a narrower box shifted left by the same
     // amount, otherwise a wide single line (MS3a "Lifestyle photos") slides straight under it.
     const _corner=(needIn||frozen)&&!n.d, LBW=_corner?CW-26:CW, LCX=_corner?x+2+LBW/2:x+CW/2;
-    // vertical budget. rect: the box minus the meta band. diamond: only as far down as ITS meta line, which sits
-    // 4px higher than a rect's because the wedge narrows — reusing the rect budget printed the last label line
-    // straight through `code · Nd`. Diamond labels are capped at 2 lines and BOTTOM-aligned to the band, which
-    // pulls the long line down into the wide middle of the wedge instead of hanging it over the narrow top.
-    const LTOP=n.d?y+4:y, LBOT=n.d?metaY-MF*0.72-2:y+NH-MTA, LBH=LBOT-LTOP;
-    const lay=flowLabel(flowTL(n.l),LBW,n.d?2:3), nl=lay.lines.length, F=+Math.min(lay.font,LBH/(nl*1.18)).toFixed(2), lg=F*1.18, cy=n.d?LBOT-F*0.56-(nl-1)/2*lg:LTOP+LBH/2;
+    // clamp the font to the tile: flowLabel's 3-line branch keeps its own 11.5 max, which is how CRM2's old
+    // long-form en label used to stack 3×11.5×1.18=40.7px inside a 38px box. (Don't quote that string here —
+    // a suite scans leaf DOM text, and <script> source counts, so a literal would fail its own stale-label check.)
+    const LTOP=n.d?y+4:y, LBH=n.d?NH-8:NH;
+    const lay=flowLabel(flowTL(n.l),LBW,n.d?2:3), nl=lay.lines.length, F=+Math.min(lay.font,LBH/(nl*1.18)).toFixed(2), lg=F*1.18, cy=LTOP+LBH/2;
     let labelSVG=lay.lines.map((ln,k)=>`<text x="${LCX}" y="${(cy+(k-(nl-1)/2)*lg+F*0.34).toFixed(1)}" text-anchor="middle" fill="${tcol}" font-size="${F}" letter-spacing="${FL_LS}em">${esc(ln)}</text>`).join("");
-    labelSVG+=metaSVG;
     svg+=`<g${click}${depOn&&!depKeys.has(key)?' opacity="0.18"':""}>${body}${isSel?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inHi&&!isSel?`<rect class="glownode" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="1.8" opacity="0.8" pointer-events="none"/>`:""}${labelSVG}${frozen&&!n.d?`<text x="${x+CW-9}" y="${y+14}" text-anchor="middle" fill="${FT.ice.strk}" font-size="11" font-weight="700" pointer-events="none">❄</text>`:""}${needIn&&!n.d?`<g pointer-events="none"><circle cx="${x+CW-11}" cy="${y+11}" r="8.6" fill="rgba(248,113,113,.18)" stroke="rgba(248,113,113,.9)" stroke-width="1.1"/><text x="${x+CW-11}" y="${y+14.6}" text-anchor="middle" font-size="9.5">${needIn}</text></g>`:""}
     ${n.d&&!live?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#c084fc" font-size="11">◆ decision</text>`:""}
     ${(()=>{const BJ=live==="o"?{t:"📍 "+(LANG==="zh"?"這裡":"here"),bg:"#EE3124",fg:"#fff"}
