@@ -306,6 +306,12 @@
   .pfb-count{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
   .pfb-line{flex:1;height:1px;background:var(--line);margin-right:-14px;min-width:10px}  /* negative margin bridges the flex gap so the rail reads continuous */
   .pfb-stage:last-child .pfb-line{display:none}  /* the rail terminates at the last junction */
+  .pfb-eta{border:1px dashed var(--line);border-radius:var(--r-md);padding:9px 10px;background:var(--panel2)}
+  .pfb-etah{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin-bottom:6px}
+  .pfb-etar{display:flex;justify-content:space-between;gap:8px;font-size:var(--fs-meta);color:var(--dim);padding:3px 0;cursor:pointer;min-width:0}
+  .pfb-etar:hover{color:var(--text)}
+  .pfb-etar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pfb-etar b{font-family:var(--font-mono);font-weight:500;color:var(--text);flex:none}
   /* card anatomy: header row (delete only on hover) + KV rows + minimap/progress + pill footer */
   .card-hd{display:flex;align-items:flex-start;gap:8px}
   .card-hd .nm{flex:1;min-width:0;margin-bottom:0}
@@ -850,11 +856,16 @@
   .pb-h{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
   .pb-tog{margin-left:auto;font-size:12px;font-weight:400;color:var(--faint)}
   /* flow-chart 📍 frontier owner — person-colored, dimmed at rest; hovering the node brightens + lifts it, co-owners slide out from the right */
-  .fn-own{opacity:.45;pointer-events:all;transition:opacity .18s ease-out,transform .2s cubic-bezier(.16,1,.3,1)}
+  /* Owner chips answer "who starts this" — the ONE thing the chart is asked for. They stay legible at rest
+     (.45 made them ghosts in screenshots/projection); hover only adds the lift. */
+  .fn-own{opacity:.92;pointer-events:all;transition:opacity .18s ease-out,transform .2s cubic-bezier(.16,1,.3,1)}
   .flownode:hover .fn-own{opacity:1;transform:translateY(-2px)}
+  /* co-owners: "+N" is the resting state (visible on touch, where hover never fires), names swap in on hover */
+  .fn-more{opacity:.92;transition:opacity .16s ease-out}
+  .flownode:hover .fn-more{opacity:0}
   .fn-own-2{opacity:0;pointer-events:none;transform:translateX(9px)}
   .flownode:hover .fn-own-2{opacity:1;transform:translateY(-2px)}
-  @media (prefers-reduced-motion:reduce){.fn-own,.fn-own-2{transition:none;opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.fn-own,.fn-own-2,.fn-more{transition:none;transform:none} .fn-own,.fn-own-2{opacity:1} .fn-more{opacity:0}}
   .o-stage{color:var(--faint);font-size:12px}
   .o-collabs{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
   .o-collab{font-size:11px;padding:0 6px;border:1px solid var(--line);border-radius:var(--r-xs);line-height:1.7}
@@ -1089,7 +1100,8 @@ const V3=[
  {c:"D5", en:"Ben PDP sign-off", zh:"Ben 決策", ph:2, dept:"Design", o:"Ben", days:2, req:["D4"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
  {c:"D6", evid:1, en:"Official PDP + infographics", zh:"正式 PDP", ph:2, dept:"Design", o:"Design Team", days:5, req:["D5","MS3b"], asset:1, note:{en:"finalized only after MS3b video",zh:"MS3b 影片完成才能定稿"}},
  {c:"CRM1", en:"FAQ draft + pop quiz", zh:"FAQ 建制", ph:2, dept:"CRM", o:"Angel", days:5, req:["MB2"], out:{en:"FAQ text → whole company",zh:"FAQ 文字版 → 全公司"}},
- {c:"CRM2", en:"FAQ finalized + brief CS", zh:"FAQ 定稿", ph:2, dept:"CRM", o:"Angel", days:3, req:["CRM1","MS2"], asset:1, note:{en:"deadline = target launch − 3d",zh:"死線＝目標上市日 −3 天"}},
+ // CRM2 en is deliberately terse — the long form wrapped to 3 lines and overflowed the node tile.
+ {c:"CRM2", en:"FAQ + CS brief", zh:"FAQ 定稿", ph:2, dept:"CRM", o:"Angel", days:3, req:["CRM1","MS2"], asset:1, note:{en:"deadline = target launch − 3d",zh:"死線＝目標上市日 −3 天"}},
  // 3 — Marketing Prep
  {c:"P5", en:"Deploy marketing samples", zh:"部署行銷樣品", ph:3, dept:"Logistics", o:"LC", days:null, ref:{en:"air9/sea21",zh:"空9／海21"}, est:9, req:["MS1"], out:{en:"samples to teams",zh:"寄樣各部門"}, note:{en:"samples = bulk units; done = sample arrival",zh:"樣品＝大貨樣；完成＝樣品到貨日"}},
  {c:"MB1", en:"Marketing Brief V1", zh:"行銷簡報 V1", ph:3, dept:"Marketing", o:"Zac + Ben", days:5, req:["C10"]},
@@ -3633,22 +3645,51 @@ function flowPack(s,target,maxLines){                                           
   if(cur)lines.push(cur);
   return lines;
 }
-function flowLabel(s,boxW){
-  const PAD=16, MAX=11.5, COMFORT=9.5, FLOOR=7.5, usable=boxW-PAD;
-  for(let n=1;n<=3;n++){
+function flowLabel(s,boxW,maxN){                                                     // maxN: hard line cap (diamonds get 2 — their vertical band is 10px shorter than a rect's)
+  const PAD=16, MAX=11.5, COMFORT=9.5, FLOOR=7.5, usable=boxW-PAD, NM=maxN||3;
+  for(let n=1;n<=NM;n++){
     const lines=flowPack(s,Math.max(flowDW(s)/n,2)+0.01,n);
     const font=Math.min(MAX, usable/Math.max(...lines.map(flowDW)));
-    if(font>=COMFORT||n===3) return {lines, font:n===3?Math.max(FLOOR,font):font};
+    if(font>=COMFORT||n===NM) return {lines, font:n===NM?Math.max(FLOOR,font):font};
   }
 }
 
 let FLOWSEEN="";                                       // flow context we last played the entrance for — gates "animate once per open"
+/* Single source for the chart's palette — the legend renders from the SAME object, otherwise the swatches
+   silently stay dark-theme hex while the nodes follow THEME (blue reuses the dark ramp).
+   txt.fut is deliberately NOT the faintest ink we can get away with: locked is 39/40 nodes on a fresh card,
+   so it has to clear 4.5:1 (light #6B7382 on #F7F9FC = 4.52, dark #8b94a1 on #15171b = 5.85). "Not yet
+   unlocked" is carried by the DASHED border + 🔒 on the meta line instead. */
+function flowTheme(){ return THEME==="light"
+    ?{colBg:"#FFFFFF",colLine:"#DDE3EE",arrow:"#8A98AE",
+      fill:{x:"#E9F7EC",p:"#FFF3E0",b:"#FDEAEA",o:"#EEF1F7",fut:"#F7F9FC"},
+      strk:{x:"#3E9E5B",p:"#D68910",b:"#D64545",o:"#B9C2D4",fut:"#C4CDDC"},
+      txt:{x:"#1E7E3E",p:"#A05A00",b:"#B03030",o:"#3C4452",fut:"#6B7382"},
+      ice:{fill:"#E6F4FB",strk:"#38BDF8",txt:"#0369A1"}}                       // design-frozen step → icy blue
+    :{colBg:"#13161A",colLine:"#22262D",arrow:"#5B6472",
+      fill:{x:"#14331f",p:"#33260f",b:"#331414",o:"#1d2127",fut:"#15171b"},
+      strk:{x:"#4ade80",p:"#fbbf24",b:"#f87171",o:"#3a414b",fut:"#39414c"},
+      txt:{x:"#4ade80",p:"#fbbf24",b:"#f87171",o:"#aab3bd",fut:"#8b94a1"},
+      ice:{fill:"#0e2a3d",strk:"#38bdf8",txt:"#7dd3fc"}};                      // design-frozen step → icy blue
+}
+/* Chart legend — reads the SAME flowTheme() the nodes do (the old one hard-coded dark hex, so every swatch
+   was wrong in light/blue) and explains what is actually ON the chart: the live badges, the lock, the
+   needs-input flag, the meta line. The old "待做" swatch is gone — st==="o" is always ALSO isHere, so its
+   stroke is overwritten with red and that swatch could never match a node. */
+function flowLegend(){
+  const zh=LANG==="zh", F=flowTheme(), sw=(b,s,t,extra)=>`<span><i style="background:${b};border:1px solid ${s}${extra||""}"></i>${t}</span>`;
+  return `<div class="legend">${sw(F.fill.x,F.strk.x,zh?"完成":"done")}${sw(F.fill.p,F.strk.p,zh?"進行中":"in progress")}${sw(F.fill.b,F.strk.b,zh?"卡關":"blocked")}${sw(F.fill.fut,F.strk.fut,zh?"未解鎖":"locked",";border-style:dashed")}${sw(F.ice.fill,F.ice.strk,zh?"設計凍結":"design-frozen")}
+  <span style="color:#EE3124">📍 ${zh?"現在可開工（右邊＝負責人）":"start now (owner on the right)"}</span><span>⏳ ${zh?"進行中":"in progress"}</span><span>⛔ ${zh?"卡關":"blocked"}</span><span>🔒 ${zh?"等前置":"waiting on prereqs"}</span><span>⏱／📅 ${zh?"待填天數／日期":"days / date to fill"}</span><span style="color:var(--purple)">◆ ${zh?"決策關卡":"decision gate"}</span>
+  <span class="ghostnote" style="font-family:var(--font-mono)">C7 · 5d = ${zh?"代號 · 天數（~ 推估、↻ 持續進行）":"code · days (~ estimate, ↻ ongoing)"}</span><span class="ghostnote">⇢ ${zh?"虛線＝跨部門交棒":"dashed = cross-department hand-off"}</span><span class="ghostnote">🔗 ${zh?"點任一步驟＝亮出前置／解鎖":"click a step = show its deps"}</span></div>`;
+}
 function flowSVG(l){
-  S._flowSlug=l.slug;                                  // which launch the popover reads task/links from
+  S._flowSlug=l.slug;                                // which launch the popover reads task/links from
   const depts=Object.keys(FLOW).filter(d=>DEPTS().includes(d)||FLOW[d]);
   // spacing rhythm: related nodes group TIGHT inside a lane (VG 64 → 26px gaps), distinct lanes separate GENEROUSLY (GAP 46).
   // No lane boxes — grouping comes from proximity on an open dotted field, so the chart breathes instead of being walled in.
-  const CW=118,GAP=46,NH=38,VG=64,TOP=76;
+  // NH grew 38→46 (and VG with it, so the 26px inter-row gap is unchanged) to make room for the meta line
+  // `code · Nd` under every label — the code is what the popover's req chips and 卡關 texts speak in.
+  const CW=118,GAP=46,NH=46,VG=72,TOP=76,MTA=12,MF=8.6;   // MTA = meta band reserved at the node's bottom; MF = its font size (label clearance is measured against it)
   FL_LS=(LANG==="zh")?0.06:0;                         // 繁中 node labels get wider tracking; latin stays tight (factored into flowDW sizing + applied to <text>)
   const SUBH=21,SUBGAP=6,HEAD=25,PADB=9;             // nested sub-item metrics (a node with .sub renders as a taller container)
   const nodeH=n=>(n.sub&&n.sub.length)?HEAD+n.sub.length*SUBH+(n.sub.length-1)*SUBGAP+PADB:NH;
@@ -3657,17 +3698,7 @@ function flowSVG(l){
   const pos=(d,i)=>({x:GAP+depts.indexOf(d)*(CW+GAP),y:LY[d][i]});
   const hgt=(d,i)=>nodeH(FLOW[d][i]);
   const W=depts.length*(CW+GAP)+GAP, H=Math.max(...depts.map(d=>{const a=FLOW[d];return a.length?LY[d][a.length-1]+nodeH(a[a.length-1]):TOP;}))+46;
-  const FT=THEME==="light"
-    ?{colBg:"#FFFFFF",colLine:"#DDE3EE",arrow:"#9AA6BA",
-      fill:{x:"#E9F7EC",p:"#FFF3E0",b:"#FDEAEA",o:"#EEF1F7",fut:"#F7F9FC"},
-      strk:{x:"#3E9E5B",p:"#D68910",b:"#D64545",o:"#B9C2D4",fut:"#E3E8F1"},
-      txt:{x:"#1E7E3E",p:"#A05A00",b:"#B03030",o:"#3C4452",fut:"#A9B2C2"},
-      ice:{fill:"#E6F4FB",strk:"#38BDF8",txt:"#0369A1"}}                       // design-frozen step → icy blue
-    :{colBg:"#13161A",colLine:"#22262D",arrow:"#4A5260",
-      fill:{x:"#14331f",p:"#33260f",b:"#331414",o:"#1d2127",fut:"#15171b"},
-      strk:{x:"#4ade80",p:"#fbbf24",b:"#f87171",o:"#3a414b",fut:"#262b32"},
-      txt:{x:"#4ade80",p:"#fbbf24",b:"#f87171",o:"#aab3bd",fut:"#5a626d"},
-      ice:{fill:"#0e2a3d",strk:"#38bdf8",txt:"#7dd3fc"}};                       // design-frozen step → icy blue
+  const FT=flowTheme();
   const fill=FT.fill, strk=FT.strk;
   const stateOf=(n,d,i)=>{
     if(n.t){const t=l.tasks.find(x=>x.t===n.t); if(t){ if(t.st!=="o")return t.st; return nodeLocked(l,d,i)?"fut":"o"; }}
@@ -3695,22 +3726,48 @@ function flowSVG(l){
   }
   // node drop-shadow — theme-aware: dark/blue get a deep black lift; LIGHT gets a soft COOL-slate shadow (a black .55 shadow on a near-white node reads as the dirty smudge the reference light-mode never has).
   const nshDrop=THEME==="light"?'dy="2" stdDeviation="3.5" flood-color="#293248" flood-opacity="0.15"':'dy="4" stdDeviation="5" flood-color="#000" flood-opacity="0.55"';
-  let svg=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMin meet" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit;width:100%;height:auto;max-width:${W}px;margin-inline:auto;display:block">
-  <defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="${FT.arrow}"/></marker>
-  <marker id="arR" viewBox="0 0 9 9" refX="7.5" refY="4.5" markerWidth="7.5" markerHeight="7.5" orient="auto"><path d="M0 0L9 4.5L0 9z" fill="#EE3124"/></marker>
+  // NATURAL width (not width:100%) — a 1194px chart squeezed into a 900px column renders 11.5px type at 8.7px
+  // and at 380px at 3.7px, and because it never overflows .flowwrap's overflow:auto never engages. Fixed width
+  // + auto margins: centred when there's room, genuinely scrollable when there isn't. Type stays readable.
+  // markerUnits=userSpaceOnUse — otherwise the marker scales with stroke-width and the 2.3px .depedge grows a 17px head.
+  let svg=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMin meet" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit;width:${W}px;height:auto;max-width:none;margin-inline:auto;display:block">
+  <defs><marker id="ar" viewBox="0 0 8 8" refX="7.4" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0L8 4L0 8z" fill="${FT.arrow}"/></marker>
+  <marker id="arR" viewBox="0 0 9 9" refX="8.4" refY="4.5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0L9 4.5L0 9z" fill="#EE3124"/></marker>
   <filter id="nsh" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" ${nshDrop}/></filter></defs>`;
   // lane headers — no container boxes; a dept-colored anchor dot + generous headroom mark each lane on the open field
   depts.forEach((d,c)=>{const x=GAP+c*(CW+GAP);
     svg+=`<g class="flowhead" style="--d:${Math.min(c*13,120)}ms"><text x="${x+CW/2}" y="34" text-anchor="middle" fill="${DCOLOR(d)}" font-size="12.5" font-weight="700" letter-spacing="${LANG==="zh"?0.08:0.03}em">${esc(flowTL(d))}</text>
     <circle cx="${x+CW/2}" cy="${47}" r="2.2" fill="${DCOLOR(d)}" opacity="0.85"/></g>`;});
-  // in-column connectors — quiet lines with endpoint dots (top-down direction is implicit inside a lane)
-  depts.forEach((d,c)=>FLOW[d].forEach((n,i)=>{ if(i<FLOW[d].length-1){const a=pos(d,i),b=pos(d,i+1);const cx=a.x+CW/2,ay=a.y+hgt(d,i),by=b.y;const _ed=Math.min(140+c*12+i*14,300);
-    svg+=`<path class="flowedge" pathLength="1" style="--d:${_ed}ms" d="M${cx} ${ay+2}L${cx} ${by-2}" fill="none" stroke="${FT.arrow}" stroke-width="1.2"/><circle class="flowdot" style="--d:${_ed+90}ms" cx="${cx}" cy="${ay+2}" r="3" fill="${FT.arrow}"/><circle class="flowdot" style="--d:${_ed+90}ms" cx="${cx}" cy="${by-2}" r="3" fill="${FT.arrow}"/>`;}}));
-  // cross links — origin dot + dashed curve + arrowhead (direction matters across lanes)
+  // in-lane connectors — the REAL req edges inside a lane, not "whatever sits in the next array slot".
+  // Adjacent prerequisite → straight drop; a prerequisite further up the lane → a small arc bowed into the
+  // right-hand gutter so it doesn't cut through the nodes it skips. Neighbours with NO dependency get no
+  // line at all — that grouping is carried by proximity, and a line there is a lie about the unlock order.
+  depts.forEach((d,c)=>FLOW[d].forEach((n,i)=>{const tp=pos(d,i),cx=tp.x+CW/2; let e=0;
+    (n.req||[]).forEach(rc=>{ const j=FLOW[d].findIndex(x=>x.code===rc); if(j<0||j===i)return;
+      const sp=pos(d,j),dn=j<i,sy=dn?sp.y+hgt(d,j)+2:sp.y-2,ey=dn?tp.y-3:tp.y+hgt(d,i)+3,_ed=Math.min(140+c*12+i*14,300);
+      const dp=Math.abs(i-j)===1?`M${cx} ${sy}L${cx} ${ey}`
+        :(()=>{const bow=87+14*(Math.abs(i-j)-2)+(e++)*6,k=dn?18:-18;return `M${cx} ${sy} C ${cx+bow} ${sy+k}, ${cx+bow} ${ey-k}, ${cx} ${ey}`;})();
+      svg+=`<path class="flowedge" pathLength="1" style="--d:${_ed}ms" d="${dp}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" marker-end="url(#ar)"/><circle class="flowdot" style="--d:${_ed+90}ms" cx="${cx}" cy="${sy}" r="3" fill="${FT.arrow}"/>`;});}));
+  // cross links — origin dot + dashed run + arrowhead (direction matters across lanes, and 6 of these edges
+  // run right→left / 8 run bottom→top). Adjacent lanes keep the smooth S (it only crosses one empty gutter);
+  // spans of 2+ lanes are routed instead through the gutter beside the source lane and then across inside the
+  // 26px gap ABOVE the target's row, so they stop ploughing through the node boxes in between.
+  const _sp=CROSS.map(([fd,fi,td,ti])=>Math.abs(depts.indexOf(td)-depts.indexOf(fd)));
+  const _gN={},_rN={},_gI={},_rI={};                    // how many long edges share each gutter / each target row → fan them apart
+  CROSS.forEach(([fd,fi,td,ti],ci)=>{ if(_sp[ci]<2)return; const k=fd+(depts.indexOf(td)>depts.indexOf(fd)?">r":">l");
+    _gN[k]=(_gN[k]||0)+1; _rN[td+"|"+ti]=(_rN[td+"|"+ti]||0)+1; });
   CROSS.forEach(([fd,fi,td,ti],ci)=>{ if(!FLOW[fd]||!FLOW[td])return; const a=pos(fd,fi),b=pos(td,ti);
-    const l2r=b.x>=a.x, ax=l2r?a.x+CW:a.x, bx=l2r?b.x-4:b.x+CW+4;
-    const ay=a.y+hgt(fd,fi)/2, by=b.y+hgt(td,ti)/2, mx=(ax+bx)/2;
-    svg+=`<g class="flowcross" opacity="0.5" style="--d:${Math.min(240+ci*6,300)}ms"><circle cx="${ax}" cy="${ay}" r="3" fill="${FT.arrow}"/><path d="M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx} ${by}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" stroke-dasharray="4 3"/><circle cx="${bx}" cy="${by}" r="3" fill="${FT.arrow}"/></g>`;});
+    const l2r=depts.indexOf(td)>depts.indexOf(fd), sx=l2r?1:-1;
+    const ax=l2r?a.x+CW:a.x, ay=a.y+hgt(fd,fi)/2, by=b.y+hgt(td,ti)/2, bx=l2r?b.x-2:b.x+CW+2;
+    let dp;
+    if(_sp[ci]<2){ const mx=(ax+bx)/2; dp=`M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx} ${by}`; }
+    else{ const gk=fd+(l2r?">r":">l"), gi=(_gI[gk]=(_gI[gk]||0)+1)-1, gn=_gN[gk];
+      const gx=+(ax+sx*(13+(gn>1?gi*(23/(gn-1)):0))).toFixed(1);
+      const rk=td+"|"+ti, ri=(_rI[rk]=(_rI[rk]||0)+1)-1, rn=_rN[rk];
+      const my=+(b.y-24+(rn>1?ri*(14/(rn-1)):7)).toFixed(1);
+      const hx=bx-sx*24, sy=my>ay?1:-1, R=Math.max(0,Math.min(8,Math.abs(my-ay)/2,Math.abs(hx-gx)/2));
+      dp=`M${ax} ${ay} H${gx-sx*R} Q${gx} ${ay} ${gx} ${ay+sy*R} V${my-sy*R} Q${gx} ${my} ${gx+sx*R} ${my} H${hx} C ${hx+sx*14} ${my}, ${bx-sx*14} ${by}, ${bx} ${by}`; }
+    svg+=`<g class="flowcross" opacity="0.6" style="--d:${Math.min(240+ci*6,300)}ms"><circle cx="${ax}" cy="${ay}" r="3" fill="${FT.arrow}"/><path d="${dp}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar)"/></g>`;});
   // nodes
   depts.forEach(d=>FLOW[d].forEach((n,i)=>{const {x,y}=pos(d,i);const st=stateOf(n,d,i);
     const frozen=isDesignFrozen(l)&&isFrozenDesignStage(n.s)&&st==="x";   // a done 概念/開發 node, locked by design freeze → render it iced
@@ -3722,24 +3779,58 @@ function flowSVG(l){
     // frontier (unlocked, not started) → orange 📍 這裡 · in-progress → amber ⏳ 進行中 · blocked → red ⛔. Done/locked stay quiet.
     const live=_tt?(st==="p"?"p":st==="b"?"b":st==="o"?"o":null):null;
     const isHere=live==="o";
-    const daysMiss=!n.d&&_vnn&&_vnn.days==null&&_tt&&_tt.days==null&&_tt.st!=="x";   // step still needs its day estimate typed in → soft-red corner flag
+    // "needs input" flag — ONLY on work that is actually live (locked/done steps asking for a number is noise:
+    // the old rule lit 11 red dots on a brand-new card), and it now covers the two hand-typed DATES as well,
+    // which the days-only rule could never see (FB1 has days:31 so its 到貨日 was invisible; P3's 大貨樣日 too).
+    // KOL steps are ongoing by design — they have no day estimate to give.
+    const _live=st!=="fut"&&st!=="x";
+    const needDays=!!(_live&&_vnn&&!_vnn.ongoing&&_vnn.days==null&&_vnn.est==null&&_tt&&_tt.days==null);
+    const needDate=!!(_live&&_tt&&_vnn&&((_vnn.arrival&&!_tt.arrivalDate)||(_vnn.sample&&!_tt.sampleDate)));
+    const needIn=needDays?"⏱":needDate?"📅":"";
     const key=d+"|"+n.l, inHi=depOn&&depKeys.has(key);
     const isSel=S.route&&S.route.d===d&&S.route.i===i;     // currently-open node (drives the popover anchor)
     const click=` class="flownode" style="cursor:pointer;--d:${Math.min(60+depts.indexOf(d)*14+i*15,220)}ms" onclick="event.stopPropagation();flowNode('${d}',${i})"`;
     const h=hgt(d,i);
+    // badge row sits ENTIRELY above the tile (y-19..y-1). It used to straddle the top edge at y-10, which put it
+    // through the first line of every 3-line label (D4 "PDP +", KOL1 "Mega", C9 "Ben"). 26px inter-row gap absorbs it.
+    const BRY=y-19, BTY=y-6;
+    const dash=st==="fut"&&!frozen?' stroke-dasharray="4 3"':"";   // locked reads as dashed, not as faint text (F32)
     const body=n.d
-      ?`<polygon id="fn-${d}-${i}" filter="url(#nsh)" points="${x+CW/2},${y-2} ${x+CW+4},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-4},${y+NH/2}" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"/>`
-      :`<rect id="fn-${d}-${i}" filter="url(#nsh)" x="${x}" y="${y}" width="${CW}" height="${h}" rx="5" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"/>`;
+      ?`<polygon id="fn-${d}-${i}" filter="url(#nsh)" points="${x+CW/2},${y-2} ${x+CW+4},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-4},${y+NH/2}" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"${dash}/>`
+      :`<rect id="fn-${d}-${i}" filter="url(#nsh)" x="${x}" y="${y}" width="${CW}" height="${h}" rx="5" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"${dash}/>`;
     const tcol=frozen?FT.ice.txt:(FT.txt[st]||FT.txt.o);
+    // meta line — `code · Nd`, the only thing on the tile that tells C7 / C9 / D5 apart in 中文 (all three read
+    // 「Ben 決策」) and the only place the day budget shows. days: task override > template > ~est > ? ; ongoing → ↻.
+    const _md=(_tt&&_tt.days!=null)?_tt.days:(_vnn?_vnn.days:null);
+    // state glyph: 🔒 locked · ❄ design-frozen · ⏱/📅 needs input. On a DIAMOND it rides this line instead of the
+    // top-right corner — the wedge is only ~40px half-wide up there, so the corner glyph floated in dead space
+    // outside the shape AND (via _corner) squeezed the label into a 3-line stack that printed through the meta.
+    // The three states are mutually exclusive (fut / x+frozen / live), so at most one prefix ever applies.
+    const _pre=st==="fut"?"🔒 ":n.d&&frozen?"❄ ":n.d&&needIn?needIn+" ":"";
+    const metaTxt=_pre+(n.code?n.code+" · ":"")
+      +(_vnn&&_vnn.ongoing?"↻":_md!=null?_md+"d":(_vnn&&_vnn.est!=null?"~"+_vnn.est+"d":"?d"));
+    const metaY=n.d?y+NH/2+13:y+h-6;
+    const metaSVG=`<text x="${x+CW/2}" y="${metaY}" text-anchor="middle" fill="${tcol}" opacity="${st==="fut"?1:.72}" font-size="${MF}" letter-spacing=".02em" style="font-family:var(--font-mono)" pointer-events="none">${esc(metaTxt)}</text>`;
     let labelSVG;
     if(n.sub&&n.sub.length){                            // parent header + nested sub-item boxes
       labelSVG=`<text x="${x+CW/2}" y="${y+17}" text-anchor="middle" fill="${tcol}" font-size="11" font-weight="700" letter-spacing="${FL_LS}em">${esc(flowTL(n.l))}</text>`
         +n.sub.map((s,k)=>{const sy=y+HEAD+k*(SUBH+SUBGAP);const sl=flowLabel(flowTL(s),CW-20);return `<rect x="${x+10}" y="${sy}" width="${CW-20}" height="${SUBH}" rx="2" fill="${FT.colBg}" stroke="${ns}" stroke-width="1"/><text x="${x+CW/2}" y="${sy+SUBH/2+Math.min(sl.font,10)*0.35}" text-anchor="middle" fill="${tcol}" font-size="${Math.min(sl.font,10)}" letter-spacing="${FL_LS}em">${esc(sl.lines[0])}</text>`;}).join("");
     }else{
-      const lay=flowLabel(flowTL(n.l),CW), F=lay.font, lg=F*1.18, cy=y+NH/2, nl=lay.lines.length;
-      labelSVG=lay.lines.map((ln,k)=>`<text x="${x+CW/2}" y="${(cy+(k-(nl-1)/2)*lg+F*0.34).toFixed(1)}" text-anchor="middle" fill="${tcol}" font-size="${F}" letter-spacing="${FL_LS}em">${esc(ln)}</text>`).join("");
+      // label sits in NH−MTA; the 3-line branch of flowLabel keeps the 11.5 max (nothing constrains it there),
+      // which is how en CRM2 used to stack 3×11.5×1.18=40.7px into a 38px tile — clamp it to the box.
+      // the ⏱/📅/❄ corner glyph owns the top-right ~24px; give the label a narrower box shifted left by the same
+      // amount, otherwise a wide single line (MS3a "Lifestyle photos") slides straight under it.
+      const _corner=(needIn||frozen)&&!n.d, LBW=_corner?CW-26:CW, LCX=_corner?x+2+LBW/2:x+CW/2;
+      // vertical budget. rect: the box minus the meta band. diamond: only as far down as ITS meta line, which sits
+      // 4px higher than a rect's because the wedge narrows — reusing the rect budget printed the last label line
+      // straight through `code · Nd`. Diamond labels are capped at 2 lines and BOTTOM-aligned to the band, which
+      // pulls the long line down into the wide middle of the wedge instead of hanging it over the narrow top.
+      const LTOP=n.d?y+4:y, LBOT=n.d?metaY-MF*0.72-2:y+NH-MTA, LBH=LBOT-LTOP;
+      const lay=flowLabel(flowTL(n.l),LBW,n.d?2:3), nl=lay.lines.length, F=+Math.min(lay.font,LBH/(nl*1.18)).toFixed(2), lg=F*1.18, cy=n.d?LBOT-F*0.56-(nl-1)/2*lg:LTOP+LBH/2;
+      labelSVG=lay.lines.map((ln,k)=>`<text x="${LCX}" y="${(cy+(k-(nl-1)/2)*lg+F*0.34).toFixed(1)}" text-anchor="middle" fill="${tcol}" font-size="${F}" letter-spacing="${FL_LS}em">${esc(ln)}</text>`).join("");
     }
-    svg+=`<g${click}${depOn&&!depKeys.has(key)?' opacity="0.18"':""}>${body}${isSel?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inHi&&!isSel?`<rect class="glownode" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="1.8" opacity="0.8" pointer-events="none"/>`:""}${labelSVG}${frozen?`<text x="${x+CW-9}" y="${y+14}" text-anchor="middle" fill="${FT.ice.strk}" font-size="11" font-weight="700" pointer-events="none">❄</text>`:""}${daysMiss?`<circle cx="${x+CW-8}" cy="${y+8}" r="5.5" fill="rgba(248,113,113,.20)" pointer-events="none"/><circle cx="${x+CW-8}" cy="${y+8}" r="3" fill="rgba(248,113,113,.9)" pointer-events="none"/>`:""}
+    labelSVG+=metaSVG;
+    svg+=`<g${click}${depOn&&!depKeys.has(key)?' opacity="0.18"':""}>${body}${isSel?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inHi&&!isSel?`<rect class="glownode" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="1.8" opacity="0.8" pointer-events="none"/>`:""}${labelSVG}${frozen&&!n.d?`<text x="${x+CW-9}" y="${y+14}" text-anchor="middle" fill="${FT.ice.strk}" font-size="11" font-weight="700" pointer-events="none">❄</text>`:""}${needIn&&!n.d?`<g pointer-events="none"><circle cx="${x+CW-11}" cy="${y+11}" r="8.6" fill="rgba(248,113,113,.18)" stroke="rgba(248,113,113,.9)" stroke-width="1.1"/><text x="${x+CW-11}" y="${y+14.6}" text-anchor="middle" font-size="9.5">${needIn}</text></g>`:""}
     ${n.d&&!live?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#c084fc" font-size="11">◆ decision</text>`:""}${n.url?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#60a5fa" font-size="11">🔗 Figma</text>`:""}
     ${(()=>{const BJ=live==="o"?{t:"📍 "+(LANG==="zh"?"這裡":"here"),bg:"#EE3124",fg:"#fff"}
            :live==="p"?{t:"⏳ "+(LANG==="zh"?"進行中":"in progress"),bg:"#fbbf24",fg:"#111215"}
@@ -3749,21 +3840,29 @@ function flowSVG(l){
       // Width is capped to this column's band (CW+GAP): compound owners collapse to "First +n", then ellipsis.
       let ownSVG="";
       if(isHere){ const owners=String((_vnn&&_vnn.o)||(_tt&&_tt.o)||"").split(/\s*[+·・]\s*/).map(s=>s.trim()).filter(Boolean);
-        if(owners.length){ const bx0=x-4+w+4, max=CW+GAP-8-(w+4);
-          // one rounded owner chip; first shown dimmed at rest, co-owners (fn-own-2) tucked right and revealed on node hover
-          const chip=(cx,nm,cls)=>{const nc=v3OColor(nm),nw=pillW(nm);return {w:nw,svg:`<g class="fn-own${cls}"><rect x="${cx}" y="${y-10}" width="${nw}" height="18" rx="9" fill="${FT.colBg}" stroke="${nc}" stroke-width="1.2"/><text x="${cx+nw/2}" y="${y+3}" text-anchor="middle" fill="${nc}" font-size="10.5" font-weight="700"><!--notx-->${esc(nm)}<!--/notx--></text></g>`};};
-          let first=owners[0];                                       // ellipsise the resting chip only if that one name alone overflows the lane band
-          if(pillW(first)>max){ while(first.length>1&&pillW(first+"…")>max) first=first.slice(0,-1); first+="…"; }
-          const f=chip(bx0,first,""); ownSVG=f.svg; let ox=bx0+f.w+5;
-          owners.slice(1).forEach(nm=>{ const c=chip(ox,nm," fn-own-2"); ownSVG+=c.svg; ox+=c.w+5; });
+        if(owners.length){ const bx0=x-4+w+4, max=CW+GAP-8-(w+4), edge=bx0+max;   // edge = the hard right limit of this column's band
+          const chip=(cx,nm,cls)=>{const nc=v3OColor(nm),nw=pillW(nm);return {w:nw,svg:`<g class="fn-own${cls}"><rect x="${cx}" y="${BRY}" width="${nw}" height="18" rx="9" fill="${FT.colBg}" stroke="${nc}" stroke-width="1.2"/><text x="${cx+nw/2}" y="${BTY}" text-anchor="middle" fill="${nc}" font-size="10.5" font-weight="700"><!--notx-->${esc(nm)}<!--/notx--></text></g>`};};
+          const fit=(nm,room)=>{ if(pillW(nm)<=room)return nm; let s=nm; while(s.length>1&&pillW(s+"…")>room) s=s.slice(0,-1); return s+"…"; };
+          const f=chip(bx0,fit(owners[0],max),""); ownSVG=f.svg; let ox=bx0+f.w+5;
+          // co-owners are REAL information ("who else starts this") — a persistent "+N" badge carries them at rest so
+          // touch / screenshots / a projector still see them; hover swaps it for the names.
+          if(owners.length>1){ const mt="+"+(owners.length-1), mw=pillW(mt);
+            if(ox+mw<=edge) ownSVG+=`<g class="fn-more"><rect x="${ox}" y="${BRY}" width="${mw}" height="18" rx="9" fill="${FT.colBg}" stroke="${FT.colLine}" stroke-width="1.2"/><text x="${ox+mw/2}" y="${BTY}" text-anchor="middle" fill="${FT.txt.o}" font-size="10.5" font-weight="700">${mt}</text></g>`;
+            // ONE chip for all co-owners, not a chip each: after the 📍 badge only ~56px of the lane band survive,
+            // and side-by-side chips spend the 16px pill padding per name — MS1's 3rd owner then fell off the end
+            // while "+2" still promised it. Joined + ellipsised keeps the count honest and never leaves the band.
+            const rest=owners.slice(1), one=rest.length===1, rc=one?v3OColor(rest[0]):FT.colLine, room=edge-ox;
+            if(room>=26){ const rt=fit(rest.join(" · "),room), rw=pillW(rt);
+              ownSVG+=`<g class="fn-own-2"><rect x="${ox}" y="${BRY}" width="${rw}" height="18" rx="9" fill="${FT.colBg}" stroke="${rc}" stroke-width="1.2"/><text x="${ox+rw/2}" y="${BTY}" text-anchor="middle" fill="${one?rc:FT.txt.o}" font-size="10.5" font-weight="700"><!--notx-->${esc(rt)}<!--/notx--></text></g>`; }
+          }
         } }
-      return `<g pointer-events="none"><rect x="${x-4}" y="${y-10}" width="${w}" height="18" rx="9" fill="${BJ.bg}"/><text x="${x-4+w/2}" y="${y+3}" text-anchor="middle" fill="${BJ.fg}" font-size="11" font-weight="700">${BJ.t}</text>${ownSVG}</g>`;})()}
-    <title>${esc(n.l)} — stage: ${n.s} · click for route + quick actions${st==="fut"&&ti>=0?" · 🔒 locked until previous step is done":""}${live==="o"?(LANG==="zh"?" · 📍 已解鎖，可開始":" · 📍 unlocked — ready to start")+((_vnn&&_vnn.o)||(_tt&&_tt.o)?(LANG==="zh"?" · 負責人 ":" · owner: ")+"<!--notx-->"+esc(String((_vnn&&_vnn.o)||(_tt&&_tt.o)))+"<!--/notx-->":""):live==="p"?(LANG==="zh"?" · ⏳ 進行中":" · ⏳ in progress"):live==="b"?(LANG==="zh"?" · ⛔ 卡關":" · ⛔ blocked"):""}${daysMiss?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}</title></g>`;}));
+      return `<g pointer-events="none"><rect x="${x-4}" y="${BRY}" width="${w}" height="18" rx="9" fill="${BJ.bg}"/><text x="${x-4+w/2}" y="${BTY}" text-anchor="middle" fill="${BJ.fg}" font-size="11" font-weight="700">${BJ.t}</text>${ownSVG}</g>`;})()}
+    <title>${esc(n.l)} — stage: ${n.s} · click for route + quick actions${st==="fut"&&ti>=0?" · 🔒 locked until previous step is done":""}${live==="o"?(LANG==="zh"?" · 📍 已解鎖，可開始":" · 📍 unlocked — ready to start")+((_vnn&&_vnn.o)||(_tt&&_tt.o)?(LANG==="zh"?" · 負責人 ":" · owner: ")+"<!--notx-->"+esc(String((_vnn&&_vnn.o)||(_tt&&_tt.o)))+"<!--/notx-->":""):live==="p"?(LANG==="zh"?" · ⏳ 進行中":" · ⏳ in progress"):live==="b"?(LANG==="zh"?" · ⛔ 卡關":" · ⛔ blocked"):""}${needDays?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}${needDate&&_vnn&&_vnn.arrival?(LANG==="zh"?" · 📦 到貨日未填":" · 📦 arrival date not set"):""}${needDate&&_vnn&&_vnn.sample?(LANG==="zh"?" · 🧵 大貨樣日未填":" · 🧵 bulk-sample date not set"):""}</title></g>`;}));
   // red dependency arrows (drawn on top so they clearly reach the highlighted nodes)
   depEdges.forEach(([a,b])=>{const pa=pos(a[0],a[1]),pb=pos(b[0],b[1]),ha=hgt(a[0],a[1]),hb=hgt(b[0],b[1]); let dpath;
     if(a[0]===b[0]){ const ax=pa.x+CW/2, ay=pa.y+ha, bx=pb.x+CW/2, by=pb.y-5, my=(ay+by)/2; dpath=`M${ax} ${ay} C ${ax} ${my}, ${bx} ${my}, ${bx} ${by}`; }
     else{ const l2r=pb.x>=pa.x, ax=l2r?pa.x+CW:pa.x, ay=pa.y+ha/2, bx=l2r?pb.x-5:pb.x+CW+5, by=pb.y+hb/2, mx=(ax+bx)/2; dpath=`M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx} ${by}`; }
-    svg+=`<path class="depedge" d="${dpath}" fill="none" stroke="#EE3124" stroke-width="2.3"/>`;});
+    svg+=`<path class="depedge" d="${dpath}" fill="none" stroke="#EE3124" stroke-width="2.3" marker-end="url(#arR)"/>`;});
   svg+="</svg>";
   return `<div class="flowwrap${_flowFirst?' flowin':''}">${svg}</div>`;        // .flowin → play the entrance choreography once (gated above); route intro + actions live in the inline #flowPop popover
 }
@@ -4178,12 +4277,21 @@ function portfolioBoard(){
   // stage spine: every stage is a junction dot on ONE hairline rail, laid on equal-width columns
   // so the rail reads as an even stepper (empty stages keep their slot, just no card). Dot = worst health.
   const RANK={bad:3,dec:2,risk:1,ok:0,done:0}, DOTC=["var(--green)","var(--amber)","var(--purple)","var(--red)"];
-  return `<div class="panel"><h3>Portfolio — all launches by stage${S.q?` <span class="ghostnote">(filtered: “${esc(S.q)}”)</span>`:""}</h3><div class="pfb" style="grid-template-columns:repeat(${STAGES.length},minmax(168px,1fr))">${STAGES.map(s=>{
+  // 物流 is structurally almost always empty — a card only lands there once everything BUT FB1 is done — so
+  // instead of a dead slot the column carries what that stage is actually about: every in-flight card's
+  // 到貨日／首波開賣 (v3Arrival = LC's typed date, else v3EtaBulk's ~estimate).
+  const zh=LANG==="zh", etaCol=STAGES.indexOf("Logistics");   // -1 if the stage is ever renamed → block drops out rather than latching onto some other column
+  const arrivals=()=>{const rows=LAUNCHES.filter(l=>!l.complete&&fq(l)).map(l=>{const a=v3Arrival(l),e=a?"":v3EtaBulk(l);
+      return {n:l.name,slug:l.slug,d:a||e||"",est:!a&&!!e,k:a||e||"9999"};}).sort((x,y)=>x.k<y.k?-1:1);
+    if(!rows.length)return "";
+    return `<div class="pfb-eta"><div class="pfb-etah">${zh?"到貨日／首波開賣":"Arrival / first on sale"}</div>${rows.map(r=>
+      `<div class="pfb-etar" onclick="openL('${r.slug}')"><span><!--notx-->${esc(r.n)}<!--/notx--></span><b>${r.d?(r.est?"~":"")+r.d:"—"}</b></div>`).join("")}</div>`;};
+  return `<div class="panel"><h3>Portfolio — all launches by stage${S.q?` <span class="ghostnote">(filtered: “${esc(S.q)}”)</span>`:""}</h3><div class="pfb" style="grid-template-columns:repeat(${STAGES.length},minmax(168px,1fr))">${STAGES.map((s,si)=>{
     const ls=LAUNCHES.filter(l=>l.stage===s&&fq(l));
     const worst=ls.length?Math.max(...ls.map(l=>RANK[health(l)[1]]||0)):-1;
     return `<div class="pfb-stage${ls.length?"":" empty"}"><div class="pfb-node">${
       ls.length?`<span class="pfb-dot" style="background:${DOTC[worst]}"></span>`:`<span class="pfb-dot hollow"></span>`
-    }<span class="pfb-name" title="${s}">${s}</span>${ls.length?`<span class="pfb-count">${ls.length}</span>`:""}<span class="pfb-line"></span></div>${ls.map(cardHTML).join("")}</div>`;
+    }<span class="pfb-name" title="${s}">${s}</span>${ls.length?`<span class="pfb-count">${ls.length}</span>`:""}<span class="pfb-line"></span></div>${ls.map(cardHTML).join("")}${!ls.length&&si===etaCol?arrivals():""}</div>`;
   }).join("")}</div></div>`;
 }
 // 📊 PORTFOLIO health overview — every product in one scannable table, most-at-risk first, click to drill
@@ -4486,7 +4594,7 @@ function viewLaunch(){
     if(view==="overview") return `<div class="ld-cardhead">${tabs}</div>${v3Overview(l)}`;
     if(view==="dash") return `<div class="ld-cardhead">${tabs}</div>${v3Dash(l)}`;
     return `<div class="ld-cardhead">${tabs}</div>${flowSVG(l)}
-    <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>${zh?"完成":"done"}</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>${zh?"進行中":"in progress"}</span><span><i style="background:#331414;border:1px solid #f87171"></i>${zh?"卡關":"blocked"}</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>${zh?"待做":"to do"}</span><span><i style="background:#15171b;border:1px solid #262b32"></i>${zh?"未解鎖":"upcoming"}</span><span style="color:var(--purple)">◆ ${zh?"決策關卡":"decision gate"}</span><span class="ghostnote">🔗 ${zh?"點任一步驟＝亮出前置／解鎖":"click a step = show its deps"}</span></div>
+    ${flowLegend()}
     <div class="twocol ld2"><div>
     <div class="secdiv"><h4>${LANG==="zh"?"上市進度 — 依階段":"Launch progress — by phase"}</h4><div class="sub">${LANG==="zh"?"每一步在前置完成後才解鎖（🔒 會顯示在等誰）。天數可調的步驟直接在列上填。":"Each step unlocks when its prerequisites are done (🔒 shows what it's waiting on). Fill adjustable days right on the row."}</div></div>
     ${stageTimeline(l)}
@@ -4510,7 +4618,7 @@ function viewFlow(){
   return `<h2>Master flow chart — <select onchange="S.flowLaunch=this.value;render()">${legacy.map(x=>`<option value="${x.slug}" ${x.slug===S.flowLaunch?"selected":""}>${x.name}</option>`).join("")}</select></h2>
   <div class="sub">The company process map from <b>BV Team Workflow_v2.pdf</b>, made live: every department's lane, decision diamonds (◆ = Ben), and hand-offs — colored by <b>${l.name}</b>'s real progress. This is the card "passed around" exactly like the master PDF.</div>
   ${flowSVG(l)}
-  <div class="legend"><span><i style="background:#14331f;border:1px solid #4ade80"></i>done</span><span><i style="background:#33260f;border:1px solid #fbbf24"></i>in progress</span><span><i style="background:#331414;border:1px solid #f87171"></i>blocked</span><span><i style="background:#1d2127;border:1px solid #3a414b"></i>to do (current stage)</span><span><i style="background:#15171b;border:1px solid #262b32"></i>upcoming</span><span style="color:var(--purple)">◆ decision gate</span><span>⇢ dashed = cross-department hand-off</span></div>
+  ${flowLegend()}
   <div class="sub" style="margin-top:8px">Solid arrows follow each lane top-to-bottom (the v1 web app renders the full node-graph with the exact PDF edges, including the KOL evaluation loop and NO-loops back to concept).</div>`;
 }
 /* ============ PROJECTS — domain helpers (ported from projectDomain.ts / projectStats.ts) ============ */
