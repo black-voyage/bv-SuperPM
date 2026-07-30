@@ -3457,7 +3457,7 @@ let FLOWSEEN="";                                       // flow context we last p
    silently stay dark-theme hex while the nodes follow THEME (blue reuses the dark ramp).
    txt.fut is deliberately NOT the faintest ink we can get away with: locked is 39/40 nodes on a fresh card,
    so it has to clear 4.5:1 (light #6B7382 on #F7F9FC = 4.52, dark #8b94a1 on #15171b = 5.85). "Not yet
-   unlocked" is carried by the DASHED border + 🔒 on the meta line instead. */
+   unlocked" is carried by the DASHED border alone (the 🔒 glyph came off the tiles on 2026-07-30). */
 function flowTheme(){ return THEME==="light"
     ?{colBg:"#FFFFFF",colLine:"#DDE3EE",arrow:"#8A98AE",
       fill:{x:"#E9F7EC",p:"#FFF3E0",b:"#FDEAEA",o:"#EEF1F7",fut:"#F7F9FC"},
@@ -3476,9 +3476,12 @@ function flowTheme(){ return THEME==="light"
    stroke is overwritten with red and that swatch could never match a node. */
 function flowLegend(){
   const zh=LANG==="zh", F=flowTheme(), sw=(b,s,t,extra)=>`<span><i style="background:${b};border:1px solid ${s}${extra||""}"></i>${t}</span>`;
-  return `<div class="legend">${sw(F.fill.x,F.strk.x,zh?"完成":"done")}${sw(F.fill.p,F.strk.p,zh?"進行中":"in progress")}${sw(F.fill.b,F.strk.b,zh?"卡關":"blocked")}${sw(F.fill.fut,F.strk.fut,zh?"未解鎖":"locked",";border-style:dashed")}${sw(F.ice.fill,F.ice.strk,zh?"設計凍結":"design-frozen")}
-  <span style="color:#EE3124">📍 ${zh?"現在可開工（右邊＝負責人）":"start now (owner on the right)"}</span><span>⏳ ${zh?"進行中":"in progress"}</span><span>⛔ ${zh?"卡關":"blocked"}</span><span>🔒 ${zh?"等前置":"waiting on prereqs"}</span><span>⏱／📅 ${zh?"待填天數／日期":"days / date to fill"}</span><span style="color:var(--purple)">◆ ${zh?"決策關卡":"decision gate"}</span>
-  <span class="ghostnote" style="font-family:var(--font-mono)">C7 · 5d = ${zh?"代號 · 天數（~ 推估、↻ 持續進行）":"code · days (~ estimate, ↻ ongoing)"}</span><span class="ghostnote">⇢ ${zh?"虛線＝跨部門交棒":"dashed = cross-department hand-off"}</span><span class="ghostnote">🔗 ${zh?"點任一步驟＝亮出前置／解鎖":"click a step = show its deps"}</span></div>`;
+  // Every entry here must correspond to something ACTUALLY drawn on the chart. The tiles carry only names now
+  // (2026-07-30), so the old `C7 · 5d` key and the standalone 🔒 glyph were removed — "locked" is the dashed
+  // swatch, and codes / day budgets live in the node popover.
+  return `<div class="legend">${sw(F.fill.x,F.strk.x,zh?"完成":"done")}${sw(F.fill.p,F.strk.p,zh?"進行中":"in progress")}${sw(F.fill.b,F.strk.b,zh?"卡關":"blocked")}${sw(F.fill.fut,F.strk.fut,zh?"未解鎖（虛線）＝等前置":"locked (dashed) = waiting on prereqs",";border-style:dashed")}${sw(F.ice.fill,F.ice.strk,zh?"設計凍結":"design-frozen")}
+  <span style="color:#EE3124">📍 ${zh?"現在可開工（右邊＝負責人）":"start now (owner on the right)"}</span><span>⏳ ${zh?"進行中":"in progress"}</span><span>⛔ ${zh?"卡關":"blocked"}</span><span>⏱／📅 ${zh?"待填天數／日期":"days / date to fill"}</span><span style="color:var(--purple)">◆ ${zh?"決策關卡":"decision gate"}</span>
+  <span class="ghostnote">⇢ ${zh?"虛線＝跨部門交棒":"dashed = cross-department hand-off"}</span><span class="ghostnote">🔗 ${zh?"點任一步驟＝亮出前置／解鎖，並看代號與天數":"click a step = deps, code and day budget"}</span></div>`;
 }
 function flowSVG(l){
   S._flowSlug=l.slug;                                // which launch the popover reads task/links from
@@ -3487,6 +3490,7 @@ function flowSVG(l){
   // spacing rhythm: related nodes group TIGHT inside a lane (VG 64 → 26px gaps), distinct lanes separate GENEROUSLY (GAP 46).
   // No lane boxes — grouping comes from proximity on an open dotted field, so the chart breathes instead of being walled in.
   const CW=118,GAP=46,NH=38,VG=64,TOP=76;
+  const DXW=4;   // 菱形往左右外擴的量（原版值）
   FL_LS=(LANG==="zh")?0.06:0;                         // 繁中 node labels get wider tracking; latin stays tight (factored into flowDW sizing + applied to <text>)
   const nodeH=()=>NH;   // every V3 node is a flat tile (no nested sub-items) — height is uniform
   const LY={};                                        // per-lane cumulative Y — supports variable node heights
@@ -3586,22 +3590,41 @@ function flowSVG(l){
     const BRY=y-19, BTY=y-6;
     const dash=st==="fut"&&!frozen?' stroke-dasharray="4 3"':"";   // locked reads as dashed, not as faint text (F32)
     const body=n.d
-      ?`<polygon id="fn-${d}-${i}" filter="url(#nsh)" points="${x+CW/2},${y-2} ${x+CW+4},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-4},${y+NH/2}" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"${dash}/>`
+      ?`<polygon id="fn-${d}-${i}" filter="url(#nsh)" points="${x+CW/2},${y-2} ${x+CW+DXW},${y+NH/2} ${x+CW/2},${y+NH+2} ${x-DXW},${y+NH/2}" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"${dash}/>`
       :`<rect id="fn-${d}-${i}" filter="url(#nsh)" x="${x}" y="${y}" width="${CW}" height="${h}" rx="5" fill="${nf}" stroke="${isHere?"#EE3124":ns}" stroke-width="${isHere?2.5:1.4}"${dash}/>`;
     const tcol=frozen?FT.ice.txt:(FT.txt[st]||FT.txt.o);
     // the tile carries the step NAME and nothing else — code, day budget and lock state live in the popover,
     // one click away. (A `code · Nd` meta line under every label read as visual noise at chart scale.)
     // the ⏱/📅/❄ corner glyph owns the top-right ~24px; give the label a narrower box shifted left by the same
     // amount, otherwise a wide single line (MS3a "Lifestyle photos") slides straight under it.
-    const _corner=(needIn||frozen)&&!n.d, LBW=_corner?CW-26:CW, LCX=_corner?x+2+LBW/2:x+CW/2;
+    // diamonds get a narrower packing box so a long en name splits into two BALANCED lines instead of one
+    // wide line + one short one — the wide line is what has to survive the wedge's taper.
+    const _corner=(needIn||frozen)&&!n.d, LBW=(_corner?CW-26:CW)-(n.d?30:0), LCX=_corner?x+2+LBW/2:x+CW/2;
     // clamp the font to the tile: flowLabel's 3-line branch keeps its own 11.5 max, which is how CRM2's old
-    // long-form en label used to stack 3×11.5×1.18=40.7px inside a 38px box. (Don't quote that string here —
-    // a suite scans leaf DOM text, and <script> source counts, so a literal would fail its own stale-label check.)
+    // long-form en label ("FAQ finalized + brief CS") used to stack 3×11.5×1.18=40.7px inside a 38px box.
     const LTOP=n.d?y+4:y, LBH=n.d?NH-8:NH;
-    const lay=flowLabel(flowTL(n.l),LBW,n.d?2:3), nl=lay.lines.length, F=+Math.min(lay.font,LBH/(nl*1.18)).toFixed(2), lg=F*1.18, cy=LTOP+LBH/2;
+    let lay=flowLabel(flowTL(n.l),LBW,n.d?2:3);
+    // A diamond's two lines are sized by the WIDER of them, so an uneven split ("Ben" / "concept sign-off")
+    // costs ~1.5px of type versus an even one. Re-split at the word gap closest to the middle and keep whichever
+    // layout survives the taper better (measured below). Rects have no taper, so they keep the packer's output.
+    if(n.d){ const ws=flowTL(n.l).split(/\s+/).filter(Boolean);
+      if(ws.length>1&&lay.lines.length===2){
+        let bi=1,bd=Infinity;
+        for(let k=1;k<ws.length;k++){ const dd=Math.abs(flowDW(ws.slice(0,k).join(" "))-flowDW(ws.slice(k).join(" "))); if(dd<bd){bd=dd;bi=k;} }
+        const ev=[ws.slice(0,bi).join(" "),ws.slice(bi).join(" ")];
+        if(Math.max(...ev.map(flowDW))<Math.max(...lay.lines.map(flowDW))) lay={lines:ev,font:lay.font};
+      } }
+    const nl=lay.lines.length;
+    let F=+Math.min(lay.font,LBH/(nl*1.18)).toFixed(2);
+    // A DIAMOND's usable width shrinks with vertical distance from its centre, so a font that fits the box can
+    // still push the outermost line through the sloped edge. Solve for the font where the widest line still fits
+    // at ITS OWN dy: F·dw ≤ 2·HW·(1 − F·c/HH), c = the outer line's dy in em. (Rects taper not at all → skipped.)
+    if(n.d){ const HW=CW/2+DXW, HH=NH/2+2, dw=Math.max(...lay.lines.map(flowDW)), c=(nl-1)*0.59+0.72;
+      F=+Math.min(F, 2*HW/(dw+2*HW*c/HH)).toFixed(2); }
+    const lg=F*1.18, cy=LTOP+LBH/2;
     let labelSVG=lay.lines.map((ln,k)=>`<text x="${LCX}" y="${(cy+(k-(nl-1)/2)*lg+F*0.34).toFixed(1)}" text-anchor="middle" fill="${tcol}" font-size="${F}" letter-spacing="${FL_LS}em">${esc(ln)}</text>`).join("");
     svg+=`<g${click}${depOn&&!depKeys.has(key)?' opacity="0.18"':""}>${body}${isSel?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inHi&&!isSel?`<rect class="glownode" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="1.8" opacity="0.8" pointer-events="none"/>`:""}${labelSVG}${frozen&&!n.d?`<text x="${x+CW-9}" y="${y+14}" text-anchor="middle" fill="${FT.ice.strk}" font-size="11" font-weight="700" pointer-events="none">❄</text>`:""}${needIn&&!n.d?`<g pointer-events="none"><circle cx="${x+CW-11}" cy="${y+11}" r="8.6" fill="rgba(248,113,113,.18)" stroke="rgba(248,113,113,.9)" stroke-width="1.1"/><text x="${x+CW-11}" y="${y+14.6}" text-anchor="middle" font-size="9.5">${needIn}</text></g>`:""}
-    ${n.d&&!live?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#c084fc" font-size="11">◆ decision</text>`:""}
+    ${n.d&&!live?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#c084fc" font-size="11" stroke="${FT.colBg}" stroke-width="3.4" paint-order="stroke" stroke-linejoin="round">◆ decision</text>`:""}
     ${(()=>{const BJ=live==="o"?{t:"📍 "+(LANG==="zh"?"這裡":"here"),bg:"#EE3124",fg:"#fff"}
            :live==="p"?{t:"⏳ "+(LANG==="zh"?"進行中":"in progress"),bg:"#fbbf24",fg:"#111215"}
            :live==="b"?{t:"⛔ "+(LANG==="zh"?"卡關":"blocked"),bg:"#f87171",fg:"#111215"}:null;
@@ -3770,7 +3793,11 @@ function flowPopHTML(d,i){
   const tip=LANG==="zh"?"開啟時，點擊步驟會用紅線標出它的『前置』與『完成後解鎖』的步驟；用熟了可關閉":"Trace this step's prerequisites and what finishing it unblocks, in red on the chart";
   const vnH=V3MAP[n.code]||{};
   let h=`<div class="fp-head"><div class="fp-h-main"><div class="fp-title">${esc(flowTL(n.l))}</div>`
-    +`<div class="fp-meta"><span class="fp-stage">${esc(n.s)}</span>`
+    +`<div class="fp-meta">`
+    // 磁磚上不再印代號／天數（2026-07-30），所以彈窗必須承載它們：代號是依賴 chips、鎖定文案與看板對話用的語言，
+    // 也是中文模式下區分 C7／C9／D5 三個「Ben 決策」的唯一線索。
+    +(n.code?`<span class="fp-stage" title="${zh?"步驟代號":"step code"}">${esc(n.code)}</span>`:"")
+    +`<span class="fp-stage">${esc(n.s)}</span>`
     +(vnH.o?`<span class="fp-ownr" title="${zh?"負責人":"owner"}">👤 <!--notx-->${esc(vnH.o)}<!--/notx--></span>`:"")
     +(n.d?'<span class="fp-dec">◆ decision</span>':"")
     +(task&&task.decision&&task.decision.v==="no"?`<span class="fp-dec" style="color:var(--red)">✗ ${zh?"已否決":"rejected"}</span>`:"")
