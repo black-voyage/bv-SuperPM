@@ -3459,12 +3459,12 @@ let FLOWSEEN="";                                       // flow context we last p
    so it has to clear 4.5:1 (light #6B7382 on #F7F9FC = 4.52, dark #8b94a1 on #15171b = 5.85). "Not yet
    unlocked" is carried by the DASHED border alone (the 🔒 glyph came off the tiles on 2026-07-30). */
 function flowTheme(){ return THEME==="light"
-    ?{colBg:"#FFFFFF",colLine:"#DDE3EE",arrow:"#8A98AE",
+    ?{colBg:"#FFFFFF",colLine:"#DDE3EE",arrow:"#8A98AE",field:"#EFF2F7",   // field＝.flowwrap 實際背板（rgba(238,241,247,.82) over #f6f8fc）；光暈用它才不會出現白塊
       fill:{x:"#E9F7EC",p:"#FFF3E0",b:"#FDEAEA",o:"#EEF1F7",fut:"#F7F9FC"},
       strk:{x:"#3E9E5B",p:"#D68910",b:"#D64545",o:"#B9C2D4",fut:"#C4CDDC"},
       txt:{x:"#1E7E3E",p:"#A05A00",b:"#B03030",o:"#3C4452",fut:"#6B7382"},
       ice:{fill:"#E6F4FB",strk:"#38BDF8",txt:"#0369A1"}}                       // design-frozen step → icy blue
-    :{colBg:"#13161A",colLine:"#22262D",arrow:"#5B6472",
+    :{colBg:"#13161A",colLine:"#22262D",arrow:"#5B6472",field:"#080A0C",   // field＝dark/blue 的 --void 背板
       fill:{x:"#14331f",p:"#33260f",b:"#331414",o:"#1d2127",fut:"#15171b"},
       strk:{x:"#4ade80",p:"#fbbf24",b:"#f87171",o:"#3a414b",fut:"#39414c"},
       txt:{x:"#4ade80",p:"#fbbf24",b:"#f87171",o:"#aab3bd",fut:"#8b94a1"},
@@ -3624,7 +3624,7 @@ function flowSVG(l){
     const lg=F*1.18, cy=LTOP+LBH/2;
     let labelSVG=lay.lines.map((ln,k)=>`<text x="${LCX}" y="${(cy+(k-(nl-1)/2)*lg+F*0.34).toFixed(1)}" text-anchor="middle" fill="${tcol}" font-size="${F}" letter-spacing="${FL_LS}em">${esc(ln)}</text>`).join("");
     svg+=`<g${click}${depOn&&!depKeys.has(key)?' opacity="0.18"':""}>${body}${isSel?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inHi&&!isSel?`<rect class="glownode" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="1.8" opacity="0.8" pointer-events="none"/>`:""}${labelSVG}${frozen&&!n.d?`<text x="${x+CW-9}" y="${y+14}" text-anchor="middle" fill="${FT.ice.strk}" font-size="11" font-weight="700" pointer-events="none">❄</text>`:""}${needIn&&!n.d?`<g pointer-events="none"><circle cx="${x+CW-11}" cy="${y+11}" r="8.6" fill="rgba(248,113,113,.18)" stroke="rgba(248,113,113,.9)" stroke-width="1.1"/><text x="${x+CW-11}" y="${y+14.6}" text-anchor="middle" font-size="9.5">${needIn}</text></g>`:""}
-    ${n.d&&!live?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#c084fc" font-size="11" stroke="${FT.colBg}" stroke-width="3.4" paint-order="stroke" stroke-linejoin="round">◆ decision</text>`:""}
+    ${n.d&&!live?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#c084fc" font-size="11" stroke="${FT.field}" stroke-width="2.8" paint-order="stroke" stroke-linejoin="round">◆ decision</text>`:""}
     ${(()=>{const BJ=live==="o"?{t:"📍 "+(LANG==="zh"?"這裡":"here"),bg:"#EE3124",fg:"#fff"}
            :live==="p"?{t:"⏳ "+(LANG==="zh"?"進行中":"in progress"),bg:"#fbbf24",fg:"#111215"}
            :live==="b"?{t:"⛔ "+(LANG==="zh"?"卡關":"blocked"),bg:"#f87171",fg:"#111215"}:null;
