@@ -323,10 +323,8 @@
   .card-kv .r{display:flex;justify-content:space-between;gap:10px;font-size:12px;min-width:0}
   .card-kv .k{flex:none;color:var(--faint)}
   .card-kv .v{color:var(--dim);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .card .bar{margin:7px 0 5px}
-  .card .bar i{background:var(--blue);opacity:.75}  /* progress is data, not a signal — blue, never accent */
-  .card-cnt{font-family:var(--font-mono);font-size:11px;color:var(--faint);margin:1px 0 2px}
-  .card-ft{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  /* 進度條／點點／計數列已從卡片移除（2026-07-31），這裡自己撐開與 card-kv 的間距 */
+  .card-ft{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:9px}
   .bar{height:5px;background:var(--panel2);border-radius:var(--r-xs);margin:8px 0 6px;overflow:hidden}
   .bar i{display:block;height:100%;background:var(--accent)}
   .pill{display:inline-block;padding:2px 9px;border-radius:var(--r-xs);font-size:11px;font-weight:600;margin-top:6px}
@@ -1096,7 +1094,7 @@ const V3=[
  {c:"CT3", evid:1, en:"COGS & bundle setup", zh:"COGS＆BUNDLE", ph:2, dept:"Catalog", o:"LC", days:1, req:["CT1"]},
  {c:"CT4", evid:1, en:"Shopify product created", zh:"Shopify 商品建立", ph:2, dept:"Catalog", o:"Zac", days:1, req:["CT3"], out:{en:"Shopify SKU",zh:"Shopify SKU"}},
  {c:"D7", en:"Studio shoot requirements", zh:"棚拍需求", ph:2, dept:"Design", o:"Mi", days:1, req:["P1"], note:{en:"opens once PPS + BOM is filed",zh:"產前樣＆BOM 完成後開啟"}},
- {c:"D3", evid:1, en:"Packaging finalized", zh:"包裝設計定稿", ph:2, dept:"Design", o:"Mi", days:2, req:["C7"], note:{en:"opens when prototyping (C8) starts; to factory between PPS and mass production",zh:"原型打樣（C8）一開跑即可製作；於產前樣確定～大貨生產期間交付工廠"}},
+ {c:"D3", en:"Packaging finalized", zh:"包裝設計定稿", ph:2, dept:"Design", o:"Mi", days:2, req:["C7"], note:{en:"opens when prototyping (C8) starts; to factory between PPS and mass production",zh:"原型打樣（C8）一開跑即可製作；於產前樣確定～大貨生產期間交付工廠"}},
  {c:"D4", en:"PDP + infographics draft", zh:"PDP 草稿", ph:2, dept:"Design", o:"Oume", days:14, req:["MB3"], asset:1, note:{en:"starts after MB3 (= photos + 10d)",zh:"等 MB3 完成後開始（＝照片完成＋10 天）"}},
  {c:"D5", en:"Ben PDP sign-off", zh:"Ben 決策", ph:2, dept:"Design", o:"Ben", days:2, req:["D4"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
  // 2026-07-31：拿掉 MS3b（行銷影片）前置 —— PDP 定稿只等 Ben 的 D5 決策，不再被影片檔期綁住
@@ -3444,21 +3442,17 @@ function stageTimeline(l){
     </div>`;
   }).join("")}</div>`;
 }
-const cardHTML=l=>{const g=gateState(l),[h,cls]=health(l);const si=STAGES.indexOf(l.stage);
-  const dots=STAGES.map((s,i)=>`<span title="${s}" style="display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;background:${l.complete||i<si?"#4ade80":i===si?"var(--accent)":"#2a2f37"};${i===si&&!l.complete?"box-shadow:0 0 6px var(--accent)":""}"></span>`).join("");
-  const done=l.tasks.filter(t=>t.st==="x").length;
-  const cn=l.complete?null:criticalNext(l);
+/* 總覽看板的卡片刻意只留「這張卡現在是什麼狀態」四件事：名稱、目前進度在、預計上市、健康＋餘裕。
+   2026-07-31 拿掉階段點點、進度條、「N/M 關卡條件 · N/M 項任務」與 Drive 連結 —— 前三個是同一件事
+   （進度）的三種畫法，卡片被撐到看不完整個 portfolio；細節點進卡片就有。 */
+const cardHTML=l=>{const [h,cls]=health(l);
   return `<div class="card" onclick="openL('${l.slug}')">
   <div class="card-hd"><span class="nm">${l.name}${lTpl(l)==="update"?` <span class="o-collab" style="font-size:10px;vertical-align:2px" title="${LANG==="zh"?"產品更新流程":"product-update flow"}">🔁 ${LANG==="zh"?"更新":"update"}</span>`:""}</span><button class="card-x" title="Delete this launch" aria-label="Delete this launch" onclick="event.stopPropagation();deleteLaunch('${l.slug}')">✕</button></div>
   <div class="card-kv">
     <div class="r"><span class="k">Now at:</span><span class="v">${l.complete?`<b style="color:var(--green)">✓ Complete</b>`:`<b style="color:${DCOLOR(progressDept(l))}">${esc(progressDept(l)||"—")}</b>`}</span></div>
     <div class="r"><span class="k">${lTpl(l)==="update"?(LANG==="zh"?"預計完成":"Proj. done"):(LANG==="zh"?"預計上市":"Projected")}</span><span class="v" style="font-family:var(--font-mono)">🎯 ${isSubmitted(l)?fmt(projLaunchDate(l)):`<span style="color:var(--faint)">${LANG==="zh"?"未送出":"—"}</span>`}</span></div>
-    ${cn?`<div class="r"><span class="k">Next up</span><span class="v" title="${esc(cn.t)}">${esc(cn.t)}</span></div>`:""}
   </div>
-  <div style="margin:9px 0 0">${dots}</div>
-  <div class="bar"><i style="width:${Math.round(done/l.tasks.length*100)}%"></i></div>
-  <div class="card-cnt">${g.met}/${g.total} gate criteria · ${done}/${l.tasks.length} tasks overall</div>
-  <div class="card-ft"><span class="pill ${cls}">${h}</span>${l.complete||!l.baselineTarget?"":` <span class="pill ${floatDays(l)<0?"bad":"ok"}">float ${floatDays(l)}d</span>`}${l.driveFolderUrl?` <a class="pill" style="cursor:pointer;text-decoration:none;border:1px solid var(--line,#3a414b)" href="${l.driveFolderUrl}" target="_blank" title="Open this launch's Google Drive folder — anyone with the link can open it" onclick="event.stopPropagation()">📁 Drive</a>`:""}</div></div>`;};
+  <div class="card-ft"><span class="pill ${cls}">${h}</span>${l.complete||!l.baselineTarget?"":` <span class="pill ${floatDays(l)<0?"bad":"ok"}">float ${floatDays(l)}d</span>`}</div></div>`;};
 
 /* ================= MASTER FLOW CHART RENDER (SVG, live-colored per launch) ================= */
 /* ===== flow-chart label i18n (isolated from the global ZH dict) =====
