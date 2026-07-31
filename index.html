@@ -176,7 +176,13 @@
   .fp-note b{color:var(--text);font-weight:600;margin-right:4px}
   /* action bar — primary Complete verb lifted to the top, paired with the step's day estimate on the right */
   .fp-actbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line)}
-  .fp-actbar .btn{padding:7px 14px;font-size:12px}
+  .fp-actbar{flex-wrap:wrap}
+  /* 動作鈕不准換行也不准被日期欄擠扁；min-width 讓「✓ 標記完成 / ↩ 重新開啟 / ◆ 核准 / ↩ 撤銷核准」
+     四種狀態同寬，切換狀態時彈窗不會忽寬忽窄。 */
+  .fp-actbar .btn{padding:7px 14px;font-size:12px;white-space:nowrap;flex:none;line-height:1.25}   /* 固定 line-height：↩ 比 ✓／◆ 高，讓整條動作列在切換狀態時上下跳 2px */
+  /* 固定尺寸：四種狀態（標記完成／重新開啟／◆ 核准／撤銷核准）的按鈕必須一模一樣大，切換時整條列不能跳。
+     光靠 line-height 壓不住 —— ↩ 會被當成 emoji 拿到比較高的字框，所以高度直接寫死。 */
+  .fp-actbar .fp-mark{min-width:106px;height:31px;display:inline-flex;align-items:center;justify-content:center;padding-block:0}
   .fp-act-note{font-size:11px;color:var(--dim)}
   .fp-days{font-family:var(--font-mono);font-size:10.5px;color:var(--dim);border:1px solid var(--line);background:var(--panel2);border-radius:var(--r-xs);padding:3px 8px;white-space:nowrap;flex:none}
   .fp-days.tbd{color:var(--red);border-color:rgba(248,113,113,.45);background:rgba(248,113,113,.1)}   /* estimate not typed yet → soft-red, matches the days-pending flags */
@@ -1443,7 +1449,7 @@ const EVIDSEED={C8:"Prototype QC",P1:"PPS + BOM sheet",P3:"Bulk QC report",CT3:"
 const seedT=(slug,code,f)=>{const c=LAUNCHES.find(l=>l.slug===slug);const t=c&&c.tasks.find(t=>t.code===code); if(t){Object.assign(t,f); if(t.st!=="x")delete t.doneAt;}};
 // 情境照片還在等 Ann 核准 → 狀態就是「進行中」，不是完成（備註與狀態不可以互相打臉）。MS3a 沒有任何下游 req，
 // 退成 "p" 不會連鎖影響 MB3／PDP 那條線。
-seedT("cyclone","MS3a",{st:"p",urg:"high",assignee:"各攝影師 · 阿訊",notes:[{d:"2026-06-09",a:"Content",txt:"Hero set done; lifestyle selects with Ann for approval."}]});
+seedT("cyclone","MS3a",{st:"p",urg:"high",notes:[{d:"2026-06-09",a:"Content",txt:"Hero set done; lifestyle selects with Ann for approval."}]});
 /* 種子卡的完成時間戳 —— 只宣告，呼叫點在 `const today=pjToday()` 之後：這裡用到的 dayDiff／taskDayLimit／today
    都宣告在本行之下，module-eval 時全在 TDZ（allTasks 的 try/catch 就是被這件事咬到，結果四張卡一個 doneAt 都沒有，
    熱力圖全 0、到貨日推不出來、正向排程全部退回送出日）。做法：每個階段的已完成步驟依 req 深度平均散在該階段的
@@ -2228,7 +2234,7 @@ function loadSaved(){try{
 let VERSIONS=[]; let _lastVerKey=null; let _verNote=null;
 function nowStamp(){try{const d=new Date(),p=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());}catch(e){return (typeof today!=="undefined"?today:"")+" 00:00";}}
 let USERNAME=(typeof localStorage!=="undefined"&&localStorage.getItem("bv-username"))||"";
-function roleLabel(){return S.role==="ceo"?"Ben (CEO)":S.role==="director"?"Director":(S.dept+" (head)");}
+function roleLabel(){return S.role==="ceo"?"Ben (CEO)":S.role==="director"?"Director":(S.person||(S.dept+" (head)"));}
 function actor(){return USERNAME?USERNAME:roleLabel();}  // version-history "who" = the real person (falls back to role)
 // who a note/comment is attributed to: the REAL signed-in person (their set name or Google account), never the "Viewing as" role — so accountability is tied to identity, not the lens you're browsing in.
 function noteAuthor(){ return USERNAME || (ME&&ME.name) || (ME&&ME.email&&ME.email.split("@")[0]) || roleLabel(); }
@@ -2288,7 +2294,6 @@ function diffState(prev,cur){
       const xl=(x.links||[]).length,yl=(y.links||[]).length; if(yl>xl){ch.push(nm+" / "+tt+": +"+(yl-xl)+" link");secs.add(nm);}
       const xn=(x.notes||[]).length,yn=(y.notes||[]).length; if(yn>xn){ch.push(nm+" / "+tt+": +"+(yn-xn)+" note");secs.add(nm);}
       const xc=(x.codes||[]).length,yc=(y.codes||[]).length; if(yc!==xc){ch.push(nm+" / "+tt+": "+(yc>xc?"+"+(yc-xc):(yc-xc))+" code/link");secs.add(nm);}
-      if(x.assignee!==y.assignee&&y.assignee){ch.push(nm+" / "+tt+": assigned "+y.assignee);secs.add(nm);}
     });
     const ar=(a.risks||[]).length,br=(b.risks||[]).length; if(br!==ar){ch.push(nm+": "+(br>ar?"+"+(br-ar)+" risk":(br-ar)+" risk"));secs.add(nm);}
     const ac=(a.checkins||[]).length,bc=(b.checkins||[]).length; if(bc>ac){ch.push(nm+": +"+(bc-ac)+" check-in");secs.add(nm);}
@@ -2516,7 +2521,7 @@ const DOD={
       zh:"實際到貨日已填 —— 它直接成為本卡的預計上市日，並公告全公司。"}};
 
 /* ================= STATE ================= */
-let S={role:"ceo",view:"home",launch:null,dept:"Design",flowLaunch:"apex",open:{},progLaunch:"apex",route:null,flowHints:(typeof localStorage!=="undefined"&&localStorage.getItem("bv-flow-hints")==="0")?false:true,q:"",palSel:0,hideFlow:false,deptOpen:{},stageOpen:{},chatRailOpen:false,chatW:null,chatH:null,noteUrg:{},gateStage:null};
+let S={role:"ceo",view:"home",launch:null,dept:"Design",person:"",flowLaunch:"apex",open:{},progLaunch:"apex",route:null,flowHints:(typeof localStorage!=="undefined"&&localStorage.getItem("bv-flow-hints")==="0")?false:true,q:"",palSel:0,hideFlow:false,deptOpen:{},stageOpen:{},chatRailOpen:false,chatW:null,chatH:null,noteUrg:{},gateStage:null};
 
 /* ============ PROJECTS DATA (live from Google Sheet — same source as the bv-Products portal) ============
    Read-only mirror of the portal's src/lib/sheets.ts. The portal pulls these tabs from a PUBLIC gviz CSV
@@ -2930,7 +2935,15 @@ function uiModal(o){
 function uiPrompt(message,value,opts){opts=opts||{};return uiModal({kind:"prompt",title:message,value:value,placeholder:opts.placeholder,multiline:opts.multiline,okLabel:opts.okLabel});}
 function uiConfirm(message,danger,opts){opts=opts||{};const parts=String(message==null?"":message).split(/\n\n+/);return uiModal({kind:"confirm",title:opts.title!=null?opts.title:parts[0],message:opts.message!=null?opts.message:parts.slice(1).join("\n\n"),danger:!!danger,okLabel:opts.okLabel,cancelLabel:opts.cancelLabel});}
 function uiAlert(message,opts){opts=opts||{};const parts=String(message==null?"":message).split(/\n\n+/);return uiModal({kind:"alert",title:parts[0],message:parts.slice(1).join("\n\n"),okLabel:opts.okLabel});}
-function setRole(v){ if(!isCEO()){toast(LANG==="zh"?"只有 CEO 可以切換視角 —— 你目前是以 "+roleLabel()+" 身分登入。":"Only the CEO can switch views — you're signed in as "+roleLabel()+".");return;} if(v==="ceo"||v==="director"){S.role=v;} else {S.role="dept";S.dept=v.slice(5);} S.view="home";S.launch=null;render(); }
+/* 「能不能切視角」是帳號的權限，不是「現在正在預覽哪個視角」。原本這裡問 isCEO()，而 myRole() 在
+   未登入（本機／示範資料）時會回退去讀 S.role —— 於是切到任一部門視角的那一刻 isCEO() 就變成 false，
+   切換器整個消失、再也切不回 CEO。已登入時照舊看帳號的 ROLE_BY_EMAIL。 */
+function canSwitchLens(){ return ME ? myRole()==="ceo" : true; }
+function setRole(v){ if(!canSwitchLens()){toast(LANG==="zh"?"只有 CEO 可以切換視角 —— 你目前是以 "+roleLabel()+" 身分登入。":"Only the CEO can switch views — you're signed in as "+roleLabel()+".");return;}
+  if(v==="ceo"||v==="director"){S.role=v;S.person="";}
+  else if(v.indexOf("own:")===0){ const nm=v.slice(4), p=PEOPLE.find(x=>x.name===nm); S.role="dept"; S.person=nm; if(p&&p.dept)S.dept=p.dept; }
+  else {S.role="dept";S.person="";S.dept=v.slice(5);}          // 舊的 dept:<部門> 值仍然吃得下
+  S.view="home";S.launch=null;render(); }
 function go(v){S.route=null;S.view=v;S.launch=null;render();}
 function openL(slug){S.route=null;S.view="launch";S.launch=slug;S.gateStage=null;render();}
 const L=slug=>LAUNCHES.find(x=>x.slug===slug);
@@ -3174,7 +3187,6 @@ function renamePerson(old,nw){ nw=(nw||"").trim();
   const me=PEOPLE.find(p=>p.name===old); if(me)me.name=nw;
   // V3 是程式碼側的模板、不能改寫，所以改名寫成 TPLOV 的負責人覆寫（會隨快照持久化）
   V3ALL.forEach(n=>{ const parts=v3Owners(v3Own(n)); if(parts.includes(old)) tplOvSet(n.c,{o:parts.map(s=>s===old?nw:s).join(" + ")}); });
-  LAUNCHES.forEach(l=>(l.tasks||[]).forEach(t=>{ if(t.assignee===old)t.assignee=nw; }));
   log(`👤 Owner renamed · ${old} → ${nw}`); toast(LANG==="zh"?("負責人已改名 "+old+" → "+nw):("Owner renamed "+old+" → "+nw));
 }
 function addPerson(){ PEOPLE.push({name:"New person",dept:(ALLDEPTS()[0]||""),emails:""}); save(); render(); }
@@ -3267,7 +3279,6 @@ function taskRow(l,t,extra,ro){
   return `<div id="task-${l.slug}-${i}" class="taskwrap${_tpNew}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${t.gate?"":"cursor:pointer;"}${lk?"opacity:.38;filter:grayscale(.6)":""}"${t.gate?"":` onclick="rowToggle(event,'${key}')"`}>
    ${t.gate?gateControl(l,t,i,lk):`<button type="button" class="st ${lk?"":t.st}" ${lk?'aria-disabled="true"':""} aria-label="${lk?"locked — "+esc(lockReason(l,t)):"status: "+stWord(t.st)+" — left-click to advance, right-click to step back"}" title="${lk?"locked — "+esc(lockReason(l,t)):"left-click: advance · right-click: step back"}" onclick="cycle('${l.slug}',${i},this)" oncontextmenu="cycleBack('${l.slug}',${i},this);return false">${lk?"🔒":stIcon[t.st]}</button>`}
    <span>${vn?`<span class="v3code">${esc(t.code)}</span> `:""}${esc(flowTaskName(t))}${t.gate?' <span style="color:var(--purple)">◆</span>':""}${vn&&vn.days==null&&t.days==null&&t.st!=="x"?`<span class="daysmiss" title="${LANG==="zh"?"此步驟天數尚未填寫":"this step still needs a day estimate"}">⏱ ${LANG==="zh"?"天數未填":"days unset"}</span>`:""}
-    ${t.assignee&&t.assignee.trim()!==resp&&t.assignee.trim()!==owner&&!collabs.includes(t.assignee.trim())?`<span class="asg">👤 ${esc(t.assignee)}</span>`:""}
     ${EVID.has(t.code)&&!lk&&!(t.links||[]).length?`<span class="urg" style="background:#13262e;color:#67e8f9" title="${LANG==="zh"?"標記完成前必須附上證明連結":"a link must be attached before this can be checked"}">📎 ${LANG==="zh"?"待附證明":"evidence"}</span>`:""}
     ${shotChip}${ctrls}</span>
    ${meta}</div>
@@ -3290,10 +3301,8 @@ function taskDetail(l,t,i,ro,vn,lk){
   if(!vn) return lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>${T("已鎖定","Locked")}</b> — ${esc(lockReason(l,t))}</div>`:taskPanel(l,t,i,ro);
   const info=[];
   info.push([T("負責人","Owner"), `<!--notx-->${esc(v3Own(vn))}<!--/notx-->`]);   // owner first
-  // 指派真人 — 「各攝影師」這類通稱節點要能指名；datalist 由 render() 每次重建（#people）
-  info.push([T("指派","Assignee"),
-    ro?(t.assignee?`<!--notx-->${esc(t.assignee)}<!--/notx-->`:"—")
-      :`<!--notx--><input list="people" class="v3days-inp" style="width:130px" value="${esc(t.assignee||"")}" placeholder="${v3Own(vn)==="各攝影師"?T("指名攝影師…","name the photographer…"):T("指派給…","assign to…")}" onclick="event.stopPropagation()" onchange="v3SetField('${l.slug}',${i},'assignee',this.value)"><!--/notx-->`]);
+  // 「指派」自由欄位已移除（2026-07-31）—— 每一步都有負責人（V3 的 o／流程模板可覆寫），
+  // 再開一層自由文字的指派只會出現兩個互相打臉的人名。
   if(vn.out) info.push([T("產出","Output"), esc(v3T(vn.out))]);
   if(DOD[t.code]) info.push([T("完成定義","Done means"), esc(v3T(DOD[t.code]))+(EVID.has(t.code)?` <span style="color:#67e8f9">· ${T("需附證明連結","evidence link required")}</span>`:"")]);
   if(vn.note) info.push([T("備註","Note"), esc(v3T(vn.note))]);
@@ -3543,7 +3552,7 @@ function flowSVG(l){
   const depts=Object.keys(FLOW);   // every lane v3Rederive seeds already has ≥1 node — no empty lane to filter out
   // spacing rhythm: related nodes group TIGHT inside a lane (VG 64 → 26px gaps), distinct lanes separate GENEROUSLY (GAP 46).
   // No lane boxes — grouping comes from proximity on an open dotted field, so the chart breathes instead of being walled in.
-  const CW=118,GAP=46,NH=38,VG=64,TOP=76;
+  const CW=118,GAP=46,NH=38,VG=58,TOP=76;
   const DXW=4;   // 菱形往左右外擴的量（原版值）
   FL_LS=(LANG==="zh")?0.06:0;                         // 繁中 node labels get wider tracking; latin stays tight (factored into flowDW sizing + applied to <text>)
   const nodeH=()=>NH;   // every V3 node is a flat tile (no nested sub-items) — height is uniform
@@ -3592,30 +3601,18 @@ function flowSVG(l){
   depts.forEach((d,c)=>{const x=GAP+c*(CW+GAP);
     svg+=`<g class="flowhead" style="--d:${Math.min(c*13,120)}ms"><text x="${x+CW/2}" y="34" text-anchor="middle" fill="${DCOLOR(d)}" font-size="12.5" font-weight="700" letter-spacing="${LANG==="zh"?0.08:0.03}em">${esc(flowTL(d))}</text>
     <circle cx="${x+CW/2}" cy="${47}" r="2.2" fill="${DCOLOR(d)}" opacity="0.85"/></g>`;});
-  // in-lane connectors — the REAL req edges inside a lane, not "whatever sits in the next array slot".
-  // Adjacent prerequisite → straight drop; a prerequisite further up the lane → a small arc bowed into the
-  // right-hand gutter so it doesn't cut through the nodes it skips. Neighbours with NO dependency get no
-  // line at all — that grouping is carried by proximity, and a line there is a lie about the unlock order.
-  depts.forEach((d,c)=>FLOW[d].forEach((n,i)=>{const tp=pos(d,i),cx=tp.x+CW/2; let e=0;
-    (n.req||[]).forEach(rc=>{ const j=FLOW[d].findIndex(x=>x.code===rc); if(j<0||j===i)return;
+  // in-lane connectors — ONLY the straight drop between two ADJACENT nodes that really do depend on each
+  // other. Everything else the chart used to draw in grey (the arcs bowed out into the gutter for
+  // skip-a-row dependencies, and the dashed cross-lane runs) is gone as of 2026-07-31: at chart scale a
+  // 40-node DAG's full edge set is a tangle nobody reads, and the same information is available on demand
+  // and far more legibly as the RED route that lights up when you click a node. What survives here is the
+  // one edge family that is short, vertical and never crosses anything: this lane's running order.
+  depts.forEach((d,c)=>FLOW[d].forEach((n,i)=>{const tp=pos(d,i),cx=tp.x+CW/2;
+    (n.req||[]).forEach(rc=>{ const j=FLOW[d].findIndex(x=>x.code===rc); if(j<0||Math.abs(i-j)!==1)return;
       const sp=pos(d,j),dn=j<i,sy=dn?sp.y+hgt(d,j)+2:sp.y-2,ey=dn?tp.y-3:tp.y+hgt(d,i)+3,_ed=Math.min(140+c*12+i*14,300);
-      const dp=Math.abs(i-j)===1?`M${cx} ${sy}L${cx} ${ey}`
-        // cap on the SAMPLED extent, not the control point: a cubic only reaches ~0.75× its control offset, so
-        // clamping the control point itself pulls the belly back INTO the rows it is supposed to skip.
-        :(()=>{const bow=Math.min(87+14*(Math.abs(i-j)-2)+(e++)*6,(CW/2+GAP-8)/0.75),k=dn?18:-18;
-               return `M${cx} ${sy} C ${cx+bow} ${sy+k}, ${cx+bow} ${ey-k}, ${cx} ${ey}`;})();
-      svg+=`<path class="flowedge" pathLength="1" style="--d:${_ed}ms" d="${dp}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" marker-end="url(#ar)"/><circle class="flowdot" style="--d:${_ed+90}ms" cx="${cx}" cy="${sy}" r="3" fill="${FT.arrow}"/>`;});}));
-  // cross links — origin dot + dashed run + arrowhead (direction matters across lanes: 6 run right→left,
-  // 8 bottom→top). ONE smooth cubic with a horizontal ease at both ends — geometrically identical to the red
-  // dependency arrows below, so the chart speaks a single curve language and only the emphasis differs.
-  // (A rectilinear "route it down the gutter" variant avoided overlapping the lanes in between, but it stacked
-  // parallel dashed rails in every gutter and turned four corners per edge — far noisier than the overlap it
-  // dodged, and pointless besides: the node loop paints AFTER the edges, so tiles already occlude them.)
-  CROSS.forEach(([fd,fi,td,ti],ci)=>{ if(!FLOW[fd]||!FLOW[td])return; const a=pos(fd,fi),b=pos(td,ti);
-    const l2r=depts.indexOf(td)>depts.indexOf(fd);
-    const ax=l2r?a.x+CW:a.x, ay=a.y+hgt(fd,fi)/2, bx=l2r?b.x-2:b.x+CW+2, by=b.y+hgt(td,ti)/2, mx=(ax+bx)/2;
-    const dp=`M${ax} ${ay} C ${mx} ${ay}, ${mx} ${by}, ${bx} ${by}`;
-    svg+=`<g class="flowcross" opacity="0.6" style="--d:${Math.min(240+ci*6,300)}ms"><circle cx="${ax}" cy="${ay}" r="3" fill="${FT.arrow}"/><path d="${dp}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ar)"/></g>`;});
+      svg+=`<path class="flowedge" pathLength="1" style="--d:${_ed}ms" d="M${cx} ${sy}L${cx} ${ey}" fill="none" stroke="${FT.arrow}" stroke-width="1.2" marker-end="url(#ar)"/><circle class="flowdot" style="--d:${_ed+90}ms" cx="${cx}" cy="${sy}" r="3" fill="${FT.arrow}"/>`;});}));
+  // 跨車道的灰色虛線（CROSS）不再畫 —— 見上一段。CROSS 仍由 v3Rederive 導出（模板校驗與測試在用），
+  // 只是不上圖；跨車道的依賴改由點節點時的紅線呈現。
   // nodes
   depts.forEach(d=>FLOW[d].forEach((n,i)=>{const {x,y}=pos(d,i);const st=stateOf(n,d,i);
     const frozen=isDesignFrozen(l)&&isFrozenDesignStage(n.s)&&st==="x";   // a done 概念/開發 node, locked by design freeze → render it iced
@@ -4129,7 +4126,7 @@ function homeDept(){
   const UO={urgent:0,high:1,med:2,low:3};
   const grp=s=>mine.filter(x=>x.t.st===s).sort((a,b)=>(UO[a.t.urg]??2)-(UO[b.t.urg]??2));
   const pb=[...new Map(LAUNCHES[0].tasks.filter(t=>t.d===d).map(t=>[t.t,t])).values()];   // keep the task (DOD is keyed by code now), dedup by title
-  return `<h2>Department lens — <select onchange="S.dept=this.value;render()">${DEPTS().map(x=>`<option value="${x}" ${x===d?"selected":""}>${x}</option>`).join("")}</select></h2>
+  return `<h2>${S.person?`<!--notx-->${esc(S.person)}<!--/notx--> — `:""}Department lens — <select onchange="S.dept=this.value;S.person='';render()">${DEPTS().map(x=>`<option value="${x}" ${x===d?"selected":""}>${x}</option>`).join("")}</select></h2>
   <div class="sub">${esc((TEAM.find(t=>t.name===d)||{}).role||"")}</div>
   <div class="panel"><h3 class="pb-h" onclick="S.pbOpen=!S.pbOpen;render()" title="${LANG==="zh"?"點擊展開／收合":"click to expand / collapse"}">📘 Our playbook — how ${d} updates tasks<span class="pb-tog">${S.pbOpen?"▾":"▸ "+pb.length}</span></h3>
    ${S.pbOpen?`${pb.map(t=>`<div class="row"><span style="color:${DCOLOR(d)}">▸</span><span><b>${esc(t.t)}</b>${DOD[t.code]?` — <span style="color:var(--dim)">${esc(v3T(DOD[t.code]))}</span>`:""}${EVID.has(t.code)?` <span class="urg" style="background:#13262e;color:#67e8f9">📎 ${LANG==="zh"?"需附證明連結":"evidence required"}</span>`:""}</span></div>`).join("")}
@@ -4384,7 +4381,7 @@ function v3Dash(l){
       +cs.map((c,ci)=>c.u
         ?`<span class="lnkg"><a class="lnk" href="${esc(c.u)}" target="_blank" rel="noopener" title="${esc(c.u)}">🔗 ${esc(c.n||c.u)}</a>${cp("code",ci)}</span>`
         :`<span class="lnk" style="cursor:pointer" onclick="viewCode('${l.slug}',${ti},${ci})" title="${T("預覽 HTML","preview HTML")}">&lt;/&gt; ${esc(c.n)}</span>`).join("");
-    const who=(t.assignee&&t.assignee.trim())||t.d||"", canJump=t.code&&V3MAP[t.code];
+    const who=v3Own(V3MAP[t.code])||t.d||"", canJump=t.code&&V3MAP[t.code];
     return `<div class="v3lgrp"><span class="v3lgrp-src${canJump?" jump":""}"${canJump?` onclick="v3jump('${l.slug}','${t.code}')" title="${T("跳到任務","jump to task")}"`:""}>${t.code?`<span class="v3code">${esc(t.code)}</span> `:""}${esc(flowTaskName(t))}${who?` <span class="ghostnote" style="color:${DCOLOR(t.d)}">· ${esc(who)}</span>`:""}</span><span class="v3lgrp-links">${chips}</span></div>`;
   }).filter(Boolean).join("");
   const nLinks=(l.tasks||[]).reduce((a,t)=>a+(t.links||[]).length+(t.codes||[]).length,0);
@@ -5160,7 +5157,9 @@ const _emailIn=(list,email)=>String(list||"").toLowerCase().split(/[,;\s]+/).fil
 function deptByEmail(email){ email=(email||"").toLowerCase().trim(); if(!email)return "";
   for(const p of PEOPLE){ if(_emailIn(p.emails,email)&&p.dept) return p.dept; }
   for(const t of TEAM){ if(_emailIn(t.emails,email)) return t.name; } return ""; }
-function applyDeptLens(){ if(!ME)return; const r=myRole(); if(r==="ceo"||r==="director")return; const d=deptByEmail(ME.email); if(d){ S.role="dept"; S.dept=d; } }
+function applyDeptLens(){ if(!ME)return; const r=myRole(); if(r==="ceo"||r==="director")return;
+  const em=(ME.email||"").toLowerCase().trim(), me=PEOPLE.find(p=>_emailIn(p.emails,em));
+  const d=deptByEmail(ME.email); if(d){ S.role="dept"; S.dept=d; S.person=me?me.name:""; } }
 function canBenSign(){return myRole()==="ceo";}
 function canMktSign(){const r=myRole();return r==="ceo"||r==="marketing";}
 function canProdSign(){const r=myRole();return r==="ceo"||r==="product"||r==="director";}
@@ -6518,18 +6517,26 @@ async function chatSendDeep(slug,text){
   finally{ CHAT.deep=false; if(leaseRef){ try{ leaseRef.get().then(function(s){ var dd=(s&&s.data())||{}; if(!dd.deepRunId||dd.deepRunId===_runId){ leaseRef.set({deepRunAt:0,deepRunId:""},{merge:true}); } }).catch(function(){}); }catch(e){} } CHAT.deepRunId=null; var _b=document.getElementById("deepBtn"); if(_b)_b.classList.remove("on"); chatRelease(); }
 }
 // the lens switcher (CEO-only) — self-contained like the Department-lens dept picker; lives on the Home header, not the nav
+// 視角清單＝負責人（Ben 只出現在最上面的 CEO 那一列，不重複列成部門視角）。選了誰就切到那個人
+// 所屬部門的視角，S.person 記住是「以誰的身分在看」——同部門兩個人（Oume／Mi）視角範圍一樣，
+// 但畫面上要講得出是誰。沒掛部門的人不列（切過去會是空視角）。
+function lensPeople(){ return PEOPLE.filter(p=>p.name!=="Ben"&&p.dept&&DEPTS().includes(p.dept)); }
+function lensOptionsHTML(cur){
+  return `<option value="ceo">Ben — CEO</option><option value="director">Director</option>`
+    +lensPeople().map(p=>`<option value="own:${esc(p.name)}"><!--notx-->${esc(p.name)}<!--/notx--> — ${esc(p.dept)}</option>`).join("");
+}
+const lensCur=()=>S.role!=="dept"?S.role:(S.person?"own:"+S.person:"dept:"+S.dept);
 function lensSwitcherHTML(){
-  if(!isCEO())return "";
-  const cur=S.role==="dept"?"dept:"+S.dept:S.role;
-  const roles=[["ceo","Ben — CEO"],["director","Director"]].concat(ALLDEPTS().map(d=>["dept:"+d,"Head — "+d]));
-  return `<select class="lenssel" onchange="setRole(this.value)" title="preview another department's lens (CEO only)">${roles.map(([v,lab])=>`<option value="${v}" ${v===cur?"selected":""}>${lab}</option>`).join("")}</select>`;
+  if(!canSwitchLens())return "";
+  const cur=lensCur();
+  return `<select class="lenssel" onchange="setRole(this.value)" title="preview another owner's lens (CEO only)">${lensOptionsHTML(cur).replace(`value="${cur}"`,`value="${cur}" selected`)}</select>`;
 }
 function render(){
   const sel=document.getElementById("roleSel"), vaLab=document.getElementById("vaLab");
-  if(isCEO()){
+  if(canSwitchLens()){
     if(vaLab)vaLab.textContent="Preview as";
-    const cur=S.role==="dept"?"dept:"+S.dept:S.role;
-    if(sel){ sel.style.display=""; sel.innerHTML=tx(`<option value="ceo">Ben — CEO</option><option value="director">Director</option>`+ALLDEPTS().map(d=>`<option value="dept:${d}">Head — ${d}</option>`).join("")); sel.value=[...sel.options].some(o=>o.value===cur)?cur:"ceo"; }
+    const cur=lensCur();
+    if(sel){ sel.style.display=""; sel.innerHTML=tx(lensOptionsHTML(cur)); sel.value=[...sel.options].some(o=>o.value===cur)?cur:"ceo"; }
   } else {
     if(sel)sel.style.display="none";
     if(vaLab)vaLab.textContent= ME?("Signed in as "+roleLabel()):"Viewing as";
@@ -6551,7 +6558,7 @@ function render(){
   else if(S.view==="dept") html=viewDept();
   else if(S.view==="campaign") html=viewCampaign();
   else if(S.view==="settings"||S.view==="team"||S.view==="versions") html=viewSettings();
-  else html=(isCEO()?`<div class="lensbar">${LANG==="zh"?"視角":"Lens"} ${lensSwitcherHTML()}</div>`:"")+(S.role==="ceo"?homeCEO():S.role==="director"?homeDirector():homeDept());
+  else html=(canSwitchLens()?`<div class="lensbar">${LANG==="zh"?"視角":"Lens"} ${lensSwitcherHTML()}</div>`:"")+(S.role==="ceo"?homeCEO():S.role==="director"?homeDirector():homeDept());
   app.innerHTML=tx(html);
   const nb=document.getElementById("inboxN"); if(nb){const n=autopilot().length; nb.textContent=n?n:"";}
   if(S.view==="launch"&&S.launch){chatSub(S.launch);renderChatBody();}
