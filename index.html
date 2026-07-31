@@ -784,7 +784,11 @@
   .stl-stage{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.05em;font-size:12.5px;font-weight:700}
   .stl-up .stl-stage{color:var(--faint)}
   .stl-done .stl-stage{color:var(--dim)}
-  .stl-now{font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;color:var(--accent);text-transform:uppercase;white-space:nowrap}
+  /* `stl-now` names TWO things: the state on .stl-item, and the 📍 badge span. Unscoped, this rule's
+     mono/10px/uppercase leaked down the item and re-typeset the WHOLE current stage — the one people
+     actually work in — while every other stage rendered its identical rows normally. It also upper-cased
+     the owner names in the header ("Mi" → "MI"). Badge only. */
+  span.stl-now{font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;color:var(--accent);text-transform:uppercase;white-space:nowrap}
   .stl-depts{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
   .stl-dept{font-size:11px;font-weight:600;opacity:.9}
   .stl-meta{display:flex;align-items:center;gap:9px;flex:none}
@@ -1009,7 +1013,7 @@
 /* ================= TEAM CONFIG (editable in Team tab — no names, departments only) ================= */
 let TEAM = [
  {name:"Product",  role:"Owns the product: intake form, market research, concept, prototyping, costing, design freeze, pre-production sample + BOM, mass production."},
- {name:"Design",   role:"Packaging / insert / manual, model name, infographic assets, studio-shoot brief, PDP + listing imagery."},
+ {name:"Design",   role:"Two owners: Oume runs everything PDP (draft, official PDP + infographics, the live swap); Mi runs identity, packaging / insert / manual and the studio-shoot brief."},
  {name:"Catalog",  role:"Shopify product & SKU creation, factory order, COGS & bundle setup, catalog site, product data filing."},
  {name:"Content",  role:"Shoot requirements & plan, product / lifestyle shoot, marketing video, post-production."},
  {name:"Social",   role:"Channel posts: IG / YouTube / TikTok."},
@@ -1020,6 +1024,24 @@ let TEAM = [
  {name:"Logistics",role:"Freight: sea bulk + air samples; warehouse readiness."},
 ];
 TEAM.forEach(t=>{t.head=t.head||"";t.members=t.members||"";});
+/* ================= PEOPLE CONFIG (負責人) =================
+   TEAM above is the DEPARTMENT layer — it owns the flow-chart lanes, the dept colours and the sign-in
+   lens. PEOPLE is the layer the workflow actually talks in: every V3 node's `o` field and the Settings →
+   Workflow template picker name a person from this list, and the by-phase progress list shows these
+   names instead of the lane. `dept` links a person back to a TEAM row so an email listed here still
+   resolves to that person's department lens. Roles are NOT written by hand — Settings derives each
+   person's responsibilities from the steps they own, so the list can never drift from the flow. */
+let PEOPLE = [
+ {name:"Ben",     dept:"Product",   emails:"ben@blackvoyage.com, hello@blackvoyage.com"},
+ {name:"Zac",     dept:"Product",   emails:""},
+ {name:"Oume",    dept:"Design",    emails:""},
+ {name:"Mi",      dept:"Design",    emails:""},
+ {name:"Ann",     dept:"Marketing", emails:""},
+ {name:"Angel",   dept:"CRM",       emails:""},
+ {name:"LC",      dept:"Logistics", emails:""},
+ {name:"各攝影師", dept:"Content",   emails:""},
+];
+const PEOPLENAMES=()=>PEOPLE.map(p=>p.name);
 // DEPTS() = the departments that actually own V3 flow work, in flow-chart lane order (FLOW's key order is
 // seeded from V3DEPTS by v3Rederive). TEAM may carry extra rows (Social / Ads / Email have no V3 node since
 // SM1·SM2·ADS1·EM1 were cut) — those must not appear in dept statistics, pickers or the pulse heat-map, or
@@ -1056,27 +1078,29 @@ const V3=[
  {c:"C2", en:"Understand WHY", zh:"概念轉化", ph:0, dept:"Product", o:"Zac", days:1, req:["C1"]},
  {c:"C3", en:"Market research", zh:"市場調查", ph:0, dept:"Product", o:"Zac", days:5, req:["C2"]},
  {c:"C4", en:"Distill", zh:"萃取", ph:0, dept:"Product", o:"Zac", days:2, req:["C3"], out:{en:"PPT / Figma",zh:"PPT or Figma"}, isNew:1},
- {c:"C5", en:"Brainstorming", zh:"腦力激盪", ph:0, dept:"Product", o:"Zac + Design Team", days:2, req:["C4"], out:{en:"meeting",zh:"會議"}},
+ {c:"C5", en:"Brainstorming", zh:"腦力激盪", ph:0, dept:"Product", o:"Zac + Oume + Mi", days:2, req:["C4"], out:{en:"meeting",zh:"會議"}},
  {c:"C6", en:"Design integration", zh:"整合設計", ph:0, dept:"Product", o:"Zac", days:4, req:["C5"], out:{en:"PPT/Figma + model name + brand language",zh:"PPT／Figma＋型號名稱＋品牌語言確認"}, isNew:1},
- {c:"D1", en:"Identity design", zh:"識別設計", ph:0, dept:"Design", o:"Design Team", days:7, req:["C5"], out:{en:"packaging, label…",zh:"Packaging、Label…"}, note:{en:"starts when design integration (C6) starts",zh:"整合設計（C6）一開始就同步製作"}, isNew:1},
+ {c:"D1", en:"Identity design", zh:"識別設計", ph:0, dept:"Design", o:"Mi", days:7, req:["C5"], out:{en:"packaging, label…",zh:"Packaging、Label…"}, note:{en:"starts when design integration (C6) starts",zh:"整合設計（C6）一開始就同步製作"}, isNew:1},
  {c:"C7", en:"Ben concept sign-off", zh:"Ben 決策", ph:0, dept:"Product", o:"Ben", days:5, req:["C6","D1"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}, note:{en:"needs BOTH design integration and identity design done",zh:"整合設計＋識別設計都完成才決策"}},
  // 1 — Prototype & Delivery
  {c:"C8", evid:1, en:"Prototyping", zh:"原型打樣", ph:1, dept:"Product", o:"Zac", days:null, req:["C7"], out:{en:"prototype",zh:"原型"}, note:{en:"cost sheet lives here (negotiated during sampling)",zh:"成本表貼於此（打樣期間來回議定成本）"}},
  {c:"C9", en:"Ben prototype sign-off", zh:"Ben 決策", ph:1, dept:"Product", o:"Ben", days:11, req:["C8"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}, note:{en:"ship 9 + decide 2",zh:"運輸 9＋決策 2"}},
  {c:"C10", en:"Design freeze", zh:"設計凍結", ph:1, dept:"Product", o:"Zac + Ben", days:0, req:["C9"], out:{en:"freeze data = product data filing (feeds MB1)",zh:"凍結資料＝產品資料建檔（供 MB1）"}},
  {c:"P1", evid:1, en:"Pre-production sample + BOM", zh:"產前樣＆BOM", ph:1, dept:"Product", o:"Zac", days:14, req:["C10"], out:{en:"to Taiwan + BOM filed",zh:"送台灣＆BOM 歸檔"}, note:{en:"make 7 + ship 7",zh:"製作 7＋運輸 7"}},
- {c:"P3", evid:1, en:"Mass production", zh:"大貨生產", ph:1, dept:"Product", o:"Zac", days:null, req:["P1"], sample:1, out:{en:"day countdown",zh:"天數倒數"}, note:{en:"packaging (D3) to factory during production",zh:"包裝檔（D3）於生產期間交廠"}},
+ // 大貨生產不掛 evid：產線進度靠天數與大貨樣日追蹤，沒有一份「證明連結」可附（QC 報告是選配，不該擋完工）
+ {c:"P3", en:"Mass production", zh:"大貨生產", ph:1, dept:"Product", o:"Zac", days:null, req:["P1"], sample:1, out:{en:"day countdown",zh:"天數倒數"}, note:{en:"packaging (D3) to factory during production",zh:"包裝檔（D3）於生產期間交廠"}},
  // 2 — Launch Prep
  {c:"P2", en:"Product intro video", zh:"產品介紹", ph:2, dept:"Product", o:"Zac", days:1, req:["P1"], asset:1, out:{en:"quick how-to video → whole company",zh:"簡單操作影片 → 全公司"}, isNew:1},
  {c:"CT1", en:"Factory order created", zh:"工廠訂單建立", ph:2, dept:"Catalog", o:"Zac", days:1, req:["P1"], note:{en:"do at P3 start (= P1 done)",zh:"大貨生產開啟（＝P1 完成）即做"}},
  {c:"CT2", en:"Catalog site updated", zh:"目錄網站更新", ph:2, dept:"Catalog", o:"Zac", days:1, req:["MB1"], note:{en:"opens alongside MB1 finalized",zh:"行銷簡報 V1 結束後同步開啟"}},
  {c:"CT3", evid:1, en:"COGS & bundle setup", zh:"COGS＆BUNDLE", ph:2, dept:"Catalog", o:"LC", days:1, req:["CT1"]},
  {c:"CT4", evid:1, en:"Shopify product created", zh:"Shopify 商品建立", ph:2, dept:"Catalog", o:"Zac", days:1, req:["CT3"], out:{en:"Shopify SKU",zh:"Shopify SKU"}},
- {c:"D7", en:"Studio shoot requirements", zh:"棚拍需求", ph:2, dept:"Design", o:"Design Team", days:1, req:["P1"], note:{en:"opens once PPS + BOM is filed",zh:"產前樣＆BOM 完成後開啟"}},
- {c:"D3", evid:1, en:"Packaging finalized", zh:"包裝設計定稿", ph:2, dept:"Design", o:"Design Team", days:2, req:["C7"], note:{en:"opens when prototyping (C8) starts; to factory between PPS and mass production",zh:"原型打樣（C8）一開跑即可製作；於產前樣確定～大貨生產期間交付工廠"}},
- {c:"D4", en:"PDP + infographics draft", zh:"PDP 草稿", ph:2, dept:"Design", o:"Design Team", days:14, req:["MB3"], asset:1, note:{en:"starts after MB3 (= photos + 10d)",zh:"等 MB3 完成後開始（＝照片完成＋10 天）"}},
+ {c:"D7", en:"Studio shoot requirements", zh:"棚拍需求", ph:2, dept:"Design", o:"Mi", days:1, req:["P1"], note:{en:"opens once PPS + BOM is filed",zh:"產前樣＆BOM 完成後開啟"}},
+ {c:"D3", evid:1, en:"Packaging finalized", zh:"包裝設計定稿", ph:2, dept:"Design", o:"Mi", days:2, req:["C7"], note:{en:"opens when prototyping (C8) starts; to factory between PPS and mass production",zh:"原型打樣（C8）一開跑即可製作；於產前樣確定～大貨生產期間交付工廠"}},
+ {c:"D4", en:"PDP + infographics draft", zh:"PDP 草稿", ph:2, dept:"Design", o:"Oume", days:14, req:["MB3"], asset:1, note:{en:"starts after MB3 (= photos + 10d)",zh:"等 MB3 完成後開始（＝照片完成＋10 天）"}},
  {c:"D5", en:"Ben PDP sign-off", zh:"Ben 決策", ph:2, dept:"Design", o:"Ben", days:2, req:["D4"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
- {c:"D6", evid:1, en:"Official PDP + infographics", zh:"正式 PDP", ph:2, dept:"Design", o:"Design Team", days:5, req:["D5","MS3b"], asset:1, note:{en:"finalized only after MS3b video",zh:"MS3b 影片完成才能定稿"}},
+ // 2026-07-31：拿掉 MS3b（行銷影片）前置 —— PDP 定稿只等 Ben 的 D5 決策，不再被影片檔期綁住
+ {c:"D6", evid:1, en:"Official PDP + infographics", zh:"正式 PDP", ph:2, dept:"Design", o:"Oume", days:5, req:["D5"], asset:1, note:{en:"video (MS3b) can land later — it no longer gates this",zh:"行銷影片（MS3b）可後補，不再擋定稿"}},
  {c:"CRM1", en:"FAQ draft + pop quiz", zh:"FAQ 建制", ph:2, dept:"CRM", o:"Angel", days:5, req:["MB2"], out:{en:"FAQ text → whole company",zh:"FAQ 文字版 → 全公司"}},
  // CRM2 en is deliberately terse — the long form wrapped to 3 lines and overflowed the node tile.
  {c:"CRM2", en:"FAQ + CS brief", zh:"FAQ 定稿", ph:2, dept:"CRM", o:"Angel", days:3, req:["CRM1","MS2"], asset:1, note:{en:"deadline = target launch − 3d",zh:"死線＝目標上市日 −3 天"}},
@@ -1115,15 +1139,15 @@ const V3U=[
  {c:"U4", en:"Ben revision sign-off", zh:"Ben 決策", ph:1, dept:"Product", o:"Ben", days:2, req:["U3"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
  {c:"U5", evid:1, en:"Revised PPS", zh:"產前樣", ph:1, dept:"Product", o:"Zac", days:null, est:10, req:["U4"]},
  // 2 — Launch Prep (量產與內容)
- {c:"U6", evid:1, en:"Bulk production", zh:"大貨生產", ph:2, dept:"Product", o:"Zac", days:null, est:30, req:["U5"]},
- {c:"UD1", en:"Refresh shoot brief", zh:"棚拍需求", ph:2, dept:"Design", o:"Design Team", days:2, req:["U5"], note:{en:"opens once the revised PPS exists",zh:"產前樣出來後開啟"}},
- {c:"UD2", en:"Refresh studio shoot", zh:"棚拍拍攝", ph:2, dept:"Design", o:"Design Team", days:null, est:7, req:["UD1"]},
+ {c:"U6", en:"Bulk production", zh:"大貨生產", ph:2, dept:"Product", o:"Zac", days:null, est:30, req:["U5"]},   // 同 P3：大貨生產不附證明連結
+ {c:"UD1", en:"Refresh shoot brief", zh:"棚拍需求", ph:2, dept:"Design", o:"Mi", days:2, req:["U5"], note:{en:"opens once the revised PPS exists",zh:"產前樣出來後開啟"}},
+ {c:"UD2", en:"Refresh studio shoot", zh:"棚拍拍攝", ph:2, dept:"Design", o:"Mi", days:null, est:7, req:["UD1"]},
  {c:"UC1", en:"Catalog photos refresh", zh:"照片更新", ph:2, dept:"Catalog", o:"Zac", days:1, req:["UD2"], note:{en:"after the studio shoot delivers",zh:"棚拍拍好後更新"}},
  {c:"UC2", en:"Catalog info refresh", zh:"資訊更新", ph:2, dept:"Catalog", o:"Zac", days:1, req:["U5"], out:{en:"marketing site updated",zh:"更新產品行銷網站"}},
- {c:"UD3", en:"New PDP build", zh:"製作新版 PDP", ph:2, dept:"Design", o:"Design Team", days:5, req:["UD2","UC2"], asset:1, note:{en:"starts after new photos + updated site info",zh:"棚拍照片＋行銷網站更新後製作"}},
+ {c:"UD3", en:"New PDP build", zh:"製作新版 PDP", ph:2, dept:"Design", o:"Oume", days:5, req:["UD2","UC2"], asset:1, note:{en:"starts after new photos + updated site info",zh:"棚拍照片＋行銷網站更新後製作"}},
  // 4 — Logistics (切換上線)
  {c:"UL1", en:"Version switch check", zh:"新版切換確認", ph:4, dept:"Logistics", o:"LC", days:2, req:["U6"], out:{en:"switch / no switch",zh:"更換 or 不更換"}, note:{en:"LC confirms whether/when the new version replaces the old",zh:"LC 確認新版是否／何時更換"}},
- {c:"UL2", en:"Swap live PDP", zh:"換上新版 PDP", ph:4, dept:"Design", o:"Design Team", days:1, req:["UL1","UD3"]},
+ {c:"UL2", en:"Swap live PDP", zh:"換上新版 PDP", ph:4, dept:"Design", o:"Oume", days:1, req:["UL1","UD3"]},
  {c:"UL3", en:"Notify KOL CRM", zh:"通知網紅 CRM", ph:4, dept:"CRM", o:"Angel", days:1, req:["UL1"], out:{en:"CRM info refreshed",zh:"CRM 新資訊通知網紅"}},
  {c:"UL4", en:"Shopify info update", zh:"更新 Shopify 資訊", ph:4, dept:"Marketing", o:"Zac", days:1, req:["UL1"]},
  {c:"UL5", en:"ShipBob SKU swap", zh:"更新 ShipBob SKU", ph:4, dept:"Logistics", o:"LC", days:1, req:["UL1"], out:{en:"ShipBob + Shopify SKU",zh:"ShipBob／Shopify SKU"}},
@@ -1166,8 +1190,12 @@ const crossOf=l=>TPLW[lTpl(l)].CROSS;
    included. Empty entries are pruned so a board with no edits snapshots as {}. */
 const TPLOV={};
 const v3Dept=n=>((TPLOV[n.c]&&TPLOV[n.c].d)||n.dept);
+// 負責人同樣可在設定頁改寫（TPLOV[code].o）—— 所有「顯示負責人」的地方一律走這個 accessor，不要直接讀 n.o，
+// 否則設定頁改完只有部分畫面跟著動。
+const v3Own=n=>((n&&TPLOV[n.c]&&TPLOV[n.c].o)||(n&&n.o)||"");
 function tplOvSet(code,patch){ const cur=TPLOV[code]||{}; const nx=Object.assign({},cur,patch);
   if(nx.d===(V3MAP[code]||{}).dept) delete nx.d;
+  if(nx.o===(V3MAP[code]||{}).o||!nx.o) delete nx.o;
   if(!(nx.who||[]).length) delete nx.who;
   if(Object.keys(nx).length) TPLOV[code]=nx; else delete TPLOV[code]; }
 function v3Rederive(){
@@ -1211,9 +1239,9 @@ function v3LockText(l,t){
   const blks=unlockBlockers(l,t); if(!blks.length)return ""; const zh=LANG==="zh";
   const pre=[],notes=[];
   blks.forEach(b=>{
-    if(b==="P3s"){notes.push(zh?("等大貨樣：請在 P3 填「預計大貨樣日」（"+V3MAP.P3.o+"）"):("waiting on the bulk-sample date — set it on P3 ("+V3MAP.P3.o+")"));return;}
+    if(b==="P3s"){notes.push(zh?("等大貨樣：請在 P3 填「預計大貨樣日」（"+v3Own(V3MAP.P3)+"）"):("waiting on the bulk-sample date — set it on P3 ("+v3Own(V3MAP.P3)+")"));return;}
     if(b==="P3w"){const p3=v3Task(l,"P3");notes.push(zh?("大貨樣預計 "+fmt(p3.sampleDate)+" 到，屆時自動解鎖"):("bulk sample due "+fmt(p3.sampleDate)+" — unlocks then"));return;}
-    const n=V3MAP[b]; pre.push(n?(zh?(b+" "+n.zh+"（"+n.o+"）"):(b+" "+n.en+" ("+n.o+")")):b);
+    const n=V3MAP[b]; pre.push(n?(zh?(b+" "+n.zh+"（"+v3Own(n)+"）"):(b+" "+n.en+" ("+v3Own(n)+")")):b);
   });
   return [pre.length?(zh?"等 "+pre.join("、"):"waiting on "+pre.join(", ")):"",...notes].filter(Boolean).join(zh?"；":"; ");
 }
@@ -1340,8 +1368,12 @@ function v3SyncTasks(l){
   if(STAGES.indexOf(l.stage)<0) l.stage=STAGES[0];
   v3Advance(l);
 }
-const V3OC={"Ben":"#c084fc","Zac":"#60a5fa","Ann":"#f472b6","Angel":"#fb923c","LC":"#34d399","Design Team":"#a78bfa","各攝影師":"#67e8f9"};
+// v3OColor matches by SUBSTRING (compound owners like "Zac + Oume" must colour off their first name), so a
+// short key can shadow a longer one — keep "Mi" last, after every key it could appear inside.
+const V3OC={"Ben":"#c084fc","Zac":"#60a5fa","Ann":"#f472b6","Angel":"#fb923c","LC":"#34d399","Oume":"#a78bfa","各攝影師":"#67e8f9","Mi":"#f0abfc"};
 const v3OColor=o=>{o=String(o||"");for(const k in V3OC){if(o.indexOf(k)>=0)return V3OC[k];}return "#9aa3af";};
+// 名單裡的複合負責人（"Zac + Oume + Mi"）拆成單一個人 —— 流程圖的負責人 chip、階段清單、設定頁共用同一套拆法
+const v3Owners=o=>String(o||"").split(/\s*[+·・、]\s*/).map(s=>s.trim()).filter(Boolean);
 const ntx=s=>s; // (was a language-lock wrapper; V3 is now bilingual via the ZH/FLOWZH dict, so this is a pass-through)
 // 日期一律以本地時區格式化：toISOString() 先退回 UTC，在 UTC+8 每次運算就少一天（誤差＝關鍵路徑跳數）
 const fmtYMD=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
@@ -1675,9 +1707,12 @@ function v3ReadyDate(l){ const fin=l.complete?null:v3ProjFin(l); if(!fin)return 
 function syncProjected(l){ if(!l||l.complete)return; const p=projLaunchDate(l); if(!p)return; l.target=p;   // l.target 鏡射預計上市日
   // 基準上市日：C1 送出當下的預計上市日凍結一次，之後 float／預估延遲都對它量測（既有卡在此一次性補存）
   if(!l.baselineTarget&&formSubmitDate(l))l.baselineTarget=p; }
-/* 上市日的兩個定義端點：FB1（大貨到貨＝首波開賣）與 D6（正式 PDP）。沿 req 正向可達其中之一 ⇒ 這個步驟的天數
-   會參與預計上市日的推算（未填就當 0，日期偏早）；不可達 ⇒ 影響「未知」，絕不可寫成「不影響上市日」。 */
-const V3LAUNCH_ENDS=["FB1","D6","UL6"];   // launch 的兩個端點＋update 模板的單一終點（req 不跨模板,聯集圖仍各走各的）
+/* 上市日的定義端點：FB1（大貨到貨＝首波開賣）、D6（正式 PDP）、MS3b（行銷影片）。沿 req 正向可達其中之一 ⇒
+   這個步驟的天數會參與預計上市日的推算（未填就當 0，日期偏早）；不可達 ⇒ 影響「未知」，絕不可寫成「不影響
+   上市日」。MS3b 是 2026-07-31 D6 拿掉 MS3b 前置後補進來的：影片不再餵給任何人，但它仍是上市前要交出的素材，
+   而且實際上就是排程最尾巴的節點（projLaunchDate 取全圖最大完成日）—— 不列為端點的話，真正決定上市日的那一步
+   會被標成「不影響上市日」。 */
+const V3LAUNCH_ENDS=["FB1","D6","MS3b","UL6"];   // launch 的三個端點＋update 模板的單一終點（req 不跨模板,聯集圖仍各走各的）
 const v3AffectsLaunch=(()=>{ const memo={};
   const walk=c=>{ if(c in memo)return memo[c]; memo[c]=false;                       // 先寫 false＝循環守衛（模板是 DAG）
     return memo[c]=V3LAUNCH_ENDS.indexOf(c)>=0||V3ALL.some(m=>(m.req||[]).indexOf(c)>=0&&walk(m.c)); };
@@ -2081,7 +2116,7 @@ async function delRisk(slug,i){ const l=L(slug); if(!l||!l.risks||!l.risks[i])re
   l.risks.splice(i,1); log("🗑️ Risk removed from "+l.name+": "+r.t); save(); render(); toast("Risk removed"); }
 
 /* ----- persistence (guarded): autosave, export, reset ----- */
-function snapshot(){return JSON.stringify({v:2,TEAM,LAUNCHES,CAMPAIGNS,LOG,GATES,FLOW,XROUTES,TPLOV});}   // GATES/FLOW/XROUTES are ignored on load (V3 wins) — TPLOV is the only template state that survives
+function snapshot(){return JSON.stringify({v:2,TEAM,PEOPLE,LAUNCHES,CAMPAIGNS,LOG,GATES,FLOW,XROUTES,TPLOV});}   // GATES/FLOW/XROUTES are ignored on load (V3 wins) — TPLOV + PEOPLE are the template/people state that survives
 function save(){try{if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot());}catch(e){} recordVersion(); fbSchedule();}
 /* Keep every launch's task list in sync with the workflow template: drop any launch task
    whose title no longer exists in GATES. These orphans appear when a step is removed/renamed
@@ -2163,6 +2198,8 @@ function migrateSamplesFirst(){
 function applySnapshot(d){
   if(!d)return;
   TEAM.length=0;(d.TEAM||[]).forEach(x=>TEAM.push(x));
+  // 負責人名單：舊快照沒有這個鍵 —— 保留程式碼側的預設，別把名單清空（清空會讓設定頁一片空白、datalist 也沒建議）
+  if(Array.isArray(d.PEOPLE)&&d.PEOPLE.length){ PEOPLE.length=0; d.PEOPLE.forEach(x=>PEOPLE.push(x)); }
   LAUNCHES.length=0;(d.LAUNCHES||[]).forEach(x=>LAUNCHES.push(x));
   CAMPAIGNS.length=0;(d.CAMPAIGNS||[]).forEach(x=>CAMPAIGNS.push(x));
   if(d.LOG){LOG.length=0;d.LOG.forEach(x=>LOG.push(x));} // keep current activity log if a version snap omits it
@@ -3130,6 +3167,27 @@ function renameDept(o,n){ n=n.trim(); if(!n||o===n)return;
   if(S.dept===o)S.dept=n; toast(`Department renamed ${o} → ${n} everywhere`);
 }
 function addDept(){ TEAM.push({name:"New Department",role:"Describe this team's responsibility…",head:"",members:"",emails:""}); render(); }
+/* 負責人名單編輯 —— 名字是流程的識別字（V3 的 o 欄位、TPLOV 覆寫、指派欄都用名字對人），所以改名要一路帶過去 */
+function peopleEdit(i,f,v){ const p=PEOPLE[i]; if(!p)return; if(f==="name"){renamePerson(p.name,v);} else p[f]=v; save(); render(); }
+function ownerSteps(name){ return V3ALL.filter(n=>v3Owners(v3Own(n)).includes(name)); }   // 這個人負責的步驟（兩個模板都算）
+function renamePerson(old,nw){ nw=(nw||"").trim();
+  if(!nw||old===nw){render();return;}
+  if(PEOPLE.some(p=>p.name===nw)){ toast(LANG==="zh"?("已有同名負責人："+nw):("A person named "+nw+" already exists")); render(); return; }
+  const me=PEOPLE.find(p=>p.name===old); if(me)me.name=nw;
+  // V3 是程式碼側的模板、不能改寫，所以改名寫成 TPLOV 的負責人覆寫（會隨快照持久化）
+  V3ALL.forEach(n=>{ const parts=v3Owners(v3Own(n)); if(parts.includes(old)) tplOvSet(n.c,{o:parts.map(s=>s===old?nw:s).join(" + ")}); });
+  LAUNCHES.forEach(l=>(l.tasks||[]).forEach(t=>{ if(t.assignee===old)t.assignee=nw; }));
+  log(`👤 Owner renamed · ${old} → ${nw}`); toast(LANG==="zh"?("負責人已改名 "+old+" → "+nw):("Owner renamed "+old+" → "+nw));
+}
+function addPerson(){ PEOPLE.push({name:"New person",dept:(ALLDEPTS()[0]||""),emails:""}); save(); render(); }
+function delPerson(i){ const p=PEOPLE[i]; if(!p)return; const used=ownerSteps(p.name);
+  if(used.length){ toast(LANG==="zh"?("無法移除 "+p.name+" — 還負責 "+used.length+" 個步驟"):("Cannot remove "+p.name+" — still owns "+used.length+" step(s)")); return; }
+  PEOPLE.splice(i,1); save(); render(); }
+// 設定頁：改某一步的負責人（寫進 TPLOV，v3Own 讀得到 —— 只改 GATES 會被下一次 v3Rederive 蓋回去）
+function setStepOwner(code,owner){ const n=V3MAP[code]; if(!n)return; owner=(owner||"").trim();
+  if(owner===v3Own(n))return;
+  tplOvSet(code,{o:owner||n.o});
+  log(`👤 Owner · ${n.en} → ${v3Own(n)}`); save(); render(); toast(LANG==="zh"?"負責人已更新":"Owner updated"); }
 function delDept(i){ const d=TEAM[i].name;
   const used=LAUNCHES.some(l=>l.dri===d||l.tasks.some(t=>t.d===d))||Object.values(GATES).some(cs=>cs.some(c=>c.d===d));
   if(used){toast(`Cannot remove ${d} — tasks or gates still reference it`);return;}
@@ -3191,13 +3249,13 @@ function taskRow(l,t,extra,ro){
   // inline ＋ to involve another department — only on the launch-detail's editable rows (current stage), not the cross-launch board
   const collabPlus=(!ro&&!extra)?collabAddMenu(l,t,i,resp,collabs):"";
   const vn=t.code&&V3MAP[t.code];   // V3 node behind this row (for the code chip, owner, manual-day control, sample date)
-  const owner=vn?vn.o:"";
-  // department chip; when a distinct person owns the step, the owner is folded into a hover tooltip (keeps the row short)
-  const showOwner=(owner&&owner!==resp);
+  const owner=vn?v3Own(vn):"";
+  // 列上印的是「負責人」，部門收進 hover —— 部門名回答不了「我該找誰」，而每個步驟都掛得到一個真人。
+  // 沒有負責人的步驟（自由格式的 campaign 任務）才退回部門。
   const lead=extra
     ? `<span class="o-stage" title="stage">${esc(extra)}</span>`
-    : showOwner
-      ? `<span class="o-resp o-hasowner" tabindex="0" style="color:${DCOLOR(resp)};--oc:${v3OColor(owner)}" data-owner="${esc((LANG==="zh"?"負責人 · ":"Owner · ")+owner)}">${esc(resp)}</span>`
+    : owner
+      ? `<span class="o-resp o-hasowner" tabindex="0" style="color:${v3OColor(owner)};--oc:${DCOLOR(resp)}" data-owner="${esc((LANG==="zh"?"部門 · ":"Dept · ")+resp)}"><!--notx-->${esc(owner)}<!--/notx--></span>`
       : `<span class="o-resp" style="color:${DCOLOR(resp)}" title="Responsible dept — ${esc(resp)}">${esc(resp)}</span>`;
   const meta=`<span class="o ometa">${lead}${collabChips?`<span class="o-collabs">${collabChips}</span>`:""}${collabPlus}</span>`;   // days moved into the detail panel (預設天數 row) — no longer on the outer row
   // a locked row (incl. Ben ◆ gates) gets a ▾ details expander so the "why it's locked" text lives in the panel, not inline
@@ -3233,11 +3291,11 @@ function taskDetail(l,t,i,ro,vn,lk){
   const zh=LANG==="zh", T=(z,e)=>zh?z:e;
   if(!vn) return lk?`<div class="taskpanel" style="color:var(--dim)">🔒 <b>${T("已鎖定","Locked")}</b> — ${esc(lockReason(l,t))}</div>`:taskPanel(l,t,i,ro);
   const info=[];
-  info.push([T("負責人","Owner"), `<!--notx-->${esc(vn.o)}<!--/notx-->`]);   // owner first
+  info.push([T("負責人","Owner"), `<!--notx-->${esc(v3Own(vn))}<!--/notx-->`]);   // owner first
   // 指派真人 — 「各攝影師」這類通稱節點要能指名；datalist 由 render() 每次重建（#people）
   info.push([T("指派","Assignee"),
     ro?(t.assignee?`<!--notx-->${esc(t.assignee)}<!--/notx-->`:"—")
-      :`<!--notx--><input list="people" class="v3days-inp" style="width:130px" value="${esc(t.assignee||"")}" placeholder="${vn.o==="各攝影師"?T("指名攝影師…","name the photographer…"):T("指派給…","assign to…")}" onclick="event.stopPropagation()" onchange="v3SetField('${l.slug}',${i},'assignee',this.value)"><!--/notx-->`]);
+      :`<!--notx--><input list="people" class="v3days-inp" style="width:130px" value="${esc(t.assignee||"")}" placeholder="${v3Own(vn)==="各攝影師"?T("指名攝影師…","name the photographer…"):T("指派給…","assign to…")}" onclick="event.stopPropagation()" onchange="v3SetField('${l.slug}',${i},'assignee',this.value)"><!--/notx-->`]);
   if(vn.out) info.push([T("產出","Output"), esc(v3T(vn.out))]);
   if(DOD[t.code]) info.push([T("完成定義","Done means"), esc(v3T(DOD[t.code]))+(EVID.has(t.code)?` <span style="color:#67e8f9">· ${T("需附證明連結","evidence link required")}</span>`:"")]);
   if(vn.note) info.push([T("備註","Note"), esc(v3T(vn.note))]);
@@ -3340,7 +3398,7 @@ function daysPendingPop(l){
   const aria=T(`${n} 個步驟尚未填寫天數，跨 ${nd} 個部門；游標移上可看是誰`,`${n} steps still need a day estimate across ${nd} department${nd===1?"":"s"}. Hover or focus for who.`);
   return `<span class="ld-rd"><span class="ld-rd-trig days" tabindex="0" role="button" aria-label="${aria}">${trig}</span>`
     +`<span class="ld-rd-pop" role="tooltip"><div class="ld-rd-pop-h">${T("待填天數","Days not set")}</div>`
-    +Object.entries(byDept).map(([d,xs])=>`<div class="ld-rd-row miss"><span class="d" style="--dc:${DCOLOR(d)}">${esc(d)}${xs[0].n&&xs[0].n.o?` · <!--notx-->${esc(xs[0].n.o)}<!--/notx-->`:""}</span><span class="v">${xs.length} ${T("項","open")}</span></div>`).join("")
+    +Object.entries(byDept).map(([d,xs])=>`<div class="ld-rd-row miss"><span class="d" style="--dc:${DCOLOR(d)}">${esc(d)}${xs[0].n&&v3Own(xs[0].n)?` · <!--notx-->${esc(v3Own(xs[0].n))}<!--/notx-->`:""}</span><span class="v">${xs.length} ${T("項","open")}</span></div>`).join("")
     +`</span></span>`;
 }
 // the advance control (dept-ready summary · ◆ approval · push) — rendered inline under the CURRENT stage so it's right where you're working, not buried at the page bottom
@@ -3368,7 +3426,9 @@ function stageTimeline(l){
     const state=l.complete||i<idx?"done":blocked?"blocked":i===idx?"now":"up";
     const isCur=i===idx&&!l.complete;
     const frozen=isDesignFrozen(l)&&isFrozenDesignStage(s);   // 概念/開發 stage, locked by design freeze → iced
-    const depts=[...new Set(ts.map(t=>t.d))];   // 這張卡自己的部門（GATES 是雙模板聯集,不能直接列）
+    // 這個階段要動到誰 —— 列的是「負責人」而不是部門：部門名回答不了「我現在該找誰」，而複合負責人
+    // （"Zac + Oume + Mi"）要先拆開才不會出現一顆超長的 chip。順序沿用流程圖的步驟順序，先出現的人排前面。
+    const owners=[...new Set(ts.flatMap(t=>v3Owners(v3Own(V3MAP[t.code])||t.o||"")))];
     const key=l.slug+":stl:"+s;
     const op=(S.stageOpen&&key in S.stageOpen)?S.stageOpen[key]:(isCur||blocked); // current + blocked auto-open; the current stage shows its live, tickable criteria
     const glyph=frozen?"❄":{done:"✓",now:"▶",blocked:"!",up:""}[state];
@@ -3376,7 +3436,7 @@ function stageTimeline(l){
       <div class="stl-rail"><span class="stl-node" aria-hidden="true">${glyph}</span></div>
       <details class="stl-card"${op?" open":""} ontoggle="(S.stageOpen=S.stageOpen||{})['${key}']=this.open">
         <summary aria-label="${esc(s)} phase — ${frozen?"design frozen, ":""}${state==="done"?"done":state==="now"?"current":state==="blocked"?"blocked":"upcoming"}, ${met} of ${tot} steps done">
-          <span class="stl-head"><span class="stl-stage">${esc(s)}</span>${frozen?`<span class="stl-frozen-tag">❄ ${LANG==="zh"?"已凍結":"frozen"}</span>`:""}${isCur?`<span class="stl-now">📍 ${LANG==="zh"?"進行中":"is here"}</span>`:""}<span class="stl-depts">${depts.map(d=>`<span class="stl-dept" style="color:${DCOLOR(d)}">${esc(d)}</span>`).join("")}</span></span>
+          <span class="stl-head"><span class="stl-stage">${esc(s)}</span>${frozen?`<span class="stl-frozen-tag">❄ ${LANG==="zh"?"已凍結":"frozen"}</span>`:""}${isCur?`<span class="stl-now">📍 ${LANG==="zh"?"進行中":"is here"}</span>`:""}<span class="stl-depts">${owners.map(o=>`<span class="stl-dept" style="color:${v3OColor(o)}" title="${LANG==="zh"?"負責人":"owner"}"><!--notx-->${esc(o)}<!--/notx--></span>`).join("")}</span></span>
           <span class="stl-meta"><span class="stl-count" title="steps done">${met}/${tot}</span><span class="stl-caret" aria-hidden="true">▾</span></span>
         </summary>
         <div class="stl-body">${tot?ts.map(t=>taskRow(l,t,"",false)).join(""):'<div class="sub" style="padding:6px 2px">No steps in this phase.</div>'}</div>
@@ -3595,11 +3655,13 @@ function flowSVG(l){
     const tcol=frozen?FT.ice.txt:(FT.txt[st]||FT.txt.o);
     // the tile carries the step NAME and nothing else — code, day budget and lock state live in the popover,
     // one click away. (A `code · Nd` meta line under every label read as visual noise at chart scale.)
-    // the ⏱/📅/❄ corner glyph owns the top-right ~24px; give the label a narrower box shifted left by the same
-    // amount, otherwise a wide single line (MS3a "Lifestyle photos") slides straight under it.
+    // the title is ALWAYS centred on the tile. The ⏱/📅/❄ indicators used to sit in the top-right corner INSIDE
+    // the tile, which forced a 26px-narrower label box shifted left — so a design-frozen (or waiting-on-input)
+    // node's title visibly sat off-centre next to its neighbours. Both indicators now live in the badge row
+    // above the tile with 📍/⏳/⛔, leaving the full width to the name.
     // diamonds get a narrower packing box so a long en name splits into two BALANCED lines instead of one
     // wide line + one short one — the wide line is what has to survive the wedge's taper.
-    const _corner=(needIn||frozen)&&!n.d, LBW=(_corner?CW-26:CW)-(n.d?30:0), LCX=_corner?x+2+LBW/2:x+CW/2;
+    const LBW=CW-(n.d?30:0), LCX=x+CW/2;
     // clamp the font to the tile: flowLabel's 3-line branch keeps its own 11.5 max, which is how CRM2's old
     // long-form en label ("FAQ finalized + brief CS") used to stack 3×11.5×1.18=40.7px inside a 38px box.
     const LTOP=n.d?y+4:y, LBH=n.d?NH-8:NH;
@@ -3623,17 +3685,25 @@ function flowSVG(l){
       F=+Math.min(F, 2*HW/(dw+2*HW*c/HH)).toFixed(2); }
     const lg=F*1.18, cy=LTOP+LBH/2;
     let labelSVG=lay.lines.map((ln,k)=>`<text x="${LCX}" y="${(cy+(k-(nl-1)/2)*lg+F*0.34).toFixed(1)}" text-anchor="middle" fill="${tcol}" font-size="${F}" letter-spacing="${FL_LS}em">${esc(ln)}</text>`).join("");
-    svg+=`<g${click}${depOn&&!depKeys.has(key)?' opacity="0.18"':""}>${body}${isSel?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inHi&&!isSel?`<rect class="glownode" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="1.8" opacity="0.8" pointer-events="none"/>`:""}${labelSVG}${frozen&&!n.d?`<text x="${x+CW-9}" y="${y+14}" text-anchor="middle" fill="${FT.ice.strk}" font-size="11" font-weight="700" pointer-events="none">❄</text>`:""}${needIn&&!n.d?`<g pointer-events="none"><circle cx="${x+CW-11}" cy="${y+11}" r="8.6" fill="rgba(248,113,113,.18)" stroke="rgba(248,113,113,.9)" stroke-width="1.1"/><text x="${x+CW-11}" y="${y+14.6}" text-anchor="middle" font-size="9.5">${needIn}</text></g>`:""}
+    svg+=`<g${click}${depOn&&!depKeys.has(key)?' opacity="0.18"':""}>${body}${isSel?`<rect class="fn-sel" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="2.5" pointer-events="none"/>`:""}${inHi&&!isSel?`<rect class="glownode" x="${x-3}" y="${y-3}" width="${CW+6}" height="${h+6}" rx="7" fill="none" stroke="#EE3124" stroke-width="1.8" opacity="0.8" pointer-events="none"/>`:""}${labelSVG}
     ${n.d&&!live?`<text x="${x+CW/2}" y="${y-7}" text-anchor="middle" fill="#c084fc" font-size="11" stroke="${FT.field}" stroke-width="2.8" paint-order="stroke" stroke-linejoin="round">◆ decision</text>`:""}
     ${(()=>{const BJ=live==="o"?{t:"📍 "+(LANG==="zh"?"這裡":"here"),bg:"#EE3124",fg:"#fff"}
            :live==="p"?{t:"⏳ "+(LANG==="zh"?"進行中":"in progress"),bg:"#fbbf24",fg:"#111215"}
            :live==="b"?{t:"⛔ "+(LANG==="zh"?"卡關":"blocked"),bg:"#f87171",fg:"#111215"}:null;
+      // ❄ frozen and ⏱/📅 needs-input moved OUT of the tile (they used to push the title off-centre) into this
+      // row. They can never collide: ❄ only paints on a done node (no live badge), ⏱/📅 only on a live one.
+      if(frozen&&!n.d) return `<text x="${x+3}" y="${BTY}" fill="${FT.ice.strk}" font-size="11" font-weight="700" pointer-events="none">❄</text>`;
       if(!BJ)return ""; const w=pillW(BJ.t);
+      // ⏱/📅 sits immediately right of the live badge — first in the row after it, because "this needs a number
+      // from you" outranks "who owns it" when both compete for the band.
+      let inSVG="", iw=0;
+      if(needIn&&!n.d){ const icx=x-4+w+4+9; iw=22;
+        inSVG=`<g pointer-events="none"><circle cx="${icx}" cy="${BRY+9}" r="8.6" fill="rgba(248,113,113,.18)" stroke="rgba(248,113,113,.9)" stroke-width="1.1"/><text x="${icx}" y="${BRY+12.6}" text-anchor="middle" font-size="9.5">${needIn}</text></g>`; }
       // 📍 frontier badge carries WHO starts — owner chip to the right (V3OC color, notx-guarded name).
       // Width is capped to this column's band (CW+GAP): compound owners collapse to "First +n", then ellipsis.
       let ownSVG="";
-      if(isHere){ const owners=String((_vnn&&_vnn.o)||(_tt&&_tt.o)||"").split(/\s*[+·・]\s*/).map(s=>s.trim()).filter(Boolean);
-        if(owners.length){ const bx0=x-4+w+4, max=CW+GAP-8-(w+4), edge=bx0+max;   // edge = the hard right limit of this column's band
+      if(isHere){ const owners=v3Owners(v3Own(_vnn)||(_tt&&_tt.o)||"");
+        if(owners.length){ const bx0=x-4+w+4+iw, max=CW+GAP-8-(w+4+iw), edge=bx0+max;   // edge = the hard right limit of this column's band
           const chip=(cx,nm,cls)=>{const nc=v3OColor(nm),nw=pillW(nm);return {w:nw,svg:`<g class="fn-own${cls}"><rect x="${cx}" y="${BRY}" width="${nw}" height="18" rx="9" fill="${FT.colBg}" stroke="${nc}" stroke-width="1.2"/><text x="${cx+nw/2}" y="${BTY}" text-anchor="middle" fill="${nc}" font-size="10.5" font-weight="700"><!--notx-->${esc(nm)}<!--/notx--></text></g>`};};
           const fit=(nm,room)=>{ if(pillW(nm)<=room)return nm; let s=nm; while(s.length>1&&pillW(s+"…")>room) s=s.slice(0,-1); return s+"…"; };
           const f=chip(bx0,fit(owners[0],max),""); ownSVG=f.svg; let ox=bx0+f.w+5;
@@ -3649,8 +3719,8 @@ function flowSVG(l){
               ownSVG+=`<g class="fn-own-2"><rect x="${ox}" y="${BRY}" width="${rw}" height="18" rx="9" fill="${FT.colBg}" stroke="${rc}" stroke-width="1.2"/><text x="${ox+rw/2}" y="${BTY}" text-anchor="middle" fill="${one?rc:FT.txt.o}" font-size="10.5" font-weight="700"><!--notx-->${esc(rt)}<!--/notx--></text></g>`; }
           }
         } }
-      return `<g pointer-events="none"><rect x="${x-4}" y="${BRY}" width="${w}" height="18" rx="9" fill="${BJ.bg}"/><text x="${x-4+w/2}" y="${BTY}" text-anchor="middle" fill="${BJ.fg}" font-size="11" font-weight="700">${BJ.t}</text>${ownSVG}</g>`;})()}
-    <title>${esc(n.l)} — ${LANG==="zh"?"階段：":"stage: "}${n.s} · ${LANG==="zh"?"點一下看依賴與快捷動作":"click for route + quick actions"}${st==="fut"&&ti>=0?(LANG==="zh"?" · 🔒 鎖定中 — 等前一步完成":" · 🔒 locked until previous step is done"):""}${live==="o"?(LANG==="zh"?" · 📍 已解鎖，可開始":" · 📍 unlocked — ready to start")+((_vnn&&_vnn.o)||(_tt&&_tt.o)?(LANG==="zh"?" · 負責人 ":" · owner: ")+"<!--notx-->"+esc(String((_vnn&&_vnn.o)||(_tt&&_tt.o)))+"<!--/notx-->":""):live==="p"?(LANG==="zh"?" · ⏳ 進行中":" · ⏳ in progress"):live==="b"?(LANG==="zh"?" · ⛔ 卡關":" · ⛔ blocked"):""}${needDays?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}${needDate&&_vnn&&_vnn.arrival?(LANG==="zh"?" · 📦 到貨日未填":" · 📦 arrival date not set"):""}${needDate&&_vnn&&_vnn.sample?(LANG==="zh"?" · 🧵 大貨樣日未填":" · 🧵 bulk-sample date not set"):""}</title></g>`;}));
+      return `<g pointer-events="none"><rect x="${x-4}" y="${BRY}" width="${w}" height="18" rx="9" fill="${BJ.bg}"/><text x="${x-4+w/2}" y="${BTY}" text-anchor="middle" fill="${BJ.fg}" font-size="11" font-weight="700">${BJ.t}</text>${inSVG}${ownSVG}</g>`;})()}
+    <title>${esc(n.l)} — ${LANG==="zh"?"階段：":"stage: "}${n.s} · ${LANG==="zh"?"點一下看依賴與快捷動作":"click for route + quick actions"}${st==="fut"&&ti>=0?(LANG==="zh"?" · 🔒 鎖定中 — 等前一步完成":" · 🔒 locked until previous step is done"):""}${live==="o"?(LANG==="zh"?" · 📍 已解鎖，可開始":" · 📍 unlocked — ready to start")+(v3Own(_vnn)||(_tt&&_tt.o)?(LANG==="zh"?" · 負責人 ":" · owner: ")+"<!--notx-->"+esc(String(v3Own(_vnn)||(_tt&&_tt.o)))+"<!--/notx-->":""):live==="p"?(LANG==="zh"?" · ⏳ 進行中":" · ⏳ in progress"):live==="b"?(LANG==="zh"?" · ⛔ 卡關":" · ⛔ blocked"):""}${needDays?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}${needDate&&_vnn&&_vnn.arrival?(LANG==="zh"?" · 📦 到貨日未填":" · 📦 arrival date not set"):""}${needDate&&_vnn&&_vnn.sample?(LANG==="zh"?" · 🧵 大貨樣日未填":" · 🧵 bulk-sample date not set"):""}</title></g>`;}));
   // red dependency arrows (drawn on top so they clearly reach the highlighted nodes)
   depEdges.forEach(([a,b])=>{const pa=pos(a[0],a[1]),pb=pos(b[0],b[1]),ha=hgt(a[0],a[1]),hb=hgt(b[0],b[1]); let dpath;
     if(a[0]===b[0]){ const ax=pa.x+CW/2, ay=pa.y+ha, bx=pb.x+CW/2, by=pb.y-5, my=(ay+by)/2; dpath=`M${ax} ${ay} C ${ax} ${my}, ${bx} ${my}, ${bx} ${by}`; }
@@ -3798,7 +3868,7 @@ function flowPopHTML(d,i){
     // 也是中文模式下區分 C7／C9／D5 三個「Ben 決策」的唯一線索。
     +(n.code?`<span class="fp-stage" title="${zh?"步驟代號":"step code"}">${esc(n.code)}</span>`:"")
     +`<span class="fp-stage">${esc(n.s)}</span>`
-    +(vnH.o?`<span class="fp-ownr" title="${zh?"負責人":"owner"}">👤 <!--notx-->${esc(vnH.o)}<!--/notx--></span>`:"")
+    +(v3Own(vnH)?`<span class="fp-ownr" title="${zh?"負責人":"owner"}">👤 <!--notx-->${esc(v3Own(vnH))}<!--/notx--></span>`:"")
     +(n.d?'<span class="fp-dec">◆ decision</span>':"")
     +(task&&task.decision&&task.decision.v==="no"?`<span class="fp-dec" style="color:var(--red)">✗ ${zh?"已否決":"rejected"}</span>`:"")
     +(locked?`<span class="fp-lock">🔒 ${zh?"鎖定":"locked"}</span>`:"")
@@ -3818,8 +3888,11 @@ function flowPopHTML(d,i){
    // this step's day estimate — per-product manual steps (vn.days==null, not a ◆ gate) edit right here:
    // once the clock runs (prereqs done) the factory quotes a DATE, so show a date picker (v3SetDue back-fills
    // days, mirroring the detail panel); before the clock starts it's a plain days input; all else static ⏱
-   const manual=!!task&&ti>=0&&!n.d&&vn.days==null&&task.st!=="x";
-   const _sc=manual?v3StartClock(l,vn):null;
+   // 天數一律就地可填 —— 完成後也還能填（大貨生產常是完工後才回報實際生產天數）。原本 st==="x" 就退回靜態
+   // 「⏱ 待填」，等於逼使用者捲到下面開卡片詳情才找得到輸入框（詳情面板一直都允許改）。
+   // 日期選擇只用在「還沒完成、而且時鐘已起算」：那時工廠報的是交期；已完成的步驟填交期沒有意義。
+   const manual=!!task&&ti>=0&&!n.d&&vn.days==null;
+   const _sc=(manual&&task.st!=="x")?v3StartClock(l,vn):null;
    let daysEl;
    if(manual&&_sc){
      const dd=task.days!=null?v3AddD(_sc,task.days):"";
@@ -3864,7 +3937,7 @@ function flowPopHTML(d,i){
    const reqs=(n.req||[]);
    // 前置 chips 帶狀態：已完成打勾、未完成標色＋負責人 —— 鎖住時一眼看出「還缺誰、該催誰」
    const reqChip=c=>{const rt=(l.tasks||[]).find(t=>t.code===c), dn=!!(rt&&rt.st==="x"), nn=V3MAP[c];
-     return `<span class="fp-dep ${dn?"done":"miss"}">${dn?"✓ ":""}${named(c)}${!dn&&nn&&nn.o?` <span class="fp-dep-o"><!--notx-->${esc(nn.o)}<!--/notx--></span>`:""}</span>`;};
+     return `<span class="fp-dep ${dn?"done":"miss"}">${dn?"✓ ":""}${named(c)}${!dn&&nn&&v3Own(nn)?` <span class="fp-dep-o"><!--notx-->${esc(v3Own(nn))}<!--/notx--></span>`:""}</span>`;};
    const dependents=[]; Object.keys(FLOW).forEach(dd=>(FLOW[dd]||[]).forEach(nn=>{ if(nn.code&&(nn.req||[]).includes(n.code)&&!dependents.includes(nn.code)) dependents.push(nn.code); }));
    let r=`<div class="fp-route">`;
    if(reqs.length) r+=`<div class="fp-deps"><span class="fp-deplabel fp-deplock" title="${zh?"等待這些步驟完成":"waits on these"}" aria-label="${zh?"等待":"waits on"}">🔒</span>${reqs.map(reqChip).join("")}</div>`;
@@ -4292,7 +4365,7 @@ function v3Dash(l){
     return `<div class="v3asset ${cls}" onclick="v3jump('${l.slug}','${c}')" title="${T("點擊跳到任務","jump to task")}">
       <div class="v3asset-n">${esc(n.en)}</div>
       <div class="v3asset-s">${st}${late}</div>
-      <div class="v3asset-m"><span style="color:${v3OColor(n.o)}">${esc(n.o)}</span>${(t.links||[]).length?`<span class="ghostnote">🔗${t.links.length}</span>`:""}${!done&&rem?`<span class="ghostnote">≈${rem}d</span>`:""}</div></div>`;}).join("");
+      <div class="v3asset-m"><span style="color:${v3OColor(v3Own(n))}"><!--notx-->${esc(v3Own(n))}<!--/notx--></span>${(t.links||[]).length?`<span class="ghostnote">🔗${t.links.length}</span>`:""}${!done&&rem?`<span class="ghostnote">≈${rem}d</span>`:""}</div></div>`;}).join("");
   const p3=v3Task(l,"P3"),p5=v3Task(l,"P5"),fb=v3Task(l,"FB1");
   const lrow=c=>{const t=v3Task(l,c);if(!t)return "";const n=V3MAP[c];const lkT=v3LockText(l,t);
     return `<div class="v3lrow${t.st==="x"?" done":""}"${lkT?` title="🔒 ${esc(lkT)}"`:""} onclick="v3jump('${l.slug}','${c}')"><span class="st ${t.st}" style="width:20px;height:20px;font-size:10px">${lkT?"🔒":stIcon[t.st]}</span><span class="v3code">${esc(c)}</span> ${esc(t.t)}<span class="o ghostnote">${n.days!=null?(n.days||"—")+(n.days?"d":""):(t.days!=null?t.days+"d":esc(v3T(n.ref)||"?"))}</span></div>`;};
@@ -4726,13 +4799,13 @@ function viewCampaign(){
 function viewSettings(){
   const tab=S.settingsTab||(S.view==="versions"?"history":"team"); // honour old /team /versions deep-links
   const tabs=`<div style="margin:10px 0 16px">
-    <button class="btn ${tab==="team"?"":"ghost"}" onclick="S.settingsTab='team';render()">👥 Team &amp; departments</button>
-    <button class="btn ${tab==="tpl"?"":"ghost"}" style="margin-left:6px" onclick="S.settingsTab='tpl';render()">🧭 Workflow template</button>
+    <button class="btn ${tab==="team"?"":"ghost"}" onclick="S.settingsTab='team';render()">👥 ${LANG==="zh"?"負責人與部門":"Owners &amp; departments"}</button>
+    <button class="btn ${tab==="tpl"?"":"ghost"}" style="margin-left:6px" onclick="S.settingsTab='tpl';render()">🧭 ${LANG==="zh"?"流程模板":"Workflow template"}</button>
     <button class="btn ${tab==="dept"?"":"ghost"}" style="margin-left:6px" onclick="S.settingsTab='dept';render()">🏢 Department board</button>
     <button class="btn ${tab==="history"?"":"ghost"}" style="margin-left:6px" onclick="S.settingsTab='history';render()">🕘 History</button>
     <button class="btn ${tab==="usage"?"":"ghost"}" style="margin-left:6px" onclick="S.settingsTab='usage';render()">💸 Spend &amp; usage</button>
   </div>`;
-  return `<h2>Settings</h2><div class="sub">People config, the workflow template, the department board, change history and AI spend, in one place.</div><div class="gauthrow"><span>${LANG==="zh"?"建立 Sheets／Docs 用的 Google 帳號":"Google account for creating Sheets / Docs"}</span><span id="gauth"></span></div>${tabs}${tab==="history"?viewVersions():tab==="usage"?viewUsage():tab==="dept"?viewDept():tab==="tpl"?viewWorkflowTpl():viewTeam()}`;
+  return `<h2>Settings</h2><div class="sub">${LANG==="zh"?"負責人與部門設定、流程模板、部門看板、變更紀錄與 AI 花費，都在這裡。":"Owner &amp; department config, the workflow template, the department board, change history and AI spend, in one place."}</div><div class="gauthrow"><span>${LANG==="zh"?"建立 Sheets／Docs 用的 Google 帳號":"Google account for creating Sheets / Docs"}</span><span id="gauth"></span></div>${tabs}${tab==="history"?viewVersions():tab==="usage"?viewUsage():tab==="dept"?viewDept():tab==="tpl"?viewWorkflowTpl():viewTeam()}`;
 }
 // Aggregate every AI question/answer (with cost, tokens, who, data used) from the shared chats — full history.
 function loadUsage(){
@@ -4774,8 +4847,25 @@ function viewUsage(){
 }
 function usageOpen(i){ const r=(USAGE||[])[i]; if(r)codeModal({readOnly:true,label:"Answer · "+(r.who||"")+" · "+usageMoney(r.cost),html:"<div style='white-space:pre-wrap;font-family:system-ui,sans-serif;padding:16px;line-height:1.5'><b>Q:</b> "+esc(r.question)+"<hr style='opacity:.2'>"+esc(r.answer||"")+"</div>"}); }
 function viewTeam(){
-  return `<h2>Team & departments</h2><div class="sub">This is the tracker's <b>people config</b> (the future <code>config/people.yaml</code>). Edit roles, heads and members here — DRI pickers, task owners, gate logic and lenses all read from this list. No personal names required; departments are the unit of ownership.</div>
-  <div class="panel flat"><table><tr><th style="width:128px">Department</th><th>Role / responsibility</th><th style="width:120px">Head</th><th style="width:130px">Members</th><th style="width:186px">Sign-in emails → auto-lens</th><th style="width:40px"></th></tr>
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  // 主表以「人」為單位：負責範圍不手寫，直接從流程算出這個人負責哪些步驟 —— 手寫的職責敘述一定會跟流程脫節
+  const ppl=`<div class="panel flat"><h3>${T("負責人","Owners")} <span class="ghostnote" style="font-weight:400">· ${T("流程上真正被指名的人","the names the workflow actually calls out")}</span></h3>
+  <table><tr><th style="width:118px">${T("負責人","Owner")}</th><th style="width:128px">${T("所屬部門","Department")}</th><th>${T("負責的步驟","Steps owned")}</th><th style="width:186px">${T("登入 email → 自動視角","Sign-in emails → auto-lens")}</th><th style="width:40px"></th></tr>
+  ${PEOPLE.map((p,i)=>{const steps=ownerSteps(p.name);
+    return `<tr>
+    <td><!--notx--><input type="text" value="${esc(p.name)}" onchange="peopleEdit(${i},'name',this.value)"><!--/notx--><div class="ghostnote" style="margin-top:3px;color:${v3OColor(p.name)}">●</div></td>
+    <td><select onchange="peopleEdit(${i},'dept',this.value)"><option value="">—</option>${ALLDEPTS().map(d=>`<option value="${esc(d)}" ${d===p.dept?"selected":""}>${esc(d)}</option>`).join("")}</select></td>
+    <td>${steps.length?`<div class="tpl-collabs">${steps.map(n=>`<span class="collab-chip" style="--c:${DCOLOR(v3Dept(n))}" title="${esc(n.c+" · "+v3Dept(n))}">${esc(zh?n.zh:n.en)}</span>`).join("")}</div>`:`<span class="sub" style="font-size:12px">${T("目前不負責任何步驟","owns no step right now")}</span>`}</td>
+    <td><input type="text" placeholder="a@bv.com, b@bv.com" value="${esc(p.emails||"")}" onchange="peopleEdit(${i},'emails',this.value)"></td>
+    <td><button class="btn red" style="padding:4px 9px" title="${T("移除","remove")}" onclick="delPerson(${i})">✕</button></td></tr>`;}).join("")}
+  </table><div style="margin-top:10px"><button class="btn ghost" onclick="addPerson()">+ ${T("新增負責人","Add person")}</button></div>
+  <div class="sub" style="margin-top:10px">${T("改名會一路帶過去：流程模板的負責人覆寫、每張卡的指派欄都跟著改。還在負責步驟的人不能移除。要改某一步是誰負責，到「🧭 流程模板」分頁。","Renaming carries through: the workflow-template owner overrides and every card's assignee follow. A person who still owns steps can't be removed. To change who owns a step, use the 🧭 Workflow template tab.")}</div>
+  <div class="sub" style="margin-top:6px">${T("登入 email：用這裡列出的 Google 帳號登入，就會自動鎖到那個人所屬部門的視角（只有 CEO 可以自由切換）。CEO 帳號：","Sign-in emails: signing in with a Google account listed here locks that person to their department's lens (only the CEO can switch). CEO accounts:")} <code>ben@blackvoyage.com</code>, <code>hello@blackvoyage.com</code></div></div>`;
+  return `<h2>${T("負責人與部門","Owners & departments")}</h2><div class="sub">${T("上面是<b>負責人</b>名單——流程圖、階段清單、流程模板講的都是這些名字。下面的部門層仍在，因為流程圖車道、顏色與看板分組是依部門走的。","Owners up top — the flow chart, the by-phase list and the workflow template all speak in these names. The department layer below still drives the flow-chart lanes, colours and board grouping.")}</div>
+  ${ppl}
+  <details class="panel flat" open style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">🏢 ${T("部門（流程圖車道與顏色）","Departments (flow-chart lanes & colours)")} <span class="ghostnote" style="font-weight:400">${TEAM.length}</span></summary>
+  <div class="sub" style="margin:8px 0">${T("部門是流程圖的車道單位與配色來源，也是共用信箱的退路。改動這裡會牽動車道、統計與脈動熱力圖。","Departments are the flow-chart's lane unit and colour source, and the fallback for shared mailboxes. Editing here moves lanes, statistics and the pulse heat-map.")}</div>
+  <table><tr><th style="width:128px">Department</th><th>Role / responsibility</th><th style="width:120px">Head</th><th style="width:130px">Members</th><th style="width:186px">Sign-in emails → auto-lens</th><th style="width:40px"></th></tr>
   ${TEAM.map((t,i)=>`<tr>
     <td><input type="text" value="${esc(t.name)}" onchange="teamEdit(${i},'name',this.value)">${DEPTS().includes(t.name)?"":`<div class="ghostnote" style="margin-top:3px" title="${LANG==="zh"?"這個部門在 V3 流程裡沒有任何步驟，所以不會出現在部門統計、脈動熱力圖與流程車道；人員設定仍保留。":"No V3 flow step belongs to this department, so it stays out of the dept statistics, the pulse heat-map and the flow lanes — the people config is kept."}">${LANG==="zh"?"未在流程中":"not in the flow"}</div>`}</td>
     <td><input type="text" value="${esc(t.role)}" onchange="teamEdit(${i},'role',this.value)"></td>
@@ -4784,15 +4874,18 @@ function viewTeam(){
     <td><input type="text" placeholder="a@bv.com, b@bv.com" value="${esc(t.emails||"")}" onchange="teamEdit(${i},'emails',this.value)"></td>
     <td><button class="btn red" style="padding:4px 9px" title="remove" onclick="delDept(${i})">✕</button></td></tr>`).join("")}
   </table><div style="margin-top:10px"><button class="btn ghost" onclick="addDept()">+ Add department</button></div>
-  <div class="sub" style="margin-top:10px"><b>Sign-in emails → auto-lens:</b> when someone signs in with a Google account listed here, they're automatically locked to that department's lens (they can't switch — only the CEO can). <b>CEO accounts</b> (full switchable view): <code>ben@blackvoyage.com</code>, <code>hello@blackvoyage.com</code>. An unlisted account falls back to the default lens — add their email above to map them.</div>
-  <div class="sub" style="margin-top:6px">Renaming a department updates every task, gate, DRI and flow-chart lane automatically. Removal is blocked while tasks or gates still reference it.</div></div>`;
+  <div class="sub" style="margin-top:10px">Renaming a department updates every task, gate, DRI and flow-chart lane automatically. Removal is blocked while tasks or gates still reference it. A department mailbox listed here is the fallback lens when the signed-in address isn't on any person above.</div></details>`;
 }
 function viewWorkflowTpl(){
-  return `<h2>Workflow template — step ownership</h2><div class="sub">Who is <b>responsible</b> (one department — the flow-chart lane owner) and who <b>collaborates</b> on each step. This is the shared pattern every product launch follows: set it once here and every launch's detail page reads it live. Changing the responsible department re-files that step across all launches.</div>
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  return `<h2>${T("流程模板 — 誰負責哪一步","Workflow template — step ownership")}</h2><div class="sub">${T("每一步的<b>負責人</b>（真人，流程圖與階段清單顯示的就是這個名字）、它畫在哪一條<b>車道</b>（部門），以及要拉誰<b>協作</b>。這是所有產品共用的一份模板：在這裡設一次，每張卡的詳情頁就即時跟著讀。負責人可以填複合值（例如 <code>Zac + Ben</code>）。","Each step's <b>owner</b> (a real person — the name the flow chart and the by-phase list show), which <b>lane</b> (department) it is drawn in, and who <b>collaborates</b>. One shared template for every product: set it once here and each card's detail page reads it live. Owners can be compound (e.g. <code>Zac + Ben</code>).")}</div>
   ${STAGES.map(stage=>{const steps=GATES[stage]||[];if(!steps.length)return "";return `<div class="panel tpl-stage flat"><h3>${esc(stage)} <span class="ghostnote">(${steps.length})</span></h3>
-   <table class="tpl-tbl"><tr><th>Step</th><th style="width:158px">Responsible</th><th>Collaborators</th></tr>
-   ${steps.map(s=>{const collabs=(Array.isArray(s.who)?s.who:[]).filter(d=>d&&d!==s.d);const opts=ALLDEPTS().filter(d=>d!==s.d&&!collabs.includes(d));const tn=esc(s.t);return `<tr>
-     <td class="tpl-step">${tn}${s.ben?' <span style="color:var(--purple)" title="Ben decision gate">◆</span>':""}</td>
+   <table class="tpl-tbl"><tr><th>${T("步驟","Step")}</th><th style="width:172px">${T("負責人","Owner")}</th><th style="width:120px">${T("車道（部門）","Lane (dept)")}</th><th>${T("協作部門","Collaborators")}</th></tr>
+   ${steps.map(s=>{const collabs=(Array.isArray(s.who)?s.who:[]).filter(d=>d&&d!==s.d);const opts=ALLDEPTS().filter(d=>d!==s.d&&!collabs.includes(d));const tn=esc(s.t);
+     const vn=V3MAP[s.code]||{}, own=v3Own(vn), dflt=vn.o||"";
+     return `<tr>
+     <td class="tpl-step">${esc(zh&&vn.zh?vn.zh:s.t)}${s.ben?' <span style="color:var(--purple)" title="Ben decision gate">◆</span>':""} <span class="ghostnote">${esc(s.code||"")}</span></td>
+     <td><!--notx--><input type="text" list="people" class="tpl-resp" style="width:100%" value="${esc(own)}" onchange="setStepOwner('${esc(s.code||"")}',this.value)"><!--/notx-->${own!==dflt?`<div class="ghostnote" style="margin-top:3px" title="${T("已覆寫模板預設值","overrides the template default")}">↺ ${esc(dflt)}</div>`:""}</td>
      <td><select class="tpl-resp" onchange="setStepResp('${esc(stage)}','${tn}',this.value)">${ALLDEPTS().map(d=>`<option value="${esc(d)}" ${d===s.d?"selected":""}>${esc(d)}</option>`).join("")}</select></td>
      <td><div class="tpl-collabs">${collabs.map(d=>`<span class="collab-chip" style="--c:${DCOLOR(d)}">${esc(d)}<button title="remove collaborator" onclick="tplCollab('${esc(stage)}','${tn}','${esc(d)}')">✕</button></span>`).join("")||'<span class="sub" style="font-size:12px">—</span>'}${opts.length?` <select class="tpl-add" title="add a collaborating department" onchange="tplCollab('${esc(stage)}','${tn}',this.value);this.value=''"><option value="">+ add</option>${opts.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join("")}</select>`:""}</div></td>
    </tr>`;}).join("")}</table></div>`;}).join("")}`;
@@ -5068,7 +5161,11 @@ function myRole(){ return ME?(ROLE_BY_EMAIL[(ME.email||"").toLowerCase()]||"dept
 function isCEO(){ return myRole()==="ceo"; }
 function applyMyRoleToView(){ const r=myRole(); if(r==="ceo")S.role="ceo"; else if(r==="director")S.role="director"; else if(r==="marketing"){S.role="dept";S.dept="Marketing";} else S.role="dept"; }
 // department lens from the signed-in email, mapped per-team via Settings → Team (TEAM[].emails). Runs after applyMyRoleToView: CEO/director keep their full/role lens; everyone else is auto-locked to their team's lens (setRole already blocks non-CEOs from switching).
-function deptByEmail(email){ email=(email||"").toLowerCase().trim(); if(!email)return ""; for(const t of TEAM){ if(String(t.emails||"").toLowerCase().split(/[,;\s]+/).filter(Boolean).includes(email)) return t.name; } return ""; }
+const _emailIn=(list,email)=>String(list||"").toLowerCase().split(/[,;\s]+/).filter(Boolean).includes(email);
+// 個人 email 先比（PEOPLE 是以人為單位的名單，比部門信箱精準），沒中再退回部門的共用信箱
+function deptByEmail(email){ email=(email||"").toLowerCase().trim(); if(!email)return "";
+  for(const p of PEOPLE){ if(_emailIn(p.emails,email)&&p.dept) return p.dept; }
+  for(const t of TEAM){ if(_emailIn(t.emails,email)) return t.name; } return ""; }
 function applyDeptLens(){ if(!ME)return; const r=myRole(); if(r==="ceo"||r==="director")return; const d=deptByEmail(ME.email); if(d){ S.role="dept"; S.dept=d; } }
 function canBenSign(){return myRole()==="ceo";}
 function canMktSign(){const r=myRole();return r==="ceo"||r==="marketing";}
@@ -6445,10 +6542,10 @@ function render(){
   }
   document.getElementById("nav").innerHTML=tx(NAVS.map(([v,l])=>`<button class="${S.view===v?"on":""}" onclick="go('${v}')">${l}</button>`).join(""));
   const app=document.getElementById("app");
-  // datalist for assignee suggestions (from Team tab heads/members + departments)
+  // datalist for assignee / owner suggestions — the 負責人 registry first, then Team-tab heads/members + departments
   let dl=document.getElementById("people");
   if(!dl){dl=document.createElement("datalist");dl.id="people";document.body.appendChild(dl);}
-  dl.innerHTML=[...new Set(TEAM.flatMap(t=>[t.name,t.head,...(t.members||"").split(",")]).map(s=>(s||"").trim()).filter(Boolean))].map(p=>`<option value="${esc(p)}">`).join("");
+  dl.innerHTML=[...new Set([...PEOPLENAMES(),...TEAM.flatMap(t=>[t.name,t.head,...(t.members||"").split(",")])].map(s=>(s||"").trim()).filter(Boolean))].map(p=>`<option value="${esc(p)}">`).join("");
   let html;
   // guard a stale/deleted launch slug (e.g. card removed but S.launch still points at it) — fall back to portfolio instead of crashing in viewLaunch/health
   if(S.view==="launch"&&!L(S.launch)){S.view="portfolio";S.launch=null;}
