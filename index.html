@@ -1081,7 +1081,7 @@ const V3=[
  {c:"D1", en:"Identity design", zh:"識別設計", ph:0, dept:"Design", o:"Mi", days:7, req:["C5"], out:{en:"packaging, label…",zh:"Packaging、Label…"}, note:{en:"starts when design integration (C6) starts",zh:"整合設計（C6）一開始就同步製作"}, isNew:1},
  {c:"C7", en:"Ben concept sign-off", zh:"Ben 決策", ph:0, dept:"Product", o:"Ben", days:5, req:["C6","D1"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}, note:{en:"needs BOTH design integration and identity design done",zh:"整合設計＋識別設計都完成才決策"}},
  // 1 — Prototype & Delivery
- {c:"C8", evid:1, en:"Prototyping", zh:"原型打樣", ph:1, dept:"Product", o:"Zac", days:null, req:["C7"], out:{en:"prototype",zh:"原型"}, note:{en:"cost sheet lives here (negotiated during sampling)",zh:"成本表貼於此（打樣期間來回議定成本）"}},
+ {c:"C8", en:"Prototyping", zh:"原型打樣", ph:1, dept:"Product", o:"Zac", days:null, req:["C7"], out:{en:"prototype",zh:"原型"}, note:{en:"cost sheet lives here (negotiated during sampling)",zh:"成本表貼於此（打樣期間來回議定成本）"}},
  {c:"C9", en:"Ben prototype sign-off", zh:"Ben 決策", ph:1, dept:"Product", o:"Ben", days:11, req:["C8"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}, note:{en:"ship 9 + decide 2",zh:"運輸 9＋決策 2"}},
  {c:"C10", en:"Design freeze", zh:"設計凍結", ph:1, dept:"Product", o:"Zac + Ben", days:0, req:["C9"], out:{en:"freeze data = product data filing (feeds MB1)",zh:"凍結資料＝產品資料建檔（供 MB1）"}},
  {c:"P1", evid:1, en:"Pre-production sample + BOM", zh:"產前樣＆BOM", ph:1, dept:"Product", o:"Zac", days:14, req:["C10"], out:{en:"to Taiwan + BOM filed",zh:"送台灣＆BOM 歸檔"}, note:{en:"make 7 + ship 7",zh:"製作 7＋運輸 7"}},
@@ -1133,7 +1133,7 @@ const V3U=[
  {c:"U1", en:"Integrate design changes", zh:"整合設計", ph:0, dept:"Product", o:"Zac", days:null, est:10, req:["U0"], out:{en:"updated design pack",zh:"更新後設計資料"}},
  {c:"U2", en:"Ben change sign-off", zh:"Ben 決策", ph:0, dept:"Product", o:"Ben", days:2, req:["U1"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
  // 1 — Prototype & Delivery (打樣)
- {c:"U3", evid:1, en:"Revision prototype", zh:"原型打樣", ph:1, dept:"Product", o:"Zac", days:null, est:14, req:["U2"], out:{en:"revised prototype",zh:"修改後原型"}},
+ {c:"U3", en:"Revision prototype", zh:"原型打樣", ph:1, dept:"Product", o:"Zac", days:null, est:14, req:["U2"], out:{en:"revised prototype",zh:"修改後原型"}},
  {c:"U4", en:"Ben revision sign-off", zh:"Ben 決策", ph:1, dept:"Product", o:"Ben", days:2, req:["U3"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
  {c:"U5", evid:1, en:"Revised PPS", zh:"產前樣", ph:1, dept:"Product", o:"Zac", days:null, est:10, req:["U4"]},
  // 2 — Launch Prep (量產與內容)
