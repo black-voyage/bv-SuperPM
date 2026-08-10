@@ -249,7 +249,9 @@
   .palbox input{width:100%;border:none;background:var(--panel2);padding:14px 16px;font-size:15px;border-radius:0}
   .palitem{padding:10px 16px;cursor:pointer;display:flex;gap:10px;align-items:center;font-size:13.5px}
   .palitem:hover,.palitem.sel{background:var(--panel2)}
-  .risk{border:1px solid rgba(248,113,113,.4);border-radius:var(--r-md);padding:8px 12px;margin-bottom:8px;font-size:13px;background:rgba(248,113,113,.08)}
+  /* ⚠ 這裡曾有一條同名 .risk 卡片框（border/padding 8px 12px/font-size 13px），沒有任何元素在用，
+     卻透過同名選擇器漏到 .pill.risk（＝「進行中」）身上，讓它比隔壁的「餘裕」大一號又多一圈框線。
+     .risk 只該是 pill 配色變體（見下方 .ok/.risk/.bad 那行），不要在這裡重新定義。 */
   .autofix{border:1px solid var(--line);padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:center;background:var(--panel2)}
   .autofix .sev{width:8px;height:8px;border-radius:var(--r-xs);flex:none}
   .ghostnote{color:var(--faint);font-size:11.5px}
@@ -672,6 +674,18 @@
   .lnkmenu>summary.has{background:var(--blue);border-color:var(--blue);color:#08213d;font-weight:700}
   .lnkmenu>summary.has:hover,.lnkmenu[open]>summary.has{color:#08213d;border-color:var(--blue)}
   /* launch-detail header — project identity: title · DRI · grouped actions · scannable stats */
+  /* 返回鍵＋產品名稱黏在全站 header 下方：詳情頁很長（流程圖／儀表板／任務表），捲到中段時
+     「我在看哪張卡、怎麼回去」不該消失。--hdr-h 由 JS 量 header 實高（會換行變高），fallback 58px。
+     z-index 8 < header 的 10 → 捲到頂時滑進 header 底下，不會蓋住導覽。
+     黏住時（.stuck，由 JS 加）收成一條：返回鍵與標題併行、字級縮小，只吃 ~46px 而不是 ~105px。 */
+  .ld-sticky{position:sticky;top:var(--hdr-h,58px);z-index:8;margin:0 -20px;padding:0 20px}
+  .ld-sticky.stuck{display:flex;align-items:center;gap:14px;padding:8px 20px;background:var(--glass2);backdrop-filter:blur(18px) saturate(1.1);-webkit-backdrop-filter:blur(18px) saturate(1.1);border-bottom:1px solid var(--line)}
+  .ld-sticky.stuck .back{margin-bottom:0;flex:none}
+  .ld-sticky.stuck .ld-head{flex:1;min-width:0;margin-bottom:0;align-items:center;flex-wrap:nowrap}
+  .ld-sticky.stuck .ld-head-main{overflow:hidden}
+  .ld-sticky.stuck .ld-title-row{flex-wrap:nowrap;min-width:0}
+  .ld-sticky.stuck .ld-title-row .pill{flex:none}
+  .ld-sticky.stuck .ld-title{font-size:1.0625rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ld-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:2px}
   .ld-head-main{min-width:0}
   .ld-title-row{display:flex;align-items:center;gap:11px;flex-wrap:wrap}
@@ -4409,7 +4423,7 @@ function viewLaunch(){
   const zh=LANG==="zh", T=(z,e)=>zh?z:e;
   const submitted=isSubmitted(l), proj=projLaunchDate(l), pend=v3PendingDays(l);   // 開啟／送出／預計上市日 + 待補天數
   // The current stage's exit criteria are tickable inline in the timeline; the advance control (dept-ready summary + push + approval) is rendered inline under the current stage by advanceBar().
-  return `<span class="back" onclick="go('portfolio')">← Portfolio</span>
+  return `<div class="ld-sticky"><span class="back" onclick="go('portfolio')">← Portfolio</span>
   <div class="ld-head">
     <div class="ld-head-main">
       <div class="ld-title-row"><h2 class="ld-title">${esc(l.name)}</h2>${lTpl(l)==="update"?`<span class="pill" title="${T("產品更新流程（簡化版）","product-update flow (simplified)")}">🔁 ${T("產品更新","Update")}</span>`:""}<span class="pill ${cls}">${h}</span></div>
@@ -4419,7 +4433,7 @@ function viewLaunch(){
       ${l.driveFolderUrl?`<a class="ld-act" href="${l.driveFolderUrl}" target="_blank" title="${LANG==="zh"?"在共用的 BV SuperPM Drive 資料夾中開啟此上市案的資料夾":"Open this launch's folder in the shared BV SuperPM Drive folder"}">📁<span class="ld-act-t">${LANG==="zh"?"資料夾":"Folder"}</span></a>`:`<button class="ld-act" title="${LANG==="zh"?"在共用的 BV SuperPM Drive 資料夾中為此上市案建立資料夾（既有檔案留在原處，新檔案放這裡）":"Create a folder for this launch inside the shared BV SuperPM Drive folder (existing files stay where they are; new ones go here)"}" onclick="createLaunchFolder('${l.slug}')">📁<span class="ld-act-t">${LANG==="zh"?"資料夾":"Folder"}</span></button>`}
       <button class="ld-act danger" title="${LANG==="zh"?"刪除此上市案（可一併刪除其 Drive 資料夾）":"Delete this launch (and optionally its Drive folder)"}" onclick="deleteLaunch('${l.slug}')">🗑️<span class="ld-act-t">${LANG==="zh"?"刪除":"Delete"}</span></button>
     </div>
-  </div>
+  </div></div>
   <div class="ld-stats">
     <div class="ld-stat"><span class="ld-stat-k">DRI</span><span class="ld-stat-v" style="color:${DCOLOR(l.dri)}">${esc(l.dri)}</span></div>
     ${l.complete?"":`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"目前在":"Now at"}</span><span class="ld-stat-v" style="color:${DCOLOR(progressDept(l))}">${esc(progressDept(l)||"—")}</span></div>`}
@@ -6531,6 +6545,16 @@ function lensSwitcherHTML(){
   const cur=lensCur();
   return `<select class="lenssel" onchange="setRole(this.value)" title="preview another owner's lens (CEO only)">${lensOptionsHTML(cur).replace(`value="${cur}"`,`value="${cur}" selected`)}</select>`;
 }
+/* ---- 詳情頁標題列黏頂 ----
+   header 本身是 sticky top:0 且會換行（窄視窗時變兩排），高度不是常數 → 量實高寫進 --hdr-h，
+   .ld-sticky 就貼在它正下方。stuck 判定：sticky 生效時 rect.top 恰好等於 header 高，
+   收合只改高度不改 top，所以不會來回抖動。 */
+const hdrH=()=>{const h=document.querySelector("header");return h?Math.round(h.getBoundingClientRect().height):58;};
+function ldStickySync(){
+  document.documentElement.style.setProperty("--hdr-h",hdrH()+"px");
+  const el=document.querySelector(".ld-sticky"); if(!el)return;
+  el.classList.toggle("stuck", el.getBoundingClientRect().top<=hdrH()+1);
+}
 function render(){
   const sel=document.getElementById("roleSel"), vaLab=document.getElementById("vaLab");
   if(canSwitchLens()){
@@ -6563,6 +6587,7 @@ function render(){
   const nb=document.getElementById("inboxN"); if(nb){const n=autopilot().length; nb.textContent=n?n:"";}
   if(S.view==="launch"&&S.launch){chatSub(S.launch);renderChatBody();}
   syncFlowPop();
+  ldStickySync();   // 換頁／切語言後 DOM 重建，黏頂狀態要立刻重算（可能是捲到一半才 re-render）
   renderWhoami(); renderGAuth(); renderDrawer(); save();
 }
 loadSaved();
@@ -6579,6 +6604,14 @@ if(typeof document!=="undefined"&&document.addEventListener){
     else if(e.key==="/"&&document.activeElement&&document.activeElement.tagName!=="INPUT"&&document.activeElement.tagName!=="TEXTAREA"){e.preventDefault();const q=(S.view==="progress"&&document.getElementById("pjSearch"))||document.getElementById("q");if(q)q.focus();}
     else if(e.key==="Escape"){ if(S.route){closeFlowPop();} else if(S.pjOpen){pjClose();} else closePal(); }
   });
+}
+if(typeof window!=="undefined"&&window.addEventListener){
+  let stickTick=0;
+  const onScroll=()=>{ if(stickTick)return; stickTick=requestAnimationFrame(()=>{stickTick=0;ldStickySync();}); };
+  window.addEventListener("scroll",onScroll,{passive:true});
+  window.addEventListener("resize",()=>{ldStickySync();});
+  const hd=document.querySelector("header");
+  if(hd&&window.ResizeObserver)new ResizeObserver(()=>ldStickySync()).observe(hd);   // header 換行變高時 --hdr-h 要跟著走
 }
 render();
 </script>
