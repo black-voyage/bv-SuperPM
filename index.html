@@ -6614,9 +6614,9 @@ async function chatSendDeep(slug,text){
   finally{ CHAT.deep=false; if(leaseRef){ try{ leaseRef.get().then(function(s){ var dd=(s&&s.data())||{}; if(!dd.deepRunId||dd.deepRunId===_runId){ leaseRef.set({deepRunAt:0,deepRunId:""},{merge:true}); } }).catch(function(){}); }catch(e){} } CHAT.deepRunId=null; var _b=document.getElementById("deepBtn"); if(_b)_b.classList.remove("on"); chatRelease(); }
 }
 // the lens switcher (CEO-only) — self-contained like the Department-lens dept picker; lives on the Home header, not the nav
-// 視角清單＝負責人（Ben 只出現在最上面的 CEO 那一列，不重複列成部門視角）。選了誰就切到那個人
-// 所屬部門的視角，S.person 記住是「以誰的身分在看」——同部門兩個人（Oume／Mi）視角範圍一樣，
-// 但畫面上要講得出是誰。沒掛部門的人不列（切過去會是空視角）。
+// 視角清單＝負責人（Ben 只出現在最上面的 CEO 那一列，不重複列成部門視角）。選了誰，homeDept 就以
+// 「那個人」為範圍（v3Own＋v3Owners 比對負責人）——同部門兩個人（Oume／Mi）各看各的 to-do（2026-08-11 起）；
+// S.person 空值（共用信箱的部門登入）才退回部門範圍。沒掛部門的人不列（切過去會是空視角）。
 function lensPeople(){ return PEOPLE.filter(p=>p.name!=="Ben"&&p.dept&&DEPTS().includes(p.dept)); }
 function lensOptionsHTML(cur){
   return `<option value="ceo">Ben — CEO</option><option value="director">Director</option>`
