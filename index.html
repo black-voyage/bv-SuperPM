@@ -270,8 +270,20 @@
   .spacer{flex:1}
   .rolewrap{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim)}
   /* lens switcher lives on the Home header now (CEO-only), not the nav */
-  .lensbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
-  .lenssel{font-family:var(--font-head);text-transform:none;letter-spacing:0}
+  /* 視角側欄 — 下拉換成常駐名單（使用者裁決 2026-08-11）：每人一列＋「現在輪到他」的任務數
+     （可動工＋進行中＋受阻，不含等前置——和個人視角頁的統計同一把尺）。窄視窗時退成頂部橫排。 */
+  .lensrail-wrap{display:flex;gap:20px;align-items:flex-start}
+  .lensrail{flex:0 0 190px;position:sticky;top:calc(var(--hdr-h,58px) + 14px)}
+  .lensmain{flex:1;min-width:0}
+  .lr-h{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin:2px 0 7px 10px}
+  .lr-row{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:var(--r-sm);cursor:pointer;color:var(--dim);user-select:none}
+  .lr-row:hover{background:var(--panel2);color:var(--text)}
+  .lr-row.on{background:var(--panel2);color:var(--text);font-weight:600}
+  .lr-av{width:22px;height:22px;border-radius:var(--r-pill);flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--pc,#9aa3af);background:color-mix(in srgb,var(--pc,#9aa3af) 16%,transparent);border:1px solid color-mix(in srgb,var(--pc,#9aa3af) 45%,transparent)}
+  .lr-nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lr-n{margin-left:auto;font-family:var(--font-mono);font-size:12px;color:var(--text)}
+  .lr-row .lr-n.z{color:var(--faint)}
+  @media(max-width:920px){.lensrail-wrap{display:block}.lensrail{position:static;display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px}.lr-h{width:100%;margin:0 0 2px 2px}.lr-row{padding:5px 9px}}
   /* Google-account connect lives in Settings now (create Sheets/Docs), not the nav */
   .gauthrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 18px;font-size:13px;color:var(--dim)}
   select,input[type=text]{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:var(--r-sm);padding:6px 10px;font-size:13px}
@@ -6633,10 +6645,23 @@ function lensOptionsHTML(cur){
     +lensPeople().map(p=>`<option value="own:${esc(p.name)}"><!--notx-->${esc(p.name)}<!--/notx--> — ${esc(p.dept)}</option>`).join("");
 }
 const lensCur=()=>S.role!=="dept"?S.role:(S.person?"own:"+S.person:"dept:"+S.dept);
-function lensSwitcherHTML(){
+// 側欄徽章＝「現在輪到他」的任務數：負責人比對（含 TPLOV 覆寫、複合負責人拆分），已解鎖且未完成
+// （o／p／b 都算——受阻也在他桌上），等前置的不算。和 homeDept 頁內統計同一把尺，數字才對得上。
+function railCount(name){ let n=0;
+  LAUNCHES.filter(l=>!l.complete).forEach(l=>l.tasks.forEach(t=>{ if(t.st==="x")return;
+    const vn=t.code&&V3MAP[t.code]; if(!vn)return;
+    if(!v3Owners(v3Own(vn)).includes(name))return;
+    if(!taskLocked(l,t))n++; }));
+  return n; }
+function lensRailHTML(){
   if(!canSwitchLens())return "";
-  const cur=lensCur();
-  return `<select class="lenssel" onchange="setRole(this.value)" title="preview another owner's lens (CEO only)">${lensOptionsHTML(cur).replace(`value="${cur}"`,`value="${cur}" selected`)}</select>`;
+  const zh=LANG==="zh", cur=lensCur();
+  const av=n=>`<span class="lr-av" style="--pc:${v3OColor(n)}"><!--notx-->${esc(String(n).slice(0,1))}<!--/notx--></span>`;
+  const row=(val,ic,label,cnt,tip)=>`<div class="lr-row${cur===val?" on":""}" onclick="setRole('${val}')" title="${esc(tip||"")}" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setRole('${val}')}">${ic}<span class="lr-nm">${label}</span>${cnt!=null?`<span class="lr-n${cnt?"":" z"}">${cnt}</span>`:""}</div>`;
+  return `<div class="lr-h">${zh?"視角":"Lens"}</div>`
+    + row("ceo",av("Ben"),`<!--notx-->Ben<!--/notx--> — CEO`,railCount("Ben"),zh?"CEO 視角":"CEO lens")
+    + row("director",`<span class="lr-av" style="--pc:#8a93a3">◎</span>`,"Director",null,zh?"總監視角":"Director lens")
+    + lensPeople().map(p=>row("own:"+esc(p.name),av(p.name),`<!--notx-->${esc(p.name)}<!--/notx-->`,railCount(p.name),(zh?"部門 · ":"Dept · ")+p.dept)).join("");
 }
 /* ---- 詳情頁迷你標題列：捲過真正的標題後淡入 ----
    header 本身是 sticky top:0 且會換行（窄視窗時變兩、三排），高度不是常數 → 量實高寫進 --hdr-h，
@@ -6682,7 +6707,9 @@ function render(){
   else if(S.view==="dept") html=viewDept();
   else if(S.view==="campaign") html=viewCampaign();
   else if(S.view==="settings"||S.view==="team"||S.view==="versions") html=viewSettings();
-  else html=(canSwitchLens()?`<div class="lensbar">${LANG==="zh"?"視角":"Lens"} ${lensSwitcherHTML()}</div>`:"")+(S.role==="ceo"?homeCEO():S.role==="director"?homeDirector():homeDept());
+  else { const inner=(S.role==="ceo"?homeCEO():S.role==="director"?homeDirector():homeDept());
+    // 視角側欄（原本是 .lensbar 下拉）：常駐左側、每人帶任務數；非 CEO（不能切視角）就只給內容本體
+    html=canSwitchLens()?`<div class="lensrail-wrap"><aside class="lensrail">${lensRailHTML()}</aside><div class="lensmain">${inner}</div></div>`:inner; }
   app.innerHTML=tx(html);
   const nb=document.getElementById("inboxN"); if(nb){const n=autopilot().length; nb.textContent=n?n:"";}
   if(S.view==="launch"&&S.launch){chatSub(S.launch);renderChatBody();}
