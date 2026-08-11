@@ -674,18 +674,23 @@
   .lnkmenu>summary.has{background:var(--blue);border-color:var(--blue);color:#08213d;font-weight:700}
   .lnkmenu>summary.has:hover,.lnkmenu[open]>summary.has{color:#08213d;border-color:var(--blue)}
   /* launch-detail header — project identity: title · DRI · grouped actions · scannable stats */
-  /* 返回鍵＋產品名稱黏在全站 header 下方：詳情頁很長（流程圖／儀表板／任務表），捲到中段時
-     「我在看哪張卡、怎麼回去」不該消失。--hdr-h 由 JS 量 header 實高（會換行變高），fallback 58px。
-     z-index 8 < header 的 10 → 捲到頂時滑進 header 底下，不會蓋住導覽。
-     黏住時（.stuck，由 JS 加）收成一條：返回鍵與標題併行、字級縮小，只吃 ~46px 而不是 ~105px。 */
-  .ld-sticky{position:sticky;top:var(--hdr-h,58px);z-index:8;margin:0 -20px;padding:0 20px}
-  .ld-sticky.stuck{display:flex;align-items:center;gap:14px;padding:8px 20px;background:var(--glass2);backdrop-filter:blur(18px) saturate(1.1);-webkit-backdrop-filter:blur(18px) saturate(1.1);border-bottom:1px solid var(--line)}
-  .ld-sticky.stuck .back{margin-bottom:0;flex:none}
-  .ld-sticky.stuck .ld-head{flex:1;min-width:0;margin-bottom:0;align-items:center;flex-wrap:nowrap}
-  .ld-sticky.stuck .ld-head-main{overflow:hidden}
-  .ld-sticky.stuck .ld-title-row{flex-wrap:nowrap;min-width:0}
-  .ld-sticky.stuck .ld-title-row .pill{flex:none}
-  .ld-sticky.stuck .ld-title{font-size:1.0625rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* 捲過標題後浮現的迷你列（返回鍵＋產品名＋健康＋動作鈕），讓「我在哪張卡、怎麼回去」不會消失。
+     ⚠ 這裡刻意用 position:FIXED，不要改回 sticky＋收合。前一版是把頁首本體做成 sticky、黏住時
+     收合成一條：元素高度 62px→46px，而它就在捲動點的正上方，Chrome 的 scroll anchoring 會反過來
+     把 scrollY 減 16px 補償版面 → 又退回門檻之外 → 撐開 → scrollY 再被推回，無限來回，畫面狂閃
+     （實測 y=20 黏住瞬間 docH 2092→2076、scrollY 被拉回 4）。fixed 不佔版面高度，開關它對 layout
+     零影響，才有辦法做乾淨的淡入。--hdr-h 由 JS 量 header 實高（header 會換行變高），fallback 58px。 */
+  .ld-minibar{position:fixed;left:0;right:0;top:var(--hdr-h,58px);z-index:8;background:var(--glass2);backdrop-filter:blur(18px) saturate(1.1);-webkit-backdrop-filter:blur(18px) saturate(1.1);border-bottom:1px solid var(--line);opacity:0;visibility:hidden;transform:translateY(-8px);pointer-events:none;transition:opacity .2s ease,transform .2s ease,visibility 0s linear .2s}
+  /* 顯示時 visibility 立刻生效（0s，無延遲），隱藏時延到淡出結束才切 —— 否則淡出會被瞬間截斷 */
+  .ld-minibar.on{opacity:1;visibility:visible;transform:none;pointer-events:auto;transition:opacity .2s ease,transform .2s ease,visibility 0s}
+  .ld-minibar-in{display:flex;align-items:center;gap:14px;max-width:1320px;margin:0 auto;padding:8px 20px}
+  body[data-wide] .ld-minibar-in{max-width:none}
+  .ld-minibar .back{margin-bottom:0;flex:none}
+  .ld-minibar .ld-title-row{flex:1;min-width:0;flex-wrap:nowrap}
+  .ld-minibar .ld-title-row .pill{flex:none}
+  .ld-minibar .ld-title{font-size:1.0625rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ld-minibar .ld-actions{flex:none}
+  @media(prefers-reduced-motion:reduce){.ld-minibar{transform:none;transition:opacity .01s linear,visibility 0s linear .01s}.ld-minibar.on{transform:none;transition:opacity .01s linear,visibility 0s}}
   .ld-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:2px}
   .ld-head-main{min-width:0}
   .ld-title-row{display:flex;align-items:center;gap:11px;flex-wrap:wrap}
@@ -4506,17 +4511,22 @@ function viewLaunch(){
   const zh=LANG==="zh", T=(z,e)=>zh?z:e;
   const submitted=isSubmitted(l), proj=projLaunchDate(l), pend=v3PendingDays(l);   // 開啟／送出／預計上市日 + 待補天數
   // The current stage's exit criteria are tickable inline in the timeline; the advance control (dept-ready summary + push + approval) is rendered inline under the current stage by advanceBar().
-  return `<div class="ld-sticky"><span class="back" onclick="go('portfolio')">← Portfolio</span>
-  <div class="ld-head">
-    <div class="ld-head-main">
-      <div class="ld-title-row"><h2 class="ld-title">${esc(l.name)}</h2>${lTpl(l)==="update"?`<span class="pill" title="${T("產品更新流程（簡化版）","product-update flow (simplified)")}">🔁 ${T("產品更新","Update")}</span>`:""}<span class="pill ${cls}">${h}</span></div>
-    </div>
-    <div class="ld-actions" role="group" aria-label="Launch actions">
+  // 返回鍵／身分列／動作鈕在「頁首」和「捲動後浮現的迷你列」各出現一次 —— 同一份 HTML 兩處共用，別各寫一份
+  const ldBack=`<span class="back" onclick="go('portfolio')">← Portfolio</span>`;
+  const ldId=`<h2 class="ld-title">${esc(l.name)}</h2>${lTpl(l)==="update"?`<span class="pill" title="${T("產品更新流程（簡化版）","product-update flow (simplified)")}">🔁 ${T("產品更新","Update")}</span>`:""}<span class="pill ${cls}">${h}</span>`;
+  const ldActs=`<div class="ld-actions" role="group" aria-label="Launch actions">
       <button class="ld-act" title="${LANG==="zh"?"編輯此上市案的名稱（上市日已改為自動推算的預計上市日）":"Edit this launch's name (launch date is now the auto-projected date)"}" onclick="editLaunch('${l.slug}')">✏️<span class="ld-act-t">${LANG==="zh"?"編輯":"Edit"}</span></button>
       ${l.driveFolderUrl?`<a class="ld-act" href="${l.driveFolderUrl}" target="_blank" title="${LANG==="zh"?"在共用的 BV SuperPM Drive 資料夾中開啟此上市案的資料夾":"Open this launch's folder in the shared BV SuperPM Drive folder"}">📁<span class="ld-act-t">${LANG==="zh"?"資料夾":"Folder"}</span></a>`:`<button class="ld-act" title="${LANG==="zh"?"在共用的 BV SuperPM Drive 資料夾中為此上市案建立資料夾（既有檔案留在原處，新檔案放這裡）":"Create a folder for this launch inside the shared BV SuperPM Drive folder (existing files stay where they are; new ones go here)"}" onclick="createLaunchFolder('${l.slug}')">📁<span class="ld-act-t">${LANG==="zh"?"資料夾":"Folder"}</span></button>`}
       <button class="ld-act danger" title="${LANG==="zh"?"刪除此上市案（可一併刪除其 Drive 資料夾）":"Delete this launch (and optionally its Drive folder)"}" onclick="deleteLaunch('${l.slug}')">🗑️<span class="ld-act-t">${LANG==="zh"?"刪除":"Delete"}</span></button>
+    </div>`;
+  return `${ldBack}
+  <div class="ld-head">
+    <div class="ld-head-main">
+      <div class="ld-title-row">${ldId}</div>
     </div>
-  </div></div>
+    ${ldActs}
+  </div>
+  <div class="ld-minibar" id="ldMini"><div class="ld-minibar-in">${ldBack}<div class="ld-title-row">${ldId}</div>${ldActs}</div></div>
   <div class="ld-stats">
     <div class="ld-stat"><span class="ld-stat-k">DRI</span><span class="ld-stat-v" style="color:${DCOLOR(l.dri)}">${esc(l.dri)}</span></div>
     ${l.complete?"":`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"目前在":"Now at"}</span><span class="ld-stat-v" style="color:${DCOLOR(progressDept(l))}">${esc(progressDept(l)||"—")}</span></div>`}
@@ -6628,15 +6638,22 @@ function lensSwitcherHTML(){
   const cur=lensCur();
   return `<select class="lenssel" onchange="setRole(this.value)" title="preview another owner's lens (CEO only)">${lensOptionsHTML(cur).replace(`value="${cur}"`,`value="${cur}" selected`)}</select>`;
 }
-/* ---- 詳情頁標題列黏頂 ----
-   header 本身是 sticky top:0 且會換行（窄視窗時變兩排），高度不是常數 → 量實高寫進 --hdr-h，
-   .ld-sticky 就貼在它正下方。stuck 判定：sticky 生效時 rect.top 恰好等於 header 高，
-   收合只改高度不改 top，所以不會來回抖動。 */
+/* ---- 詳情頁迷你標題列：捲過真正的標題後淡入 ----
+   header 本身是 sticky top:0 且會換行（窄視窗時變兩、三排），高度不是常數 → 量實高寫進 --hdr-h，
+   .ld-minibar 就定位在它正下方。這裡有三個「別改回去」的細節：
+   ① 只在數值真的變了才寫 --hdr-h：寫 :root 的自訂屬性會讓整份文件的樣式失效，每幀寫一次很貴。
+   ② 遲滯區（亮 / 熄用不同門檻）：門檻上的次像素抖動不會讓它一直開關。
+   ③ 現況一律讀 DOM 的 class，不記在變數裡：render() 會整段重建 DOM，記在變數會跟畫面對不上。 */
 const hdrH=()=>{const h=document.querySelector("header");return h?Math.round(h.getBoundingClientRect().height):58;};
+let lastHdrH=-1;
 function ldStickySync(){
-  document.documentElement.style.setProperty("--hdr-h",hdrH()+"px");
-  const el=document.querySelector(".ld-sticky"); if(!el)return;
-  el.classList.toggle("stuck", el.getBoundingClientRect().top<=hdrH()+1);
+  const hh=hdrH();
+  if(hh!==lastHdrH){lastHdrH=hh;document.documentElement.style.setProperty("--hdr-h",hh+"px");}
+  const bar=document.getElementById("ldMini"), head=document.querySelector(".ld-head");
+  if(!bar||!head)return;
+  const b=head.getBoundingClientRect().bottom, on=bar.classList.contains("on");
+  const next=on?(b<hh+12):(b<=hh);   // 真標題被 header 蓋掉才亮；退回 12px 以上才熄
+  if(next!==on)bar.classList.toggle("on",next);
 }
 function render(){
   const sel=document.getElementById("roleSel"), vaLab=document.getElementById("vaLab");
@@ -6670,7 +6687,7 @@ function render(){
   const nb=document.getElementById("inboxN"); if(nb){const n=autopilot().length; nb.textContent=n?n:"";}
   if(S.view==="launch"&&S.launch){chatSub(S.launch);renderChatBody();}
   syncFlowPop();
-  ldStickySync();   // 換頁／切語言後 DOM 重建，黏頂狀態要立刻重算（可能是捲到一半才 re-render）
+  ldStickySync();   // 換頁／切語言後 DOM 重建，迷你列狀態要立刻重算（可能是捲到一半才 re-render）
   renderWhoami(); renderGAuth(); renderDrawer(); save();
 }
 loadSaved();
