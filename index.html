@@ -765,8 +765,6 @@
   .ld-rd-row.miss .v{color:var(--red)}
   @media(prefers-reduced-motion:reduce){.ld-rd-pop{transition:opacity .12s linear}}
   /* comment composer — inline video-attach ＋ in the task detail */
-  .tnote-vid{flex:none;background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-sm);color:var(--dim);font-size:13px;padding:0 11px;cursor:pointer;font-family:inherit}
-  .tnote-vid:hover{color:var(--text);border-color:var(--accent)}
   .collabmenu-h{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:2px 8px 5px}
   .secdiv{margin:4px 0 10px}
   .secdiv h4{font-family:var(--font-head);font-size:var(--fs-body);font-weight:600;text-transform:none;letter-spacing:0;color:var(--text);margin-bottom:3px}
@@ -908,7 +906,7 @@
   .collabmenu-b button{background:none;border:none;text-align:left;cursor:pointer;font-size:12px;padding:3px 8px;border-radius:var(--r-sm);white-space:nowrap}
   .collabmenu-b button:hover{background:var(--panel2)}
   /* task-panel notes thread */
-  .tnotes-head{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.06em;font-size:11px;color:var(--faint);margin:12px 0 7px;padding-top:11px;border-top:1px solid var(--line)}
+  /* .tnote* 這組是「卡片層備註（risks）」在用的樣式（任務層筆記 2026-08-11 已拆除，勿因此誤刪這組） */
   .tnotes{display:flex;flex-direction:column}
   .tnote{border-top:1px solid var(--line);padding:6px 0;font-size:13px}
   .tnote:first-child{border-top:none}
@@ -919,12 +917,6 @@
   .tnote-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
   .tnote-x{color:var(--red);opacity:.5;font-size:11px;flex:none}
   .tnote-x:hover{opacity:1}
-  .tnote-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:7px}
-  .tnote-plus{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-xs);color:var(--dim);cursor:pointer;font-size:12px;padding:4px 10px}
-  .tnote-plus:hover{color:var(--text);border-color:var(--accent)}
-  .tnote-tool{display:inline-flex;align-items:center;gap:6px}
-  .tnote-tool label{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-mono)}
-  .tnote-tool select{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-sm);color:var(--text);padding:4px 6px;font-size:12px;font-family:inherit}
   /* workflow template (settings → step ownership) */
   .tpl-stage{margin-bottom:14px}
   .tpl-tbl{width:100%;border-collapse:collapse}
@@ -1162,14 +1154,15 @@ const V3=[
  {c:"MS3c", evid:1, en:"Product photos", zh:"產品照片", ph:3, dept:"Content", o:"各攝影師", days:null, req:["D7"], asset:1, shots:"product", note:{en:"studio set — opens once the shoot brief (D7) is done; feeds MB3 + the PDP",zh:"棚拍 — 棚拍需求（D7）結束後開啟；供 MB3 與 PDP 使用"}},
  {c:"MS3a", evid:1, en:"Lifestyle photos", zh:"情境照片", ph:3, dept:"Content", o:"各攝影師", days:null, req:["MS2","P5"], asset:1, shots:"lifestyle"},
  {c:"MS3b", evid:1, en:"Marketing video", zh:"行銷影片", ph:3, dept:"Content", o:"各攝影師", days:null, ref:{en:"35",zh:"35"}, est:35, req:["MS2","P5"], asset:1, shots:"video"},
- {c:"KOL1", en:"Mega influencer outreach", zh:"Mega 網紅接洽", ph:3, dept:"Marketing", o:"Angel", days:null, ongoing:1, req:["MB2"]},
- {c:"KOL2", en:"Normal influencer sourcing", zh:"一般網紅尋找", ph:3, dept:"Marketing", o:"Angel", days:null, ongoing:1, req:["MB2"]},
- {c:"KOL3", en:"Mega influencer shooting", zh:"Mega 網紅拍攝", ph:3, dept:"Marketing", o:"Angel", days:null, ongoing:1, req:["P5","KOL1"], asset:1, note:{en:"Ongoing",zh:"Ongoing"}},
+ // KOL1–5 於 2026-08-11 併成單節點（使用者裁決）：Angel 的網紅全線（Mega／一般接洽、尋找、拍攝）一格管理。
+ // req 只留最早可動工的 MB2 —— 拍攝要等 P5 行銷樣品屬 Angel 自排的內部節奏，寫進 note 不寫成 req，
+ // 否則整格會被 P5 鎖住，連「接洽」都不能開始。舊卡的五筆狀態由 v3SyncTasks 就地折疊。
+ {c:"KOL", en:"Influencer outreach & shooting", zh:"網紅接洽與拍攝", ph:3, dept:"Marketing", o:"Angel", days:null, ongoing:1, req:["MB2"], asset:1,
+  note:{en:"Ongoing — the whole influencer line in one lane: mega + normal outreach, sourcing, shooting. Shooting waits for P5 marketing samples; record usage rights.",
+        zh:"Ongoing——網紅全線一格管理：Mega／一般接洽、尋找、拍攝。拍攝要等 P5 行銷樣品；需記錄 usage rights。"}},
  // 4 — Logistics
  {c:"FB1", en:"First batch on sale", zh:"首波開賣日", ph:4, dept:"Logistics", o:"LC", days:31, req:["P3"], arrival:1, out:{en:"arrival date → whole company",zh:"到貨日 → 全公司"}, note:{en:"LC runs shipping end-to-end; only the arrival date is tracked here — once set it becomes the projected launch. Unset → 31d (sea 30 + intake 1) placeholder.",zh:"LC 一條龍處理出貨，這裡只追到貨日 —— 填了就以它為預計上市日；未填前用 31d（海運 30＋入庫 1）暫估"}},
- // 5 — KOL
- {c:"KOL4", en:"Normal influencer outreach", zh:"一般網紅接洽", ph:5, dept:"Marketing", o:"Angel", days:null, ongoing:1, req:["KOL2","MB3"]},
- {c:"KOL5", en:"Influencer shooting", zh:"網紅拍攝", ph:5, dept:"Marketing", o:"Angel", days:null, ongoing:1, req:["KOL4"], asset:1, note:{en:"Ongoing; record usage rights",zh:"Ongoing；需記錄 usage rights"}},
+ // （5 — KOL 執行階段的 KOL4/KOL5 已併入上方的 KOL 單節點；此階段暫時留空，v3CurPhase 會自然跳過空階段）
 ];
 /* ================= THE PRODUCT-UPDATE FLOW — V3U =================
    Second template: revising an EXISTING product (簡化版 launch). Same node grammar as V3, same
@@ -1405,6 +1398,15 @@ async function v3Go(slug,kind){
 function v3SyncTasks(l){
   if(!l||!Array.isArray(l.tasks))return;
   const byCode={}; l.tasks.forEach(t=>{ if(t&&t.code&&V3MAP[t.code]&&!byCode[t.code]) byCode[t.code]=t; });
+  // KOL1–5 → KOL 單節點（2026-08-11）：舊卡狀態就地折疊 —— 五筆全完成才算完成、有一筆卡住就是卡住、
+  // 動過任何一筆算進行中；證明連結彙整。舊碼不在模板裡，rebuild 會自然丟棄，這裡只負責把歷史帶進新格。
+  if(!byCode.KOL&&V3MAP.KOL){ const olds=l.tasks.filter(t=>t&&["KOL1","KOL2","KOL3","KOL4","KOL5"].indexOf(t.code)>=0);
+    if(olds.length){ const m=v3NewTask(V3MAP.KOL);
+      m.st=olds.every(t=>t.st==="x")?"x":(olds.some(t=>t.st==="b")?"b":(olds.some(t=>t.st!=="o")?"p":"o"));
+      olds.forEach(t=>(t.links||[]).forEach(k=>m.links.push(k)));
+      const dn=olds.map(t=>t.doneAt).filter(Boolean).sort(); if(m.st==="x"&&dn.length)m.doneAt=dn[dn.length-1];
+      const st0=olds.map(t=>t.startAt).filter(Boolean).sort(); if(st0.length&&m.st!=="o")m.startAt=st0[0];
+      byCode.KOL=m; } }
   l.tasks=tplNodes(l).map(n=>{ const old=byCode[n.c];   // rebuild onto the card's OWN template (l.tpl)
     const t=old||v3NewTask(n);
     t.code=n.c; t.t=n.en; t.d=v3Dept(n); t.gate=!!n.ben; t.stage=V3PH[n.ph].en;
@@ -1493,7 +1495,7 @@ const EVIDSEED={C8:"Prototype QC",P1:"PPS + BOM sheet",P3:"Bulk QC report",CT3:"
 const seedT=(slug,code,f)=>{const c=LAUNCHES.find(l=>l.slug===slug);const t=c&&c.tasks.find(t=>t.code===code); if(t){Object.assign(t,f); if(t.st!=="x")delete t.doneAt;}};
 // 情境照片還在等 Ann 核准 → 狀態就是「進行中」，不是完成（備註與狀態不可以互相打臉）。MS3a 沒有任何下游 req，
 // 退成 "p" 不會連鎖影響 MB3／PDP 那條線。
-seedT("cyclone","MS3a",{st:"p",urg:"high",notes:[{d:"2026-06-09",a:"Content",txt:"Hero set done; lifestyle selects with Ann for approval."}]});
+seedT("cyclone","MS3a",{st:"p",urg:"high"});
 /* 種子卡的完成時間戳 —— 只宣告，呼叫點在 `const today=pjToday()` 之後：這裡用到的 dayDiff／taskDayLimit／today
    都宣告在本行之下，module-eval 時全在 TDZ（allTasks 的 try/catch 就是被這件事咬到，結果四張卡一個 doneAt 都沒有，
    熱力圖全 0、到貨日推不出來、正向排程全部退回送出日）。做法：每個階段的已完成步驟依 req 深度平均散在該階段的
@@ -2336,7 +2338,6 @@ function diffState(prev,cur){
     Object.keys(bt).forEach(tt=>{ const x=at[tt], y=bt[tt]; if(!x){ch.push(nm+": ＋ task “"+tt+"”");secs.add(nm);return;}
       if(x.st!==y.st){ch.push(nm+" / "+tt+": "+stWord(x.st)+" → "+stWord(y.st));secs.add(nm);}
       const xl=(x.links||[]).length,yl=(y.links||[]).length; if(yl>xl){ch.push(nm+" / "+tt+": +"+(yl-xl)+" link");secs.add(nm);}
-      const xn=(x.notes||[]).length,yn=(y.notes||[]).length; if(yn>xn){ch.push(nm+" / "+tt+": +"+(yn-xn)+" note");secs.add(nm);}
       const xc=(x.codes||[]).length,yc=(y.codes||[]).length; if(yc!==xc){ch.push(nm+" / "+tt+": "+(yc>xc?"+"+(yc-xc):(yc-xc))+" code/link");secs.add(nm);}
     });
     const ar=(a.risks||[]).length,br=(b.risks||[]).length; if(br!==ar){ch.push(nm+": "+(br>ar?"+"+(br-ar)+" risk":(br-ar)+" risk"));secs.add(nm);}
@@ -2565,7 +2566,7 @@ const DOD={
       zh:"實際到貨日已填 —— 它直接成為本卡的預計上市日，並公告全公司。"}};
 
 /* ================= STATE ================= */
-let S={role:"ceo",view:"home",launch:null,dept:"Design",person:"",flowLaunch:"apex",open:{},progLaunch:"apex",route:null,flowHints:(typeof localStorage!=="undefined"&&localStorage.getItem("bv-flow-hints")==="0")?false:true,q:"",palSel:0,hideFlow:false,deptOpen:{},stageOpen:{},chatRailOpen:false,chatW:null,chatH:null,noteUrg:{},gateStage:null};
+let S={role:"ceo",view:"home",launch:null,dept:"Design",person:"",flowLaunch:"apex",open:{},progLaunch:"apex",route:null,flowHints:(typeof localStorage!=="undefined"&&localStorage.getItem("bv-flow-hints")==="0")?false:true,q:"",palSel:0,hideFlow:false,deptOpen:{},stageOpen:{},chatRailOpen:false,chatW:null,chatH:null,gateStage:null};
 
 /* ============ PROJECTS DATA (live from Google Sheet — same source as the bv-Products portal) ============
    Read-only mirror of the portal's src/lib/sheets.ts. The portal pulls these tabs from a PUBLIC gviz CSV
@@ -2687,7 +2688,6 @@ const ZH={
  "Workflow template — step ownership":"流程模板 — 步驟負責","Workflow template":"流程模板",
  "Responsible department updated":"負責部門已更新","Responsible":"負責","Collaborators":"協作部門","Collaborator removed":"已移除協作部門","Collaborator added":"已新增協作部門","Collaborator":"協作",
  "add a collaborating department":"新增協作部門","remove collaborator":"移除協作部門","+ add":"＋ 新增",
- "No notes yet.":"目前沒有備註。","Add a note…":"新增備註…",
  "CEO lens":"CEO 視角","Director lens":"總監視角","Department lens":"部門視角","Department":"部門","Director":"總監","Head":"主管",
  // — statuses / chips —
  "Awaiting Ben ◆":"等待 Ben ◆","In progress":"進行中","To do":"待辦","Blocked":"受阻","Done":"完成","Complete":"已完成","On track":"進度正常",
@@ -2702,8 +2702,8 @@ const ZH={
  "BURN-UP":"累積完成圖","DEPARTMENT PROGRESSION":"部門進度","ALL LAUNCHES — % of tasks done":"所有產品 — 任務完成率",
  "Personal lens":"個人視角",
  // — buttons / actions —
- "Approve":"批准","Reject":"駁回","Open card":"開啟卡片","mark done":"標記完成","Add note":"新增備註",
- "Attach Loom / video":"附加 Loom／影片","+ link":"＋連結","+ Add department":"＋ 新增部門","Push to":"推進至","Push locked —":"推進鎖定 —","Approved":"已批准",
+ "Approve":"批准","Reject":"駁回","Open card":"開啟卡片","mark done":"標記完成",
+ "+ link":"＋連結","+ Add department":"＋ 新增部門","Push to":"推進至","Push locked —":"推進鎖定 —","Approved":"已批准",
  "criteria left":"項條件未完成","Launch complete":"上市已完成","Ready — push reserved for DRI":"已就緒 — 推進權限：DRI",
  "mandatory dept heads, or Ben":"必要部門主管或 Ben","ready":"就緒","open":"項未完成",
  // — common words / sentences —
@@ -3191,18 +3191,6 @@ function toggle(key){S.open[key]=!S.open[key];render();}
 // whole task row is clickable to expand/collapse — but ignore clicks that land on a real control inside it
 function rowToggle(e,key){ if(e.target.closest("button,input,select,textarea,a,label,.lnkmenu,.collabmenu,[data-noexp]"))return; toggle(key); }
 function setF(slug,i,f,v){ L(slug).tasks[i][f]=v; toast(f==="urg"?"Urgency set to "+v:"Assignee updated"); render(); }
-async function addNote(slug,i){
-  if(!await frozenStepGuard(slug,i))return;
-  const el=document.getElementById(`nt-${slug}-${i}`); const v=(el&&el.value||"").trim(); if(!v)return;
-  const urg=(S.noteUrg&&S.noteUrg[slug+":"+i])||"med";
-  L(slug).tasks[i].notes.push({d:today,a:noteAuthor(),txt:v,urg}); toast("Note added"); render();
-}
-function delTaskNote(slug,i,ni){ const l=L(slug); const t=l&&l.tasks[i]; if(!t||!t.notes||!t.notes[ni])return; t.notes.splice(ni,1); log("🗑 Note removed from "+t.t); save(); render(); toast("Note deleted"); }
-async function addLoom(slug,i){
-  if(!await frozenStepGuard(slug,i))return;
-  const u=await uiPrompt("Paste Loom / video URL"); if(!u)return;
-  L(slug).tasks[i].notes.push({d:today,a:noteAuthor(),txt:"Video walkthrough",v:u}); toast("🎥 Video attached"); render();
-}
 /* team editing */
 function teamEdit(i,f,v){ if(f==="name"){renameDept(TEAM[i].name,v);} else TEAM[i][f]=v; render(); }
 function renameDept(o,n){ n=n.trim(); if(!n||o===n)return;
@@ -3292,7 +3280,7 @@ function gateControl(l,t,i,lk){ // Ben ◆ decision gate → a prominent button 
 }
 function taskRow(l,t,extra,ro){
   const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
-  const vids=t.notes.filter(n=>n.v).length; const lk=taskLocked(l,t);
+  const lk=taskLocked(l,t);
   const resp=stepResp(t), collabs=stepCollabs(t);
   const collabChips=collabs.map(d=>`<span class="o-collab" style="color:${DCOLOR(d)}" title="Collaborator — ${esc(d)}">${esc(d)}</span>`).join("");
   // inline ＋ to involve another department — only on the launch-detail's editable rows (current stage), not the cross-launch board
@@ -3308,7 +3296,7 @@ function taskRow(l,t,extra,ro){
       : `<span class="o-resp" style="color:${DCOLOR(resp)}" title="Responsible dept — ${esc(resp)}">${esc(resp)}</span>`;
   const meta=`<span class="o ometa">${lead}${collabChips?`<span class="o-collabs">${collabChips}</span>`:""}${collabPlus}</span>`;   // days moved into the detail panel (預設天數 row) — no longer on the outer row
   // a locked row (incl. Ben ◆ gates) gets a ▾ details expander so the "why it's locked" text lives in the panel, not inline
-  const exp=`<button class="exp" onclick="toggle('${key}')" title="${open?(LANG==="zh"?"收合":"collapse"):(LANG==="zh"?"展開全部":"expand")}" aria-label="${open?"collapse":"expand"}">${open?"▴":"▾"}${(!lk&&t.notes.length)?` (${t.notes.length}${vids?" · 🎥":""})`:""}</button>`;
+  const exp=`<button class="exp" onclick="toggle('${key}')" title="${open?(LANG==="zh"?"收合":"collapse"):(LANG==="zh"?"展開全部":"expand")}" aria-label="${open?"collapse":"expand"}">${open?"▴":"▾"}</button>`;
   const ctrls=t.gate?"":`${lk?"":renderLinkMenu(t,l.slug,i)}${exp}`;   // Ben ◆ gates carry no expand/notes panel — the decision button says it all
   // the step's output/explanation now lives in the ▾ details panel (taskDetail), keeping the row short; a shot-list total shows for MS3a/b
   const shotChip=(vn&&vn.shots&&!extra&&v3ShotTotal(t)>0)?`<span class="ghostnote" title="${LANG==="zh"?"素材需求合計":"asset shot-list total"}">${vn.shots==="video"?"🎬":"📸"} ${v3ShotTotal(t)}</span>`:"";
@@ -3317,22 +3305,19 @@ function taskRow(l,t,extra,ro){
   let _tpNew=""; if(_hasPanel){ if(!PANELSEEN.has(key)){PANELSEEN.add(key);_tpNew=" tp-in";} } else PANELSEEN.delete(key);  // first open → play reveal once; closed → forget so a reopen replays
   return `<div id="task-${l.slug}-${i}" class="taskwrap${_tpNew}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${t.gate?"":"cursor:pointer;"}${lk?"opacity:.38;filter:grayscale(.6)":""}"${t.gate?"":` onclick="rowToggle(event,'${key}')"`}>
    ${t.gate?gateControl(l,t,i,lk):`<button type="button" class="st ${lk?"":t.st}" ${lk?'aria-disabled="true"':""} aria-label="${lk?"locked — "+esc(lockReason(l,t)):"status: "+stWord(t.st)+" — left-click to advance, right-click to step back"}" title="${lk?"locked — "+esc(lockReason(l,t)):"left-click: advance · right-click: step back"}" onclick="cycle('${l.slug}',${i},this)" oncontextmenu="cycleBack('${l.slug}',${i},this);return false">${lk?"🔒":stIcon[t.st]}</button>`}
-   <span>${vn?`<span class="v3code">${esc(t.code)}</span> `:""}${esc(flowTaskName(t))}${t.gate?' <span style="color:var(--purple)">◆</span>':""}${vn&&vn.days==null&&t.days==null&&t.st!=="x"?`<span class="daysmiss" title="${LANG==="zh"?"此步驟天數尚未填寫":"this step still needs a day estimate"}">⏱ ${LANG==="zh"?"天數未填":"days unset"}</span>`:""}
+   <span>${vn?`<span class="v3code"><!--notx-->${esc(t.code)}<!--/notx--></span> `:""}${esc(flowTaskName(t))}${t.gate?' <span style="color:var(--purple)">◆</span>':""}${vn&&vn.days==null&&t.days==null&&t.st!=="x"&&!vn.ongoing?`<span class="daysmiss" title="${LANG==="zh"?"此步驟天數尚未填寫":"this step still needs a day estimate"}">⏱ ${LANG==="zh"?"天數未填":"days unset"}</span>`:""}
     ${EVID.has(t.code)&&!lk&&!(t.links||[]).length?`<span class="urg" style="background:#13262e;color:#67e8f9" title="${LANG==="zh"?"標記完成前必須附上證明連結":"a link must be attached before this can be checked"}">📎 ${LANG==="zh"?"待附證明":"evidence"}</span>`:""}
     ${shotChip}${ctrls}</span>
    ${meta}</div>
    ${open&&!t.gate?taskDetail(l,t,i,ro,vn,lk):""}</div>`;
 }
 function taskPanel(l,t,i,ro){ return `<div class="taskpanel">${taskPanelBody(l,t,i,ro)}</div>`; }
-// the interactive body (notes) — shared by the plain panel and the V3 detail panel
+// shared by the plain panel and the V3 detail panel — DOD only。任務層「筆記」功能 2026-08-11 整個拆除
+// （使用者裁決：之後狀態溝通走 Slack 連動，工具內不養第二個留言串）；卡片層備註（risks）是另一個功能，未動。
+// t.notes 資料欄位保留不清 —— 舊 snapshot 還帶著它，v3SyncTasks 也還在補預設值，只是不再有任何 UI 讀寫。
 function taskPanelBody(l,t,i,ro,noDod){
   const zh=LANG==="zh";
-  const notes=t.notes||[]; const tk=l.slug+":tools:"+i; const tools=S.open[tk]; const nk=l.slug+":"+i; const pend=(S.noteUrg&&S.noteUrg[nk])||"med";
-  return `${DOD[t.code]&&!noDod?`<div class="v3dod">✅ <b>${zh?"完成定義":"Done means"}</b> ${esc(v3T(DOD[t.code]))}${EVID.has(t.code)?` <span style="color:#67e8f9">· ${zh?"需附證明連結":"evidence link required"}</span>`:""}</div>`:""}
-   <div class="tnotes-head">📝 ${zh?"筆記":"Notes"}${notes.length?` <span class="ghostnote">(${notes.length})</span>`:""}</div>
-   <div class="tnotes">${notes.length?notes.slice().reverse().map((n,ri)=>{const ni=notes.length-1-ri;return `<div class="tnote"><div class="tnote-h"><span class="tnote-m">${fmt(n.d)} · ${esc(n.a)}${n.urg&&n.urg!=="med"?` <span class="urg ${n.urg}" title="comment urgency">${n.urg}</span>`:""}</span><button class="lnkb tnote-x" title="${zh?"刪除筆記":"delete note"}" onclick="delTaskNote('${l.slug}',${i},${ni})">✕</button></div><div class="tnote-t"><!--notx-->${esc(n.txt)}<!--/notx-->${n.v?` <a class="lnk" href="${n.v}" target="_blank">🎥 watch</a>`:""}</div></div>`;}).join(""):`<div class="sub" style="padding:3px 0 6px">${zh?"尚無筆記 — 留言或附上影片。":"No notes yet — leave a comment or attach a video."}</div>`}</div>
-   <div class="tnote-add"><input type="text" id="nt-${l.slug}-${i}" placeholder="${zh?"新增筆記…（自動署名）":"Add a note… (auto-signed as you)"}" onkeydown="if(event.key==='Enter'){event.preventDefault();addNote('${l.slug}',${i})}"><button type="button" class="tnote-vid" title="Attach a Loom / video walkthrough" aria-label="Attach a video" onclick="addLoom('${l.slug}',${i})">＋🎥</button><button class="btn" onclick="addNote('${l.slug}',${i})">${zh?"新增":"Add note"}</button></div>
-   <div class="tnote-tools"><button class="tnote-plus" title="set the urgency of your next note" onclick="toggle('${tk}')">${tools?(zh?"× 收合":"× less"):(zh?"⚑ 緊急度":"⚑ urgency")}</button>${tools?`<span class="tnote-tool"><label>${zh?"筆記緊急度":"Note urgency"}</label><select title="urgency of the note you post next" onchange="(S.noteUrg=S.noteUrg||{})['${nk}']=this.value">${["low","med","high","urgent"].map(u=>`<option value="${u}" ${u===pend?"selected":""}>${u}</option>`).join("")}</select></span>`:""}</div>`;
+  return `${DOD[t.code]&&!noDod?`<div class="v3dod">✅ <b>${zh?"完成定義":"Done means"}</b> ${esc(v3T(DOD[t.code]))}${EVID.has(t.code)?` <span style="color:#67e8f9">· ${zh?"需附證明連結":"evidence link required"}</span>`:""}</div>`:""}`;
 }
 // unified V3 detail panel — coherent info block (output · note · days · owner), lock reason, shot-list, then notes
 function taskDetail(l,t,i,ro,vn,lk){
@@ -3397,8 +3382,7 @@ function taskDetail(l,t,i,ro,vn,lk){
   const grid=`<div class="v3det">${info.map(([k,v])=>`<div class="v3det-r"><span class="v3det-k">${k}</span><span class="v3det-v">${v}</span></div>`).join("")}</div>`;
   const lockBlk=lk?`<div class="v3det-lock">🔒 <b>${T("鎖定中","Locked")}</b> · ${esc(lockReason(l,t))}</div>`:"";
   const shots=vn.shots?v3ShotList(l,t,i,ro,vn):"";
-  const notes=lk?"":taskPanelBody(l,t,i,ro,true);
-  return `<div class="taskpanel">${grid}${lockBlk}${shots}${notes}</div>`;
+  return `<div class="taskpanel">${grid}${lockBlk}${shots}</div>`;
 }
 // per-launch shot list — starter proposals differ by product, so quantities are editable and rows can be added/removed
 const V3SHOTS={
@@ -3676,7 +3660,7 @@ function flowSVG(l){
     const click=` class="flownode" style="cursor:pointer;--d:${Math.min(60+depts.indexOf(d)*14+i*15,220)}ms" onclick="event.stopPropagation();flowNode('${d}',${i})"`;
     const h=hgt(d,i);
     // badge row sits ENTIRELY above the tile (y-19..y-1). It used to straddle the top edge at y-10, which put it
-    // through the first line of every 3-line label (D4 "PDP +", KOL1 "Mega", C9 "Ben"). 26px inter-row gap absorbs it.
+    // through the first line of every 3-line label (D4 "PDP +", C9 "Ben"). 26px inter-row gap absorbs it.
     const BRY=y-19, BTY=y-6;
     const dash=st==="fut"&&!frozen?' stroke-dasharray="4 3"':"";   // locked reads as dashed, not as faint text (F32)
     const body=n.d
@@ -4230,7 +4214,7 @@ function homeDept(){
    <div class="sub" style="margin-bottom:6px">${T("沒填天數的步驟在推算裡當 0 天 — 大貨／上市日會算得比實際早。填上就準。","Unset steps count as 0 days, so bulk/launch projections read earlier than reality. Fill them in to fix the math.")}</div>
    ${pend.map(r=>{ const t=v3Task(r.l,r.code), i=r.l.tasks.indexOf(t), vn=V3MAP[r.code];
      if(!t||i<0) return "";   // v3PendingDays 只 push 有 task 的節點——這裡再守一層，上游放寬時寧可少一列也別整頁白掉
-     return `<div class="row"><span class="v3code">${esc(r.code)}</span><span><b><!--notx-->${esc(r.l.name)}<!--/notx--></b> · ${esc(flowTaskName(t))}${r.aff?` <span class="urg" style="background:#2e2413;color:var(--amber)" title="${T("這一步在上市日的推算路徑上","this step feeds the launch-date projection")}">${T("影響上市日","moves launch date")}</span>`:""}</span><span class="o"><input type="number" min="0" class="v3days-inp unfilled" value="" placeholder="${vn&&vn.est!=null?vn.est:T("天數","days")}" onchange="v3SetDays('${r.l.slug}',${i},this.value)"> ${T("天","d")}${!r.hard&&vn&&vn.est!=null?` <span class="ghostnote">${T("預估 "+vn.est+"d 暫頂","est "+vn.est+"d holds for now")}</span>`:""}</span></div>`; }).join("")}</div>`:"";
+     return `<div class="row"><span class="v3code"><!--notx-->${esc(r.code)}<!--/notx--></span><span><b><!--notx-->${esc(r.l.name)}<!--/notx--></b> · ${esc(flowTaskName(t))}${r.aff?` <span class="urg" style="background:#2e2413;color:var(--amber)" title="${T("這一步在上市日的推算路徑上","this step feeds the launch-date projection")}">${T("影響上市日","moves launch date")}</span>`:""}</span><span class="o"><input type="number" min="0" class="v3days-inp unfilled" value="" placeholder="${vn&&vn.est!=null?vn.est:T("天數","days")}" onchange="v3SetDays('${r.l.slug}',${i},this.value)"> ${T("天","d")}${!r.hard&&vn&&vn.est!=null?` <span class="ghostnote">${T("預估 "+vn.est+"d 暫頂","est "+vn.est+"d holds for now")}</span>`:""}</span></div>`; }).join("")}</div>`:"";
   const nBlk=groups.reduce((a,g)=>a+g.blk.length,0), nProg=groups.reduce((a,g)=>a+g.acts.filter(x=>x.t.st==="p").length,0);
   const nRdy=groups.reduce((a,g)=>a+g.acts.filter(x=>x.t.st!=="p").length,0), nLkd=groups.reduce((a,g)=>a+g.lkd.length,0);
   const sum=[ nBlk?`<span class="pill bad">⛔ ${T("受阻","Blocked")} ${nBlk}</span>`:"",
@@ -4458,8 +4442,8 @@ function v3Dash(l){
   if(l.target&&crm2&&crm2.st!=="x"){const left=dayDiff(today,l.target)-3;
     crmWarn=left<0?`<span class="urg urgent" title="${T("FAQ（CRM2）須在目標上市日前 3 天完成","FAQ (CRM2) must be done 3 days before target launch")}">⚠ ${T("FAQ 死線已過","FAQ deadline passed")} ${-left}d</span>`
       :left<=4?`<span class="urg high">${T("FAQ 死線剩","FAQ deadline in")} ${left}d</span>`:"";}
-  const k4=v3Task(l,"KOL4"),k5=v3Task(l,"KOL5");
-  const kolChip=`<span class="ghostnote" title="${T("KOL 波次（手動節奏，對齊目標上市日）","KOL cadence (manual, aligned to target launch)")}">KOL4 ${k4?stIcon[k4.st]:"—"} · KOL5 ${k5?stIcon[k5.st]:"—"}</span>`;
+  const kk=v3Task(l,"KOL");
+  const kolChip=`<span class="ghostnote" title="${T("網紅全線（手動節奏，對齊目標上市日）","influencer line (manual cadence, aligned to target launch)")}"><!--notx-->KOL<!--/notx--> ${kk?stIcon[kk.st]:"—"}</span>`;
   const dtt=l.target?dayDiff(today,l.target):null, pendD=v3PendingDays(l);
   const assets=V3ASSETS.map(c=>{const t=v3Task(l,c);const n=V3MAP[c];if(!t)return "";
     const lkT=v3LockText(l,t); const done=t.st==="x";
@@ -4473,7 +4457,7 @@ function v3Dash(l){
       <div class="v3asset-m"><span style="color:${v3OColor(v3Own(n))}"><!--notx-->${esc(v3Own(n))}<!--/notx--></span>${(t.links||[]).length?`<span class="ghostnote">🔗${t.links.length}</span>`:""}${!done&&rem?`<span class="ghostnote">≈${rem}d</span>`:""}</div></div>`;}).join("");
   const p3=v3Task(l,"P3"),p5=v3Task(l,"P5"),fb=v3Task(l,"FB1");
   const lrow=c=>{const t=v3Task(l,c);if(!t)return "";const n=V3MAP[c];const lkT=v3LockText(l,t);
-    return `<div class="v3lrow${t.st==="x"?" done":""}"${lkT?` title="🔒 ${esc(lkT)}"`:""} onclick="v3jump('${l.slug}','${c}')"><span class="st ${t.st}" style="width:20px;height:20px;font-size:10px">${lkT?"🔒":stIcon[t.st]}</span><span class="v3code">${esc(c)}</span> ${esc(t.t)}<span class="o ghostnote">${n.days!=null?(n.days||"—")+(n.days?"d":""):(t.days!=null?t.days+"d":esc(v3T(n.ref)||"?"))}</span></div>`;};
+    return `<div class="v3lrow${t.st==="x"?" done":""}"${lkT?` title="🔒 ${esc(lkT)}"`:""} onclick="v3jump('${l.slug}','${c}')"><span class="st ${t.st}" style="width:20px;height:20px;font-size:10px">${lkT?"🔒":stIcon[t.st]}</span><span class="v3code"><!--notx-->${esc(c)}<!--/notx--></span> ${esc(t.t)}<span class="o ghostnote">${n.days!=null?(n.days||"—")+(n.days?"d":""):(t.days!=null?t.days+"d":esc(v3T(n.ref)||"?"))}</span></div>`;};
   // 到貨日這一列承載三件事的提醒：FB1 完成卻沒填實際日期、日期已到卻沒標完成、以及「到貨日蓋過素材鏈」時的差異
   const asrc=v3ArrivalSrc(l), rdy=asrc?v3ReadyDate(l):"";
   const aNotes=[
@@ -4496,7 +4480,7 @@ function v3Dash(l){
         ?`<span class="lnkg"><a class="lnk" href="${esc(c.u)}" target="_blank" rel="noopener" title="${esc(c.u)}">🔗 ${esc(c.n||c.u)}</a>${cp("code",ci)}</span>`
         :`<span class="lnk" style="cursor:pointer" onclick="viewCode('${l.slug}',${ti},${ci})" title="${T("預覽 HTML","preview HTML")}">&lt;/&gt; ${esc(c.n)}</span>`).join("");
     const who=v3Own(V3MAP[t.code])||t.d||"", canJump=t.code&&V3MAP[t.code];
-    return `<div class="v3lgrp"><span class="v3lgrp-src${canJump?" jump":""}"${canJump?` onclick="v3jump('${l.slug}','${t.code}')" title="${T("跳到任務","jump to task")}"`:""}>${t.code?`<span class="v3code">${esc(t.code)}</span> `:""}${esc(flowTaskName(t))}${who?` <span class="ghostnote" style="color:${DCOLOR(t.d)}">· ${esc(who)}</span>`:""}</span><span class="v3lgrp-links">${chips}</span></div>`;
+    return `<div class="v3lgrp"><span class="v3lgrp-src${canJump?" jump":""}"${canJump?` onclick="v3jump('${l.slug}','${t.code}')" title="${T("跳到任務","jump to task")}"`:""}>${t.code?`<span class="v3code"><!--notx-->${esc(t.code)}<!--/notx--></span> `:""}${esc(flowTaskName(t))}${who?` <span class="ghostnote" style="color:${DCOLOR(t.d)}">· ${esc(who)}</span>`:""}</span><span class="v3lgrp-links">${chips}</span></div>`;
   }).filter(Boolean).join("");
   const nLinks=(l.tasks||[]).reduce((a,t)=>a+(t.links||[]).length+(t.codes||[]).length,0);
   const linkHub=`<div class="panel v3linkhub"><h3>🔗 ${T("連結總覽","Link hub")}${nLinks?` <span class="ghostnote" style="font-weight:400">${nLinks}</span>`:""} <span class="ghostnote">${T("各任務附上的連結彙整於此，點擊直接開啟索取","every link attached across the tasks — click to open")}</span></h3>${linkGroups?`<div class="v3links">${linkGroups}</div>`:`<div class="sub">${T("尚無連結 — 在任一任務列用 🔗 Links 附上，這裡會自動彙整。","No links yet — attach one via 🔗 Links on any task and it collects here.")}</div>`}</div>`;
