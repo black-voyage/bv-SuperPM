@@ -852,9 +852,22 @@
   .o-hasowner{position:relative;cursor:help;outline:none}
   .o-hasowner::after{content:attr(data-owner);position:absolute;left:100%;top:50%;transform:translateY(-50%);margin-left:8px;white-space:nowrap;background:#0d0f13;border:1px solid var(--line);border-left:3px solid var(--oc,var(--line));color:var(--text);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .12s;z-index:40;box-shadow:0 4px 14px rgba(0,0,0,.45)}
   .o-hasowner:hover::after,.o-hasowner:focus-visible::after{opacity:1}
-  /* collapsible dept playbook header */
-  .pb-h{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
-  .pb-tog{margin-left:auto;font-size:12px;font-weight:400;color:var(--faint)}
+  /* 個人視角（homeDept）— 產品組依緊急度排序。任務列沿用全站 taskRow 語彙，這裡只管組頭／理由行／收合區 */
+  .pv-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .pv-dot{width:8px;height:8px;border-radius:var(--r-pill);flex:none}
+  .pv-sum{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:2px 0 14px}
+  .pv-prod{padding-top:13px}
+  .pv-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .pv-rank{font-family:var(--font-mono);font-size:12px;color:var(--faint)}
+  .pv-name{font-size:15.5px;cursor:pointer}
+  .pv-name:hover{color:var(--accent)}
+  .pv-meta{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .pv-why{font-size:12.5px;color:var(--dim);margin:5px 0 8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .pv-sep{margin:0 7px;color:var(--faint)}
+  .pv-locked{margin-top:6px}
+  .pv-locked>summary{cursor:pointer;font-size:12.5px;color:var(--faint);user-select:none;list-style:none}
+  .pv-locked>summary::-webkit-details-marker{display:none}
+  .pv-locked[open]>summary{margin-bottom:4px}
   /* flow-chart 📍 frontier owner — person-colored, dimmed at rest; hovering the node brightens + lifts it, co-owners slide out from the right */
   /* Owner chips answer "who starts this" — the ONE thing the chart is asked for. They stay legible at rest
      (.45 made them ghosts in screenshots/projection); hover only adds the lift. */
@@ -2670,10 +2683,9 @@ const ZH={
  "Stage funnel":"階段漏斗","Gate debt — what each department owes the current gates":"關卡欠項 — 各部門尚未完成的關卡條件",
  "Check-in compliance (weekly)":"每週進度回報達成率","Featured products":"主打產品","Campaign tasks (cross-department)":"活動任務（跨部門）",
  "BURN-UP":"累積完成圖","DEPARTMENT PROGRESSION":"部門進度","ALL LAUNCHES — % of tasks done":"所有產品 — 任務完成率",
- "Our playbook — how":"作業手冊 —","updates tasks":"的任務更新規則",
- "owes the current gates":"目前尚欠的關卡條件","Post a check-in":"發布進度回報","WEEKLY CHECK-IN":"每週進度回報","MY OPEN TASKS":"我的待辦任務",
+ "Personal lens":"個人視角",
  // — buttons / actions —
- "Approve":"批准","Reject":"駁回","Open card":"開啟卡片","mark done":"標記完成","Add note":"新增備註","Post check-in":"發布進度回報",
+ "Approve":"批准","Reject":"駁回","Open card":"開啟卡片","mark done":"標記完成","Add note":"新增備註",
  "Attach Loom / video":"附加 Loom／影片","+ link":"＋連結","+ Add department":"＋ 新增部門","Push to":"推進至","Push locked —":"推進鎖定 —","Approved":"已批准",
  "criteria left":"項條件未完成","Launch complete":"上市已完成","Ready — push reserved for DRI":"已就緒 — 推進權限：DRI",
  "mandatory dept heads, or Ben":"必要部門主管或 Ben","ready":"就緒","open":"項未完成",
@@ -3156,10 +3168,6 @@ async function push(slug){
   toast("🚀 Pushed — next-stage departments alerted in Slack"); render();
 }
 function setDRI(slug,d){ const l=L(slug); l.checkins.unshift({d:today,a:"system",txt:`DRI changed ${l.dri} → ${d}.`}); l.dri=d; toast("DRI updated"); render(); }
-function addCheckin(slug){
-  const v=document.getElementById("ci").value.trim(); if(!v)return;
-  L(slug).checkins.unshift({d:today,a:S.role==="dept"?S.dept:"Ben",txt:v}); toast("Check-in posted"); render();
-}
 /* in-card task editing */
 const PANELSEEN=new Set();   // task-detail panels whose expand reveal has already played — gates it to once per open (not per re-render)
 function toggle(key){S.open[key]=!S.open[key];render();}
@@ -3277,7 +3285,7 @@ function taskRow(l,t,extra,ro){
   // 列上印的是「負責人」，部門收進 hover —— 部門名回答不了「我該找誰」，而每個步驟都掛得到一個真人。
   // 沒有負責人的步驟（自由格式的 campaign 任務）才退回部門。
   const lead=extra
-    ? `<span class="o-stage" title="stage">${esc(extra)}</span>`
+    ? `<span class="o-stage" title="${esc(extra)}">${esc(extra)}</span>`
     : owner
       ? `<span class="o-resp o-hasowner" tabindex="0" style="color:${v3OColor(owner)};--oc:${DCOLOR(resp)}" data-owner="${esc((LANG==="zh"?"部門 · ":"Dept · ")+resp)}"><!--notx-->${esc(owner)}<!--/notx--></span>`
       : `<span class="o-resp" style="color:${DCOLOR(resp)}" title="Responsible dept — ${esc(resp)}">${esc(resp)}</span>`;
@@ -4133,21 +4141,96 @@ function homeDirector(){
    <div class="ghostnote">Too much parallel work halves everyone's speed.</div></div>
   <div class="panel"><h3>Check-in compliance (weekly)</h3>${active.map(l=>{const last=l.checkins[0],fresh=last&&(new Date(today)-new Date(last.d))/864e5<=7;return `<div class="row"><span class="st ${fresh?"x":"b"}">${fresh?"✓":"!"}</span><span><b>${l.name}</b> — last check-in ${last?fmt(last.d):"never"} (${last?last.a:"—"})</span><span class="o">${fresh?"fresh":"stale — nudge DRI"}</span></div>`;}).join("")}</div>`;
 }
+/* ================= 個人視角（Home · dept-role 分支） =================
+   2026-08-10 重設計（使用者裁決）：進來要依序回答三件事 —— ①哪個產品最該先動（排序＋理由行）
+   ②我在那裡有哪些任務（狀態直接在每列的狀態鈕上，不再拆「受阻／進行中／To do」三欄）
+   ③哪些任務沒填天數，在讓大貨／上市日推算偏早。作業手冊與發布進度回報面板整段移除（不重要）；
+   「尚欠關卡」面板收斂成任務列上的 🚧 前綴＋理由行 —— 同一件事不畫兩次。
+   範圍規則：S.person 有值＝個人視角（v3Own＋v3Owners 比對負責人，Oume／Mi 各看各的）；
+   空值（共用信箱的部門登入）＝部門視角（t.d 比對）。同一版面，兩種粒度。
+   標題列的部門下拉只在部門視角保留 —— 個人視角的切換交給 Home 頂部那顆「視角」選單。 */
 function homeDept(){
-  const d=S.dept;
-  const mine=LAUNCHES.filter(l=>!l.complete).flatMap(l=>l.tasks.filter(t=>t.d===d).map(t=>({l,t})));
-  const owed=LAUNCHES.filter(l=>!l.complete).flatMap(l=>gateState(l).cs.filter(c=>c.d===d&&c.task.st!=="x").map(c=>({l,c})));
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  const person=S.person, d=S.dept;
+  const Y=person?T("你","you"):T("本部門","this team");
+  const mineOf=t=>{ if(!person) return t.d===d;
+    const vn=t.code&&V3MAP[t.code]; return v3Owners(vn?v3Own(vn):"").includes(person); };
   const UO={urgent:0,high:1,med:2,low:3};
-  const grp=s=>mine.filter(x=>x.t.st===s).sort((a,b)=>(UO[a.t.urg]??2)-(UO[b.t.urg]??2));
-  const pb=[...new Map(LAUNCHES[0].tasks.filter(t=>t.d===d).map(t=>[t.t,t])).values()];   // keep the task (DOD is keyed by code now), dedup by title
-  return `<h2>${S.person?`<!--notx-->${esc(S.person)}<!--/notx--> — `:""}Department lens — <select onchange="S.dept=this.value;S.person='';render()">${DEPTS().map(x=>`<option value="${x}" ${x===d?"selected":""}>${x}</option>`).join("")}</select></h2>
-  <div class="sub">${esc((TEAM.find(t=>t.name===d)||{}).role||"")}</div>
-  <div class="panel"><h3 class="pb-h" onclick="S.pbOpen=!S.pbOpen;render()" title="${LANG==="zh"?"點擊展開／收合":"click to expand / collapse"}">📘 Our playbook — how ${d} updates tasks<span class="pb-tog">${S.pbOpen?"▾":"▸ "+pb.length}</span></h3>
-   ${S.pbOpen?`${pb.map(t=>`<div class="row"><span style="color:${DCOLOR(d)}">▸</span><span><b>${esc(t.t)}</b>${DOD[t.code]?` — <span style="color:var(--dim)">${esc(v3T(DOD[t.code]))}</span>`:""}${EVID.has(t.code)?` <span class="urg" style="background:#13262e;color:#67e8f9">📎 ${LANG==="zh"?"需附證明連結":"evidence required"}</span>`:""}</span></div>`).join("")}
-   <div class="sub" style="margin-top:8px">Full version (definitions, evidence types, estimates, dependencies) lives in <b>BV-Task-Playbook.xlsx</b> — your team edits the ${d} tab and the tracker adopts your rules.</div>`:""}</div>
-  <div class="panel"><h3>${d} owes the current gates</h3>${owed.length?owed.map(({l,c})=>`<div class="row"><button type="button" class="st ${c.task.st}" aria-label="status: ${stWord(c.task.st)} — left-click to advance, right-click to step back" onclick="cycle('${l.slug}',${l.tasks.indexOf(c.task)},this)" oncontextmenu="cycleBack('${l.slug}',${l.tasks.indexOf(c.task)},this);return false">${stIcon[c.task.st]}</button><span><b>${l.name}</b> · ${esc(c.t)}</span><span class="o">gates ${l.stage} → next</span></div>`).join(""):'<div class="sub">Nothing owed — no gate is waiting on this team.</div>'}</div>
-  <div class="twocol">${[["b","Blocked"],["p","In progress"],["o","To do"]].map(([s,lbl])=>`<div class="panel"><h3>${lbl} (${grp(s).length})</h3>${grp(s).map(({l,t})=>taskRow(l,t,l.name)).join("")||'<div class="sub">None.</div>'}</div>`).join("")}</div>
-  <div class="panel"><h3>Post a check-in</h3><select id="ciL">${LAUNCHES.filter(l=>!l.complete).map(l=>`<option value="${l.slug}">${l.name}</option>`).join("")}</select><div style="margin-top:8px"><textarea id="ci" placeholder="Progress: …  Blockers: …  Asks: …"></textarea></div><div style="margin-top:8px"><button class="btn" onclick="addCheckin(document.getElementById('ciL').value)">Post check-in</button> <span class="sub" style="display:inline">posts to the card + its Slack channel</span></div></div>`;
+  // 每個產品收成一組：我的未完成任務＋緊急度訊號（受阻／擋關卡／關鍵路徑／落後／上市日）
+  const groups=LAUNCHES.filter(l=>!l.complete).map(l=>{
+    const my=l.tasks.filter(t=>mineOf(t)&&t.st!=="x").map(t=>({t,lk:taskLocked(l,t)}));
+    if(!my.length)return null;
+    const gset=new Set(gateState(l).cs.filter(c=>c.task.st!=="x").map(c=>c.task));   // 本階段還沒過的關卡條件
+    const cp=new Set(v3CriticalPath(l));
+    my.forEach(x=>{ x.gate=gset.has(x.t)&&!x.lk; x.cp=cp.has(x.t.code)&&!x.lk;
+      const vn=x.t.code&&V3MAP[x.t.code], days=(x.t.days!=null?x.t.days:(vn?vn.days:null));
+      const sc=(!x.lk&&vn)?v3StartClock(l,vn):null;                   // 倒數與詳情面板同源：前置完成日＋天數
+      x.rem=(sc&&days!=null)?dayDiff(today,v3AddD(sc,days)):null; });
+    const blk=my.filter(x=>x.t.st==="b"), acts=my.filter(x=>x.t.st!=="b"&&!x.lk), lkd=my.filter(x=>x.t.st!=="b"&&x.lk);
+    const proj=projLaunchDate(l);
+    return {l,blk,acts,lkd, gate:my.some(x=>x.gate), cp:acts.some(x=>x.cp),
+            over:my.reduce((m,x)=>(x.rem!=null&&x.rem<0)?Math.max(m,-x.rem):m,0),   // 我最逾期的一項（天）
+            slip:projectedSlip(l), proj, dtl:proj?dayDiff(today,proj):9999};
+  }).filter(Boolean);
+  // 產品排序＝「先看哪個」：有受阻 → 有得動工 → 我卡著關卡/關鍵路徑 → 我逾期最多 → 落後多 → 上市日近
+  const key=g=>[g.blk.length?0:1, g.acts.length?0:1, (g.gate||g.cp)?0:1, -g.over, -g.slip, g.dtl];
+  const cmp=(a,b)=>{const ka=key(a),kb=key(b); for(let i=0;i<ka.length;i++) if(ka[i]!==kb[i]) return ka[i]-kb[i]; return 0;};
+  groups.sort(cmp);
+  // 列尾文字：舊版印產品名（組內冗餘）——個人 to-do 真正要掃的是「哪件快到期／已逾期」
+  const dueTxt=x=>{
+    const pre=x.gate?("🚧 "+T("擋關卡","gate")+" · "):(x.cp?"🎯 ":"");
+    if(x.t.st==="b") return pre+T("受阻 — 需要協助","blocked — needs help");
+    if(x.rem==null)  return pre+(x.t.st==="p"?T("進行中","in progress"):T("可動工","ready"));
+    return pre+(x.rem<0?T("逾期 "+(-x.rem)+" 天","overdue "+(-x.rem)+"d"):T("剩 "+x.rem+" 天",x.rem+"d left"));
+  };
+  const ord=x=>[x.t.st==="b"?0:1, x.gate?0:1, x.cp?0:1, x.rem==null?9999:x.rem, UO[x.t.urg]??2];
+  const rowCmp=(a,b)=>{const ka=ord(a),kb=ord(b); for(let i=0;i<ka.length;i++) if(ka[i]!==kb[i]) return ka[i]-kb[i]; return 0;};
+  // 理由行：讓排序自己解釋自己 —— 最多三個訊號，先重後輕
+  const why=g=>{ const r=[];
+    if(g.blk.length) r.push(`<span style="color:var(--red)">⛔ ${g.blk.length} ${T("項受阻","blocked")}</span>`);
+    if(g.gate) r.push(`<span style="color:var(--amber)">🚧 ${T(Y+"的步驟擋住「"+g.l.stage+"」關卡",(person?"your":"this team's")+" step holds the "+g.l.stage+" gate")}</span>`);
+    if(g.cp&&!g.gate) r.push(`<span style="color:var(--amber)">🎯 ${T("下一步在關鍵路徑上 — 晚一天，上市晚一天","next step is on the critical path")}</span>`);
+    if(g.over>0) r.push(`<span style="color:var(--amber)">⏰ ${T("最急一項已逾期 "+g.over+" 天","most overdue task is "+g.over+"d late")}</span>`);
+    if(g.slip>0) r.push(`📉 ${T("比基準晚 "+g.slip+" 天","running "+g.slip+"d behind baseline")}`);
+    if(!g.acts.length&&!g.blk.length) r.push(`🔒 ${T("全部在等前置，還輪不到"+Y,"all steps wait on prerequisites")}`);
+    if(!r.length) r.push(`✅ ${T("照排程走","on plan")}`);
+    return r.slice(0,3).join('<span class="pv-sep">·</span>'); };
+  const prodHTML=groups.map((g,gi)=>{ const l=g.l;
+    const rows=[...g.blk,...g.acts].sort(rowCmp).map(x=>taskRow(l,x.t,dueTxt(x))).join("");
+    const lkdRows=g.lkd.sort(rowCmp).map(x=>taskRow(l,x.t,T("等前置","waiting"))).join("");
+    return `<div class="panel pv-prod">
+     <div class="pv-head"><span class="pv-rank">${String(gi+1).padStart(2,"0")}</span><b class="pv-name" onclick="openL('${l.slug}')" title="${T("開啟卡片","open the card")}"><!--notx-->${esc(l.name)}<!--/notx--></b>${lTpl(l)==="update"?`<span class="pill" title="${T("產品更新流程（簡化版）","product-update flow (simplified)")}">🔁 ${T("產品更新","Update")}</span>`:""}<span class="pill">${l.stage}</span><span class="pv-meta">${g.slip>0?`<span class="pill bad" title="${T("比基準上市日晚","days behind the baseline launch date")}">+${g.slip}d</span>`:""}${g.proj?`<span class="ghostnote" title="${T("預計上市日","projected launch date")}">🗓 ${fmt(g.proj)}</span>`:""}</span></div>
+     <div class="pv-why">${why(g)}</div>
+     ${rows||`<div class="sub">${T("沒有可動工的任務。","Nothing actionable right now.")}</div>`}
+     ${g.lkd.length?`<details class="pv-locked"><summary>🔒 ${T("等待前置","Waiting on prerequisites")} · ${g.lkd.length}</summary>${lkdRows}</details>`:""}
+    </div>`; }).join("");
+  // 待補天數：沒填天數的步驟在推算裡當 0 天 → 上市／大貨日偏早。行內直接補，不用開卡
+  const pend=LAUNCHES.filter(l=>!l.complete).flatMap(l=>{ const p=v3PendingDays(l);
+    return [...p.miss.map(r=>({...r,l,hard:true})),...p.soft.map(r=>({...r,l,hard:false}))]
+      .filter(r=>{ if(!person) return r.d===d; const vn=V3MAP[r.code]; return v3Owners(vn?v3Own(vn):"").includes(person); });
+  }).sort((a,b)=>(b.aff-a.aff)||(b.hard-a.hard));
+  const pendHTML=pend.length?`<div class="panel"><h3>⏱ ${T("待補天數","Days unset")} (${pend.length})</h3>
+   <div class="sub" style="margin-bottom:6px">${T("沒填天數的步驟在推算裡當 0 天 — 大貨／上市日會算得比實際早。填上就準。","Unset steps count as 0 days, so bulk/launch projections read earlier than reality. Fill them in to fix the math.")}</div>
+   ${pend.map(r=>{ const t=v3Task(r.l,r.code), i=r.l.tasks.indexOf(t), vn=V3MAP[r.code];
+     if(!t||i<0) return "";   // v3PendingDays 只 push 有 task 的節點——這裡再守一層，上游放寬時寧可少一列也別整頁白掉
+     return `<div class="row"><span class="v3code">${esc(r.code)}</span><span><b><!--notx-->${esc(r.l.name)}<!--/notx--></b> · ${esc(flowTaskName(t))}${r.aff?` <span class="urg" style="background:#2e2413;color:var(--amber)" title="${T("這一步在上市日的推算路徑上","this step feeds the launch-date projection")}">${T("影響上市日","moves launch date")}</span>`:""}</span><span class="o"><input type="number" min="0" class="v3days-inp unfilled" value="" placeholder="${vn&&vn.est!=null?vn.est:T("天數","days")}" onchange="v3SetDays('${r.l.slug}',${i},this.value)"> ${T("天","d")}${!r.hard&&vn&&vn.est!=null?` <span class="ghostnote">${T("預估 "+vn.est+"d 暫頂","est "+vn.est+"d holds for now")}</span>`:""}</span></div>`; }).join("")}</div>`:"";
+  const nBlk=groups.reduce((a,g)=>a+g.blk.length,0), nProg=groups.reduce((a,g)=>a+g.acts.filter(x=>x.t.st==="p").length,0);
+  const nRdy=groups.reduce((a,g)=>a+g.acts.filter(x=>x.t.st!=="p").length,0), nLkd=groups.reduce((a,g)=>a+g.lkd.length,0);
+  const sum=[ nBlk?`<span class="pill bad">⛔ ${T("受阻","Blocked")} ${nBlk}</span>`:"",
+    nProg?`<span class="pill risk">${T("進行中","In progress")} ${nProg}</span>`:"",
+    nRdy?`<span class="pill">${T("可動工","Ready")} ${nRdy}</span>`:"",
+    nLkd?`<span class="ghostnote">🔒 ${T("等前置","waiting")} ${nLkd}</span>`:"",
+    pend.length?`<span class="ghostnote">⏱ ${T("待補天數","days unset")} ${pend.length}</span>`:"" ].filter(Boolean).join(" ");
+  const dotc=person?v3OColor(person):DCOLOR(d);
+  const title=person
+    ? `<h2 class="pv-title"><span class="pv-dot" style="background:${dotc}"></span><!--notx-->${esc(person)}<!--/notx--> — Personal lens</h2>
+       <div class="sub">${T("依產品緊急度排序 — 受阻與擋關卡的排最前；點產品名開卡片。","Products sorted by urgency — blocked and gate-holding first; click a name to open its card.")}</div>`
+    : `<h2 class="pv-title"><span class="pv-dot" style="background:${dotc}"></span>Department lens — <select onchange="S.dept=this.value;S.person='';render()">${DEPTS().map(x=>`<option value="${x}" ${x===d?"selected":""}>${x}</option>`).join("")}</select></h2>
+       <div class="sub">${esc((TEAM.find(t=>t.name===d)||{}).role||"")}</div>`;
+  const empty=`<div class="panel"><div class="empty-hero">${T("目前沒有輪到"+(person?"你":"本部門")+"的任務","Nothing on "+(person?"your":"this team's")+" plate right now")} 🎉</div><div class="sub">${T("前置步驟完成後，任務會自動解鎖並出現在這裡。","Tasks unlock and appear here as their prerequisite steps finish.")}</div></div>`;
+  return `${title}
+  ${groups.length?`<div class="pv-sum">${sum}</div>${prodHTML}`:empty}
+  ${pendHTML}`;
 }
 function portfolioBoard(){
   const fq=l=>!S.q||l.name.toLowerCase().includes(S.q.toLowerCase())||l.dri.toLowerCase().includes(S.q.toLowerCase());
