@@ -765,7 +765,6 @@
   .ld-rd-row.miss .v{color:var(--red)}
   @media(prefers-reduced-motion:reduce){.ld-rd-pop{transition:opacity .12s linear}}
   /* comment composer — inline video-attach ＋ in the task detail */
-  .collabmenu-h{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:2px 8px 5px}
   .secdiv{margin:4px 0 10px}
   .secdiv h4{font-family:var(--font-head);font-size:var(--fs-body);font-weight:600;text-transform:none;letter-spacing:0;color:var(--text);margin-bottom:3px}
   .ld2{grid-template-columns:1.6fr 1fr}
@@ -872,13 +871,11 @@
   .pv-dot{width:8px;height:8px;border-radius:var(--r-pill);flex:none}
   .pv-sum{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:2px 0 14px}
   .pv-prod{padding-top:13px}
-  .pv-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .pv-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:9px;border-bottom:1px solid var(--line);margin-bottom:4px}
   .pv-rank{font-family:var(--font-mono);font-size:12px;color:var(--faint)}
   .pv-name{font-size:15.5px;cursor:pointer}
   .pv-name:hover{color:var(--accent)}
   .pv-meta{margin-left:auto;display:flex;gap:8px;align-items:center}
-  .pv-why{font-size:12.5px;color:var(--dim);margin:5px 0 8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
-  .pv-sep{margin:0 7px;color:var(--faint)}
   .pv-locked{margin-top:6px}
   .pv-locked>summary{cursor:pointer;font-size:12.5px;color:var(--faint);user-select:none;list-style:none}
   .pv-locked>summary::-webkit-details-marker{display:none}
@@ -897,14 +894,6 @@
   .o-stage{color:var(--faint);font-size:12px}
   .o-collabs{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
   .o-collab{font-size:11px;padding:0 6px;border:1px solid var(--line);border-radius:var(--r-xs);line-height:1.7}
-  .collabmenu{display:inline-block;position:relative;vertical-align:middle}
-  .collabmenu>summary{list-style:none;cursor:pointer;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;background:var(--panel2);border:1px solid var(--line);border-radius:var(--r-xs);font-size:13px;color:var(--dim)}
-  .collabmenu>summary::-webkit-details-marker{display:none}
-  .collabmenu>summary:hover{color:var(--text);border-color:var(--accent)}
-  .collabmenu[open]>summary{border-color:var(--accent);color:var(--text)}
-  .collabmenu-b{position:absolute;right:0;z-index:30;margin-top:4px;display:flex;flex-direction:column;gap:2px;padding:5px;background:var(--glass2);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:inset 0 1px 0 var(--edge),var(--sh-sm)}
-  .collabmenu-b button{background:none;border:none;text-align:left;cursor:pointer;font-size:12px;padding:3px 8px;border-radius:var(--r-sm);white-space:nowrap}
-  .collabmenu-b button:hover{background:var(--panel2)}
   /* task-panel notes thread */
   /* .tnote* 這組是「卡片層備註（risks）」在用的樣式（任務層筆記 2026-08-11 已拆除，勿因此誤刪這組） */
   .tnotes{display:flex;flex-direction:column}
@@ -1110,7 +1099,8 @@ const V3PH=[
  {en:"Launch Prep", zh:"上市準備"},
  {en:"Marketing Prep", zh:"行銷準備"},
  {en:"Logistics", zh:"物流"},
- {en:"KOL", zh:"KOL 執行"},
+ // 「KOL 執行」階段已於 2026-08-12 移除（KOL1–5 併成 ph:3 的單節點後整階段空了，使用者裁決刪除）。
+ // 舊卡 history 裡的死階段名由 v3SyncTasks 就地併回前一段，不會殘留在時間軸／延遲統計裡。
 ];
 const V3=[
  // 0 — Concept & Design
@@ -1162,7 +1152,7 @@ const V3=[
         zh:"Ongoing——網紅全線一格管理：Mega／一般接洽、尋找、拍攝。拍攝要等 P5 行銷樣品；需記錄 usage rights。"}},
  // 4 — Logistics
  {c:"FB1", en:"First batch on sale", zh:"首波開賣日", ph:4, dept:"Logistics", o:"LC", days:31, req:["P3"], arrival:1, out:{en:"arrival date → whole company",zh:"到貨日 → 全公司"}, note:{en:"LC runs shipping end-to-end; only the arrival date is tracked here — once set it becomes the projected launch. Unset → 31d (sea 30 + intake 1) placeholder.",zh:"LC 一條龍處理出貨，這裡只追到貨日 —— 填了就以它為預計上市日；未填前用 31d（海運 30＋入庫 1）暫估"}},
- // （5 — KOL 執行階段的 KOL4/KOL5 已併入上方的 KOL 單節點；此階段暫時留空，v3CurPhase 會自然跳過空階段）
+ // （KOL4/KOL5 已併入上方的 KOL 單節點；原第 5 階段「KOL 執行」隨之整個移除 —— 見 V3PH 的註記）
 ];
 /* ================= THE PRODUCT-UPDATE FLOW — V3U =================
    Second template: revising an EXISTING product (簡化版 launch). Same node grammar as V3, same
@@ -1416,6 +1406,12 @@ function v3SyncTasks(l){
   });
   // remap a legacy stage name to a V3 phase so the card doesn't sit on a dead stage
   if(STAGES.indexOf(l.stage)<0) l.stage=STAGES[0];
+  // history 自癒：階段被刪（如 2026-08-12 移除「KOL 執行」）後，舊段的死階段名改掛前一段的階段
+  // （那段時間本來就是前一階段的拖尾）；開頭就是死名的直接丟。不健就會壞 segments —— 死階段
+  // plan=0 且已無任務掛該階段（unk=0），整段天數會被誤算成逾期灌進延遲趨勢。
+  if(Array.isArray(l.history)&&l.history.length){ let lastOk="";
+    l.history=l.history.filter(h=>{ if(STAGES.indexOf(h.stage)>=0){ lastOk=h.stage; return true; }
+      if(lastOk){ h.stage=lastOk; return true; } return false; }); }
   v3Advance(l);
 }
 // v3OColor matches by SUBSTRING (compound owners like "Zac + Oume" must colour off their first name), so a
@@ -3189,7 +3185,7 @@ function setDRI(slug,d){ const l=L(slug); l.checkins.unshift({d:today,a:"system"
 const PANELSEEN=new Set();   // task-detail panels whose expand reveal has already played — gates it to once per open (not per re-render)
 function toggle(key){S.open[key]=!S.open[key];render();}
 // whole task row is clickable to expand/collapse — but ignore clicks that land on a real control inside it
-function rowToggle(e,key){ if(e.target.closest("button,input,select,textarea,a,label,.lnkmenu,.collabmenu,[data-noexp]"))return; toggle(key); }
+function rowToggle(e,key){ if(e.target.closest("button,input,select,textarea,a,label,.lnkmenu,[data-noexp]"))return; toggle(key); }
 function setF(slug,i,f,v){ L(slug).tasks[i][f]=v; toast(f==="urg"?"Urgency set to "+v:"Assignee updated"); render(); }
 /* team editing */
 function teamEdit(i,f,v){ if(f==="name"){renameDept(TEAM[i].name,v);} else TEAM[i][f]=v; render(); }
@@ -3241,10 +3237,9 @@ function stepResp(t){ const s=stepSlot(t); return (s&&s.d)||t.d||""; }
 function stepCollabs(t){ const s=stepSlot(t); if(!s)return []; const who=Array.isArray(s.who)?s.who:(s.who?[String(s.who)]:[]); return who.filter(d=>d&&d!==s.d); }
 function setStepWho(s,collabs){ const clean=[...new Set((collabs||[]).filter(d=>d&&d!==s.d))]; if(clean.length) s.who=[s.d,...clean]; else delete s.who; if(s.code) tplOvSet(s.code,{who:clean}); }
 // inline collaborator toggle from a launch task row (edits the shared template)
-function toggleCollab(slug,i,dept){ if(!dept)return; const l=L(slug); const t=l&&l.tasks[i]; if(!t)return; const s=stepSlot(t); if(!s){toast("This step isn't in the workflow template");return;} const cur=stepCollabs(t); const had=cur.includes(dept); setStepWho(s, had?cur.filter(d=>d!==dept):cur.concat(dept)); log(`👥 Collaborators · ${t.t} → ${stepCollabs(t).join(", ")||"(none)"}`); save(); render(); toast(had?"Collaborator removed":"Collaborator added"); }
+// 列上的「＋ 邀部門協助」選單（collabAddMenu/toggleCollab）已於 2026-08-12 移除（使用者裁決：不需要）。
+// 協作者仍可在 設定 → Workflow 模板 編（tplCollab/setStepWho），列上只讀顯示 collabChips。
 // ＋ on a task row's responsibility cluster: pull another department in as a collaborator so they know to weigh in
-function collabAddMenu(l,t,i,resp,collabs){ if(!stepSlot(t))return ""; const opts=ALLDEPTS().filter(d=>d!==resp);
-  return `<details class="collabmenu" onclick="event.stopPropagation()"><summary title="Involve another department — flag who else needs to weigh in">＋</summary><div class="collabmenu-b"><div class="collabmenu-h">Involve a department</div>${opts.map(d=>`<button type="button" onclick="toggleCollab('${l.slug}',${i},'${d}')">${collabs.includes(d)?"✓":"&nbsp;"} <span style="color:${DCOLOR(d)}">●</span> ${esc(d)}</button>`).join("")}</div></details>`; }
 // template page: set the single responsible department for a step (propagates to every launch's task copy + campaigns)
 // 寫進 TPLOV（會被快照帶走）而不是只改 GATES —— 只改 GATES 的話，下一次 v3Rederive/v3SyncTasks 就用 V3 的
 // n.dept 蓋回去，使用者看到成功 toast、重新整理後編輯全部消失（連流程圖車道與熱力圖歸屬一起還原）。
@@ -3278,13 +3273,11 @@ function gateControl(l,t,i,lk){ // Ben ◆ decision gate → a prominent button 
   const rej=(t.decision&&t.decision.v==="no")?`<span class="gaterej" title="${zh?"Ben 已否決（"+fmt(t.decision.at)+"）— 修正後可再送":"rejected by Ben ("+fmt(t.decision.at)+") — fix and resubmit"}">✗ ${zh?"已否決":"rejected"}</span> `:"";
   return rej+`<button type="button" class="gatebtn ready" title="Ben's decision — approve to unblock the next stage" aria-label="Ben decision — approve" onclick="approve('${l.slug}',${i})">◆ Approve</button> <button type="button" class="gatebtn rej" title="${zh?"否決 — 退回重做（狀態留在未完成）":"reject — send back for rework"}" aria-label="Ben decision — reject" onclick="gateReject('${l.slug}',${i})">✕</button>`;
 }
-function taskRow(l,t,extra,ro){
-  const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=S.open[key];
+function taskRow(l,t,extra,ro,noexp){   // noexp（個人視角用）：不給展開箭頭、列不可點開詳情 —— 詳情去產品卡看
+  const i=l.tasks.indexOf(t); const key=l.slug+":"+i; const open=noexp?false:S.open[key];
   const lk=taskLocked(l,t);
   const resp=stepResp(t), collabs=stepCollabs(t);
   const collabChips=collabs.map(d=>`<span class="o-collab" style="color:${DCOLOR(d)}" title="Collaborator — ${esc(d)}">${esc(d)}</span>`).join("");
-  // inline ＋ to involve another department — only on the launch-detail's editable rows (current stage), not the cross-launch board
-  const collabPlus=(!ro&&!extra)?collabAddMenu(l,t,i,resp,collabs):"";
   const vn=t.code&&V3MAP[t.code];   // V3 node behind this row (for the code chip, owner, manual-day control, sample date)
   const owner=vn?v3Own(vn):"";
   // 列上印的是「負責人」，部門收進 hover —— 部門名回答不了「我該找誰」，而每個步驟都掛得到一個真人。
@@ -3294,16 +3287,16 @@ function taskRow(l,t,extra,ro){
     : owner
       ? `<span class="o-resp o-hasowner" tabindex="0" style="color:${v3OColor(owner)};--oc:${DCOLOR(resp)}" data-owner="${esc((LANG==="zh"?"部門 · ":"Dept · ")+resp)}"><!--notx-->${esc(owner)}<!--/notx--></span>`
       : `<span class="o-resp" style="color:${DCOLOR(resp)}" title="Responsible dept — ${esc(resp)}">${esc(resp)}</span>`;
-  const meta=`<span class="o ometa">${lead}${collabChips?`<span class="o-collabs">${collabChips}</span>`:""}${collabPlus}</span>`;   // days moved into the detail panel (預設天數 row) — no longer on the outer row
+  const meta=`<span class="o ometa">${lead}${collabChips?`<span class="o-collabs">${collabChips}</span>`:""}</span>`;   // days moved into the detail panel (預設天數 row) — no longer on the outer row
   // a locked row (incl. Ben ◆ gates) gets a ▾ details expander so the "why it's locked" text lives in the panel, not inline
   const exp=`<button class="exp" onclick="toggle('${key}')" title="${open?(LANG==="zh"?"收合":"collapse"):(LANG==="zh"?"展開全部":"expand")}" aria-label="${open?"collapse":"expand"}">${open?"▴":"▾"}</button>`;
-  const ctrls=t.gate?"":`${lk?"":renderLinkMenu(t,l.slug,i)}${exp}`;   // Ben ◆ gates carry no expand/notes panel — the decision button says it all
+  const ctrls=t.gate?"":`${lk?"":renderLinkMenu(t,l.slug,i)}${noexp?"":exp}`;   // Ben ◆ gates carry no expand panel — the decision button says it all
   // the step's output/explanation now lives in the ▾ details panel (taskDetail), keeping the row short; a shot-list total shows for MS3a/b
   const shotChip=(vn&&vn.shots&&!extra&&v3ShotTotal(t)>0)?`<span class="ghostnote" title="${LANG==="zh"?"素材需求合計":"asset shot-list total"}">${vn.shots==="video"?"🎬":"📸"} ${v3ShotTotal(t)}</span>`:"";
   // 預計大貨樣日 moved INTO the detail panel (taskDetail's 應完成日 block) — no more duplicate outer strip
   const _hasPanel=open&&!t.gate;                                  // the detail panel is only rendered when open (non-gate)
   let _tpNew=""; if(_hasPanel){ if(!PANELSEEN.has(key)){PANELSEEN.add(key);_tpNew=" tp-in";} } else PANELSEEN.delete(key);  // first open → play reveal once; closed → forget so a reopen replays
-  return `<div id="task-${l.slug}-${i}" class="taskwrap${_tpNew}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${t.gate?"":"cursor:pointer;"}${lk?"opacity:.38;filter:grayscale(.6)":""}"${t.gate?"":` onclick="rowToggle(event,'${key}')"`}>
+  return `<div id="task-${l.slug}-${i}" class="taskwrap${_tpNew}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${(t.gate||noexp)?"":"cursor:pointer;"}${lk?"opacity:.38;filter:grayscale(.6)":""}"${(t.gate||noexp)?"":` onclick="rowToggle(event,'${key}')"`}>
    ${t.gate?gateControl(l,t,i,lk):`<button type="button" class="st ${lk?"":t.st}" ${lk?'aria-disabled="true"':""} aria-label="${lk?"locked — "+esc(lockReason(l,t)):"status: "+stWord(t.st)+" — left-click to advance, right-click to step back"}" title="${lk?"locked — "+esc(lockReason(l,t)):"left-click: advance · right-click: step back"}" onclick="cycle('${l.slug}',${i},this)" oncontextmenu="cycleBack('${l.slug}',${i},this);return false">${lk?"🔒":stIcon[t.st]}</button>`}
    <span>${vn?`<span class="v3code"><!--notx-->${esc(t.code)}<!--/notx--></span> `:""}${esc(flowTaskName(t))}${t.gate?' <span style="color:var(--purple)">◆</span>':""}${vn&&vn.days==null&&t.days==null&&t.st!=="x"&&!vn.ongoing?`<span class="daysmiss" title="${LANG==="zh"?"此步驟天數尚未填寫":"this step still needs a day estimate"}">⏱ ${LANG==="zh"?"天數未填":"days unset"}</span>`:""}
     ${EVID.has(t.code)&&!lk&&!(t.links||[]).length?`<span class="urg" style="background:#13262e;color:#67e8f9" title="${LANG==="zh"?"標記完成前必須附上證明連結":"a link must be attached before this can be checked"}">📎 ${LANG==="zh"?"待附證明":"evidence"}</span>`:""}
@@ -4186,22 +4179,13 @@ function homeDept(){
   };
   const ord=x=>[x.t.st==="b"?0:1, x.gate?0:1, x.cp?0:1, x.rem==null?9999:x.rem, UO[x.t.urg]??2];
   const rowCmp=(a,b)=>{const ka=ord(a),kb=ord(b); for(let i=0;i<ka.length;i++) if(ka[i]!==kb[i]) return ka[i]-kb[i]; return 0;};
-  // 理由行：讓排序自己解釋自己 —— 最多三個訊號，先重後輕
-  const why=g=>{ const r=[];
-    if(g.blk.length) r.push(`<span style="color:var(--red)">⛔ ${g.blk.length} ${T("項受阻","blocked")}</span>`);
-    if(g.gate) r.push(`<span style="color:var(--amber)">🚧 ${T(Y+"的步驟擋住「"+g.l.stage+"」關卡",(person?"your":"this team's")+" step holds the "+g.l.stage+" gate")}</span>`);
-    if(g.cp&&!g.gate) r.push(`<span style="color:var(--amber)">🎯 ${T("下一步在關鍵路徑上 — 晚一天，上市晚一天","next step is on the critical path")}</span>`);
-    if(g.over>0) r.push(`<span style="color:var(--amber)">⏰ ${T("最急一項已逾期 "+g.over+" 天","most overdue task is "+g.over+"d late")}</span>`);
-    if(g.slip>0) r.push(`📉 ${T("比基準晚 "+g.slip+" 天","running "+g.slip+"d behind baseline")}`);
-    if(!g.acts.length&&!g.blk.length) r.push(`🔒 ${T("全部在等前置，還輪不到"+Y,"all steps wait on prerequisites")}`);
-    if(!r.length) r.push(`✅ ${T("照排程走","on plan")}`);
-    return r.slice(0,3).join('<span class="pv-sep">·</span>'); };
+  // 理由行已移除（使用者裁決 2026-08-12）：訊號跟列尾的「🚧 擋關卡 · 逾期 n 天」重複——排序照舊，
+  // 解釋交給標題下那行一次性的說明＋每列自己的尾巴。列也不給展開（noexp）：詳情點產品名進卡片看。
   const prodHTML=groups.map((g,gi)=>{ const l=g.l;
-    const rows=[...g.blk,...g.acts].sort(rowCmp).map(x=>taskRow(l,x.t,dueTxt(x))).join("");
-    const lkdRows=g.lkd.sort(rowCmp).map(x=>taskRow(l,x.t,T("等前置","waiting"))).join("");
+    const rows=[...g.blk,...g.acts].sort(rowCmp).map(x=>taskRow(l,x.t,dueTxt(x),false,true)).join("");
+    const lkdRows=g.lkd.sort(rowCmp).map(x=>taskRow(l,x.t,T("等前置","waiting"),false,true)).join("");
     return `<div class="panel pv-prod">
      <div class="pv-head"><span class="pv-rank">${String(gi+1).padStart(2,"0")}</span><b class="pv-name" onclick="openL('${l.slug}')" title="${T("開啟卡片","open the card")}"><!--notx-->${esc(l.name)}<!--/notx--></b>${lTpl(l)==="update"?`<span class="pill" title="${T("產品更新流程（簡化版）","product-update flow (simplified)")}">🔁 ${T("產品更新","Update")}</span>`:""}<span class="pill">${l.stage}</span><span class="pv-meta">${g.slip>0?`<span class="pill bad" title="${T("比基準上市日晚","days behind the baseline launch date")}">+${g.slip}d</span>`:""}${g.proj?`<span class="ghostnote" title="${T("預計上市日","projected launch date")}">🗓 ${fmt(g.proj)}</span>`:""}</span></div>
-     <div class="pv-why">${why(g)}</div>
      ${rows||`<div class="sub">${T("沒有可動工的任務。","Nothing actionable right now.")}</div>`}
      ${g.lkd.length?`<details class="pv-locked"><summary>🔒 ${T("等待前置","Waiting on prerequisites")} · ${g.lkd.length}</summary>${lkdRows}</details>`:""}
     </div>`; }).join("");
