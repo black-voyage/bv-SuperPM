@@ -1,0 +1,5 @@
+# gcloud run deploy --source 上傳範圍（chat-proxy/ 自己沒有 .gitignore，沒這檔會整包 node_modules 上傳）
+.gcloudignore
+node_modules/
+npm-debug.log
+.env

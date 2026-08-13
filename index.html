@@ -1309,6 +1309,7 @@ function v3Advance(l){ // derive stage (= first phase with open work) + complete
     else { if(h&&!h.end)h.end=today; l.history.push({stage:ph,start:today}); }
     l.stage=ph; }
   syncProjected(l);   // 任一狀態變更（勾完成 C1、gate 核准…）都經 v3Advance → 重算預計上市日並鏡射到 l.target
+  ntfSweep(l);        // Slack「輪到你了」DM —— 這裡是所有解鎖變化的共同出口（使用者操作與快照載入都經過）
 }
 function v3SetDays(slug,i,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;const n=parseInt(v,10);t.days=isNaN(n)?null:n;syncProjected(l);save();render();}
 // 日期寫入口（大貨樣日／到貨日）。到貨日守門照 v3SetDue 的模式：擋不可能的輸入，不擋「過去」。
@@ -1319,7 +1320,7 @@ function v3SetDate(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;
     const fl=v3ArrivalFloor(l);
     if(fl&&v<fl){toast(LANG==="zh"?("到貨日不可早於大貨完工日 "+fmt(fl)):("arrival can't be before mass production finished "+fmt(fl)));render();return;}}
   t[k]=v||"";
-  v3ReconcileLoud(l); syncProjected(l); save(); render();}
+  v3ReconcileLoud(l); syncProjected(l); ntfSweep(l); save(); render();}   // sweep 補刀：sampleDate 影響 P5 解鎖，而這條寫入路不經 v3Advance
 // 完成日／開工日的修正入口 —— 每條蓋章路徑都寫死 today，補勾一天就把整條 DAG（含預計上市日）往後推，
 // 而退回重勾只會再蓋今天。守門：完成日不可早於任一前置的完成日（否則排程倒著跑），也不可填未來。
 function v3SetStamp(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;
@@ -2549,6 +2550,52 @@ function fbWriteNow(force){
   window.addEventListener("pagehide",flush);
   document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") flush(); });
 })();
+
+/* ----- Slack 任務通知（2026-08-13）-----
+   「輪到你了」：步驟的前置全部完成（解鎖）且還是待辦時，DM 負責人。走 chat-proxy 的 /notify
+   （同一台 Cloud Run，bot token 在 Secret Manager —— 前端永遠看不到 token）。
+   偵測掛在 v3Advance 尾端：使用者操作與快照載入（applySnapshot→v3SyncTasks）都經過那裡，不必在每個
+   commit 點各插一刀。防重發＝任務上的 ntf 旗標 —— 隨 LAUNCHES 進快照持久化（v3SyncTasks 重建沿用舊
+   任務物件所以旗標不掉）；apply 途中標的旗標由 self-heal 回寫（cleaned!==data.state 那條路）帶上雲。
+   被退回鎖住 → 清旗標＋重新武裝 NTFSENT，之後再解鎖會再通知一次。
+   l.ntfInit＝每張卡第一次掃描只「靜默補標」不發送：部署上線那刻不轟炸；代價是新建卡送出後的第一波
+   解鎖不 DM（建卡人自己剛填完 intake，知道下一步）。
+   FB.serverSeen 之前（本地預覽、localStorage 開機殘影、未登入）完全不動作 —— 預覽檔絕不誤發真 DM。 */
+const NOTIFY_API_URL="https://bv-superpm-chat-475005600052.us-central1.run.app/notify";  // 同 CHAT_API_URL 那台（bv-infra-499600），見 FIREBASE-DEPLOY.md
+const NOTIFY_HOSTS=["bv-superpm.web.app","bv-superpm.firebaseapp.com"];  // 只有正式站可以發 —— FIREBASE_CONFIG 內嵌在檔案裡，本地副本登入後 serverSeen 也會 true，沒這道會誤發真 DM
+const SLACK_IDS={  // PEOPLE.name → Slack member ID（BlackVoyage workspace，2026-08-13 用 users.lookupByEmail 對出）。Ben 之後補；「各攝影師」靠任務的 assignee 指名真人後才有對象
+  Zac:"U0B9DUYFJE9", Oume:"U0BH4JGS8TC", Mi:"U0BNNH4EECA", Ann:"U0BNLJ7Q79C", Angel:"U0BPDUPPBFB", LC:"U0B9AH9L6GK"};
+let NTFQ=[], NTFT=null; const NTFSENT=new Set();   // 待送佇列＋本分頁已發集合（旗標被 LWW 併發洗掉時的第二道防重發）
+function ntfSweep(l){
+  if(!FB.ready||!FB.serverSeen||FB.stale) return;
+  if(NOTIFY_HOSTS.indexOf(location.hostname)<0&&!window.NTF_TEST) return;   // 本地檔案／預覽（file:// 或其他 host）一律不發也不標；NTF_TEST 只給無頭測試 driver 用
+  if(!l.ntfInit){ (l.tasks||[]).forEach(t=>{ if(t.code&&!taskLocked(l,t)) t.ntf=1; }); l.ntfInit=1; return; }
+  (l.tasks||[]).forEach(t=>{
+    if(!t.code) return;
+    const key=l.slug+"|"+t.code;
+    if(taskLocked(l,t)){ if(t.ntf)delete t.ntf; NTFSENT.delete(key); return; }   // 退回鎖住：清旗標，再解鎖要再通知
+    if(t.ntf) return;
+    t.ntf=1;
+    if(t.st!=="o"||NTFSENT.has(key)) return;   // 已動工/卡住/完成 → 只補標不發
+    NTFSENT.add(key);
+    const vn=V3MAP[t.code];
+    (t.assignee?[t.assignee]:v3Owners(vn?v3Own(vn):"")).forEach(p=>{
+      const uid=SLACK_IDS[p]; if(!uid) return;   // 沒對照的人（Ben／未指名的各攝影師）靜默略過
+      NTFQ.push({uid, launch:l.name, step:(FLOWZH[t.t]||t.t), days:(t.days==null?null:t.days)});
+    });
+  });
+  if(NTFQ.length){ clearTimeout(NTFT); NTFT=setTimeout(()=>ntfFlush(false),1200); }
+}
+function ntfFlush(unload){
+  if(!NTFQ.length) return;
+  const events=NTFQ.splice(0,20); NTFT=null;
+  // fire-and-forget：text/plain＝CORS simple request（關分頁時 keepalive 也送得出去）；失敗不重試 —— 旗標已標，寧漏勿轟
+  try{ fetch(NOTIFY_API_URL,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify({events}),keepalive:!!unload}).catch(()=>{}); }catch(e){}
+  if(NTFQ.length){ clearTimeout(NTFT); NTFT=setTimeout(()=>ntfFlush(false),1200); }
+}
+window.addEventListener("pagehide",()=>ntfFlush(true));
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") ntfFlush(true); });
+
 function exportJSON(){try{
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([snapshot()],{type:"application/json"}));

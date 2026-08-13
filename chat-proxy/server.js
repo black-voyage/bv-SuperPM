@@ -67,5 +67,50 @@ app.post("/chat", async (req, res) => {
   }
 });
 
+// ----- Slack task notifications (/notify, 2026-08-13) -----
+// Body: {events:[{uid,launch,step,days}]}. The app sends Content-Type text/plain so the request stays a
+// CORS "simple request" (works with fetch keepalive on tab close — no preflight to lose). DMs each uid via
+// chat.postMessage (SLACK_BOT_TOKEN from Secret Manager), grouped one message per person.
+// Hardening beyond /chat's posture: uid ALLOWLIST (only known team member IDs are reachable at all) and a
+// server-side message template (caller text is clipped into fixed slots, never posted verbatim) — a
+// non-browser caller can at worst send a well-formed task line to a teammate, not arbitrary spam.
+const SLACK_ALLOWED = new Set((process.env.SLACK_ALLOWED_UIDS ||
+  "U0B9DUYFJE9,U0BH4JGS8TC,U0BNNH4EECA,U0BNLJ7Q79C,U0BPDUPPBFB,U0B9AH9L6GK")
+  .split(",").map((s) => s.trim()).filter(Boolean));
+const clip = (s, n) => String(s == null ? "" : s).replace(/[\u0000-\u001f]+/g, " ").trim().slice(0, n);
+app.post("/notify", express.text({ type: "text/*", limit: "64kb" }), async (req, res) => {
+  try {
+    const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.ip || "unknown";
+    if (rateLimited(ip)) return res.status(429).json({ error: { message: "Too many requests — please slow down." } });
+    if (!process.env.SLACK_BOT_TOKEN) return res.status(503).json({ error: { message: "SLACK_BOT_TOKEN not set on the server" } });
+    let body = req.body;
+    if (typeof body === "string") { try { body = JSON.parse(body); } catch (e) { return res.status(400).json({ error: { message: "bad JSON" } }); } }
+    const events = Array.isArray(body && body.events) ? body.events.slice(0, 20) : [];
+    const byUid = {};
+    for (const ev of events) {
+      const uid = clip(ev && ev.uid, 20);
+      if (!SLACK_ALLOWED.has(uid)) continue; // unknown target → drop silently
+      const days = parseInt(ev && ev.days, 10);
+      (byUid[uid] = byUid[uid] || []).push(
+        "•《" + (clip(ev.launch, 60) || "?") + "》" + (clip(ev.step, 80) || "?") +
+        (isNaN(days) ? "" : "（預估 " + Math.min(365, Math.max(0, days)) + " 天）"));
+    }
+    const results = [];
+    for (const uid of Object.keys(byUid)) {
+      const text = "🔓 該你上場 — 前置已完成，可以開工：\n" + byUid[uid].join("\n") + "\n→ https://bv-superpm.web.app";
+      const r = await fetch("https://slack.com/api/chat.postMessage", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + process.env.SLACK_BOT_TOKEN, "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ channel: uid, text, unfurl_links: false, unfurl_media: false }),
+      });
+      const j = await r.json().catch(() => ({}));
+      results.push({ uid, ok: !!j.ok, error: j.ok ? undefined : (j.error || ("http " + r.status)) });
+    }
+    res.json({ ok: true, sent: results });
+  } catch (e) {
+    res.status(500).json({ error: { message: String(e) } });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("chat proxy listening on " + PORT));
