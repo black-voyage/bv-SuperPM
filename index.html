@@ -2472,6 +2472,13 @@ function startBoardSync(){
       if(!fromCache){ FB.serverSeen=true; FB.synced=true; fbStatus("● live (shared)","var(--green)"); }  // authoritative server data has arrived
       if(!snap.exists){ if(!fromCache) fbWriteNow(true); return; }   // seed the cloud ONLY when the SERVER confirms there is no board — NEVER from a cache miss (that was wiping fresh sign-ins with the demo seed)
       const data=snap.data(); if(!data||typeof data.state!=="string") return;
+      // 舊版分頁偵測（appv 欄位 2026-08-13 起必帶）：session 中途收到「不帶 appv」的寫入＝部署前就開著的
+      // 舊分頁還在寫 —— 它的模板會剃掉新節點（KOL 併點等），套用＝全隊回朔。不套用、點名提醒、
+      // 排程把乾淨狀態寫回去修復共享文件。boot 時（lastAt 還空）不擋：歷史文件本來就沒有 appv。
+      if(data.appv==null&&FB.lastAt){
+        if(data.updatedBy&&data.updatedBy!==actor()&&Date.now()-(FB._oldTabToastAt||0)>60000){ FB._oldTabToastAt=Date.now();
+          toast("⚠️ "+data.updatedBy+(LANG==="zh"?" 的分頁是舊版（更新已忽略）— 請他重新整理頁面":"'s tab runs an old build (update ignored) — ask them to reload")); }
+        fbSchedule(); return; }
       // 版本閘：這份資料是更新版程式碼寫的 → 本分頁已過期。停止主文件與版本集寫入（舊版模板會剃掉新節點再寫回＝全隊回朔），提示重整。
       // 逃生口：hosting rollback 到舊版會讓「全隊 appv 都比文件小」而集體鎖死 —— 網址加 ?forcewrite 可解鎖（維運用）。
       if((+data.appv||0)>APPVER&&location.search.indexOf("forcewrite")<0){
@@ -2679,6 +2686,17 @@ const NAVS=[["home","Home"],["portfolio","Portfolio"],["progress","Progress"],["
 const stIcon={x:"✓",p:"…",b:"!",o:"○"};
 const fmt=d=>new Date(d+"T00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
 const today=pjToday();   // real current date (Asia/Taipei) — was hardcoded "2026-06-10", which made launch-board due/overdue math stale
+/* 跨夜分頁殺手（2026-08-13，回朔追兇第三輪）：today 是載入當下的常數 —— P5 的 sampleDate 解鎖、
+   預計上市日 clamp、逾期計算全吃它。兩個開在「不同日期」的分頁對同一份資料會算出不同的鎖定與
+   l.target，v3Reconcile 與 self-heal 便互相「修正」＝無聲回朔製造機，且雙方都是「新」寫入、
+   時序防護攔不到。解法：日期一換就重載 —— 藏在背景就立刻重載；還在前景就先提示，切到背景才動手
+   （不打斷正在輸入的人）。pagehide flush 會把佇列中的改動送出，重載不丟資料。 */
+setInterval(()=>{ try{ if(pjToday()===today) return;
+  if(document.hidden){ location.reload(); return; }
+  if(!window._dayFlip){ window._dayFlip=1;
+    toast(LANG==="zh"?"📅 日期已更換 — 分頁會在切到背景時自動更新":"📅 date rolled over — this tab refreshes when backgrounded");
+    document.addEventListener("visibilitychange",()=>{ if(document.hidden) location.reload(); }); }
+}catch(e){} },60000);
 seedStamps();            // 種子卡 doneAt/startAt：要等 today 與所有日期 helper 都出了 TDZ 才能跑（宣告處有完整說明）
 // 只推導「目前階段」。history 是走過的紀錄 —— 改寫最後一筆會製造相鄰重複段（同一份階段預算被比對兩次）
 // 並吃掉真正待過的階段（Cyclone 的 Marketing Prep 段整段消失，8/12 步的進度變成「還沒開始」）。
