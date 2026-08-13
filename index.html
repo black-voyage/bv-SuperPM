@@ -2406,7 +2406,18 @@ const CORE_CONFIG={
   messagingSenderId:"100585934071",
   appId:"1:100585934071:web:7f5c941dcd1e8959dc57f2"
 };
-let FB={ready:false,synced:false,serverSeen:false,boardStarted:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null,coreDb:null};
+/* 共享看板的併發防護（2026-08-13，修「點完成後回朔」）：
+   ① rev 世代序號 —— 每次寫入 +1 並存進文件與 localStorage；onSnapshot 收到「比我已知世代舊」的快照
+      （Firestore 快取回放、亂序、慢寫）一律不套，杜絕舊資料整份蓋掉新記憶體。
+   ② dirty-flush —— 「timer 佇列中 **且資料內容真的變了**」時收到遠端快照：先把自己的送出，不讓遠端把
+      「剛點的完成」從記憶體洗掉；被蓋掉的遠端版本記進 History 並 toast。timer 本身不可靠（render() 每次
+      都 save()，光切頁也會武裝 timer），一定要再比內容。粒度仍是整份文件的 last-write-wins（set 非 merge）
+      ——併發雙方動「不同卡」仍會互蓋，只是輸家的版本留在歷史可還原；真正的修法是分卡儲存，屬後續工程。
+   ③ APPVER 版本閘 —— 文件帶著寫入者的程式版本；舊分頁收到更新版寫的資料 → 停止寫入＋要求重整，
+      否則舊版 v3SyncTasks 會把它不認識的新節點（例：KOL 併點）剃掉再整份寫回，全隊一起回朔。
+      注意：閘門只約束「有這段程式碼的分頁」，部署當下已經開著的更舊分頁管不到 —— 部署後請全員重整一次。 */
+const APPVER=20260813;   // 資料形狀（V3 模板節點/階段/欄位）有變的部署，把這裡改成當天日期
+let FB={ready:false,synced:false,serverSeen:false,boardStarted:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null,coreDb:null,rev:0,stale:false,lastHeal:null,_stalePrompted:false};
 let _pdCore=[],_pdFb=[];   // product_docs: Core copy vs bv-superpm fallback (shared across fbInit + startBoardSync)
 let ME=null;        // the signed-in person {uid,email,name,photo} — Firebase Auth identity (any Google account)
 let ACTIVITY=[];    // shared, attributed team activity feed (Firestore bv/superpm/activity)
@@ -2421,6 +2432,7 @@ function fbInit(){
     if(!firebase.apps||!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     FB.docRef=firebase.firestore().collection("bv").doc("superpm");
     FB.versRef=FB.docRef.collection("versions");
+    try{ FB.rev=parseInt(localStorage.getItem("bv-superpm-rev"),10)||0; }catch(e){}   // 上次寫到的世代——沒送出去的最終寫入靠它在重開後不被舊雲端蓋掉
     FB.ready=true; fbStatus("◍ connecting…","var(--amber)");
     try{ firebase.auth().onAuthStateChanged(onUser); }catch(e){ authGate(false); startBoardSync(); }  // hard sign-in gate; if auth is unavailable, still load the board
     // shared KNOWLEDGE base + cross-app MEMORY — read from the BV DATA CORE (bv-second-brain), a SEPARATE
@@ -2448,15 +2460,39 @@ function startBoardSync(){
       if(!fromCache){ FB.serverSeen=true; FB.synced=true; fbStatus("● live (shared)","var(--green)"); }  // authoritative server data has arrived
       if(!snap.exists){ if(!fromCache) fbWriteNow(true); return; }   // seed the cloud ONLY when the SERVER confirms there is no board — NEVER from a cache miss (that was wiping fresh sign-ins with the demo seed)
       const data=snap.data(); if(!data||typeof data.state!=="string") return;
+      // 版本閘：這份資料是更新版程式碼寫的 → 本分頁已過期。停止主文件與版本集寫入（舊版模板會剃掉新節點再寫回＝全隊回朔），提示重整。
+      // 逃生口：hosting rollback 到舊版會讓「全隊 appv 都比文件小」而集體鎖死 —— 網址加 ?forcewrite 可解鎖（維運用）。
+      if((+data.appv||0)>APPVER&&location.search.indexOf("forcewrite")<0){
+        FB.stale=true; clearTimeout(FB.timer); FB.timer=null;
+        fbStatus(LANG==="zh"?"● 舊版分頁 — 請重新整理":"● stale tab — please reload","var(--red)");
+        if(!FB._stalePrompted){ FB._stalePrompted=true;
+          (async()=>{ if(await uiConfirm(LANG==="zh"?"系統已部署新版本，此分頁已過期。重新整理載入新版？（不重整的話，此分頁會停止寫入以保護共享資料）":"A newer version was deployed and this tab is stale. Reload now? (If not, this tab stops writing to protect shared data.)",true)) location.reload(); })(); }
+        return; }
+      const rrev=(+data.rev||0);
+      if(rrev>0&&FB.rev>0&&rrev<FB.rev){ fbStatus(LANG==="zh"?"◍ 等待同步…":"◍ syncing…","var(--amber)"); return; }   // 比我已知世代舊的快照（快取回放／亂序／慢寫）— 不套，防「舊蓋新」；燈轉黃讓人看得出正在等
+      // dirty＝「資料真的跟共享庫不同」：render() 每次都 save()→武裝 timer，光切頁/打搜尋也會有 timer，
+      // 所以必須再比內容 —— 否則「正在瀏覽的人」會拿舊記憶體 force-write 蓋掉同事剛送上來的合法更新。
+      const dirty=FB.timer&&FB.lastWritten!==null&&verSnap()!==FB.lastWritten&&verSnap()!==data.state;
+      if(dirty){                                               // 真的有未送出的改動（剛點的完成卡在 debounce）——先送自己的，別讓遠端洗掉
+        clearTimeout(FB.timer); FB.timer=null;
+        FB.rev=Math.max(FB.rev,rrev);
+        recordRemoteVersion(data.updatedBy,data.state);        // 被本機蓋掉的那一版留進歷史，出事還原得回來
+        if(data.updatedBy&&data.updatedBy!==actor()) toast(LANG==="zh"?"⚠️ 與 "+data.updatedBy+" 的更新同時發生 — 已以本機為準（對方版本在歷史裡）":"⚠️ concurrent update by "+data.updatedBy+" — kept local (theirs is in History)");
+        fbWriteNow(true); return; }
+      FB.rev=Math.max(FB.rev,rrev);
       if(data.state===verSnap()){ FB.lastWritten=data.state; return; } // already identical
       FB.applying=true;
       recordRemoteVersion(data.updatedBy,data.state);        // log who changed what, before applying
-      try{ applySnapshot(JSON.parse(data.state)); }catch(e){}
-      const cleaned=verSnap();                               // applySnapshot may have stripped orphan tasks (reconcileLaunchTasks)
-      FB.lastWritten=data.state; _lastVerKey=cleaned;        // already captured above as a remote version
-      try{ if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot()); }catch(e){}
-      render(); FB.applying=false;
-      if(cleaned!==data.state) fbWriteNow(true);             // self-heal: persist the reconciled board so the shared doc is clean for everyone (the echo equals verSnap() and is ignored, so no write loop)
+      try{
+        try{ applySnapshot(JSON.parse(data.state)); }catch(e){}
+        var cleaned=verSnap();                               // applySnapshot may have stripped orphan tasks (reconcileLaunchTasks)
+        FB.lastWritten=data.state; _lastVerKey=cleaned;      // already captured above as a remote version
+        try{ if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot()); }catch(e){}
+        render();
+      } finally { FB.applying=false; }                       // render() 拋錯不能讓 applying 卡 true（那會讓 fbSchedule 永遠不排程＝之後的編輯全都上不了雲）
+      // self-heal 加冪等去重：正規化含 projLaunchDate（吃 page-load 的 today 常數），跨日的兩個分頁會各算各的
+      // 而互相「修正」——同一份 heal 內容只寫一次，斷掉無限來回寫。
+      if(cleaned!==data.state&&cleaned!==FB.lastHeal){ FB.lastHeal=cleaned; fbWriteNow(true); }
       if(data.updatedBy&&data.updatedBy!==actor()) toast(LANG==="zh"?"🔄 "+data.updatedBy+" 已更新看板":"🔄 "+data.updatedBy+" updated the board");
     }, err=>{ fbStatus("● offline","var(--red)"); });
     FB.versRef.orderBy("createdAt","desc").limit(120).onSnapshot(qs=>{   // shared version history (History tab)
@@ -2469,14 +2505,26 @@ function startBoardSync(){
     firebase.firestore().collection("skills").onSnapshot(qs=>{KNOWLEDGE.skills=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // SuperPM playbooks/skills injected into the chat prompt
   }catch(e){ fbStatus("● error","var(--red)"); }
 }
-function fbAddVersion(entry){ try{ FB.versRef.add(Object.assign({},entry,{createdAt:firebase.firestore.FieldValue.serverTimestamp()})); }catch(e){} }
-function fbSchedule(){ if(!FB.ready||FB.applying) return; clearTimeout(FB.timer); FB.timer=setTimeout(()=>fbWriteNow(false),700); }
+function fbAddVersion(entry){ if(FB.stale)return; try{ FB.versRef.add(Object.assign({},entry,{createdAt:firebase.firestore.FieldValue.serverTimestamp()})); }catch(e){} }   // stale 分頁連版本集也不寫——舊形狀 snap 被 restore 回主文件＝回朔洗白
+function fbSchedule(){ if(!FB.ready||FB.applying||FB.stale) return; clearTimeout(FB.timer); FB.timer=setTimeout(()=>{FB.timer=null;fbWriteNow(false);},700); }
 function fbWriteNow(force){
-  if(!FB.ready||!FB.synced||!FB.serverSeen) return;        // never write before the authoritative remote board has loaded (prevents the demo-seed overwrite)
+  if(!FB.ready||!FB.synced||!FB.serverSeen||FB.stale) return;   // never write before the authoritative remote board has loaded (prevents the demo-seed overwrite); stale 分頁不寫主文件
   const s=verSnap(); if(!force && s===FB.lastWritten) return;
   FB.lastWritten=s;
-  try{ FB.docRef.set({state:s,updatedBy:actor(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()}); }catch(e){}
+  // rev 只在伺服器 ack 後才 +1 並落 localStorage —— 立刻 +1 的話，pagehide 那筆常常送不完，
+  // 重開後本地 rev 領先實際雲端，rev 守衛會整份拒收同事的合法更新（對抗審查抓到的窗口）。
+  const nrev=(FB.rev||0)+1;
+  try{ FB.docRef.set({state:s,rev:nrev,appv:APPVER,updatedBy:actor(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()})
+    .then(()=>{ FB.rev=Math.max(FB.rev||0,nrev); try{ localStorage.setItem("bv-superpm-rev",String(FB.rev)); }catch(e){} })
+    .catch(()=>{ fbStatus(LANG==="zh"?"● 寫入失敗 — 未同步":"● write failed","var(--red)"); });   // set() 失敗是 rejected Promise，不是同步 throw —— 沒有這個 .catch 使用者零感知
+  }catch(e){ fbStatus(LANG==="zh"?"● 寫入失敗 — 未同步":"● write failed","var(--red)"); }
 }
+// 分頁隱藏／關閉時把 debounce 佇列裡的改動立刻送出 —— 否則「點完成→馬上關分頁」那筆永遠到不了雲端，
+// 下次打開就是舊資料（使用者回報的另一種「回朔」）。pagehide 不保證送得完，visibilitychange(hidden) 通常來得及。
+(function(){ const flush=()=>{ if(FB.timer){ clearTimeout(FB.timer); FB.timer=null; try{ fbWriteNow(false); }catch(e){} } };
+  window.addEventListener("pagehide",flush);
+  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") flush(); });
+})();
 function exportJSON(){try{
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([snapshot()],{type:"application/json"}));
