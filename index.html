@@ -343,6 +343,7 @@
   .card-kv .r{display:flex;justify-content:space-between;gap:10px;font-size:12px;min-width:0}
   .card-kv .k{flex:none;color:var(--faint)}
   .card-kv .v{color:var(--dim);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .card-kv .r.wrapv .v{white-space:normal;overflow:visible;text-overflow:clip}   /* 並行 chips 那行可換行——被省略號吃掉人名＝資訊失真 */
   /* 進度條／點點／計數列已從卡片移除（2026-07-31），這裡自己撐開與 card-kv 的間距 */
   .card-ft{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:9px}
   .bar{height:5px;background:var(--panel2);border-radius:var(--r-xs);margin:8px 0 6px;overflow:hidden}
@@ -894,6 +895,7 @@
   .o-stage{color:var(--faint);font-size:12px}
   .o-collabs{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
   .o-collab{font-size:11px;padding:0 6px;border:1px solid var(--line);border-radius:var(--r-xs);line-height:1.7}
+  .ballchip{display:inline-block;font-size:11px;font-weight:600;padding:0 6px;margin:1px 4px 1px 0;border:1px solid var(--line);border-radius:var(--r-xs);line-height:1.7;font-variant-numeric:tabular-nums}
   /* task-panel notes thread */
   /* .tnote* 這組是「卡片層備註（risks）」在用的樣式（任務層筆記 2026-08-11 已拆除，勿因此誤刪這組） */
   .tnotes{display:flex;flex-direction:column}
@@ -1549,6 +1551,15 @@ const benQueue = () => LAUNCHES.filter(l=>!l.complete).flatMap(l=>l.tasks.filter
 const nextUnmetC = l => { const g=gateState(l);
   return g.cs.find(c=>c.task&&c.task.st!=="x"&&!taskLocked(l,c.task))||g.cs.find(c=>c.task&&c.task.st!=="x")||null; };
 const nextUnmet = l => { const c=nextUnmetC(l); return c?c.t:null; };
+/* 「目前在」v2（2026-08-13 使用者裁決）：DAG 是並行的，單一部門指標會把多人並行讀成「全卡在產品」。
+   拆成兩個訊號：①關鍵路徑上第一個未完成步驟＝真正決定上市日的那一步（＋負責人）；
+   ②「誰手上有球」＝所有已解鎖未完成步驟按負責人彙整（複合負責人兩邊都算——球在兩個人手上）。 */
+const v3CpNow=l=>{ if(l.complete)return null; for(const c of v3CriticalPath(l)){ const t=v3Task(l,c); if(t&&t.st!=="x") return t; } return null; };
+function v3BallChips(l){ const m={};
+  (l.tasks||[]).forEach(t=>{ if(!t.code||t.st==="x"||taskLocked(l,t))return;
+    const vn=V3MAP[t.code]; v3Owners(vn?v3Own(vn):"").forEach(p=>{m[p]=(m[p]||0)+1;}); });
+  return Object.keys(m).map(p=>`<span class="ballchip" style="color:${v3OColor(p)}" title="${LANG==="zh"?"手上可動工的步驟數":"actionable steps in hand"}"><!--notx-->${esc(p)}<!--/notx--> ${m[p]}</span>`).join("");
+}
 
 /* ================= TRIGGER-DAG UNLOCK ENGINE (V3) =================
    A step unlocks when ALL its `req` predecessors are done (cross-lane, cross-phase). C1 (the
@@ -1854,7 +1865,7 @@ function criticalNext(l){
   const any=nextUnmetC(l); return any?{t:any.t,d:any.d}:null;
 }
 // which department progress is currently sitting with — derived from the next unmet gate criterion, NOT a manually-chosen DRI
-function progressDept(l){ if(l.complete)return ""; const cn=criticalNext(l); return cn?cn.d:""; }
+// progressDept()（單一「目前在」部門）已由 v3CpNow＋v3BallChips 取代（2026-08-13）——單點指標會把並行讀成「全卡在一個部門」
 const wip=d=>LAUNCHES.filter(l=>!l.complete).reduce((a,l)=>a+l.tasks.filter(t=>t.d===d&&t.st==="p").length,0);
 // keyed by CODE (syncDecisionReq writes it) — titles drift with the template, codes don't
 const decisionAge=(l,c)=>{const d=(l.decisionRequested||{})[c]; return d?Math.max(0,dayDiff(d,today)):0;};
@@ -3528,7 +3539,11 @@ const cardHTML=l=>{const [h,cls]=health(l);
   return `<div class="card" onclick="openL('${l.slug}')">
   <div class="card-hd"><span class="nm">${l.name}${lTpl(l)==="update"?` <span class="o-collab" style="font-size:10px;vertical-align:2px" title="${LANG==="zh"?"產品更新流程":"product-update flow"}">🔁 ${LANG==="zh"?"更新":"update"}</span>`:""}</span><button class="card-x" title="Delete this launch" aria-label="Delete this launch" onclick="event.stopPropagation();deleteLaunch('${l.slug}')">✕</button></div>
   <div class="card-kv">
-    <div class="r"><span class="k">Now at:</span><span class="v">${l.complete?`<b style="color:var(--green)">✓ Complete</b>`:`<b style="color:${DCOLOR(progressDept(l))}">${esc(progressDept(l)||"—")}</b>`}</span></div>
+    ${(()=>{ if(l.complete) return `<div class="r"><span class="k">${LANG==="zh"?"目前進度":"Now at"}</span><span class="v"><b style="color:var(--green)">✓ Complete</b></span></div>`;
+      const ct=v3CpNow(l), co=ct?v3Own(V3MAP[ct.code]):"";   // 關鍵路徑＝決定上市日的那一步；其他人不是不動，是並行
+      const chips=v3BallChips(l);
+      return `<div class="r"><span class="k">${LANG==="zh"?"關鍵路徑":"Critical path"}</span><span class="v">${ct?`🎯 <b>${esc(flowTaskName(ct))}</b>${co?` · <span style="color:${v3OColor(co)}"><!--notx-->${esc(co)}<!--/notx--></span>`:""}${taskLocked(l,ct)?" 🔒":""}`:"—"}</span></div>
+      ${chips?`<div class="r wrapv"><span class="k">${LANG==="zh"?"並行":"In hand"}</span><span class="v">${chips}</span></div>`:""}`; })()}
     <div class="r"><span class="k">${lTpl(l)==="update"?(LANG==="zh"?"預計完成":"Proj. done"):(LANG==="zh"?"預計上市":"Projected")}</span><span class="v" style="font-family:var(--font-mono)">🎯 ${isSubmitted(l)?fmt(projLaunchDate(l)):`<span style="color:var(--faint)">${LANG==="zh"?"未送出":"—"}</span>`}</span></div>
   </div>
   <div class="card-ft"><span class="pill ${cls}">${h}</span>${l.complete||!l.baselineTarget?"":` <span class="pill ${floatDays(l)<0?"bad":"ok"}">float ${floatDays(l)}d</span>`}</div></div>`;};
@@ -4564,7 +4579,9 @@ function viewLaunch(){
   <div class="ld-minibar" id="ldMini"><div class="ld-minibar-in">${ldBack}<div class="ld-title-row">${ldId}</div>${ldActs}</div></div>
   <div class="ld-stats">
     <div class="ld-stat"><span class="ld-stat-k">DRI</span><span class="ld-stat-v" style="color:${DCOLOR(l.dri)}">${esc(l.dri)}</span></div>
-    ${l.complete?"":`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"目前在":"Now at"}</span><span class="ld-stat-v" style="color:${DCOLOR(progressDept(l))}">${esc(progressDept(l)||"—")}</span></div>`}
+    ${l.complete?"":(()=>{ const ct=v3CpNow(l), co=ct?v3Own(V3MAP[ct.code]):"", chips=v3BallChips(l);
+      return `<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"關鍵路徑":"Critical path"}</span><span class="ld-stat-v">${ct?`🎯 ${esc(flowTaskName(ct))}${co?` · <span style="color:${v3OColor(co)}"><!--notx-->${esc(co)}<!--/notx--></span>`:""}${taskLocked(l,ct)?" 🔒":""}`:"—"}</span></div>
+      ${chips?`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"並行":"In hand"}</span><span class="ld-stat-v">${chips}</span></div>`:""}`; })()}
     <div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"階段":"Stage"}</span><span class="ld-stat-v">${l.complete?(LANG==="zh"?"已完成":"Complete"):esc(l.stage)}</span></div>
     <div class="ld-stat"><span class="ld-stat-k">${T("開啟","Opened")}</span><span class="ld-stat-v">${fmt(openDate(l))}</span></div>
     <div class="ld-stat"><span class="ld-stat-k">${T("送出","Submitted")}</span><span class="ld-stat-v">${submitted?fmt(formSubmitDate(l)):`<span style="color:var(--faint);font-weight:500">${T("未送出","—")}</span>`}</span></div>
