@@ -4232,7 +4232,7 @@ function portfolioBoard(){
     return `<div class="pfb-eta"><div class="pfb-etah">${zh?"到貨日／首波開賣":"Arrival / first on sale"}</div>${rows.map(r=>
       `<div class="pfb-etar" onclick="openL('${r.slug}')"><span><!--notx-->${esc(r.n)}<!--/notx--></span><b>${r.d?(r.est?"~":"")+r.d:"—"}</b></div>`).join("")}</div>`;};
   return `<div class="panel"><h3>Portfolio — all launches by stage${S.q?` <span class="ghostnote">(filtered: “${esc(S.q)}”)</span>`:""}</h3><div class="pfb" style="grid-template-columns:repeat(${STAGES.length},minmax(168px,1fr))">${STAGES.map((s,si)=>{
-    const ls=LAUNCHES.filter(l=>l.stage===s&&fq(l));
+    const ls=LAUNCHES.filter(l=>!l.complete&&l.stage===s&&fq(l));   // 完成的卡不佔階段欄（l.stage 停在最後一站）——完成品收在下方健康總覽的「已完成」摺疊區
     const worst=ls.length?Math.max(...ls.map(l=>RANK[health(l)[1]]||0)):-1;
     return `<div class="pfb-stage${ls.length?"":" empty"}"><div class="pfb-node">${
       ls.length?`<span class="pfb-dot" style="background:${DOTC[worst]}"></span>`:`<span class="pfb-dot hollow"></span>`
@@ -4273,7 +4273,8 @@ function portfolioOverview(){
     <div style="overflow-x:auto"><div style="min-width:560px">
     <div style="display:grid;${cols};padding:0 0 4px;font-size:10px;letter-spacing:.05em;color:var(--faint);text-transform:uppercase">
       <span>${T("產品 / 健康","Product / health")}</span><span>${T("階段","Stage")}</span><span>${T("進度","Progress")}</span><span>${T("時程","Schedule")}</span><span>${T("瓶頸部門","Bottleneck")}</span></div>
-    ${rows.map(rowHTML).join("")||`<div class="sub">${T("尚無產品","no products")}</div>`}
+    ${rows.filter(r=>!r.l.complete).map(rowHTML).join("")||`<div class="sub">${T("尚無產品","no products")}</div>`}
+    ${(c=>c.length?`<details class="pv-locked" style="margin-top:10px"><summary>✔ ${T("已完成","Completed")} · ${c.length}</summary>${c.map(rowHTML).join("")}</details>`:"")(rows.filter(r=>r.l.complete))}
     </div></div>
   </div>`;
 }
