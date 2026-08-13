@@ -2407,8 +2407,9 @@ const CORE_CONFIG={
   appId:"1:100585934071:web:7f5c941dcd1e8959dc57f2"
 };
 /* 共享看板的併發防護（2026-08-13，修「點完成後回朔」）：
-   ① rev 世代序號 —— 每次寫入 +1 並存進文件與 localStorage；onSnapshot 收到「比我已知世代舊」的快照
-      （Firestore 快取回放、亂序、慢寫）一律不套，杜絕舊資料整份蓋掉新記憶體。
+   ① 亂序守衛 —— 以文件的 updatedAt（伺服器時間戳）為序，只擋「比本 session 已套用過的還舊」的快照
+      （快取回放、亂序、慢寫），高水位不跨 session 持久化。⚠ 別改回「本機持久化 rev 計數」：舊版分頁
+      整份 set() 會抹掉 rev 欄位、新瀏覽器從 1 重編，本機高水位會把全隊後續合法更新統統擋掉（卡黃燈實案）。
    ② dirty-flush —— 「timer 佇列中 **且資料內容真的變了**」時收到遠端快照：先把自己的送出，不讓遠端把
       「剛點的完成」從記憶體洗掉；被蓋掉的遠端版本記進 History 並 toast。timer 本身不可靠（render() 每次
       都 save()，光切頁也會武裝 timer），一定要再比內容。粒度仍是整份文件的 last-write-wins（set 非 merge）
@@ -2417,7 +2418,7 @@ const CORE_CONFIG={
       否則舊版 v3SyncTasks 會把它不認識的新節點（例：KOL 併點）剃掉再整份寫回，全隊一起回朔。
       注意：閘門只約束「有這段程式碼的分頁」，部署當下已經開著的更舊分頁管不到 —— 部署後請全員重整一次。 */
 const APPVER=20260813;   // 資料形狀（V3 模板節點/階段/欄位）有變的部署，把這裡改成當天日期
-let FB={ready:false,synced:false,serverSeen:false,boardStarted:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null,coreDb:null,rev:0,stale:false,lastHeal:null,_stalePrompted:false};
+let FB={ready:false,synced:false,serverSeen:false,boardStarted:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null,coreDb:null,rev:0,lastAt:null,stale:false,lastHeal:null,_stalePrompted:false};
 let _pdCore=[],_pdFb=[];   // product_docs: Core copy vs bv-superpm fallback (shared across fbInit + startBoardSync)
 let ME=null;        // the signed-in person {uid,email,name,photo} — Firebase Auth identity (any Google account)
 let ACTIVITY=[];    // shared, attributed team activity feed (Firestore bv/superpm/activity)
@@ -2432,7 +2433,7 @@ function fbInit(){
     if(!firebase.apps||!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     FB.docRef=firebase.firestore().collection("bv").doc("superpm");
     FB.versRef=FB.docRef.collection("versions");
-    try{ FB.rev=parseInt(localStorage.getItem("bv-superpm-rev"),10)||0; }catch(e){}   // 上次寫到的世代——沒送出去的最終寫入靠它在重開後不被舊雲端蓋掉
+    try{ localStorage.removeItem("bv-superpm-rev"); }catch(e){}   // v1 rev 高水位已廢（會在混版本環境把全隊卡黃燈）——清掉殘留，別讓舊值復活
     FB.ready=true; fbStatus("◍ connecting…","var(--amber)");
     try{ firebase.auth().onAuthStateChanged(onUser); }catch(e){ authGate(false); startBoardSync(); }  // hard sign-in gate; if auth is unavailable, still load the board
     // shared KNOWLEDGE base + cross-app MEMORY — read from the BV DATA CORE (bv-second-brain), a SEPARATE
@@ -2468,18 +2469,23 @@ function startBoardSync(){
         if(!FB._stalePrompted){ FB._stalePrompted=true;
           (async()=>{ if(await uiConfirm(LANG==="zh"?"系統已部署新版本，此分頁已過期。重新整理載入新版？（不重整的話，此分頁會停止寫入以保護共享資料）":"A newer version was deployed and this tab is stale. Reload now? (If not, this tab stops writing to protect shared data.)",true)) location.reload(); })(); }
         return; }
-      const rrev=(+data.rev||0);
-      if(rrev>0&&FB.rev>0&&rrev<FB.rev){ fbStatus(LANG==="zh"?"◍ 等待同步…":"◍ syncing…","var(--amber)"); return; }   // 比我已知世代舊的快照（快取回放／亂序／慢寫）— 不套，防「舊蓋新」；燈轉黃讓人看得出正在等
+      /* 亂序守衛 v2（2026-08-13 熱修）：v1 用「本機持久化的 rev 計數」當下限，實戰翻車 ——
+         舊版分頁整份 set() 會把 rev 欄位抹掉、新瀏覽器又從 1 重編，本機高水位一比就把所有
+         後續合法更新當舊資料擋掉，全隊卡黃燈。改用伺服器時間戳 updatedAt 排序：只擋
+         「比這個 session 已套用過的還舊」的快照（真正的快取回放/亂序），高水位不跨 session
+         持久化 —— 重開分頁一律接受雲端現況。rev 欄位保留純作 telemetry。 */
+      const at=(data.updatedAt&&data.updatedAt.toMillis)?data.updatedAt.toMillis():0;
+      if(at&&FB.lastAt&&at<FB.lastAt){ fbStatus(LANG==="zh"?"◍ 等待同步…":"◍ syncing…","var(--amber)"); return; }
       // dirty＝「資料真的跟共享庫不同」：render() 每次都 save()→武裝 timer，光切頁/打搜尋也會有 timer，
       // 所以必須再比內容 —— 否則「正在瀏覽的人」會拿舊記憶體 force-write 蓋掉同事剛送上來的合法更新。
       const dirty=FB.timer&&FB.lastWritten!==null&&verSnap()!==FB.lastWritten&&verSnap()!==data.state;
       if(dirty){                                               // 真的有未送出的改動（剛點的完成卡在 debounce）——先送自己的，別讓遠端洗掉
         clearTimeout(FB.timer); FB.timer=null;
-        FB.rev=Math.max(FB.rev,rrev);
+        if(at)FB.lastAt=Math.max(FB.lastAt||0,at);
         recordRemoteVersion(data.updatedBy,data.state);        // 被本機蓋掉的那一版留進歷史，出事還原得回來
         if(data.updatedBy&&data.updatedBy!==actor()) toast(LANG==="zh"?"⚠️ 與 "+data.updatedBy+" 的更新同時發生 — 已以本機為準（對方版本在歷史裡）":"⚠️ concurrent update by "+data.updatedBy+" — kept local (theirs is in History)");
         fbWriteNow(true); return; }
-      FB.rev=Math.max(FB.rev,rrev);
+      if(at)FB.lastAt=Math.max(FB.lastAt||0,at);
       if(data.state===verSnap()){ FB.lastWritten=data.state; return; } // already identical
       FB.applying=true;
       recordRemoteVersion(data.updatedBy,data.state);        // log who changed what, before applying
@@ -2515,7 +2521,7 @@ function fbWriteNow(force){
   // 重開後本地 rev 領先實際雲端，rev 守衛會整份拒收同事的合法更新（對抗審查抓到的窗口）。
   const nrev=(FB.rev||0)+1;
   try{ FB.docRef.set({state:s,rev:nrev,appv:APPVER,updatedBy:actor(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()})
-    .then(()=>{ FB.rev=Math.max(FB.rev||0,nrev); try{ localStorage.setItem("bv-superpm-rev",String(FB.rev)); }catch(e){} })
+    .then(()=>{ FB.rev=Math.max(FB.rev||0,nrev); })
     .catch(()=>{ fbStatus(LANG==="zh"?"● 寫入失敗 — 未同步":"● write failed","var(--red)"); });   // set() 失敗是 rejected Promise，不是同步 throw —— 沒有這個 .catch 使用者零感知
   }catch(e){ fbStatus(LANG==="zh"?"● 寫入失敗 — 未同步":"● write failed","var(--red)"); }
 }
