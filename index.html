@@ -1309,7 +1309,7 @@ function v3Advance(l){ // derive stage (= first phase with open work) + complete
     else { if(h&&!h.end)h.end=today; l.history.push({stage:ph,start:today}); }
     l.stage=ph; }
   syncProjected(l);   // 任一狀態變更（勾完成 C1、gate 核准…）都經 v3Advance → 重算預計上市日並鏡射到 l.target
-  ntfSweep(l);        // Slack「輪到你了」DM —— 這裡是所有解鎖變化的共同出口（使用者操作與快照載入都經過）
+  ntfSweep(l);        // Slack「輪到你了」DM —— 解鎖變化的共同出口；快照載入那條被 ntfSweep 的 FB.applying 守衛擋掉，實際只有做出改動的分頁會掃
 }
 function v3SetDays(slug,i,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;const n=parseInt(v,10);t.days=isNaN(n)?null:n;syncProjected(l);save();render();}
 // 日期寫入口（大貨樣日／到貨日）。到貨日守門照 v3SetDue 的模式：擋不可能的輸入，不擋「過去」。
@@ -1456,7 +1456,7 @@ function v3EtaBulk(l){ // 到貨日：已填 → 直接回傳；未填 → P3 �
 function allTasks(overrides,tpl){
   // built from the TEMPLATE nodes (not GATES — GATES is now the union of both templates)
   const list=TPLS[tpl==="update"?"update":"launch"].nodes.map(n=>v3NewTask(n));
-  const _t=pjToday(); // allTasks runs at module-eval for the seed cards, i.e. inside the `today` const's TDZ — call pjToday() directly (seedStamps() later spreads the seeds' stamps out over their real stage windows)
+  const _t=pjToday(); // allTasks runs at module-eval for the seed cards, i.e. inside the `today` binding's TDZ（let 一樣有 TDZ）— call pjToday() directly (seedStamps() later spreads the seeds' stamps out over their real stage windows)
   for(const [k,st] of Object.entries(overrides||{})){const x=list.find(t=>t.code===k||t.t===k); if(x){x.st=st; if(st==="x")x.doneAt=_t; else if(st==="p")x.startAt=_t;}} // overrides keyed by CODE (C1…) or title
   return list;
 }
@@ -1495,7 +1495,7 @@ const seedT=(slug,code,f)=>{const c=LAUNCHES.find(l=>l.slug===slug);const t=c&&c
 // 情境照片還在等 Ann 核准 → 狀態就是「進行中」，不是完成（備註與狀態不可以互相打臉）。MS3a 沒有任何下游 req，
 // 退成 "p" 不會連鎖影響 MB3／PDP 那條線。
 seedT("cyclone","MS3a",{st:"p",urg:"high"});
-/* 種子卡的完成時間戳 —— 只宣告，呼叫點在 `const today=pjToday()` 之後：這裡用到的 dayDiff／taskDayLimit／today
+/* 種子卡的完成時間戳 —— 只宣告，呼叫點在 `let today=pjToday()` 之後：這裡用到的 dayDiff／taskDayLimit／today
    都宣告在本行之下，module-eval 時全在 TDZ（allTasks 的 try/catch 就是被這件事咬到，結果四張卡一個 doneAt 都沒有，
    熱力圖全 0、到貨日推不出來、正向排程全部退回送出日）。做法：每個階段的已完成步驟依 req 深度平均散在該階段的
    實際起訖內，再沿 req 前推一次，保證前置的 doneAt 不晚於後續。v3CurPhase 會把最後一段 history 改寫回較早的階段，
@@ -2388,7 +2388,8 @@ async function saveCheckpoint(){const lbl=await uiPrompt("Checkpoint label — w
 async function restoreVersion(id){
   const v=VERSIONS.find(x=>String(x.id)===String(id)); if(!v){toast("Version not found");return;}
   if(!await uiConfirm("Restore version from "+v.ts+" (by "+v.who+")?\n\n“"+(v.summary||"")+"”\n\nThis replaces the current state. The restore is recorded as a new version, so you can undo it."))return;
-  try{applySnapshot(JSON.parse(v.snap));}catch(e){toast("Restore failed");return;}
+  FB.applying=true;   // 還原歷史版本不是「新解鎖」：不種 ntf 旗標、不發 DM（ntfSweep 看 applying）；還原結果由下面 render→save 當一般改動送出
+  try{applySnapshot(JSON.parse(v.snap));}catch(e){FB.stale=true;fbStatus(LANG==="zh"?"● 還原失敗 — 請重新整理":"● restore failed — reload","var(--red)");toast(LANG==="zh"?"⚠️ 還原失敗 — 請重新整理頁面":"Restore failed — please reload");return;}finally{FB.applying=false;}   // 還原半途拋錯＝記憶體可能是截斷看板：比照快照套用失敗進 stale 停寫＋紅燈（否則綠燈+停寫）
   _verNote="↩ Restored to "+v.ts+" (originally by "+v.who+")";
   log("↩ Restored version from "+v.ts);
   S.view="versions"; render(); // render → save → recordVersion captures the restore
@@ -2429,7 +2430,7 @@ const CORE_CONFIG={
    ③ APPVER 版本閘 —— 文件帶著寫入者的程式版本；舊分頁收到更新版寫的資料 → 停止寫入＋要求重整，
       否則舊版 v3SyncTasks 會把它不認識的新節點（例：KOL 併點）剃掉再整份寫回，全隊一起回朔。
       注意：閘門只約束「有這段程式碼的分頁」，部署當下已經開著的更舊分頁管不到 —— 部署後請全員重整一次。 */
-const APPVER=20260813;   // 資料形狀（V3 模板節點/階段/欄位）有變的部署，把這裡改成當天日期
+const APPVER=20260814;   // 資料形狀（V3 模板節點/階段/欄位）有變的部署，把這裡改成當天日期。20260814：回朔第四輪修復＋ntf/ntfInit 首次上線（a5d7d5a 從未部署過、雲端文件尚無這兩欄），bump 是要逼部署前的分頁停寫重整；此閘自 693004f 引入後這是第一次真的會觸發
 let FB={ready:false,synced:false,serverSeen:false,boardStarted:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null,coreDb:null,rev:0,lastAt:null,stale:false,lastHeal:null,_stalePrompted:false};
 let _pdCore=[],_pdFb=[];   // product_docs: Core copy vs bv-superpm fallback (shared across fbInit + startBoardSync)
 let ME=null;        // the signed-in person {uid,email,name,photo} — Firebase Auth identity (any Google account)
@@ -2470,7 +2471,7 @@ function startBoardSync(){
     FB.docRef.onSnapshot(snap=>{
       if(snap.metadata.hasPendingWrites) return;            // our own optimistic write — ignore
       const fromCache=snap.metadata&&snap.metadata.fromCache;
-      if(!fromCache){ FB.serverSeen=true; FB.synced=true; fbStatus("● live (shared)","var(--green)"); }  // authoritative server data has arrived
+      if(!fromCache){ FB.serverSeen=true; FB.synced=true; if(!FB.stale)fbStatus("● live (shared)","var(--green)"); }  // authoritative server data has arrived；stale（套用失敗/舊版）的紅燈不准被後續快照刷回綠——燈綠但停寫＝使用者以為有同步其實全留在本機
       if(!snap.exists){ if(!fromCache) fbWriteNow(true); return; }   // seed the cloud ONLY when the SERVER confirms there is no board — NEVER from a cache miss (that was wiping fresh sign-ins with the demo seed)
       const data=snap.data(); if(!data||typeof data.state!=="string") return;
       // 舊版分頁偵測（appv 欄位 2026-08-13 起必帶）：session 中途收到「不帶 appv」的寫入＝部署前就開著的
@@ -2479,7 +2480,9 @@ function startBoardSync(){
       if(data.appv==null&&FB.lastAt){
         if(data.updatedBy&&data.updatedBy!==actor()&&Date.now()-(FB._oldTabToastAt||0)>60000){ FB._oldTabToastAt=Date.now();
           toast("⚠️ "+data.updatedBy+(LANG==="zh"?" 的分頁是舊版（更新已忽略）— 請他重新整理頁面":"'s tab runs an old build (update ignored) — ask them to reload")); }
-        fbSchedule(); return; }
+        if(data.state!==verSnap()&&Date.now()-(FB._repairAt||0)>60000){ FB._repairAt=Date.now();   // 真的有差才修＋60s 節流＋隨機延遲：N 個開著的分頁同時看到舊分頁寫入，別擠同一個 700ms 桶各寫一份全量互蓋
+          clearTimeout(FB.timer); FB.timer=setTimeout(()=>{FB.timer=null;fbWriteNow(true);},700+Math.random()*2000); }
+        return; }   // 修復必須 force：基線改成 cleaned 後 verSnap()===lastWritten，fbWriteNow(false) 必早退＝修復變 no-op
       // 版本閘：這份資料是更新版程式碼寫的 → 本分頁已過期。停止主文件與版本集寫入（舊版模板會剃掉新節點再寫回＝全隊回朔），提示重整。
       // 逃生口：hosting rollback 到舊版會讓「全隊 appv 都比文件小」而集體鎖死 —— 網址加 ?forcewrite 可解鎖（維運用）。
       if((+data.appv||0)>APPVER&&location.search.indexOf("forcewrite")<0){
@@ -2508,16 +2511,24 @@ function startBoardSync(){
       if(data.state===verSnap()){ FB.lastWritten=data.state; return; } // already identical
       FB.applying=true;
       recordRemoteVersion(data.updatedBy,data.state);        // log who changed what, before applying
+      var applyOk=true;
       try{
-        try{ applySnapshot(JSON.parse(data.state)); }catch(e){}
+        try{ applySnapshot(JSON.parse(data.state)); }catch(e){ applyOk=false; FB.stale=true; }   // 例外照吞（別讓 onSnapshot 掛掉），但要記帳＋當場進 stale——fbAddVersion/fbSchedule/fbWriteNow 三道閘在任何 render/save 跑到之前就生效：半套用的 LAUNCHES 絕不能當基線、進 localStorage、推進共享 versions 或寫上雲
         var cleaned=verSnap();                               // applySnapshot may have stripped orphan tasks (reconcileLaunchTasks)
-        FB.lastWritten=data.state; _lastVerKey=cleaned;      // already captured above as a remote version
-        try{ if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot()); }catch(e){}
-        render();
+        if(applyOk){
+          FB.lastWritten=cleaned; _lastVerKey=cleaned;       // 基線＝本機正規化結果（cleaned）而非遠端原文——heal 被 lastHeal 去重擋下時基線若停在 data.state，verSnap()≠lastWritten 永久成立，分頁進「永久 dirty」，之後 debounce 到期/pagehide flush/dirty 分支都會把本機這份整份蓋回雲端（第四輪推定主因之一，未實地歸因）。heal 真的有寫時 fbWriteNow 也會設 lastWritten=cleaned，兩條路一致
+          try{ if(typeof localStorage!=="undefined")localStorage.setItem("bv-superpm",snapshot()); }catch(e){}
+          render();                                          // render 只在套用成功時跑：失敗路徑連 render 尾端的 save()（localStorage＋recordVersion→versions 集合）都不能碰
+        }
       } finally { FB.applying=false; }                       // render() 拋錯不能讓 applying 卡 true（那會讓 fbSchedule 永遠不排程＝之後的編輯全都上不了雲）
-      // self-heal 加冪等去重：正規化含 projLaunchDate（吃 page-load 的 today 常數），跨日的兩個分頁會各算各的
-      // 而互相「修正」——同一份 heal 內容只寫一次，斷掉無限來回寫。
+      if(!applyOk){                                          // 截斷看板收尾：stale 已在 catch 當場設好，這裡清 timer＋亮燈提示
+        FB.stale=true; clearTimeout(FB.timer); FB.timer=null;
+        fbStatus(LANG==="zh"?"● 套用失敗 — 請重新整理":"● apply failed — reload","var(--red)");
+        toast(LANG==="zh"?"⚠️ 資料套用失敗 — 請重新整理頁面":"⚠️ snapshot apply failed — please reload"); return; }
+      // self-heal 加冪等去重：正規化含 projLaunchDate 等衍生欄位（吃 today——現已隨換日就地更新，但兩分頁最多仍有 60 秒視窗各算各的）
+      // 而互相「修正」——同一份 heal 內容只寫一次，斷掉無限來回寫。被擋下時留一行 console 供日後診斷（本機與雲端暫時分歧，下次編輯才收斂）。
       if(cleaned!==data.state&&cleaned!==FB.lastHeal){ FB.lastHeal=cleaned; fbWriteNow(true); }
+      else if(cleaned!==data.state){ FB._healDedup=(FB._healDedup||0)+1; if(FB._healDedup===1)console.warn("[sync] heal deduped (lastHeal) — 本機正規化結果與雲端暫時分歧；之後不重複列印，計數在 FB._healDedup"); }
       if(data.updatedBy&&data.updatedBy!==actor()) toast(LANG==="zh"?"🔄 "+data.updatedBy+" 已更新看板":"🔄 "+data.updatedBy+" updated the board");
     }, err=>{ fbStatus("● offline","var(--red)"); });
     FB.versRef.orderBy("createdAt","desc").limit(120).onSnapshot(qs=>{   // shared version history (History tab)
@@ -2535,14 +2546,20 @@ function fbSchedule(){ if(!FB.ready||FB.applying||FB.stale) return; clearTimeout
 function fbWriteNow(force){
   if(!FB.ready||!FB.synced||!FB.serverSeen||FB.stale) return;   // never write before the authoritative remote board has loaded (prevents the demo-seed overwrite); stale 分頁不寫主文件
   const s=verSnap(); if(!force && s===FB.lastWritten) return;
-  FB.lastWritten=s;
+  const prev=FB.lastWritten; FB.lastWritten=s;   // 樂觀設定（去重後續排程）；失敗必須還原——否則 s===lastWritten 恆早退，這筆改動永遠不重送，下一份快照直接蓋掉＝靜默丟資料
   // rev 只在伺服器 ack 後才 +1 並落 localStorage —— 立刻 +1 的話，pagehide 那筆常常送不完，
   // 重開後本地 rev 領先實際雲端，rev 守衛會整份拒收同事的合法更新（對抗審查抓到的窗口）。
   const nrev=(FB.rev||0)+1;
+  const onFail=()=>{ if(FB.lastWritten===s)FB.lastWritten=prev;   // 只在沒被更新的成功寫入蓋過時才還原
+    FB._wfail=(FB._wfail||0)+1;
+    if(FB._wfail>8){ fbStatus(LANG==="zh"?"● 寫入失敗 — 請重新整理":"● write failed — please reload","var(--red)"); return; }   // 永久性失敗（權限/rules 改壞/同步 throw）：退避到頂就停，別無限重排
+    const d=Math.min(30000,700*Math.pow(2,FB._wfail));   // 指數退避：斷線自癒；permission-denied 也不會每 700ms 打爆
+    clearTimeout(FB.retryTimer); FB.retryTimer=setTimeout(()=>{FB.retryTimer=null;fbWriteNow(force);},d);   // 獨立 retryTimer，不佔 FB.timer——FB.timer 在 dirty 判斷裡＝「有未送出的使用者改動」，借用會讓持續失敗的分頁把每份遠端快照都判成 dirty 而拒收＝孤島；pagehide flush 也只碰 FB.timer 不會誤取消退避。重試帶原本的 force：heal 那種 force 寫失敗時 s===lastWritten，用 false 重試會早退＝永不重試。代價（修法前即如此）：退避中若遠端快照先到，未送達的本機改動仍會被覆蓋
+    fbStatus(LANG==="zh"?"● 寫入失敗 — 重試中":"● write failed — retrying","var(--red)"); };
   try{ FB.docRef.set({state:s,rev:nrev,appv:APPVER,updatedBy:actor(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()})
-    .then(()=>{ FB.rev=Math.max(FB.rev||0,nrev); })
-    .catch(()=>{ fbStatus(LANG==="zh"?"● 寫入失敗 — 未同步":"● write failed","var(--red)"); });   // set() 失敗是 rejected Promise，不是同步 throw —— 沒有這個 .catch 使用者零感知
-  }catch(e){ fbStatus(LANG==="zh"?"● 寫入失敗 — 未同步":"● write failed","var(--red)"); }
+    .then(()=>{ FB.rev=Math.max(FB.rev||0,nrev); FB._wfail=0; clearTimeout(FB.retryTimer); FB.retryTimer=null; })   // 寫成功就取消退避——否則 force 重試會多打一筆內容相同的冗餘全量寫
+    .catch(onFail);   // set() 失敗是 rejected Promise，不是同步 throw —— 沒有 .catch 使用者零感知
+  }catch(e){ onFail(); }
 }
 // 分頁隱藏／關閉時把 debounce 佇列裡的改動立刻送出 —— 否則「點完成→馬上關分頁」那筆永遠到不了雲端，
 // 下次打開就是舊資料（使用者回報的另一種「回朔」）。pagehide 不保證送得完，visibilitychange(hidden) 通常來得及。
@@ -2554,12 +2571,14 @@ function fbWriteNow(force){
 /* ----- Slack 任務通知（2026-08-13）-----
    「輪到你了」：步驟的前置全部完成（解鎖）且還是待辦時，DM 負責人。走 chat-proxy 的 /notify
    （同一台 Cloud Run，bot token 在 Secret Manager —— 前端永遠看不到 token）。
-   偵測掛在 v3Advance 尾端：使用者操作與快照載入（applySnapshot→v3SyncTasks）都經過那裡，不必在每個
-   commit 點各插一刀。防重發＝任務上的 ntf 旗標 —— 隨 LAUNCHES 進快照持久化（v3SyncTasks 重建沿用舊
-   任務物件所以旗標不掉）；apply 途中標的旗標由 self-heal 回寫（cleaned!==data.state 那條路）帶上雲。
+   偵測掛在 v3Advance 尾端（FB.applying 守衛擋掉快照載入那條——只有「做出改動的分頁」的 v3Advance
+   會真的掃），不必在每個 commit 點各插一刀。防重發＝任務上的 ntf 旗標 —— 隨 LAUNCHES 進快照持久化
+   （v3SyncTasks 重建沿用舊任務物件所以旗標不掉），由做出改動那個分頁的 save() 帶上雲。
    被退回鎖住 → 清旗標＋重新武裝 NTFSENT，之後再解鎖會再通知一次。
-   l.ntfInit＝每張卡第一次掃描只「靜默補標」不發送：部署上線那刻不轟炸；代價是新建卡送出後的第一波
-   解鎖不 DM（建卡人自己剛填完 intake，知道下一步）。
+   l.ntfInit＝每張卡第一次掃描只「靜默補標」不發送：部署上線那刻不轟炸。加 FB.applying 守衛（2026-08-14）後，
+   掃描只發生在「做出改動的分頁」的 v3Advance——既有卡的 ntfInit 要等第一個對它動手的人才播種，且那一次
+   操作解鎖的步驟只補標不 DM（不只新建卡）；離線/stale/非正式站分頁造成的解鎖也沒人補標補發。
+   已知取捨：換的是「不轟炸＋旁觀分頁套快照時不整份回寫」。
    FB.serverSeen 之前（本地預覽、localStorage 開機殘影、未登入）完全不動作 —— 預覽檔絕不誤發真 DM。 */
 const NOTIFY_API_URL="https://bv-superpm-chat-475005600052.us-central1.run.app/notify";  // 同 CHAT_API_URL 那台（bv-infra-499600），見 FIREBASE-DEPLOY.md
 const NOTIFY_HOSTS=["bv-superpm.web.app","bv-superpm.firebaseapp.com"];  // 只有正式站可以發 —— FIREBASE_CONFIG 內嵌在檔案裡，本地副本登入後 serverSeen 也會 true，沒這道會誤發真 DM
@@ -2567,7 +2586,7 @@ const SLACK_IDS={  // PEOPLE.name → Slack member ID（BlackVoyage workspace，
   Zac:"U0B9DUYFJE9", Oume:"U0BH4JGS8TC", Mi:"U0BNNH4EECA", Ann:"U0BNLJ7Q79C", Angel:"U0BPDUPPBFB", LC:"U0B9AH9L6GK"};
 let NTFQ=[], NTFT=null; const NTFSENT=new Set();   // 待送佇列＋本分頁已發集合（旗標被 LWW 併發洗掉時的第二道防重發）
 function ntfSweep(l){
-  if(!FB.ready||!FB.serverSeen||FB.stale) return;
+  if(!FB.ready||!FB.serverSeen||FB.stale||FB.applying) return;   // FB.applying：旁觀分頁套用遠端快照時不種旗標——apply 鏈上動 ntf 會讓 cleaned≠data.state、經 self-heal 立刻整份 set()（有人打勾＝N 個旁觀分頁同時寫，任一筆晚到就 LWW 回朔）。旗標由做出改動的那個分頁負責，旁觀者靠下一份快照自然帶到
   if(NOTIFY_HOSTS.indexOf(location.hostname)<0&&!window.NTF_TEST) return;   // 本地檔案／預覽（file:// 或其他 host）一律不發也不標；NTF_TEST 只給無頭測試 driver 用
   if(!l.ntfInit){ (l.tasks||[]).forEach(t=>{ if(t.code&&!taskLocked(l,t)) t.ntf=1; }); l.ntfInit=1; return; }
   (l.tasks||[]).forEach(t=>{
@@ -2732,17 +2751,27 @@ async function loadProjectsData(){
 const NAVS=[["home","Home"],["portfolio","Portfolio"],["progress","Progress"],["campaign","Campaigns"],["settings","Settings"]];
 const stIcon={x:"✓",p:"…",b:"!",o:"○"};
 const fmt=d=>new Date(d+"T00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
-const today=pjToday();   // real current date (Asia/Taipei) — was hardcoded "2026-06-10", which made launch-board due/overdue math stale
-/* 跨夜分頁殺手（2026-08-13，回朔追兇第三輪）：today 是載入當下的常數 —— P5 的 sampleDate 解鎖、
+let today=pjToday();     // real current date (Asia/Taipei)；let 不是 const —— 換日 interval 會就地更新（見下方註解），前景分頁才不會停在舊日期
+/* 跨夜分頁殺手（2026-08-13 第三輪；2026-08-14 第四輪補洞）：today —— P5 的 sampleDate 解鎖、
    預計上市日 clamp、逾期計算全吃它。兩個開在「不同日期」的分頁對同一份資料會算出不同的鎖定與
    l.target，v3Reconcile 與 self-heal 便互相「修正」＝無聲回朔製造機，且雙方都是「新」寫入、
-   時序防護攔不到。解法：日期一換就重載 —— 藏在背景就立刻重載；還在前景就先提示，切到背景才動手
-   （不打斷正在輸入的人）。pagehide flush 會把佇列中的改動送出，重載不丟資料。 */
-setInterval(()=>{ try{ if(pjToday()===today) return;
+   時序防護攔不到。第三輪只做「切背景才重載」——筆電掀蓋分頁在前景就無限期停在舊 today，
+   v3Reconcile 照樣把別人已完成的 P5 退回（第四輪成因 2）。改法：today 改 let 且只進不退（時鐘
+   倒退不跟，見單調性守衛），前景分頁換日就地更新 today＋render——顯示與鎖定判斷當場正確；
+   l.target 等衍生欄位等下一次 v3Advance 才對齊（刻意不在此對全卡跑 v3Advance：N 個分頁會同時寫）。
+   背景/切背景仍整頁重載作保底。pagehide flush 會把佇列中的改動送出，重載不丟資料。 */
+setInterval(()=>{ try{ const nt=pjToday(); if(nt===today) return;
+  if(nt<today) return;   // 單調性守衛：時鐘倒退（休眠喚醒校時/改時區/VM 還原）不跟——today 變小會讓 P5 重新鎖定、v3Reconcile 把已完成的退回；ISO 日期字串可直接比大小
   if(document.hidden){ location.reload(); return; }
-  if(!window._dayFlip){ window._dayFlip=1;
-    toast(LANG==="zh"?"📅 日期已更換 — 分頁會在切到背景時自動更新":"📅 date rolled over — this tab refreshes when backgrounded");
+  if(!window._dayFlip){ window._dayFlip=1;   // 保底 listener 先掛再 render：render 拋錯不能連「切背景整頁重載」一起死
     document.addEventListener("visibilitychange",()=>{ if(document.hidden) location.reload(); }); }
+  today=nt;
+  const ae=document.activeElement;
+  if(ae&&(ae.tagName==="INPUT"||ae.tagName==="TEXTAREA"||ae.isContentEditable)){   // 整份 innerHTML 重建會清掉正在輸入的內容——等 blur 再畫；60s 兜底（元素若被別次 render 換掉，blur 監聽跟著消失）
+    const tid=setTimeout(()=>{ if(document.activeElement!==ae) render(); },60000);   // 兜底只救「元素被別次 render 換掉、blur 永不觸發」——還在同一格打字的人不打斷
+    ae.addEventListener("blur",()=>{clearTimeout(tid);render();},{once:true});
+    toast(LANG==="zh"?"📅 日期已更換 — 離開輸入框後更新畫面":"📅 date rolled over — updates after you finish typing"); }
+  else { render(); toast(LANG==="zh"?"📅 日期已更換 — 看板已更新為今天":"📅 date rolled over — board updated"); }
 }catch(e){} },60000);
 seedStamps();            // 種子卡 doneAt/startAt：要等 today 與所有日期 helper 都出了 TDZ 才能跑（宣告處有完整說明）
 // 只推導「目前階段」。history 是走過的紀錄 —— 改寫最後一筆會製造相鄰重複段（同一份階段預算被比對兩次）
