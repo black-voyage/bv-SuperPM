@@ -1179,7 +1179,7 @@ const V3U=[
  {c:"UC2", en:"Catalog info refresh", zh:"資訊更新", ph:2, dept:"Catalog", o:"Zac", days:1, req:["U5"], out:{en:"marketing site updated",zh:"更新產品行銷網站"}},
  {c:"UD3", en:"New PDP build", zh:"製作新版 PDP", ph:2, dept:"Design", o:"Oume", days:5, req:["UD2","UC2"], asset:1, note:{en:"starts after new photos + updated site info",zh:"棚拍照片＋行銷網站更新後製作"}},
  // 4 — Logistics (切換上線)
- {c:"UL1", en:"Version switch check", zh:"新版切換確認", ph:4, dept:"Logistics", o:"LC", days:2, req:["U6"], out:{en:"switch / no switch",zh:"更換 or 不更換"}, note:{en:"LC confirms whether/when the new version replaces the old",zh:"LC 確認新版是否／何時更換"}},
+ {c:"UL1", swlog:1, en:"Version switch check", zh:"新版切換確認", ph:4, dept:"Logistics", o:"LC", days:2, req:["U6"], out:{en:"switch / no switch",zh:"更換 or 不更換"}, note:{en:"LC confirms whether/when the new version replaces the old",zh:"LC 確認新版是否／何時更換"}},   // swlog：多面料分批切換，LC 會重複記多筆日期
  {c:"UL2", en:"Swap live PDP", zh:"換上新版 PDP", ph:4, dept:"Design", o:"Oume", days:1, req:["UL1","UD3"]},
  {c:"UL3", en:"Notify KOL CRM", zh:"通知網紅 CRM", ph:4, dept:"CRM", o:"Angel", days:1, req:["UL1"], out:{en:"CRM info refreshed",zh:"CRM 新資訊通知網紅"}},
  {c:"UL4", en:"Shopify info update", zh:"更新 Shopify 資訊", ph:4, dept:"Marketing", o:"Zac", days:1, req:["UL1"]},
@@ -3530,6 +3530,14 @@ function taskDetail(l,t,i,ro,vn,lk){
       :aLk?`<input type="date" class="v3due-inp unfilled" value="${esc(t.arrivalDate||"")}" disabled aria-disabled="true"> <span class="ghostnote">🔒 ${esc(aLk)}</span>`
         :`<input type="date" class="v3due-inp${t.arrivalDate?"":" unfilled"}" value="${esc(t.arrivalDate||"")}"${aFl?` min="${aFl}"`:""} title="${aTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'arrivalDate',this.value)"> <span class="ghostnote">${t.arrivalDate?T("＝本卡預計上市日","= this card's projected launch"):T("未填 — 預計上市日仍用自動推算","unset — projected launch stays auto-computed")}</span>${v3ArrivalNudge(l)?` <span class="urg high">${T("已到貨？記得標記完成","arrived? mark this step done")}</span>`:""}`]);
   }
+  // 切換日期記錄（UL1）：多個面料分批換新版，LC 在同一步驟重複記多筆日期 — 純記錄，不進排程/解鎖
+  if(vn.swlog){
+    const sw=t.swDates||[];
+    const chips=sw.map((e,x)=>`<span class="lnkg">📅 ${fmt(e.d)}${e.n?` · <!--notx-->${esc(e.n)}<!--/notx-->`:""}${ro?"":`<button class="lnkb" title="${T("移除此筆","remove this entry")}" onclick="event.stopPropagation();v3SwDel('${l.slug}',${i},${x})">✕</button>`}</span>`).join(" ");
+    const add=ro?(sw.length?"":"—")
+      :`<input type="date" class="v3due-inp" id="swd-${l.slug}-${i}" onclick="event.stopPropagation()"> <input type="text" class="v3due-inp" style="width:175px" id="swn-${l.slug}-${i}" placeholder="${T("哪個面料 / 備註（選填）","which fabric / note (optional)")}" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter'){event.stopPropagation();v3SwAdd('${l.slug}',${i});}"> <button class="addlnk" onclick="event.stopPropagation();v3SwAdd('${l.slug}',${i})">＋ ${T("記一筆","log date")}</button>${sw.length?"":` <span class="ghostnote">${T("每換一個面料就記一筆","one entry per fabric switchover")}</span>`}`;
+    info.push([T("切換日期記錄","Switch log"), `${chips}${chips?"<br>":""}${add}`]);
+  }
   if(!lk) info.push([T("連結","Links"), linkChips(t,l.slug,i)]);   // the actual attached links live IN the detail, not only in the outer quick-link chip
   const grid=`<div class="v3det">${info.map(([k,v])=>`<div class="v3det-r"><span class="v3det-k">${k}</span><span class="v3det-v">${v}</span></div>`).join("")}</div>`;
   const lockBlk=lk?`<div class="v3det-lock">🔒 <b>${T("鎖定中","Locked")}</b> · ${esc(lockReason(l,t))}</div>`:"";
@@ -3548,6 +3556,17 @@ function v3ShotTotal(t){ return Array.isArray(t.assetPlan)?t.assetPlan.reduce((s
 function v3SetShotQty(slug,i,idx,v){ const l=L(slug),t=l&&l.tasks[i]; if(!t||!Array.isArray(t.assetPlan)||!t.assetPlan[idx])return; t.assetPlan[idx].qty=Math.max(0,parseInt(v,10)||0); save(); render(); }
 async function v3AddShot(slug,i){ const l=L(slug),t=l&&l.tasks[i]; if(!t)return; const name=await uiPrompt(LANG==="zh"?"新增素材項目名稱":"New asset item name"); if(!name)return; (t.assetPlan=t.assetPlan||[]).push({label:{zh:name,en:name},qty:0}); save(); render(); }
 function v3DelShot(slug,i,idx){ const l=L(slug),t=l&&l.tasks[i]; if(!t||!Array.isArray(t.assetPlan))return; t.assetPlan.splice(idx,1); save(); render(); }
+// 切換日期記錄（UL1「新版切換確認」）：面料分批切換 → 同一步驟重複記日期。純記錄，不碰排程/解鎖，所以不用 reconcile。
+function v3SwAdd(slug,i){ const l=L(slug),t=l&&l.tasks[i]; if(!t)return;
+  const dEl=document.getElementById("swd-"+slug+"-"+i), nEl=document.getElementById("swn-"+slug+"-"+i);
+  const d=dEl&&dEl.value; if(!d){toast(LANG==="zh"?"先選日期":"pick a date first");return;}
+  (t.swDates=t.swDates||[]).push({d,n:(nEl&&nEl.value||"").trim()});
+  t.swDates.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
+  toast("📅 "+(LANG==="zh"?"已記錄切換日期":"switch date logged")); save(); render(); }
+async function v3SwDel(slug,i,x){ const l=L(slug),t=l&&l.tasks[i]; if(!t||!(t.swDates||[])[x])return;
+  const e=t.swDates[x];
+  if(!await uiConfirm((LANG==="zh"?"移除 ":"Remove ")+fmt(e.d)+(e.n?" · "+e.n:"")+"?",true))return;
+  t.swDates.splice(x,1); save(); render(); }
 function v3ShotList(l,t,i,ro,vn){
   const zh=LANG==="zh", T=(z,e)=>zh?z:e; const plan=v3ShotPlan(t,vn); const total=v3ShotTotal(t);
   const rows=plan.map((r,idx)=>`<div class="v3shot-r"><span class="v3shot-l">${esc(zh?(r.label&&r.label.zh):(r.label&&r.label.en))||""}</span><input class="v3shot-q" type="number" min="0" value="${+r.qty||0}" ${ro?"disabled":""} onclick="event.stopPropagation()" onchange="v3SetShotQty('${l.slug}',${i},${idx},this.value)">${ro?"":`<button class="v3shot-x" title="${T("刪除","remove")}" onclick="v3DelShot('${l.slug}',${i},${idx})">✕</button>`}</div>`).join("");
