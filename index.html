@@ -1170,7 +1170,7 @@ const V3U=[
  // 1 — Prototype & Delivery (打樣)
  {c:"U3", en:"Revision prototype", zh:"原型打樣", ph:1, dept:"Product", o:"Zac", days:null, est:14, req:["U2"], out:{en:"revised prototype",zh:"修改後原型"}},
  {c:"U4", en:"Ben revision sign-off", zh:"Ben 決策", ph:1, dept:"Product", o:"Ben", days:2, req:["U3"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
- {c:"U5", evid:1, en:"Revised PPS", zh:"產前樣", ph:1, dept:"Product", o:"Zac", days:null, est:10, req:["U4"]},
+ {c:"U5", en:"Revised PPS", zh:"產前樣", ph:1, dept:"Product", o:"Zac", days:null, est:10, req:["U4"]},   // 不掛 evid：實體樣品沒有一份「證明連結」可附（P1 掛是因為 BOM 歸檔）
  // 2 — Launch Prep (量產與內容)
  {c:"U6", en:"Bulk production", zh:"大貨生產", ph:2, dept:"Product", o:"Zac", days:null, est:30, req:["U5"]},   // 同 P3：大貨生產不附證明連結
  {c:"UD1", en:"Refresh shoot brief", zh:"棚拍需求", ph:2, dept:"Design", o:"Mi", days:2, req:["U5"], note:{en:"opens once the revised PPS exists",zh:"產前樣出來後開啟"}},
