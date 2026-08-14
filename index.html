@@ -1301,7 +1301,13 @@ function v3Advance(l){ // derive stage (= first phase with open work) + complete
   syncDecisionReq(l);
   const all=(l.tasks||[]).length>0&&(l.tasks||[]).every(t=>!t.code||t.st==="x");
   if(all){ if(!l.complete){l.complete=true;const h=l.history[l.history.length-1];if(h&&!h.end)h.end=today;} return; }
-  if(l.complete)l.complete=false;
+  if(l.complete){ l.complete=false;
+    // 完成旗標每次載入都重推導 —— 靜默退回會讓人以為卡片自己壞掉（Vesper 案 2026-08-14），退回必點名
+    const open=(l.tasks||[]).filter(t=>t.code&&t.st!=="x").map(t=>t.code+" "+((V3MAP[t.code]||{}).zh||t.t));
+    const txt="↩ 完成標記已還原 — 尚有未完成步驟："+open.slice(0,3).join("、")+(open.length>3?"（共 "+open.length+" 步）":"")+"。全部步驟完成後，卡片才會維持「完成」。";
+    l.checkins=l.checkins||[];
+    if(!l.checkins.some(c=>c.txt===txt)) l.checkins.unshift({d:today,a:"Autopilot",txt});
+  }
   const ph=v3CurPhase(l);
   if(ph!==l.stage){ const h=l.history[l.history.length-1];
     // 回到「最後一段本來就是這個階段」（DAG 下游退回會這樣走）⇒ 那段其實還沒結束，不要再開一段同名的
@@ -1402,6 +1408,9 @@ function v3SyncTasks(l){
       byCode.KOL=m; } }
   l.tasks=tplNodes(l).map(n=>{ const old=byCode[n.c];   // rebuild onto the card's OWN template (l.tpl)
     const t=old||v3NewTask(n);
+    // 已完結的卡不因模板事後新增節點而復活（如 0de3925 把 L1–L8 併成新節點 FB1）：新格直接視為完成，
+    // 完成日掛卡片收尾日 —— 否則 v3Advance 會因這一格把 complete 翻回去，卡片「總是被退回」
+    if(!old&&l.complete){ t.st="x"; t.doneAt=(Array.isArray(l.history)&&l.history.length&&l.history[l.history.length-1].end)||today; }
     t.code=n.c; t.t=n.en; t.d=v3Dept(n); t.gate=!!n.ben; t.stage=V3PH[n.ph].en;
     if(!("days" in t)||(old&&old.days===undefined)) t.days=(n.days==null?null:n.days);
     t.st=t.st||"o"; t.links=t.links||[]; t.codes=t.codes||[]; t.notes=t.notes||[]; t.urg=t.urg||"med"; if(t.assignee==null)t.assignee="";
@@ -3331,7 +3340,16 @@ async function push(slug){
   if(!allMet(l)){toast("🔒 Locked — not all exit criteria are met");return;}
   if(!canPushRole(l)){toast(`Only the DRI (${l.dri}), a mandatory department head, or Ben can push`);return;}
   const i=STAGES.indexOf(l.stage);
-  if(i>=STAGES.length-1){l.complete=true;}else{l.stage=STAGES[i+1];}
+  if(i>=STAGES.length-1){
+    // 標完成前檢查「全卡」而非只看目前階段的關卡 —— allMet 只看 GATES[l.stage]，早期階段的殘留步驟
+    // （可後補的行銷素材、模板事後新增的節點）會讓 v3Advance 下次載入把 complete 靜默翻回去（Vesper 案）
+    const open=(l.tasks||[]).filter(t=>t.code&&t.st!=="x");
+    if(open.length){ const zh=LANG==="zh";
+      toast((zh?"🔒 無法標記完成 — 還有 "+open.length+" 步未完成：":"🔒 Can't complete — "+open.length+" step(s) still open: ")
+        +open.slice(0,3).map(t=>t.code+" "+(zh?(((V3MAP[t.code]||{}).zh)||t.t):t.t)).join(zh?"、":", ")+(open.length>3?"…":""));
+      return; }
+    l.complete=true;
+  }else{l.stage=STAGES[i+1];}
   const who=S.role==="ceo"?"Ben":S.dept+" (head)";
   l.checkins.unshift({d:today,a:who,txt:`Pushed to ${l.complete?"Complete":l.stage}.${l.complete?"":" Next up: "+mandatory(l).join(", ")+" — their stage begins."}`});
   log("🚀 "+l.name+" pushed to "+(l.complete?"Complete":l.stage)+" by "+who); boom();
