@@ -3557,8 +3557,8 @@ function v3SetShotQty(slug,i,idx,v){ const l=L(slug),t=l&&l.tasks[i]; if(!t||!Ar
 async function v3AddShot(slug,i){ const l=L(slug),t=l&&l.tasks[i]; if(!t)return; const name=await uiPrompt(LANG==="zh"?"新增素材項目名稱":"New asset item name"); if(!name)return; (t.assetPlan=t.assetPlan||[]).push({label:{zh:name,en:name},qty:0}); save(); render(); }
 function v3DelShot(slug,i,idx){ const l=L(slug),t=l&&l.tasks[i]; if(!t||!Array.isArray(t.assetPlan))return; t.assetPlan.splice(idx,1); save(); render(); }
 // 切換日期記錄（UL1「新版切換確認」）：面料分批切換 → 同一步驟重複記日期。純記錄，不碰排程/解鎖，所以不用 reconcile。
-function v3SwAdd(slug,i){ const l=L(slug),t=l&&l.tasks[i]; if(!t)return;
-  const dEl=document.getElementById("swd-"+slug+"-"+i), nEl=document.getElementById("swn-"+slug+"-"+i);
+function v3SwAdd(slug,i,p){ const l=L(slug),t=l&&l.tasks[i]; if(!t)return;   // p＝輸入框 id 前綴（""＝詳情列、"fp-"＝流程圖彈窗——兩處可能同時在畫面上）
+  const dEl=document.getElementById("swd-"+(p||"")+slug+"-"+i), nEl=document.getElementById("swn-"+(p||"")+slug+"-"+i);
   const d=dEl&&dEl.value; if(!d){toast(LANG==="zh"?"先選日期":"pick a date first");return;}
   (t.swDates=t.swDates||[]).push({d,n:(nEl&&nEl.value||"").trim()});
   t.swDates.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
@@ -4119,6 +4119,19 @@ function flowPopHTML(d,i){
      h+=`<div class="fp-sec"><div class="fp-lab">${vn.shots==="video"?"🎬":"📸"} ${zh?"素材需求":"Shot list"}</div>`
        +`<div class="fp-daterow"><span class="fp-date-note${tot>0?"":" tbd"}">${tot>0?(zh?("合計 "+tot+" 項數量已規劃"):("planned total: "+tot)):(zh?"尚未規劃數量":"quantities not planned yet")}</span>`
        +`<button class="btn ghost fp-open" onclick="v3jump('${l.slug}','${n.code}')">${zh?"開啟清單":"open the list"}</button></div></div>`;
+   }}
+  // 切換日期記錄（UL1 swlog）— 跟到貨日同理，LC 常駐流程圖就地記錄，不用先跳進卡片詳情
+  {const vn=V3MAP[n.code]||{};
+   if(vn.swlog&&task&&ti>=0){
+     const sw=task.swDates||[];
+     const chips=sw.map((e,x)=>`<span class="lnkg">📅 ${fmt(e.d)}${e.n?` · <!--notx-->${esc(e.n)}<!--/notx-->`:""}<button class="lnkb" title="${zh?"移除此筆":"remove this entry"}" onclick="event.stopPropagation();v3SwDel('${l.slug}',${ti},${x})">✕</button></span>`).join(" ");
+     h+=`<div class="fp-sec"><div class="fp-lab">${zh?"切換日期記錄":"Switch log"}</div>`
+       +(chips?`<div style="margin:2px 0 6px">${chips}</div>`:"")
+       +`<div class="fp-daterow"><span class="fp-days fp-days-edit${sw.length?"":" tbd"}">📅 <input type="date" id="swd-fp-${l.slug}-${ti}" aria-label="${zh?"切換日期":"switch date"}" onclick="event.stopPropagation()"></span>`
+       +`<input type="text" class="v3due-inp" style="width:150px" id="swn-fp-${l.slug}-${ti}" placeholder="${zh?"哪個面料 / 備註（選填）":"which fabric / note (optional)"}" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter'){event.stopPropagation();v3SwAdd('${l.slug}',${ti},'fp-');}">`
+       +` <button class="addlnk" onclick="event.stopPropagation();v3SwAdd('${l.slug}',${ti},'fp-')">＋ ${zh?"記一筆":"log date"}</button>`
+       +(sw.length?"":`<span class="fp-date-note">${zh?"每換一個面料就記一筆":"one entry per fabric switchover"}</span>`)
+       +`</div></div>`;
    }}
   // dependency panel — the same req graph the red arrows draw: what this waits on, and what finishing it unblocks
   {const zh=LANG==="zh";
