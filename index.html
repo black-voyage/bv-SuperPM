@@ -1302,11 +1302,16 @@ function v3Advance(l){ // derive stage (= first phase with open work) + complete
   const all=(l.tasks||[]).length>0&&(l.tasks||[]).every(t=>!t.code||t.st==="x");
   if(all){ if(!l.complete){l.complete=true;const h=l.history[l.history.length-1];if(h&&!h.end)h.end=today;} return; }
   if(l.complete){ l.complete=false;
-    // 完成旗標每次載入都重推導 —— 靜默退回會讓人以為卡片自己壞掉（Vesper 案 2026-08-14），退回必點名
-    const open=(l.tasks||[]).filter(t=>t.code&&t.st!=="x").map(t=>t.code+" "+((V3MAP[t.code]||{}).zh||t.t));
-    const txt="↩ 完成標記已還原 — 尚有未完成步驟："+open.slice(0,3).join("、")+(open.length>3?"（共 "+open.length+" 步）":"")+"。全部步驟完成後，卡片才會維持「完成」。";
-    l.checkins=l.checkins||[];
-    if(!l.checkins.some(c=>c.txt===txt)) l.checkins.unshift({d:today,a:"Autopilot",txt});
+    // 完成旗標每次載入都重推導 —— 靜默退回會讓人以為卡片自己壞掉（Vesper 案 2026-08-14），退回必點名。
+    // FB.applying 閘（第六輪 2026-08-17）：點名只由「做出改動的分頁」寫，比照下方 ntfSweep 慣例——旁觀分頁在套快照鏈上
+    // （applySnapshot→v3SyncTasks→v3Advance）寫 checkins 會讓 cleaned 偏離 data.state、觸發整份 heal 回寫（N 分頁各一筆，
+    // 跟併發編輯賽跑就 LWW 互蓋）。旗標翻轉本身（上一行）是 invariant，照跑。
+    if(typeof FB==="undefined"||!FB.applying){   // 注意：typeof 只擋「FB 從未宣告」（碼被搬走）；let FB 的 TDZ 內 typeof 一樣 throw——目前安全因為 v3Advance 首呼叫在 loadSaved()，遠晚於 FB 宣告
+      const open=(l.tasks||[]).filter(t=>t.code&&t.st!=="x").map(t=>t.code+" "+((V3MAP[t.code]||{}).zh||t.t));
+      const txt="↩ 完成標記已還原 — 尚有未完成步驟："+open.slice(0,3).join("、")+(open.length>3?"（共 "+open.length+" 步）":"")+"。全部步驟完成後，卡片才會維持「完成」。";
+      l.checkins=l.checkins||[];
+      if(!l.checkins.some(c=>c.txt===txt)) l.checkins.unshift({d:today,a:"Autopilot",txt});
+    }
   }
   const ph=v3CurPhase(l);
   if(ph!==l.stage){ const h=l.history[l.history.length-1];
@@ -1378,12 +1383,16 @@ function v3Lights(l){
   return {shop,ads,missShop:["MS3c","D4","CT4","FB1"].filter(c=>!d(c)),missAds:["D6","MS3b","FB1"].filter(c=>!d(c))};
 }
 async function v3Go(slug,kind){
-  const l=L(slug); if(!l)return;
+  let l=L(slug); if(!l)return;
   if(S.role!=="ceo"){toast("上架／廣告 GO 由 Ben（CEO）拍板");return;}
   l.v3go=l.v3go||{};
-  if(l.v3go[kind]){ if(await uiConfirm("撤銷「"+(kind==="shop"?"上架":"廣告")+" GO」？",true)){delete l.v3go[kind];log("↩ 撤銷 "+(kind==="shop"?"上架":"廣告")+" GO · "+l.name);save();render();} return; }
+  if(l.v3go[kind]){ if(await uiConfirm("撤銷「"+(kind==="shop"?"上架":"廣告")+" GO」？",true)){
+      l=L(slug); if(!l)return;   // re-resolve: a remote snapshot may have rebuilt LAUNCHES while the confirm was open — writing into the pre-await card would silently vanish
+      if(l.v3go)delete l.v3go[kind];log("↩ 撤銷 "+(kind==="shop"?"上架":"廣告")+" GO · "+l.name);save();render();} return; }
   const lights=v3Lights(l); const ok=kind==="shop"?lights.shop!=="no":lights.ads==="go";
   if(!ok&&!await uiConfirm("燈號未全綠——仍要 GO 嗎？")) return;
+  l=L(slug); if(!l)return;   // re-resolve after the confirm — same reason
+  l.v3go=l.v3go||{};
   l.v3go[kind]={d:today,who:actor()};
   const miss=(kind==="shop"?lights.missShop:lights.missAds).map(c=>c+" "+(V3MAP[c]?v3T({en:V3MAP[c].en,zh:V3MAP[c].zh}):c)).join("、"); // 決策快照：按下當下缺什麼，一併寫進 check-in 供事後檢討
   l.checkins.unshift({d:today,a:actor(),txt:(kind==="shop"?"🚀 上架 GO":"📣 廣告 GO")+"（儀表板拍板"+(miss?"；當時缺："+miss:"；燈號全綠")+"）"});
@@ -2057,8 +2066,10 @@ async function createDriveDoc(slug,i,kind){
         body:JSON.stringify({role:"writer",type:"anyone"})}).then(()=>d).catch(()=>d); });
   }).then(d=>{
     const url=d.webViewLink||("https://drive.google.com/open?id="+d.id);
-    t.links=t.links||[]; t.links.push({n:d.name||name,u:url});
-    if(isIntake){ t.st="x"; t.doneAt=today; v3Advance(l); l.checkins.unshift({d:today,a:actor(),txt:`Intake ${kindLabel} “${d.name||name}” created (anyone-with-link can edit) — pipeline unlocked.`}); } // 送出日＝今天，並經 v3Advance 重算預計上市日
+    const t2=_linkTask(slug,i); if(!t2){toast(LANG==="zh"?"⚠️ 看板已更新，找不到該任務 — 文件已建立但未掛上":"⚠️ board updated — doc created but not attached");return;}   // Drive 往返 1-3 秒，比 modal 更長：快照期間重建 LAUNCHES 的話，寫進 await 前的 t/l 會無聲蒸發（.then 鏈同樣要重取）
+    const l2=isCamp?null:L(slug);
+    t2.links=t2.links||[]; t2.links.push({n:d.name||name,u:url});
+    if(isIntake&&l2){ t2.st="x"; t2.doneAt=today; v3Advance(l2); l2.checkins.unshift({d:today,a:actor(),txt:`Intake ${kindLabel} “${d.name||name}” created (anyone-with-link can edit) — pipeline unlocked.`}); } // 送出日＝今天，並經 v3Advance 重算預計上市日
     log("📄 "+kindLabel+" created: "+(d.name||name)+(GAUTH.email?(" · by "+GAUTH.email):"")); save(); render();
     toast(LANG==="zh"?"✅ "+kindLabel+" 已建立(知道連結者皆可編輯)"+(isIntake?" · pipeline 已解鎖":""):"✅ "+kindLabel+" created (anyone-with-link can edit)"+(isIntake?" · pipeline unlocked":"")); window.open(url,"_blank");
   }).catch(err=>{
@@ -2111,9 +2122,10 @@ function createLaunchFolder(slug,_tries){
 
 /* ----- edit a launch's name / target date (keeps the slug stable so tasks & history still link) ----- */
 async function editLaunch(slug){
-  const l=L(slug); if(!l)return;
+  let l=L(slug); if(!l)return;
   const name=await uiPrompt(LANG==="zh"?"活動名稱？":"Launch name?",l.name); if(name===null)return;   // 目標日已改為自動推算的「預計上市日」，這裡只改名稱
   const nm=name.trim(); if(!nm){toast("Name can't be empty");return;}
+  l=L(slug); if(!l)return;   // re-resolve: a remote snapshot may have rebuilt LAUNCHES while the prompt was open — writing into the pre-await card would silently vanish
   const oldName=l.name;
   if(nm===oldName){toast("No changes");return;}
   l.name=nm;
@@ -2178,8 +2190,9 @@ async function addRisk(slug){ const t=await uiPrompt("Risk (one line)"); if(!t)r
   const owner=await uiPrompt("Owning department","Product")||"—"; const sc=parseInt(await uiPrompt("Score 1-9 (likelihood × impact)","6"))||5;
   const trigger=await uiPrompt("Trigger / early warning","")||"—";
   (L(slug).risks=L(slug).risks||[]).push({t,owner,sc,trigger}); log("⚠️ Risk added to "+L(slug).name); toast("Risk logged"); render(); }
-async function delRisk(slug,i){ const l=L(slug); if(!l||!l.risks||!l.risks[i])return;
+async function delRisk(slug,i){ let l=L(slug); if(!l||!l.risks||!l.risks[i])return;
   const r=l.risks[i]; if(!await uiConfirm("Remove risk “"+r.t+"”?",true))return;
+  l=L(slug); if(!l||!l.risks||!l.risks[i])return;   // re-resolve: a remote snapshot may have rebuilt LAUNCHES while the confirm was open
   l.risks.splice(i,1); log("🗑️ Risk removed from "+l.name+": "+r.t); save(); render(); toast("Risk removed"); }
 
 /* ----- persistence (guarded): autosave, export, reset ----- */
@@ -2439,8 +2452,19 @@ const CORE_CONFIG={
    ③ APPVER 版本閘 —— 文件帶著寫入者的程式版本；舊分頁收到更新版寫的資料 → 停止寫入＋要求重整，
       否則舊版 v3SyncTasks 會把它不認識的新節點（例：KOL 併點）剃掉再整份寫回，全隊一起回朔。
       注意：閘門只約束「有這段程式碼的分頁」，部署當下已經開著的更舊分頁管不到 —— 部署後請全員重整一次。 */
-const APPVER=20260814;   // 資料形狀（V3 模板節點/階段/欄位）有變的部署，把這裡改成當天日期。20260814：回朔第四輪修復＋ntf/ntfInit 首次上線（a5d7d5a 從未部署過、雲端文件尚無這兩欄），bump 是要逼部署前的分頁停寫重整；此閘自 693004f 引入後這是第一次真的會觸發
-let FB={ready:false,synced:false,serverSeen:false,boardStarted:false,applying:false,timer:null,lastWritten:null,docRef:null,versRef:null,coreDb:null,rev:0,lastAt:null,stale:false,lastHeal:null,_stalePrompted:false};
+const APPVER=20260817;   // 政策（2026-08-17 第六輪起）：**每次部署一律 bump**——用 ./deploy.sh 部署會自動戳成當天，不要再手改或直接 firebase deploy。教訓：8/15、8/16 三次部署都沒 bump，艦隊混版（舊分頁沒有 push 掃全卡關卡、EVID 規則不同步），版本閘一次都沒攔，混版寫入＝回朔的頭號慣犯（第一輪 KOL 併點、第六輪 U5/push 皆此類）
+function syncGate(on){ // boot 空窗閘（第六輪）：登入後到首份伺服器快照抵達前（1-3s），dirty 基線還是 null——這段期間的點擊
+  // 會被首份快照無聲蓋掉（「點完成自己彈回去」）。透明罩擋互動，首快照/錯誤/10s 保底任一到就解除（不能鎖死頁面）。
+  let el=document.getElementById("syncgate");
+  if(on){ if(el) return;
+    el=document.createElement("div"); el.id="syncgate";
+    el.style.cssText="position:fixed;inset:0;z-index:100;background:transparent;cursor:progress";   // z-index 必須低於 .uimwrap 的 120（對話框要點得到）、高於 #toast 的 50——9998 會把 uiConfirm 按鈕罩死
+    el.title=LANG==="zh"?"同步中…":"syncing…";
+    document.body.appendChild(el);
+    try{fbStatus(LANG==="zh"?"◍ 載入看板中…":"◍ loading board…","var(--amber)");}catch(e){}
+    setTimeout(()=>syncGate(false),10000);
+  } else if(el) el.remove(); }
+let FB={ready:false,synced:false,serverSeen:false,boardStarted:false,applying:false,timer:null,retryTimer:null,healTimer:null,healPending:null,lastWritten:null,docRef:null,versRef:null,coreDb:null,rev:0,lastAt:null,stale:false,lastHeal:null,_stalePrompted:false,_applyFailPrompted:false};   // timer＝使用者改動的 debounce（dirty 語意）；retryTimer＝寫入失敗退避；healTimer/healPending＝self-heal 去風暴——三顆 timer 語意不同，別合併
 let _pdCore=[],_pdFb=[];   // product_docs: Core copy vs bv-superpm fallback (shared across fbInit + startBoardSync)
 let ME=null;        // the signed-in person {uid,email,name,photo} — Firebase Auth identity (any Google account)
 let ACTIVITY=[];    // shared, attributed team activity feed (Firestore bv/superpm/activity)
@@ -2475,12 +2499,13 @@ function fbInit(){
 // don't reject the initial read. Called from onUser() when a user is present; idempotent.
 function startBoardSync(){
   if(FB.boardStarted||!FB.docRef) return; FB.boardStarted=true;
+  if(!FB.serverSeen) syncGate(true);   // 首份伺服器快照抵達前擋互動（boot 空窗）；下方 !fromCache 分支與 err 回呼負責解除
   try{
     FB.docRef.collection("activity").orderBy("ts","desc").limit(80).onSnapshot(qs=>{ ACTIVITY=qs.docs.map(d=>d.data()); const dr=document.getElementById("drawer"); if(dr&&dr.classList&&dr.classList.contains("openD"))renderDrawer(); }, e=>{});  // shared attributed feed
     FB.docRef.onSnapshot(snap=>{
       if(snap.metadata.hasPendingWrites) return;            // our own optimistic write — ignore
       const fromCache=snap.metadata&&snap.metadata.fromCache;
-      if(!fromCache){ FB.serverSeen=true; FB.synced=true; if(!FB.stale)fbStatus("● live (shared)","var(--green)"); }  // authoritative server data has arrived；stale（套用失敗/舊版）的紅燈不准被後續快照刷回綠——燈綠但停寫＝使用者以為有同步其實全留在本機
+      if(!fromCache){ FB.serverSeen=true; FB.synced=true; syncGate(false); if(!FB.stale)fbStatus("● live (shared)","var(--green)"); }  // authoritative server data has arrived；stale（套用失敗/舊版）的紅燈不准被後續快照刷回綠——燈綠但停寫＝使用者以為有同步其實全留在本機
       if(!snap.exists){ if(!fromCache) fbWriteNow(true); return; }   // seed the cloud ONLY when the SERVER confirms there is no board — NEVER from a cache miss (that was wiping fresh sign-ins with the demo seed)
       const data=snap.data(); if(!data||typeof data.state!=="string") return;
       // 舊版分頁偵測（appv 欄位 2026-08-13 起必帶）：session 中途收到「不帶 appv」的寫入＝部署前就開著的
@@ -2517,6 +2542,7 @@ function startBoardSync(){
         if(data.updatedBy&&data.updatedBy!==actor()) toast(LANG==="zh"?"⚠️ 與 "+data.updatedBy+" 的更新同時發生 — 已以本機為準（對方版本在歷史裡）":"⚠️ concurrent update by "+data.updatedBy+" — kept local (theirs is in History)");
         fbWriteNow(true); return; }
       if(at)FB.lastAt=Math.max(FB.lastAt||0,at);
+      if(FB.healPending&&data.state===FB.healPending){ clearTimeout(FB.healTimer); FB.healTimer=null; FB.healPending=null; }   // 別的分頁已把同一份 heal 內容寫上雲——本分頁讓位、取消排程（去風暴的跨分頁協調）
       if(data.state===verSnap()){ FB.lastWritten=data.state; return; } // already identical
       FB.applying=true;
       recordRemoteVersion(data.updatedBy,data.state);        // log who changed what, before applying
@@ -2533,13 +2559,22 @@ function startBoardSync(){
       if(!applyOk){                                          // 截斷看板收尾：stale 已在 catch 當場設好，這裡清 timer＋亮燈提示
         FB.stale=true; clearTimeout(FB.timer); FB.timer=null;
         fbStatus(LANG==="zh"?"● 套用失敗 — 請重新整理":"● apply failed — reload","var(--red)");
-        toast(LANG==="zh"?"⚠️ 資料套用失敗 — 請重新整理頁面":"⚠️ snapshot apply failed — please reload"); return; }
+        toast(LANG==="zh"?"⚠️ 資料套用失敗 — 請重新整理頁面":"⚠️ snapshot apply failed — please reload");
+        if(!FB._applyFailPrompted){ FB._applyFailPrompted=true;   // 3 秒 toast 不夠力：使用者會對著停寫分頁繼續編輯，重整後「消失」＝體感回朔——比照 appv 版本閘給強制對話框
+          (async()=>{ try{ if(await uiConfirm(LANG==="zh"?"資料套用失敗，此分頁已停止寫入以保護共享資料。\n\n現在重新整理頁面？（未送出的最後編輯可能遺失）":"Snapshot apply failed; this tab stopped syncing to protect shared data.\n\nReload now?",true)) location.reload(); }catch(e){} })(); }
+        return; }
       // self-heal 加冪等去重：正規化含 projLaunchDate 等衍生欄位（吃 today——現已隨換日就地更新，但兩分頁最多仍有 60 秒視窗各算各的）
       // 而互相「修正」——同一份 heal 內容只寫一次，斷掉無限來回寫。被擋下時留一行 console 供日後診斷（本機與雲端暫時分歧，下次編輯才收斂）。
-      if(cleaned!==data.state&&cleaned!==FB.lastHeal){ FB.lastHeal=cleaned; fbWriteNow(true); }
+      // 去風暴（第六輪 2026-08-17）：heal 不再同步立即整份 set()——同一輪快照 N 個分頁各寫一筆，跟任何併發編輯賽跑就 LWW 互蓋。
+      // 改成 0.6-2.4s 隨機延遲＋兩道讓位：期間收到相同內容的快照（別的分頁先寫了）就取消；期間本機狀態動過（使用者編輯，debounce 會把正規化一併帶上）也放棄。
+      // 刻意取捨：pagehide 不 flush pending heal（全員關分頁＝N 筆同寫，風暴回鍋）——雲端暫留未正規化，下一個載入的分頁自癒。
+      if(cleaned!==data.state&&cleaned!==FB.lastHeal){ FB.lastHeal=cleaned; FB.healPending=cleaned;
+        clearTimeout(FB.healTimer);
+        FB.healTimer=setTimeout(()=>{ FB.healTimer=null; const p=FB.healPending; FB.healPending=null;
+          if(p&&verSnap()===p) fbWriteNow(true); },600+Math.random()*1800); }
       else if(cleaned!==data.state){ FB._healDedup=(FB._healDedup||0)+1; if(FB._healDedup===1)console.warn("[sync] heal deduped (lastHeal) — 本機正規化結果與雲端暫時分歧；之後不重複列印，計數在 FB._healDedup"); }
       if(data.updatedBy&&data.updatedBy!==actor()) toast(LANG==="zh"?"🔄 "+data.updatedBy+" 已更新看板":"🔄 "+data.updatedBy+" updated the board");
-    }, err=>{ fbStatus("● offline","var(--red)"); });
+    }, err=>{ syncGate(false); fbStatus("● offline","var(--red)"); });
     FB.versRef.orderBy("createdAt","desc").limit(120).onSnapshot(qs=>{   // shared version history (History tab)
       const arr=[]; qs.forEach(doc=>{ const x=doc.data(); x.id=doc.id; arr.push(x); });
       VERSIONS=arr; if(S.view==="versions") render();
@@ -3199,14 +3234,19 @@ async function guardReopen(l,t,el){
   return {ok:true,reset:deps};
 }
 async function stepStatus(slug,i,dir,el){ // status loop: todo → in progress → done → blocked → todo (dir<0 walks it backward)
-  const l=L(slug), t=l.tasks[i];
+  let l=L(slug), t=l&&l.tasks[i]; if(!l||!t)return;
   if(taskLocked(l,t)){ bvShake(el); toast("🔒 "+lockReason(l,t)); return; }   // locked → can't act out of order: nudge + say why (no silent dead click)
+  const code=t.code;
   if(!await confirmFrozenStepEdit(l,t)) return;   // post-design-freeze guard for 概念/開發 steps
+  l=L(slug); t=l&&(l.tasks||[]).find(x=>x.code===code); if(!l||!t)return;   // re-resolve: a remote snapshot may have rebuilt LAUNCHES (applySnapshot) while the confirm dialog was open — writing into the pre-await task would silently vanish
   const nx=(dir<0?{p:"o",x:"p",b:"x",o:"b"}:{o:"p",p:"x",x:"b",b:"o"})[t.st]; // backward map is the exact inverse of forward
   if(t.st==="x"&&nx!=="x"){                        // leaving "done" → its completed downstream steps become invalid; warn + cascade-reopen them
     const g=await guardReopen(l,t,el); if(!g.ok) return;
-    g.reset.forEach(d=>{d.st="o"; if(d.doneAt)delete d.doneAt;});
-    if(g.reset.length) toast(LANG==="zh"?("↩ 已一併退回後續 "+g.reset.length+" 個步驟"):("↩ Reset "+g.reset.length+" downstream step(s)"));
+    l=L(slug); t=l&&(l.tasks||[]).find(x=>x.code===code); if(!l||!t)return;   // re-resolve again — second confirm, same reason
+    const resetCodes=g.reset.map(d=>d.code);
+    const reset=(l.tasks||[]).filter(x=>resetCodes.includes(x.code));
+    reset.forEach(d=>{d.st="o"; if(d.doneAt)delete d.doneAt;});
+    if(reset.length) toast(LANG==="zh"?("↩ 已一併退回後續 "+reset.length+" 個步驟"):("↩ Reset "+reset.length+" downstream step(s)"));
   }
   const r=applyTaskStatus(l,t,nx); if(!r.ok){toast(r.reason);return;}
   if(nx==="x"){const lane=flowOf(l)[t.d]; const ii=lane?lane.findIndex(n=>n.t===t.t):-1;
@@ -3257,16 +3297,19 @@ async function addLink(slug,i){
 function _linkTask(slug,i){return slug==="__camp"?((curCamp()||{tasks:[]}).tasks[i]):L(slug).tasks[i];}
 async function editLink(slug,i,li){
   if(!await frozenStepGuard(slug,i))return;
-  const t=_linkTask(slug,i); const k=(t.links||[])[li]; if(!k)return;
+  let t=_linkTask(slug,i); let k=(t&&t.links||[])[li]; if(!k)return;
   const u=await uiPrompt("Edit link URL (blank = keep current)",k.u); if(u===null)return;
   const n=await uiPrompt("Edit link label (blank = keep current)",k.n); if(n===null)return;
+  t=_linkTask(slug,i); k=(t&&t.links||[])[li]; if(!t||!k)return;   // re-resolve: a remote snapshot may have rebuilt LAUNCHES while the prompts were open — writing into the pre-await link would silently vanish
   if(u.trim())k.u=u.trim(); if(n.trim())k.n=n.trim();
   toast("✏️ Link updated"); render();
 }
 async function removeLink(slug,i,li){
   if(!await frozenStepGuard(slug,i))return;
-  const t=_linkTask(slug,i); if(!t.links||!t.links[li])return;
-  if(!await uiConfirm("Remove “"+(t.links[li].n||"this link")+"”?",true))return;
+  let t=_linkTask(slug,i); if(!t||!t.links||!t.links[li])return;
+  const nm=t.links[li].n;
+  if(!await uiConfirm("Remove “"+(nm||"this link")+"”?",true))return;
+  t=_linkTask(slug,i); if(!t||!t.links||!t.links[li])return;   // re-resolve: a remote snapshot may have rebuilt LAUNCHES while the confirm was open
   t.links.splice(li,1); toast("🗑 Link removed"); render();
 }
 /* ----- HTML code attachments: paste code, preview rendered output or view source ----- */
@@ -3331,12 +3374,14 @@ async function editCode(slug,i,ci){
 }
 async function removeCode(slug,i,ci){
   if(!await frozenStepGuard(slug,i))return;
-  const t=_linkTask(slug,i); if(!t.codes||!t.codes[ci])return;
-  if(!await uiConfirm("Remove “"+(t.codes[ci].n||"this code")+"”?",true))return;
+  let t=_linkTask(slug,i); if(!t||!t.codes||!t.codes[ci])return;
+  const nm=t.codes[ci].n;
+  if(!await uiConfirm("Remove “"+(nm||"this code")+"”?",true))return;
+  t=_linkTask(slug,i); if(!t||!t.codes||!t.codes[ci])return;   // re-resolve: a remote snapshot may have rebuilt LAUNCHES while the confirm was open
   t.codes.splice(ci,1); toast("🗑 Code removed"); render();
 }
 async function push(slug){
-  const l=L(slug);
+  let l=L(slug);
   if(!allMet(l)){toast("🔒 Locked — not all exit criteria are met");return;}
   if(!canPushRole(l)){toast(`Only the DRI (${l.dri}), a mandatory department head, or Ben can push`);return;}
   const i=STAGES.indexOf(l.stage);
@@ -3353,8 +3398,9 @@ async function push(slug){
   const who=S.role==="ceo"?"Ben":S.dept+" (head)";
   l.checkins.unshift({d:today,a:who,txt:`Pushed to ${l.complete?"Complete":l.stage}.${l.complete?"":" Next up: "+mandatory(l).join(", ")+" — their stage begins."}`});
   log("🚀 "+l.name+" pushed to "+(l.complete?"Complete":l.stage)+" by "+who); boom();
+  save();   // push 本體要先武裝 debounce（FB.timer）再開 pre-mortem 對話框——否則 prompt 開著時落一份快照，dirty 分支保不住這筆 push，整筆被洗掉
   if(!l.complete){const r=await uiPrompt(`Pre-mortem (optional): biggest risk entering ${l.stage}?`);
-    if(r){(l.risks=l.risks||[]).push({t:r,owner:l.dri,sc:5,trigger:"—"}); log("⚠️ Pre-mortem risk logged on "+l.name);}}
+    if(r){ l=L(slug); if(l){ (l.risks=l.risks||[]).push({t:r,owner:l.dri,sc:5,trigger:"—"}); log("⚠️ Pre-mortem risk logged on "+l.name); } }}   // re-resolve: a remote snapshot may have rebuilt LAUNCHES while the prompt was open — writing into the pre-await card would silently vanish
   toast("🚀 Pushed — next-stage departments alerted in Slack"); render();
 }
 function setDRI(slug,d){ const l=L(slug); l.checkins.unshift({d:today,a:"system",txt:`DRI changed ${l.dri} → ${d}.`}); l.dri=d; toast("DRI updated"); render(); }
@@ -3572,7 +3618,10 @@ const V3SHOTS={
 function v3ShotPlan(t,vn){ if(!Array.isArray(t.assetPlan)) t.assetPlan=(V3SHOTS[vn.shots]||[]).map(x=>({label:{zh:x.zh,en:x.en},qty:0})); return t.assetPlan; }
 function v3ShotTotal(t){ return Array.isArray(t.assetPlan)?t.assetPlan.reduce((s,r)=>s+(+r.qty||0),0):0; }
 function v3SetShotQty(slug,i,idx,v){ const l=L(slug),t=l&&l.tasks[i]; if(!t||!Array.isArray(t.assetPlan)||!t.assetPlan[idx])return; t.assetPlan[idx].qty=Math.max(0,parseInt(v,10)||0); save(); render(); }
-async function v3AddShot(slug,i){ const l=L(slug),t=l&&l.tasks[i]; if(!t)return; const name=await uiPrompt(LANG==="zh"?"新增素材項目名稱":"New asset item name"); if(!name)return; (t.assetPlan=t.assetPlan||[]).push({label:{zh:name,en:name},qty:0}); save(); render(); }
+async function v3AddShot(slug,i){ const l0=L(slug),t0=l0&&l0.tasks[i]; if(!t0)return; const code=t0.code;
+  const name=await uiPrompt(LANG==="zh"?"新增素材項目名稱":"New asset item name"); if(!name)return;
+  const l=L(slug); const t=l&&(code?(l.tasks||[]).find(x=>x.code===code):(l.tasks||[])[i]); if(!l||!t)return;   // re-resolve: a remote snapshot may have rebuilt LAUNCHES while the prompt was open — writing into the pre-await task would silently vanish
+  (t.assetPlan=t.assetPlan||[]).push({label:{zh:name,en:name},qty:0}); save(); render(); }
 function v3DelShot(slug,i,idx){ const l=L(slug),t=l&&l.tasks[i]; if(!t||!Array.isArray(t.assetPlan))return; t.assetPlan.splice(idx,1); save(); render(); }
 // 切換日期記錄（UL1「新版切換確認」）：面料分批切換 → 同一步驟重複記日期。純記錄，不碰排程/解鎖，所以不用 reconcile。
 function v3SwAdd(slug,i,p){ const l=L(slug),t=l&&l.tasks[i]; if(!t)return;   // p＝輸入框 id 前綴（""＝詳情列、"fp-"＝流程圖彈窗——兩處可能同時在畫面上）
@@ -3581,9 +3630,10 @@ function v3SwAdd(slug,i,p){ const l=L(slug),t=l&&l.tasks[i]; if(!t)return;   // 
   (t.swDates=t.swDates||[]).push({d,n:(nEl&&nEl.value||"").trim()});
   t.swDates.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
   toast("📅 "+(LANG==="zh"?"已記錄切換日期":"switch date logged")); save(); render(); }
-async function v3SwDel(slug,i,x){ const l=L(slug),t=l&&l.tasks[i]; if(!t||!(t.swDates||[])[x])return;
-  const e=t.swDates[x];
+async function v3SwDel(slug,i,x){ const l0=L(slug),t0=l0&&l0.tasks[i]; if(!t0||!(t0.swDates||[])[x])return; const code=t0.code;
+  const e=t0.swDates[x];
   if(!await uiConfirm((LANG==="zh"?"移除 ":"Remove ")+fmt(e.d)+(e.n?" · "+e.n:"")+"?",true))return;
+  const l=L(slug); const t=l&&(code?(l.tasks||[]).find(x2=>x2.code===code):(l.tasks||[])[i]); if(!l||!t||!(t.swDates||[])[x])return;   // re-resolve: a remote snapshot may have rebuilt LAUNCHES while confirming
   t.swDates.splice(x,1); save(); render(); }
 function v3ShotList(l,t,i,ro,vn){
   const zh=LANG==="zh", T=(z,e)=>zh?z:e; const plan=v3ShotPlan(t,vn); const total=v3ShotTotal(t);
@@ -4025,14 +4075,19 @@ function flowStepTo(nx){ if(!nx)return; const FLOW=flowOf(L(S._flowSlug)||{}); S
 function flowScrollTo(nx){ if(!nx)return; setTimeout(()=>{const el=document.getElementById("fn-"+nx.d+"-"+nx.i); if(el&&el.scrollIntoView)el.scrollIntoView({behavior:"smooth",block:"nearest",inline:"center"});},80); }
 // complete / reopen a step straight from the inspector (mirrors the card's status tick, jumps to done)
 async function fpComplete(slug,i,el){
-  const l=L(slug),t=l&&l.tasks[i]; if(!t)return;
+  let l=L(slug),t=l&&l.tasks[i]; if(!t)return;
   if(taskLocked(l,t)){ bvShake(el); toast("🔒 "+lockReason(l,t)); return; }   // still locked → nudge + name the missing prerequisite
+  const code=t.code;
   if(!await confirmFrozenStepEdit(l,t))return;
+  l=L(slug); t=l&&(l.tasks||[]).find(x=>x.code===code); if(!l||!t)return;   // re-resolve: a remote snapshot may have rebuilt LAUNCHES while the freeze-guard confirm was open — writing into the pre-await task would silently vanish
   const done=t.st==="x";
   if(done){                                                                    // reopening → cascade-reopen the completed downstream steps that depend on it
     const g=await guardReopen(l,t,el); if(!g.ok) return;
-    g.reset.forEach(d=>{d.st="o"; if(d.doneAt)delete d.doneAt;});
-    if(g.reset.length) toast(LANG==="zh"?("↩ 已一併退回後續 "+g.reset.length+" 個步驟"):("↩ Reset "+g.reset.length+" downstream step(s)"));
+    l=L(slug); t=l&&(l.tasks||[]).find(x=>x.code===code); if(!l||!t)return;   // re-resolve again — second confirm, same reason
+    const resetCodes=g.reset.map(d=>d.code);
+    const reset=(l.tasks||[]).filter(x=>resetCodes.includes(x.code));
+    reset.forEach(d=>{d.st="o"; if(d.doneAt)delete d.doneAt;});
+    if(reset.length) toast(LANG==="zh"?("↩ 已一併退回後續 "+reset.length+" 個步驟"):("↩ Reset "+reset.length+" downstream step(s)"));
   }
   const r=applyTaskStatus(l,t,done?"o":"x"); if(!r.ok){toast(r.reason);return;}
   if(done)delete t.doneAt; else { t.doneAt=today; if(!t.startAt)t.startAt=today; }   // stamp start too — completing straight o→x skips the p step that normally sets startAt
@@ -4048,7 +4103,9 @@ async function fpApprove(slug,i,el){
   if(t.st!=="x"&&taskLocked(l,t)){ bvShake(el); toast("🔒 "+lockReason(l,t)); return; }
   if(t.st==="x"){
     const g=await guardReopen(l,t,el); if(!g.ok)return;
-    g.reset.forEach(dd=>{dd.st="o"; if(dd.doneAt)delete dd.doneAt;});
+    const l2=L(slug); if(!l2)return;   // re-resolve: a remote snapshot may have rebuilt LAUNCHES while the reopen confirm was open — writing into the pre-await deps would silently vanish
+    const resetCodes=g.reset.map(d=>d.code);
+    (l2.tasks||[]).filter(x=>resetCodes.includes(x.code)).forEach(dd=>{dd.st="o"; if(dd.doneAt)delete dd.doneAt;});
     if(g.reset.length) toast(LANG==="zh"?("↩ 已一併退回後續 "+g.reset.length+" 個步驟"):("↩ Reset "+g.reset.length+" downstream step(s)"));
     unapprove(slug,i);
   } else {
@@ -5078,9 +5135,13 @@ async function newCampaign(){
   CAMPAIGNS.push({name,slug,date,products:[],tasks:[]}); S.camp=CAMPAIGNS.length-1;
   log("🆕 Campaign created: "+name); save(); render(); toast(LANG==="zh"?"🆕 Campaign「"+name+"」已建立":"🆕 Campaign “"+name+"” created");
 }
-async function addCampTask(){ const c=curCamp(); if(!c)return; const t=await uiPrompt("Campaign task?"); if(!t)return;
-  const d=await uiPrompt("Department?","Marketing")||"Marketing"; (c.tasks=c.tasks||[]).push({t,d:ALLDEPTS().includes(d)?d:"Marketing",st:"o",links:[]}); save(); render(); toast("Task added"); }
-async function delCampaign(){ const c=curCamp(); if(!c)return; if(!await uiConfirm("Delete campaign “"+c.name+"”?",true))return; CAMPAIGNS.splice(S.camp||0,1); S.camp=0; save(); render(); toast("Campaign deleted"); }
+async function addCampTask(){ let c=curCamp(); if(!c)return; const cslug=c.slug; const t=await uiPrompt("Campaign task?"); if(!t)return;
+  const d=await uiPrompt("Department?","Marketing")||"Marketing";
+  c=(CAMPAIGNS||[]).find(x=>x.slug===cslug); if(!c)return;   // re-resolve: a remote snapshot may have rebuilt CAMPAIGNS while the prompts were open — writing into the pre-await campaign would silently vanish
+  (c.tasks=c.tasks||[]).push({t,d:ALLDEPTS().includes(d)?d:"Marketing",st:"o",links:[]}); save(); render(); toast("Task added"); }
+async function delCampaign(){ const c=curCamp(); if(!c)return; if(!await uiConfirm("Delete campaign “"+c.name+"”?",true))return;
+  const ci=(CAMPAIGNS||[]).findIndex(x=>x.slug===c.slug); if(ci<0)return;   // 用 slug 重取索引：confirm 開著時快照可能重建/重排 CAMPAIGNS，拿舊索引 splice 會刪錯張（破壞性操作必驗身）
+  CAMPAIGNS.splice(ci,1); S.camp=0; save(); render(); toast("Campaign deleted"); }
 function viewCampaign(){
   const addBtn=`<button class="btn" style="margin-left:8px" onclick="newCampaign()">+ New campaign</button>`;
   if(!CAMPAIGNS.length) return `<h2>Campaigns ${addBtn}</h2><div class="sub">No campaigns yet — create one to start.</div>`;
@@ -6207,10 +6268,11 @@ async function _bvExtractFile(file){
 }
 async function chatAttachFiles(slug,files){
   var l=(typeof L==="function")?L(slug):null; if(!l||!files||!files.length)return;
-  l.resources=l.resources||[];
   for(var fi=0;fi<files.length;fi++){ var file=files[fi];
     chatPush(slug,{role:"user",who:(typeof actor==="function"?actor():"You"),text:"📎 "+(file.name||"file"),ts:nowStamp()});
     var res; try{ res=await _bvExtractFile(file); }catch(e){ res={text:"",kind:"error",err:(e&&e.message)||String(e)}; }
+    l=(typeof L==="function")?L(slug):null; if(!l)return;   // re-resolve: a remote snapshot may have rebuilt LAUNCHES while this file was being read/parsed — writing into the pre-await card would silently vanish
+    l.resources=l.resources||[];
     if(res&&res.image){ l.resources.push({n:file.name,type:"file",h:"",u:""}); try{save();}catch(e){} chatPush(slug,{role:"assistant",who:"Claude",text:"🖼 Attached **"+esc(file.name)+"** to this card. It is an image, so I cannot read its text without OCR — it will not ground the brief copy yet. Want me to add OCR?",ts:nowStamp()}); continue; }
     var txt=String((res&&res.text)||"").replace(/[ \t]+\n/g,"\n").trim();
     if(!txt){ chatPush(slug,{role:"assistant",who:"Claude",text:"⚠️ Couldn't extract readable text from **"+esc(file.name)+"** ("+((res&&(res.err||res.kind))||"unsupported")+"). If it's a scanned PDF or photo it needs OCR.",ts:nowStamp()}); continue; }
