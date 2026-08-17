@@ -1187,7 +1187,9 @@ const V3U=[
  {c:"UL3", en:"Notify KOL CRM", zh:"通知網紅 CRM", ph:4, dept:"CRM", o:"Angel", days:1, req:["UL1"], out:{en:"CRM info refreshed",zh:"CRM 新資訊通知網紅"}},
  {c:"UL4", en:"Shopify info update", zh:"更新 Shopify 資訊", ph:4, dept:"Marketing", o:"Zac", days:1, req:["UL1"]},
  {c:"UL5", en:"ShipBob SKU swap", zh:"更新 ShipBob SKU", ph:4, dept:"Logistics", o:"LC", days:1, req:["UL1"], out:{en:"ShipBob + Shopify SKU",zh:"ShipBob／Shopify SKU"}},
- {c:"UL6", en:"Update live", zh:"更新上線", ph:4, dept:"Product", o:"Zac", days:0, req:["UL2","UL3","UL4","UL5"]},
+ // arrival：這條流程的終點日期就是全案完成日 —— 知道就直接填，填了蓋過正向排程（同 launch 的 FB1 到貨日機制）
+ {c:"UL6", en:"Update live", zh:"更新上線", ph:4, dept:"Product", o:"Zac", days:0, req:["UL2","UL3","UL4","UL5"], arrival:1,
+  note:{en:"fill the go-live date here once known — it becomes this card's projected completion",zh:"知道上線日就填在這裡 —— 它會直接成為本卡的預計完成日"}},
 ];
 const V3ALL=V3.concat(V3U);
 /* per-template registry — a card picks its flow via l.tpl ("update"; absent/anything else = launch,
@@ -1330,9 +1332,9 @@ function v3SetDays(slug,i,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;const 
 // 寫完必須 reconcile —— P5 的 "P3s" 解鎖條件看的就是 sampleDate，改日期會讓已完成的下游重新變成 locked（假綠）。
 function v3SetDate(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;
   if(k==="arrivalDate"&&v){
-    const lk=v3ArrivalLock(l,t); if(lk){toast((LANG==="zh"?"到貨日尚不可填 · ":"arrival date not fillable yet · ")+lk);render();return;}
+    const lk=v3ArrivalLock(l,t); if(lk){toast(arrTx(l,"short")+(LANG==="zh"?"尚不可填 · ":" not fillable yet · ")+lk);render();return;}
     const fl=v3ArrivalFloor(l);
-    if(fl&&v<fl){toast(LANG==="zh"?("到貨日不可早於大貨完工日 "+fmt(fl)):("arrival can't be before mass production finished "+fmt(fl)));render();return;}}
+    if(fl&&v<fl){toast(arrTx(l,"short")+(LANG==="zh"?("不可早於前置完成日 "+fmt(fl)):(" can't precede the last prerequisite's completion "+fmt(fl))));render();return;}}
   t[k]=v||"";
   v3ReconcileLoud(l); syncProjected(l); ntfSweep(l); save(); render();}   // sweep 補刀：sampleDate 影響 P5 解鎖，而這條寫入路不經 v3Advance
 // 完成日／開工日的修正入口 —— 每條蓋章路徑都寫死 today，補勾一天就把整條 DAG（含預計上市日）往後推，
@@ -1448,19 +1450,36 @@ const ntx=s=>s; // (was a language-lock wrapper; V3 is now bilingual via the ZH/
 // 日期一律以本地時區格式化：toISOString() 先退回 UTC，在 UTC+8 每次運算就少一天（誤差＝關鍵路徑跳數）
 const fmtYMD=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const v3AddD=(s,n)=>{const d=D(s); d.setDate(d.getDate()+n); return fmtYMD(d);};
-// 到貨日（＝首波開賣日）。LC 在 FB1 填的日期是唯一真實來源；沒填就用 P3 完成日＋FB1 天數暫估。
-// FB1 已標完成卻沒填日期 → 退回 doneAt（fb:true），否則「首波開賣日已完成」與「到貨日 —」會並存。
-const v3ArrivalSrc=l=>{const fb=v3Task(l,"FB1"); if(!fb)return null;
+/* 「一填就蓋過自動推算」的日期欄 —— 每個模板各有一個節點帶 arrival 旗標：launch＝FB1 首波開賣日（大貨到貨
+   ＝可開賣）、update＝UL6 更新上線（新版真的換上去那天）。兩者量的事不同所以文案分模板，機制完全共用：
+   填了就是本卡的預計完成日（projLaunchDate 直接回傳它），沒填才走正向排程推估。欄位名沿用 t.arrivalDate，
+   舊快照零遷移。 */
+const v3ArrNode=l=>tplNodes(l).find(n=>n.arrival)||null;
+const ARRTX={
+ launch:{ico:"📦", lab:{zh:"到貨日 / 首波開賣日",en:"Arrival / on-sale date"}, short:{zh:"到貨日",en:"arrival date"},
+   tip:{zh:"大貨到貨、可以開賣的那一天。填了就直接成為這張卡的『預計上市日』，蓋過自動推算",en:"the day stock lands and selling can start. Once set it becomes this card's projected launch, overriding the auto-projection"},
+   set:{zh:"＝本卡預計上市日",en:"= this card's projected launch"}, unset:{zh:"未填 — 預計上市日仍用自動推算",en:"unset — projected launch stays auto-computed"},
+   nudge:{zh:"已到貨？記得標記完成",en:"arrived? mark this step done"}},
+ update:{ico:"🚀", lab:{zh:"預計完成日 / 上線日",en:"Projected done / go-live date"}, short:{zh:"上線日",en:"go-live date"},
+   tip:{zh:"新版真的換上去的那一天。知道日期就直接填，它會成為這張卡的『預計完成日』，蓋過自動推算",en:"the day the new version actually goes live. Fill it in when known — it becomes this card's projected completion, overriding the auto-projection"},
+   set:{zh:"＝本卡預計完成日",en:"= this card's projected completion"}, unset:{zh:"未填 — 預計完成日仍用自動推算",en:"unset — projected completion stays auto-computed"},
+   nudge:{zh:"已上線？記得標記完成",en:"live? mark this step done"}},
+};
+const arrTx=(l,k)=>{const m=(ARRTX[lTpl(l)]||ARRTX.launch)[k]; return typeof m==="string"?m:(LANG==="zh"?m.zh:m.en);};
+// 使用者填的日期是唯一真實來源；節點已標完成卻沒填 → 退回 doneAt（fb:true），否則「已完成」與「日期 —」會並存。
+const v3ArrivalSrc=l=>{const an=v3ArrNode(l), fb=an&&v3Task(l,an.c); if(!fb)return null;
   if(fb.arrivalDate)return {d:fb.arrivalDate,fb:false};
   if(fb.st==="x"&&fb.doneAt)return {d:fb.doneAt,fb:true};
   return null;};
 const v3Arrival=l=>{const s=v3ArrivalSrc(l); return s?s.d:"";};
-// FB1 未解鎖（P3 未完成）時不可填到貨日 —— 填了就直接決定上市日，而貨根本還沒生產完。回傳 disabled 的原因。
-const v3ArrivalLock=(l,t)=>(t&&v3Locked(l,t))?(LANG==="zh"?"大貨生產（P3）完成後才能填":"available once mass production (P3) is done"):"";
-// 到貨日不得早於大貨完工日（物理上不可能）；過去的日期本身合法 —— 貨昨天到了很正常
-const v3ArrivalFloor=l=>{const p3=v3Task(l,"P3"); return (p3&&p3.st==="x"&&p3.doneAt)||"";};
-// 到貨日已到卻還沒標完成 → 燈號與上市日的真相會分岔，要當場提醒去勾
-const v3ArrivalNudge=l=>{const fb=v3Task(l,"FB1"); return !!(fb&&fb.arrivalDate&&fb.arrivalDate<=today&&fb.st!=="x");};
+// 節點還鎖著時不可填 —— 填了就直接決定預計完成日，而前置根本還沒做完。理由字串直接用共用的「在等誰」。
+const v3ArrivalLock=(l,t)=>{ if(!(t&&v3Locked(l,t)))return "";
+  return v3LockText(l,t)||(LANG==="zh"?"前置未完成":"prerequisites not done"); };
+// 不得早於前置的完成日（物理上不可能）；過去的日期本身合法 —— 貨昨天到了、版昨天換上去了都很正常
+const v3ArrivalFloor=l=>{const an=v3ArrNode(l); if(!an)return ""; let m="";
+  (an.req||[]).forEach(rc=>{const rt=v3Task(l,rc); if(rt&&rt.st==="x"&&rt.doneAt&&rt.doneAt>m)m=rt.doneAt;}); return m;};
+// 日期已到卻還沒標完成 → 燈號與預計完成日的真相會分岔，要當場提醒去勾
+const v3ArrivalNudge=l=>{const an=v3ArrNode(l), fb=an&&v3Task(l,an.c); return !!(fb&&fb.arrivalDate&&fb.arrivalDate<=today&&fb.st!=="x");};
 function v3EtaBulk(l){ // 到貨日：已填 → 直接回傳；未填 → P3 完成日(實際或 startAt+days 推估) + FB1 前置天數
   const filled=v3Arrival(l); if(filled)return filled;
   const p3=v3Task(l,"P3"),fb=v3Task(l,"FB1");
@@ -3588,14 +3607,14 @@ function taskDetail(l,t,i,ro,vn,lk){
       ro?(t.sampleDate?fmt(t.sampleDate):"—")
         :`<input type="date" class="v3due-inp${t.sampleDate?"":" unfilled"}" value="${esc(t.sampleDate||"")}" title="${sTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)"> <span class="ghostnote">${t.sampleDate?T("P5（部署行銷樣品）等這一天","P5 waits for this day"):T("未填 — P5 部署行銷樣品無法解鎖","unset — P5 stays locked")}</span>`]);
   }
-  // 首波開賣日（FB1）：LC 一條龍處理出貨，系統只追這一個日期 — 填了就直接當預計上市日，全公司看卡片抬頭即可
+  // 覆蓋型日期（launch＝FB1 首波開賣日、update＝UL6 上線日）：填了就直接當預計完成日，全公司看卡片抬頭即可
   if(vn.arrival){
-    const aTip=T("大貨到貨、可以開賣的那一天。填了就直接成為這張卡的『預計上市日』，蓋過自動推算","the day stock lands and selling can start. Once set it becomes this card's projected launch, overriding the auto-projection");
-    const aLk=v3ArrivalLock(l,t), aFl=v3ArrivalFloor(l);   // min＝大貨完工日：過去的到貨日合法，早於完工日不可能
-    info.push([T("到貨日 / 首波開賣日","Arrival / on-sale date"),
+    const aTip=arrTx(l,"tip");
+    const aLk=v3ArrivalLock(l,t), aFl=v3ArrivalFloor(l);   // min＝前置完成日：過去的日期合法，早於前置不可能
+    info.push([arrTx(l,"lab"),
       ro?(t.arrivalDate?fmt(t.arrivalDate):"—")
       :aLk?`<input type="date" class="v3due-inp unfilled" value="${esc(t.arrivalDate||"")}" disabled aria-disabled="true"> <span class="ghostnote">🔒 ${esc(aLk)}</span>`
-        :`<input type="date" class="v3due-inp${t.arrivalDate?"":" unfilled"}" value="${esc(t.arrivalDate||"")}"${aFl?` min="${aFl}"`:""} title="${aTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'arrivalDate',this.value)"> <span class="ghostnote">${t.arrivalDate?T("＝本卡預計上市日","= this card's projected launch"):T("未填 — 預計上市日仍用自動推算","unset — projected launch stays auto-computed")}</span>${v3ArrivalNudge(l)?` <span class="urg high">${T("已到貨？記得標記完成","arrived? mark this step done")}</span>`:""}`]);
+        :`<input type="date" class="v3due-inp${t.arrivalDate?"":" unfilled"}" value="${esc(t.arrivalDate||"")}"${aFl?` min="${aFl}"`:""} title="${aTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'arrivalDate',this.value)"> <span class="ghostnote">${t.arrivalDate?arrTx(l,"set"):arrTx(l,"unset")}</span>${v3ArrivalNudge(l)?` <span class="urg high">${arrTx(l,"nudge")}</span>`:""}`]);
   }
   // 切換日期記錄（UL1）：多個面料分批換新版，LC 在同一步驟重複記多筆日期 — 純記錄，不進排程/解鎖
   if(vn.swlog){
@@ -3980,7 +3999,7 @@ function flowSVG(l){
           }
         } }
       return `<g pointer-events="none"><rect x="${x-4}" y="${BRY}" width="${w}" height="18" rx="9" fill="${BJ.bg}"/><text x="${x-4+w/2}" y="${BTY}" text-anchor="middle" fill="${BJ.fg}" font-size="11" font-weight="700">${BJ.t}</text>${inSVG}${ownSVG}</g>`;})()}
-    <title>${esc(n.l)} — ${LANG==="zh"?"階段：":"stage: "}${n.s} · ${LANG==="zh"?"點一下看依賴與快捷動作":"click for route + quick actions"}${st==="fut"&&ti>=0?(LANG==="zh"?" · 🔒 鎖定中 — 等前一步完成":" · 🔒 locked until previous step is done"):""}${live==="o"?(LANG==="zh"?" · 📍 已解鎖，可開始":" · 📍 unlocked — ready to start")+(v3Own(_vnn)||(_tt&&_tt.o)?(LANG==="zh"?" · 負責人 ":" · owner: ")+"<!--notx-->"+esc(String(v3Own(_vnn)||(_tt&&_tt.o)))+"<!--/notx-->":""):live==="p"?(LANG==="zh"?" · ⏳ 進行中":" · ⏳ in progress"):live==="b"?(LANG==="zh"?" · ⛔ 卡關":" · ⛔ blocked"):""}${needDays?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}${needDate&&_vnn&&_vnn.arrival?(LANG==="zh"?" · 📦 到貨日未填":" · 📦 arrival date not set"):""}${needDate&&_vnn&&_vnn.sample?(LANG==="zh"?" · 🧵 大貨樣日未填":" · 🧵 bulk-sample date not set"):""}</title></g>`;}));
+    <title>${esc(n.l)} — ${LANG==="zh"?"階段：":"stage: "}${n.s} · ${LANG==="zh"?"點一下看依賴與快捷動作":"click for route + quick actions"}${st==="fut"&&ti>=0?(LANG==="zh"?" · 🔒 鎖定中 — 等前一步完成":" · 🔒 locked until previous step is done"):""}${live==="o"?(LANG==="zh"?" · 📍 已解鎖，可開始":" · 📍 unlocked — ready to start")+(v3Own(_vnn)||(_tt&&_tt.o)?(LANG==="zh"?" · 負責人 ":" · owner: ")+"<!--notx-->"+esc(String(v3Own(_vnn)||(_tt&&_tt.o)))+"<!--/notx-->":""):live==="p"?(LANG==="zh"?" · ⏳ 進行中":" · ⏳ in progress"):live==="b"?(LANG==="zh"?" · ⛔ 卡關":" · ⛔ blocked"):""}${needDays?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}${needDate&&_vnn&&_vnn.arrival?" · "+arrTx(l,"ico")+" "+arrTx(l,"short")+(LANG==="zh"?"未填":" not set"):""}${needDate&&_vnn&&_vnn.sample?(LANG==="zh"?" · 🧵 大貨樣日未填":" · 🧵 bulk-sample date not set"):""}</title></g>`;}));
   // red dependency arrows (drawn on top so they clearly reach the highlighted nodes)
   depEdges.forEach(([a,b])=>{const pa=pos(a[0],a[1]),pb=pos(b[0],b[1]),ha=hgt(a[0],a[1]),hb=hgt(b[0],b[1]); let dpath;
     if(a[0]===b[0]){ const ax=pa.x+CW/2, ay=pa.y+ha, bx=pb.x+CW/2, by=pb.y-5, my=(ay+by)/2; dpath=`M${ax} ${ay} C ${ax} ${my}, ${bx} ${my}, ${bx} ${by}`; }
@@ -4172,14 +4191,14 @@ function flowPopHTML(d,i){
    }
    const doneOn=(doneNow&&task.doneAt)?`<span class="fp-date-note" style="flex:none" title="${zh?"完成日（可在詳情面板更正）":"completion date (correct it in the detail panel)"}">✓ ${fmt(task.doneAt)}</span>`:"";
    h+=`<div class="fp-actbar">${aMark}${daysEl}${doneOn}</div>`;}
-  // 到貨日（FB1 首波開賣日）— 這是 LC 唯一要填的東西，所以直接開在流程圖的節點卡片上，不用先跳進卡片詳情
+  // 覆蓋型日期（launch＝FB1 到貨日、update＝UL6 上線日）— 卡上唯一要手填的日期，所以直接開在流程圖的節點卡片上，不用先跳進卡片詳情
   {const vn=V3MAP[n.code]||{};
    if(vn.arrival&&task&&ti>=0){
      const set=!!task.arrivalDate, aLk=v3ArrivalLock(l,task), aFl=v3ArrivalFloor(l);
-     h+=`<div class="fp-sec"><div class="fp-lab">${zh?"到貨日 / 首波開賣":"Arrival / on-sale date"}</div>`
-       +`<div class="fp-daterow"><span class="fp-days fp-days-edit${set?"":" tbd"}">📦 <input type="date" value="${esc(task.arrivalDate||"")}"${aFl?` min="${aFl}"`:""}${aLk?` disabled aria-disabled="true"`:""} aria-label="${zh?"到貨日":"arrival date"}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${ti},'arrivalDate',this.value)"></span>`
-       +`<span class="fp-date-note">${aLk?"🔒 "+esc(aLk):set?(zh?"＝本卡預計上市日":"= this card's projected launch"):(zh?"未填 — 預計上市日仍用自動推算":"unset — projection stays auto-computed")}</span>`
-       +(v3ArrivalNudge(l)?`<span class="fp-date-note" style="color:var(--amber)">${zh?"已到貨？記得標記完成":"arrived? mark this step done"}</span>`:"")
+     h+=`<div class="fp-sec"><div class="fp-lab">${arrTx(l,"lab")}</div>`
+       +`<div class="fp-daterow"><span class="fp-days fp-days-edit${set?"":" tbd"}">${arrTx(l,"ico")} <input type="date" value="${esc(task.arrivalDate||"")}"${aFl?` min="${aFl}"`:""}${aLk?` disabled aria-disabled="true"`:""} aria-label="${arrTx(l,"short")}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${ti},'arrivalDate',this.value)"></span>`
+       +`<span class="fp-date-note">${aLk?"🔒 "+esc(aLk):set?arrTx(l,"set"):arrTx(l,"unset")}</span>`
+       +(v3ArrivalNudge(l)?`<span class="fp-date-note" style="color:var(--amber)">${arrTx(l,"nudge")}</span>`:"")
        +`</div></div>`;
    }}
   // 預計大貨樣日（P3）— P5 的解鎖鑰匙，跟 FB1 到貨日一樣直接開在流程圖節點卡片上，不用先跳進卡片詳情
@@ -4763,7 +4782,7 @@ function viewLaunch(){
   const l=L(S.launch);
   const [h,cls]=health(l);
   const zh=LANG==="zh", T=(z,e)=>zh?z:e;
-  const submitted=isSubmitted(l), proj=projLaunchDate(l), pend=v3PendingDays(l);   // 開啟／送出／預計上市日 + 待補天數
+  const submitted=isSubmitted(l), proj=projLaunchDate(l), pend=v3PendingDays(l), arrSrc=v3ArrivalSrc(l);   // 開啟／送出／預計上市日 + 待補天數 + 手填的覆蓋日期
   // update 卡的抬頭不顯示「送出」與「速度」（Zac 2026-08-17）：更新案的 U0 幾乎都在建卡當天勾掉，送出日＝開啟日
   // 等於同一個數字畫兩次；速度（每週完成幾格）在 19 格的短流程上是雜訊。兩者的底層計算都還在（submitted 仍
   // 驅動排程起算與「尚未送出需求表」提示，velocity 仍供 forecastDate() ＝總覽的 forecast 列與 digest 用），只是不上抬頭。
@@ -4792,8 +4811,8 @@ function viewLaunch(){
     <div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"階段":"Stage"}</span><span class="ld-stat-v">${l.complete?(LANG==="zh"?"已完成":"Complete"):esc(l.stage)}</span></div>
     <div class="ld-stat"><span class="ld-stat-k">${T("開啟","Opened")}</span><span class="ld-stat-v">${fmt(openDate(l))}</span></div>
     ${lTpl(l)==="update"?"":`<div class="ld-stat"><span class="ld-stat-k">${T("送出","Submitted")}</span><span class="ld-stat-v">${submitted?fmt(formSubmitDate(l)):`<span style="color:var(--faint);font-weight:500">${T("未送出","—")}</span>`}</span></div>`}
-    <div class="ld-stat"><span class="ld-stat-k">${lTpl(l)==="update"?T("預計完成","Proj. done"):T("預計上市","Projected")}</span><span class="ld-stat-v"><b>${fmt(proj)}</b>${l.complete?"":submitted?(pend.nAff?` <span class="v3pdwarn" title="${T("推算上市日需要的天數還沒填，目前當 0 天算 ⇒ 日期偏早","durations the projection needs are unset — counted as 0 days, so it runs early")}">⚠${pend.nAff}</span>`:""):` <span class="ghostnote">${T("暫估","est.")}</span>`}</span></div>
-    ${(()=>{ if(lTpl(l)==="update")return "";   // 到貨日（FB1）是 launch 模板的概念,update 卡沒有這個節點
+    <div class="ld-stat"><span class="ld-stat-k">${lTpl(l)==="update"?T("預計完成","Proj. done"):T("預計上市","Projected")}</span><span class="ld-stat-v"><b>${fmt(proj)}</b>${lTpl(l)==="update"&&arrSrc&&!arrSrc.fb?` <span class="ghostnote" title="${T("由『更新上線（UL6）』的上線日決定 —— 手填優先，清空就回到自動推算","set by hand on Update live (UL6) — clearing it returns to the auto-projection")}">${T("手填","by hand")}</span>`:l.complete?"":submitted?(pend.nAff?` <span class="v3pdwarn" title="${T("推算上市日需要的天數還沒填，目前當 0 天算 ⇒ 日期偏早","durations the projection needs are unset — counted as 0 days, so it runs early")}">⚠${pend.nAff}</span>`:""):` <span class="ghostnote">${T("暫估","est.")}</span>`}</span></div>
+    ${(()=>{ if(lTpl(l)==="update")return "";   // 到貨日（FB1）是 launch 模板的概念；update 的覆蓋日期就是抬頭上的「預計完成」本身,不另開一格
       const src=v3ArrivalSrc(l), eta=src?"":v3EtaBulk(l);   // 到貨日＝LC 在 FB1 填的首波開賣日；未填時顯示由 P3 推估的預計值
       const tip=src&&src.fb?T("首波開賣日已標完成但沒填實際到貨日 — 這裡顯示的是完成日，請補填","First batch on sale is done but the real arrival date is unset — showing the completion date; please fill it in")
         :T("大貨到貨、可以開賣的那一天 — 由 LC 在物流〈首波開賣日〉填寫；填了就成為預計上市日","the day stock lands and selling can start — LC fills it on Logistics › First batch on sale; once set it becomes the projected launch");
