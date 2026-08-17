@@ -1128,7 +1128,7 @@ const V3=[
  {c:"CT3", evid:1, en:"COGS & bundle setup", zh:"COGS＆BUNDLE", ph:2, dept:"Catalog", o:"LC", days:1, req:["CT1"]},
  {c:"CT4", evid:1, en:"Shopify product created", zh:"Shopify 商品建立", ph:2, dept:"Catalog", o:"Zac", days:1, req:["CT3"], out:{en:"Shopify SKU",zh:"Shopify SKU"}},
  {c:"D7", en:"Studio shoot requirements", zh:"棚拍需求", ph:2, dept:"Design", o:"Mi", days:1, req:["P1","MB1"], note:{en:"needs BOTH the filed PPS + BOM and Marketing Brief V1 — the brief sets what the shoot has to cover",zh:"產前樣＆BOM 與行銷簡報 V1 都完成才開啟——簡報決定這次棚拍要拍到什麼"}},
- {c:"D3", en:"Packaging finalized", zh:"包裝設計定稿", ph:2, dept:"Design", o:"Mi", days:2, req:["C7"], note:{en:"opens when prototyping (C8) starts; to factory between PPS and mass production",zh:"原型打樣（C8）一開跑即可製作；於產前樣確定～大貨生產期間交付工廠"}},
+ {c:"D3", en:"Packaging finalized", zh:"包材設計定稿", ph:2, dept:"Design", o:"Mi", days:2, req:["C7"], note:{en:"opens when prototyping (C8) starts; to factory between PPS and mass production",zh:"原型打樣（C8）一開跑即可製作；於產前樣確定～大貨生產期間交付工廠"}},
  {c:"D4", en:"PDP + infographics draft", zh:"PDP 草稿", ph:2, dept:"Design", o:"Oume", days:14, req:["MB3"], asset:1, note:{en:"starts after MB3 (= photos + 10d)",zh:"等 MB3 完成後開始（＝照片完成＋10 天）"}},
  {c:"D5", en:"Ben PDP sign-off", zh:"Ben 決策", ph:2, dept:"Design", o:"Ben", days:2, req:["D4"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
  // 2026-07-31：拿掉 MS3b（行銷影片）前置 —— PDP 定稿只等 Ben 的 D5 決策，不再被影片檔期綁住
@@ -1181,6 +1181,9 @@ const V3U=[
  // 4 — Logistics (切換上線)
  {c:"UL1", swlog:1, en:"Version switch check", zh:"新版切換確認", ph:4, dept:"Logistics", o:"LC", days:2, req:["U6"], out:{en:"switch / no switch",zh:"更換 or 不更換"}, note:{en:"LC confirms whether/when the new version replaces the old",zh:"LC 確認新版是否／何時更換"}},   // swlog：多面料分批切換，LC 會重複記多筆日期
  {c:"UL2", en:"Swap live PDP", zh:"換上新版 PDP", ph:4, dept:"Design", o:"Oume", days:1, req:["UL1","UD3"]},
+ // 車道位置在 UL2 之下（使用者指定），但階段仍是 ph:2 —— 前置是 U2，包材要趕在 U6 大貨生產前交廠，
+ // 排在 UL1 之後就來不及進這批大貨。同 D3：不掛 evid、不餵給任何人（系統會標「不影響上市日」）。
+ {c:"UD4", en:"Packaging refresh finalized", zh:"包材設計定稿", ph:2, dept:"Design", o:"Mi", days:2, req:["U2"], note:{en:"opens once the change is signed off (U2) — mirrors D3; dielines must reach the factory before the bulk run (U6)",zh:"變更批准（U2）後即可製作——對齊新品 D3；包材需趕在大貨生產（U6）前交廠"}},
  {c:"UL3", en:"Notify KOL CRM", zh:"通知網紅 CRM", ph:4, dept:"CRM", o:"Angel", days:1, req:["UL1"], out:{en:"CRM info refreshed",zh:"CRM 新資訊通知網紅"}},
  {c:"UL4", en:"Shopify info update", zh:"更新 Shopify 資訊", ph:4, dept:"Marketing", o:"Zac", days:1, req:["UL1"]},
  {c:"UL5", en:"ShipBob SKU swap", zh:"更新 ShipBob SKU", ph:4, dept:"Logistics", o:"LC", days:1, req:["UL1"], out:{en:"ShipBob + Shopify SKU",zh:"ShipBob／Shopify SKU"}},
