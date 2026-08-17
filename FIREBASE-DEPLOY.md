@@ -6,7 +6,8 @@
 > - **Why not a Firebase Function in `bv-superpm`:** the `blackvoyage.com` **Domain Restricted Sharing** org policy blocks a public function (`allUsers` invoker → `FAILED_PRECONDITION: not a permitted customer`). The no-org `bv-infra` project has no such policy, so Cloud Run public works there. The `chat` Function + secret built earlier in `bv-superpm` are **orphaned — safe to delete** (see §cleanup).
 > - ⚠️ **Render is fully retired** (services 503). The old Cloud-Function/Render notes below are kept for history only.
 > - 🔒 **Security:** the Cloud Run endpoint is public — hardened with a model allowlist + per-IP rate limit + fixed `max_tokens`, but set an **Anthropic spend cap** and consider **Firebase App Check** for real caller auth.
-> - Redeploy the proxy after code changes: `~/google-cloud-sdk/bin/gcloud run deploy bv-superpm-chat --source chat-proxy --region us-central1 --allow-unauthenticated --set-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest --set-env-vars MAX_TOKENS=8000 --max-instances 4 --project bv-infra-499600 --account blackvoyageusa@gmail.com`
+> - **UPDATE (2026-08-13, Slack 通知上線):** `hello@blackvoyage.com` 已被授予 bv-infra-499600 的 Editor＋Secret Manager Admin —— 部署**不再需要** blackvoyageusa 帳號。本機 CLI 路徑：`/opt/homebrew/bin/gcloud`、`/opt/homebrew/bin/firebase`（舊筆記的 `~/google-cloud-sdk`、`~/.local/bin` 路徑已失效）。proxy 新增 `/notify` 路由（Slack 任務 DM），token 在 Secret Manager `slack-bot-token`，runtime SA 逐 secret 綁 secretAccessor。線上 env `MAX_TOKENS=16000`（下方舊指令寫 8000 已過時）。
+> - Redeploy the proxy after code changes（保留現有 env/secret，不要用 `--set-env-vars` 整組覆蓋）: `gcloud run deploy bv-superpm-chat --source chat-proxy --region us-central1 --allow-unauthenticated --update-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest,SLACK_BOT_TOKEN=slack-bot-token:latest --project bv-infra-499600`（Editor 角色重設 allUsers invoker 會報 warning，可忽略——服務本來就是公開的，政策已在）。
 
 
 Per `~/Desktop/MASTER-CONFIG/PROJECT-TIERS.md`, SuperPM is **TEAM**: its own Firebase project
