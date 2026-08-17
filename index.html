@@ -1188,8 +1188,9 @@ const V3U=[
  {c:"UL4", en:"Shopify info update", zh:"更新 Shopify 資訊", ph:4, dept:"Marketing", o:"Zac", days:1, req:["UL1"]},
  {c:"UL5", en:"ShipBob SKU swap", zh:"更新 ShipBob SKU", ph:4, dept:"Logistics", o:"LC", days:1, req:["UL1"], out:{en:"ShipBob + Shopify SKU",zh:"ShipBob／Shopify SKU"}},
  // arrival：這條流程的終點日期就是全案完成日 —— 知道就直接填，填了蓋過正向排程（同 launch 的 FB1 到貨日機制）
- {c:"UL6", en:"Update live", zh:"更新上線", ph:4, dept:"Product", o:"Zac", days:0, req:["UL2","UL3","UL4","UL5"], arrival:1,
-  note:{en:"fill the go-live date here once known — it becomes this card's projected completion",zh:"知道上線日就填在這裡 —— 它會直接成為本卡的預計完成日"}},
+ // arrAny：不必等解鎖（Zac 2026-08-17）—— 上線日是這張卡的必填計畫資訊，開卡就該填得進去，不是做完才知道的結果
+ {c:"UL6", en:"Update live", zh:"更新上線", ph:4, dept:"Product", o:"Zac", days:0, req:["UL2","UL3","UL4","UL5"], arrival:1, arrAny:1,
+  note:{en:"the go-live date is required — fill it in as soon as it's known (no need to wait for the step to unlock); it becomes this card's projected completion",zh:"上線日必填 —— 一知道就填，不必等這一步解鎖；它會直接成為本卡的預計完成日"}},
 ];
 const V3ALL=V3.concat(V3U);
 /* per-template registry — a card picks its flow via l.tpl ("update"; absent/anything else = launch,
@@ -1462,7 +1463,7 @@ const ARRTX={
    nudge:{zh:"已到貨？記得標記完成",en:"arrived? mark this step done"}},
  update:{ico:"🚀", lab:{zh:"預計完成日 / 上線日",en:"Projected done / go-live date"}, short:{zh:"上線日",en:"go-live date"},
    tip:{zh:"新版真的換上去的那一天。知道日期就直接填，它會成為這張卡的『預計完成日』，蓋過自動推算",en:"the day the new version actually goes live. Fill it in when known — it becomes this card's projected completion, overriding the auto-projection"},
-   set:{zh:"＝本卡預計完成日",en:"= this card's projected completion"}, unset:{zh:"未填 — 預計完成日仍用自動推算",en:"unset — projected completion stays auto-computed"},
+   set:{zh:"＝本卡預計完成日",en:"= this card's projected completion"}, unset:{zh:"必填 — 未填先用自動推算暫代，知道日期就填",en:"required — auto-projection stands in until you fill it"},
    nudge:{zh:"已上線？記得標記完成",en:"live? mark this step done"}},
 };
 const arrTx=(l,k)=>{const m=(ARRTX[lTpl(l)]||ARRTX.launch)[k]; return typeof m==="string"?m:(LANG==="zh"?m.zh:m.en);};
@@ -1473,7 +1474,10 @@ const v3ArrivalSrc=l=>{const an=v3ArrNode(l), fb=an&&v3Task(l,an.c); if(!fb)retu
   return null;};
 const v3Arrival=l=>{const s=v3ArrivalSrc(l); return s?s.d:"";};
 // 節點還鎖著時不可填 —— 填了就直接決定預計完成日，而前置根本還沒做完。理由字串直接用共用的「在等誰」。
-const v3ArrivalLock=(l,t)=>{ if(!(t&&v3Locked(l,t)))return "";
+// 例外 arrAny（UL6 上線日，Zac 2026-08-17）：那是「本來就該知道、必須填」的計畫日期，不是做完才浮現的結果，
+// 所以任何時候都能填；仍受 v3ArrivalFloor 守門（不得早於已完成前置的完成日）。
+const v3ArrivalLock=(l,t)=>{ const vn=t&&t.code&&V3MAP[t.code]; if(vn&&vn.arrAny)return "";
+  if(!(t&&v3Locked(l,t)))return "";
   return v3LockText(l,t)||(LANG==="zh"?"前置未完成":"prerequisites not done"); };
 // 不得早於前置的完成日（物理上不可能）；過去的日期本身合法 —— 貨昨天到了、版昨天換上去了都很正常
 const v3ArrivalFloor=l=>{const an=v3ArrNode(l); if(!an)return ""; let m="";
@@ -3918,7 +3922,8 @@ function flowSVG(l){
     // KOL steps are ongoing by design — they have no day estimate to give.
     const _live=st!=="fut"&&st!=="x";
     const needDays=!!(_live&&_vnn&&!_vnn.ongoing&&_vnn.days==null&&_vnn.est==null&&_tt&&_tt.days==null);
-    const needDate=!!(_live&&_tt&&_vnn&&((_vnn.arrival&&!_tt.arrivalDate)||(_vnn.sample&&!_tt.sampleDate)));
+    // arrAny 的日期（UL6 上線日）是必填且不等解鎖 → 徽章從一開始就提醒，不像其他日期要等節點活起來
+    const needDate=!!(_tt&&_vnn&&((_vnn.arrAny&&_tt.st!=="x"&&!_tt.arrivalDate)||(_live&&((_vnn.arrival&&!_tt.arrivalDate)||(_vnn.sample&&!_tt.sampleDate)))));
     const needIn=needDays?"⏱":needDate?"📅":"";
     const key=d+"|"+n.l, inHi=depOn&&depKeys.has(key);
     const isSel=S.route&&S.route.d===d&&S.route.i===i;     // currently-open node (drives the popover anchor)
@@ -3972,12 +3977,15 @@ function flowSVG(l){
       // ❄ frozen and ⏱/📅 needs-input moved OUT of the tile (they used to push the title off-centre) into this
       // row. They can never collide: ❄ only paints on a done node (no live badge), ⏱/📅 only on a live one.
       if(frozen&&!n.d) return `<text x="${x+3}" y="${BTY}" fill="${FT.ice.strk}" font-size="11" font-weight="700" pointer-events="none">❄</text>`;
-      if(!BJ)return ""; const w=pillW(BJ.t);
+      const inBadge=cx=>`<g pointer-events="none"><circle cx="${cx}" cy="${BRY+9}" r="8.6" fill="rgba(248,113,113,.18)" stroke="rgba(248,113,113,.9)" stroke-width="1.1"/><text x="${cx}" y="${BRY+12.6}" text-anchor="middle" font-size="9.5">${needIn}</text></g>`;
+      // 沒有 live 徽章時本來整列不畫 —— 但 arrAny 的必填日期（UL6 上線日）不等解鎖，提醒也不能等節點活起來，
+      // 所以鎖住的節點若還欠日期就單獨畫這顆徽章（畫在列首；❄ 只出現在已完成的節點，兩者不會撞）。
+      if(!BJ)return (needIn&&!n.d)?inBadge(x+9):"";
+      const w=pillW(BJ.t);
       // ⏱/📅 sits immediately right of the live badge — first in the row after it, because "this needs a number
       // from you" outranks "who owns it" when both compete for the band.
       let inSVG="", iw=0;
-      if(needIn&&!n.d){ const icx=x-4+w+4+9; iw=22;
-        inSVG=`<g pointer-events="none"><circle cx="${icx}" cy="${BRY+9}" r="8.6" fill="rgba(248,113,113,.18)" stroke="rgba(248,113,113,.9)" stroke-width="1.1"/><text x="${icx}" y="${BRY+12.6}" text-anchor="middle" font-size="9.5">${needIn}</text></g>`; }
+      if(needIn&&!n.d){ iw=22; inSVG=inBadge(x-4+w+4+9); }
       // 📍 frontier badge carries WHO starts — owner chip to the right (V3OC color, notx-guarded name).
       // Width is capped to this column's band (CW+GAP): compound owners collapse to "First +n", then ellipsis.
       let ownSVG="";
