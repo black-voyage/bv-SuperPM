@@ -1144,8 +1144,12 @@ const V3=[
  {c:"MS1", en:"Shoot requirements", zh:"行銷拍攝需求", ph:3, dept:"Content", o:"Ben + Ann", days:7, req:["MB2"], out:{en:"tally needs",zh:"統計需求"}, note:{en:"阿訊, Gonzalo, 小海, Brian",zh:"阿訊、Gonzalo、小海、Brian"}},
  {c:"MS2", en:"Shoot plan finalized", zh:"行銷拍攝定稿", ph:3, dept:"Content", o:"Ben + Ann", days:10, req:["MS1"], out:{en:"concept locked",zh:"概念定稿"}, note:{en:"deadline = sample arrival (can start 1d late)",zh:"死線＝樣品到貨日（可晚 1 天開拍）"}},
  {c:"MS3c", evid:1, en:"Product photos", zh:"產品照片", ph:3, dept:"Content", o:"各攝影師", days:null, req:["D7"], asset:1, shots:"product", note:{en:"studio set — opens once the shoot brief (D7) is done; feeds MB3 + the PDP",zh:"棚拍 — 棚拍需求（D7）結束後開啟；供 MB3 與 PDP 使用"}},
- {c:"MS3a", evid:1, en:"Lifestyle photos", zh:"情境照片", ph:3, dept:"Content", o:"各攝影師", days:null, req:["MS2","P5"], asset:1, shots:"lifestyle"},
- {c:"MS3b", evid:1, en:"Marketing video", zh:"行銷影片", ph:3, dept:"Content", o:"各攝影師", days:null, ref:{en:"35",zh:"35"}, est:35, req:["MS2","P5"], asset:1, shots:"video"},
+ // 2026-08-18：MS3a／MS3b 拿掉 evid —— 有些背包根本不拍情境照／影片，沒有東西可交付，不該被「待附證明」擋著無法收尾。
+ // 產品照 MS3c 仍要附（listing／PDP 一定要有圖）。素材需求清單（shots）與素材儀表板（asset）都保留：要拍的品項照樣列清單追。
+ {c:"MS3a", en:"Lifestyle photos", zh:"情境照片", ph:3, dept:"Content", o:"各攝影師", days:null, req:["MS2","P5"], asset:1, shots:"lifestyle",
+  note:{en:"no proof link required — some products skip the lifestyle shoot; tick it done when there is nothing to shoot",zh:"不需附證明連結 —— 有些品項不拍情境照，沒有要拍就直接標完成"}},
+ {c:"MS3b", en:"Marketing video", zh:"行銷影片", ph:3, dept:"Content", o:"各攝影師", days:null, ref:{en:"35",zh:"35"}, est:35, req:["MS2","P5"], asset:1, shots:"video",
+  note:{en:"no proof link required — some products skip the video; tick it done when there is nothing to shoot",zh:"不需附證明連結 —— 有些品項不拍影片，沒有要拍就直接標完成"}},
  // KOL1–5 於 2026-08-11 併成單節點（使用者裁決）：Angel 的網紅全線（Mega／一般接洽、尋找、拍攝）一格管理。
  // req 只留最早可動工的 MB2 —— 拍攝要等 P5 行銷樣品屬 Angel 自排的內部節奏，寫進 note 不寫成 req，
  // 否則整格會被 P5 鎖住，連「接洽」都不能開始。舊卡的五筆狀態由 v3SyncTasks 就地折疊。
@@ -2760,10 +2764,10 @@ const DOD={
  D5:{en:"Yes or No on the PDP draft + infographics.", zh:"對 PDP 草稿與資訊圖給出 Yes or No。"},
  MS3c:{en:"Studio set shot to the agreed shot list; selects filed for MB3 and the PDP.",
        zh:"棚拍依素材需求清單拍完，精選檔案已歸檔供 MB3 與 PDP 使用。"},
- MS3a:{en:"Lifestyle set shot against the finalized plan, with the bulk sample in hand; selects filed.",
-       zh:"情境照依定稿的拍攝計畫、用大貨樣拍完，精選檔案已歸檔。"},
- MS3b:{en:"Every video item on the shot list is exported and filed — D6 (official PDP) can't be finalized before this.",
-       zh:"素材需求清單上的影片全部輸出並歸檔 —— 正式 PDP（D6）要等這一步才能定稿。"},
+ MS3a:{en:"Lifestyle set shot against the finalized plan, with the bulk sample in hand — or a decision that this product needs no lifestyle shoot.",
+       zh:"情境照依定稿的拍攝計畫、用大貨樣拍完 —— 或已確認這個品項不拍情境照。"},
+ MS3b:{en:"Every video item on the shot list is exported — or a decision that this product needs no video. It no longer gates D6.",
+       zh:"素材需求清單上的影片全部輸出 —— 或已確認這個品項不拍影片。不再擋正式 PDP（D6）。"},
  P5:{en:"Logistics shipped the bulk-sample units to the teams; done = the samples ARRIVED (not the day they shipped).",
      zh:"物流已把大貨樣寄給各部門；完成＝樣品到貨（不是寄出日）。"},
  FB1:{en:"The real arrival date is filled in — it becomes this card's projected launch and goes out to the whole company.",
