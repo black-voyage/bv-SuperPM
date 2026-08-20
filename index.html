@@ -1176,10 +1176,10 @@ const V3U=[
  {c:"U4", en:"Ben revision sign-off", zh:"Ben 決策", ph:1, dept:"Product", o:"Ben", days:2, req:["U3"], ben:1, out:{en:"Yes / No",zh:"Yes or No"}},
  {c:"U5", en:"Revised PPS", zh:"產前樣", ph:1, dept:"Product", o:"Zac", days:null, est:10, req:["U4"]},   // 不掛 evid：實體樣品沒有一份「證明連結」可附（P1 掛是因為 BOM 歸檔）
  // 2 — Launch Prep (量產與內容)
- // fdate（Zac 2026-08-20）：大貨完成日直接手填 —— 工廠給的是日期不是工期，而這張卡最關鍵的兩個日子就是
- // 「大貨何時好」與「何時上線」。填了就以它為這一步的預期完成日（蓋過「起算＋天數」推估），並上抬頭狀態列。
- {c:"U6", en:"Bulk production", zh:"大貨生產", ph:2, dept:"Product", o:"Zac", days:null, est:30, req:["U5"],
-  fdate:{lab:{zh:"預計大貨完成日",en:"Bulk finish date"},hdr:{zh:"大貨完成",en:"Bulk done"}}},   // 同 P3：大貨生產不附證明連結
+ // 天數固定 30（Zac 2026-08-20）：大貨工期不必每張卡重填。日期入口用既有的兩欄 —— 未完成看「應完成日」、
+ // 完成後在「完成日」補正實際日；hdrDate 只是「把這一步的完成日搬上抬頭狀態列」的顯示標記，不另存欄位。
+ {c:"U6", en:"Bulk production", zh:"大貨生產", ph:2, dept:"Product", o:"Zac", days:30, req:["U5"],
+  hdrDate:{zh:"大貨完成",en:"Bulk done"}},   // 同 P3：大貨生產不附證明連結
  {c:"UD1", en:"Refresh shoot brief", zh:"棚拍需求", ph:2, dept:"Design", o:"Mi", days:2, req:["U5"], note:{en:"opens once the revised PPS exists",zh:"產前樣出來後開啟"}},
  {c:"UD2", en:"Refresh studio shoot", zh:"棚拍拍攝", ph:2, dept:"Design", o:"Mi", days:null, est:7, req:["UD1"]},
  {c:"UC1", en:"Catalog photos refresh", zh:"照片更新", ph:2, dept:"Catalog", o:"Zac", days:1, req:["UD2"], note:{en:"after the studio shoot delivers",zh:"棚拍拍好後更新"}},
@@ -1343,8 +1343,6 @@ function v3SetDate(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;
     const lk=v3ArrivalLock(l,t); if(lk){toast(arrTx(l,"short")+(LANG==="zh"?"尚不可填 · ":" not fillable yet · ")+lk);render();return;}
     const fl=v3ArrivalFloor(l);
     if(fl&&v<fl){toast(arrTx(l,"short")+(LANG==="zh"?("不可早於前置完成日 "+fmt(fl)):(" can't precede the last prerequisite's completion "+fmt(fl))));render();return;}}
-  if(k==="finDate"&&v){ const fl=v3FdFloor(l,t.code);
-    if(fl&&v<fl){toast(LANG==="zh"?("完成日不可早於前置完成日 "+fmt(fl)):("finish date can't precede the last prerequisite's completion "+fmt(fl)));render();return;}}
   t[k]=v||"";
   v3ReconcileLoud(l); syncProjected(l); ntfSweep(l); save(); render();}   // sweep 補刀：sampleDate 影響 P5 解鎖，而這條寫入路不經 v3Advance
 // 完成日／開工日的修正入口 —— 每條蓋章路徑都寫死 today，補勾一天就把整條 DAG（含預計上市日）往後推，
@@ -1437,6 +1435,9 @@ function v3SyncTasks(l){
     if(!old&&l.complete){ t.st="x"; t.doneAt=(Array.isArray(l.history)&&l.history.length&&l.history[l.history.length-1].end)||today; }
     t.code=n.c; t.t=n.en; t.d=v3Dept(n); t.gate=!!n.ben; t.stage=V3PH[n.ph].en;
     if(!("days" in t)||(old&&old.days===undefined)) t.days=(n.days==null?null:n.days);
+    // 模板由「手填天數」改成固定天數後（如 U6 大貨生產 2026-08-20 定為 30d），卡上殘留的舊覆寫值已經沒有任何
+    // 輸入框可以改，卻仍被 taskDayLimit 優先採用 —— 詳情面板印 30d、排程卻用舊值 0，靜默不一致。就地校正。
+    if(n.days!=null&&t.days!=null&&t.days!==n.days) t.days=n.days;
     t.st=t.st||"o"; t.links=t.links||[]; t.codes=t.codes||[]; t.notes=t.notes||[]; t.urg=t.urg||"med"; if(t.assignee==null)t.assignee="";
     return t;
   });
@@ -1491,18 +1492,13 @@ const v3ArrivalLock=(l,t)=>{ const vn=t&&t.code&&V3MAP[t.code]; if(vn&&vn.arrAny
 // 不得早於前置的完成日（物理上不可能）；過去的日期本身合法 —— 貨昨天到了、版昨天換上去了都很正常
 const v3ArrivalFloor=l=>{const an=v3ArrNode(l); if(!an)return ""; let m="";
   (an.req||[]).forEach(rc=>{const rt=v3Task(l,rc); if(rt&&rt.st==="x"&&rt.doneAt&&rt.doneAt>m)m=rt.doneAt;}); return m;};
-/* 步驟層的手填完成日（fdate）—— 與 arrival 不同：arrival 覆蓋「整張卡」的預計完成日，fdate 只覆蓋
-   「這一步」的預期完成日，下游照 req 往後推。任何時候都能填（工廠報期不等前置做完），只受下限守門。 */
-const v3FdNode=l=>tplNodes(l).find(n=>n.fdate)||null;
-const v3FdTx=(n,k)=>{const m=n&&n.fdate&&n.fdate[k]; return m?(LANG==="zh"?m.zh:m.en):"";};
-// 顯示用來源：手填優先，其次是已完成的實際完成日（done:true 讓 UI 標明那是實際值不是計畫值）
-const v3FdSrc=l=>{const n=v3FdNode(l), t=n&&v3Task(l,n.c); if(!t)return null;
-  if(t.finDate)return {d:t.finDate,n:n,done:false};
-  if(t.st==="x"&&t.doneAt)return {d:t.doneAt,n:n,done:true};
-  return null;};
-// 不得早於已完成前置的完成日（同 arrival 的守門）
-const v3FdFloor=(l,code)=>{const n=V3MAP[code]; if(!n)return ""; let m="";
-  (n.req||[]).forEach(rc=>{const rt=v3Task(l,rc); if(rt&&rt.st==="x"&&rt.doneAt&&rt.doneAt>m)m=rt.doneAt;}); return m;};
+/* 抬頭狀態列上的「某一步的完成日」（hdrDate 標記，如 U6 大貨完成）—— 不是新資料欄位：已完成就用實際完成日
+   （doneAt），未完成就用正向排程推出來的預期完成日。所以它跟詳情列的「完成日／應完成日」永遠是同一個數字。 */
+const v3HdrDateNode=l=>tplNodes(l).find(n=>n.hdrDate)||null;
+const v3HdrDateSrc=l=>{const n=v3HdrDateNode(l), t=n&&v3Task(l,n.c); if(!t)return null;
+  if(t.st==="x")return {d:t.doneAt||"",n:n,done:true};
+  const fin=v3ProjFin(l); const d=fin&&fin[n.c];
+  return d?{d:d,n:n,done:false}:null;};
 // 日期已到卻還沒標完成 → 燈號與預計完成日的真相會分岔，要當場提醒去勾
 const v3ArrivalNudge=l=>{const an=v3ArrNode(l), fb=an&&v3Task(l,an.c); return !!(fb&&fb.arrivalDate&&fb.arrivalDate<=today&&fb.st!=="x");};
 function v3EtaBulk(l){ // 到貨日：已填 → 直接回傳；未填 → P3 完成日(實際或 startAt+days 推估) + FB1 前置天數
@@ -1805,9 +1801,6 @@ function v3ProjFin(l){                                                   // code
     if(c==="P5"){const p3=v3Task(l,"P3"); walk("P3");
       const fl=(p3&&p3.sampleDate)||(p3&&p3.startAt)||beg.P3;
       if(fl&&fl>start)start=fl;}
-    // 手填的步驟完成日（fdate，如 U6 大貨完成日）＝工廠報的交期,比「起算＋天數」可信,直接當這一步的預期完成日。
-    // 仍夾今天：未完成的工作不可能在過去完成（逾期就每天往後推一天,與下面同一條規則）。
-    if(n.fdate&&t&&t.finDate){ beg[c]=(start<today?today:start); return fin[c]=(t.finDate>today?t.finDate:today); }
     const d=v3DayOf(l,c);
     // 夾的是「起算日」不是完成日：未開工的步驟最早只能今天起跑，剩餘工期才不會整段蒸發（夾完成日會把 35d 的影片壓成今天完成）
     let end;
@@ -3635,15 +3628,6 @@ function taskDetail(l,t,i,ro,vn,lk){
       ro?(t.sampleDate?fmt(t.sampleDate):"—")
         :`<input type="date" class="v3due-inp${t.sampleDate?"":" unfilled"}" value="${esc(t.sampleDate||"")}" title="${sTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)"> <span class="ghostnote">${t.sampleDate?T("P5（部署行銷樣品）等這一天","P5 waits for this day"):T("未填 — P5 部署行銷樣品無法解鎖","unset — P5 stays locked")}</span>`]);
   }
-  // 步驟層手填完成日（U6 大貨完成日）：工廠報期就填，不必等前置做完；填了就蓋過「起算＋天數」的推估
-  if(vn.fdate){
-    const fTip=T("工廠報的完成日就填在這裡。填了就以它為這一步的預期完成日，蓋過「天數」推算，下游日期跟著重算",
-                 "the finish date the factory quotes. Once set it becomes this step's projected finish, overriding the day-count estimate; downstream dates recalc");
-    const fFl=v3FdFloor(l,t.code);
-    info.push([v3FdTx(vn,"lab"),
-      ro?(t.finDate?fmt(t.finDate):"—")
-        :`<input type="date" class="v3due-inp${t.finDate?"":" unfilled"}" value="${esc(t.finDate||"")}"${fFl?` min="${fFl}"`:""} title="${fTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'finDate',this.value)"> <span class="ghostnote">${t.finDate?T("＝這一步的預期完成日（蓋過天數推算）","= this step's projected finish (overrides the day count)"):T("未填 — 仍用「前置完成日＋天數」推算","unset — falls back to predecessor + day count")}</span>`]);
-  }
   // 覆蓋型日期（launch＝FB1 首波開賣日、update＝UL6 上線日）：填了就直接當預計完成日，全公司看卡片抬頭即可
   if(vn.arrival){
     const aTip=arrTx(l,"tip");
@@ -3713,8 +3697,7 @@ function readinessPop(l){
 }
 // steps whose day estimate must be typed in by the owning dept but is still blank — scans ALL tasks (data-completeness gap), not just the current stage's exit criteria
 // 「這一步還欠天數嗎」的單一判準：模板沒給固定天數、卡上也沒填、還沒完成；ongoing（KOL）本來就沒天數可填，
-// 已用手填完成日（fdate）定案的步驟也不算 —— 日期已經蓋過天數推算，再喊「待填」就是假警報。
-const v3NeedsDays=(t,vn)=>!!(vn&&!vn.ongoing&&vn.days==null&&t&&t.days==null&&t.st!=="x"&&!(vn.fdate&&t.finDate));
+const v3NeedsDays=(t,vn)=>!!(vn&&!vn.ongoing&&vn.days==null&&t&&t.days==null&&t.st!=="x");
 function daysPending(l){
   return (l.tasks||[]).map((t,i)=>({t,i,n:V3MAP[t.code]})).filter(x=>v3NeedsDays(x.t,x.n));
 }
@@ -4232,15 +4215,24 @@ function flowPopHTML(d,i){
    }else{
      daysEl=`<span class="fp-days${dTBD?" tbd":""}" title="${zh?"預估天數":"estimated days"}">⏱ ${daysTxt}</span>`;
    }
-   const doneOn=(doneNow&&task.doneAt)?`<span class="fp-date-note" style="flex:none" title="${zh?"完成日（可在詳情面板更正）":"completion date (correct it in the detail panel)"}">✓ ${fmt(task.doneAt)}</span>`:"";
-   h+=`<div class="fp-actbar">${aMark}${daysEl}${doneOn}</div>`;}
-  // 步驟層手填完成日（U6 大貨完成日）— 同樣直接開在節點卡片上
-  {const vn=V3MAP[n.code]||{};
-   if(vn.fdate&&task&&ti>=0){
-     const set=!!task.finDate, fFl=v3FdFloor(l,task.code);
-     h+=`<div class="fp-sec"><div class="fp-lab">${v3FdTx(vn,"lab")}</div>`
-       +`<div class="fp-daterow"><span class="fp-days fp-days-edit${set?"":" tbd"}">🏭 <input type="date" value="${esc(task.finDate||"")}"${fFl?` min="${fFl}"`:""} aria-label="${v3FdTx(vn,"lab")}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${ti},'finDate',this.value)"></span>`
-       +`<span class="fp-date-note">${set?(zh?"＝這一步的預期完成日":"= this step's projected finish"):(zh?"未填 — 仍用天數推算":"unset — day count still drives it")}</span></div></div>`;
+   h+=`<div class="fp-actbar">${aMark}${daysEl}</div>`;
+   // 日期列：已完成 → 直接在圖上補正「完成日」（排程與統計跟著這天，原本只能到詳情面板改）；
+   // 未完成 → 顯示應完成日與倒數。manual＋時鐘已起算的步驟不畫，因為上面那顆 ⏱ 本身就是交期輸入框（同一個日期別畫兩次）。
+   if(task&&ti>=0&&!n.d){
+     const dLim=(task.days!=null)?task.days:(vn.days!=null?vn.days:null);
+     if(doneNow){
+       h+=`<div class="fp-sec"><div class="fp-lab">${zh?"完成日":"Done on"}</div>`
+         +`<div class="fp-daterow"><span class="fp-days fp-days-edit${task.doneAt?"":" tbd"}">📅 <input type="date" value="${esc(task.doneAt||"")}" max="${today}" aria-label="${zh?"完成日":"done on"}" onclick="event.stopPropagation()" onchange="v3SetStamp('${l.slug}',${ti},'doneAt',this.value)"></span>`
+         +`<span class="fp-date-note">${zh?"補正實際完成日 — 排程與統計跟著這天":"correct the actual completion date — schedule & stats follow it"}</span></div></div>`;
+     } else if(!(manual&&_sc)&&dLim!=null&&dLim!==0){
+       const sc2=v3StartClock(l,vn);
+       if(sc2){ const dd=v3AddD(sc2,dLim), rem=dayDiff(today,dd), c=rem<0?"var(--red)":rem<=2?"var(--amber)":"var(--green)";
+         h+=`<div class="fp-sec"><div class="fp-lab">${zh?"應完成日 / 倒數":"Due / countdown"}</div>`
+           +`<div class="fp-daterow"><span class="fp-days">📅 ${fmt(dd)}</span>`
+           +`<span class="fp-date-note" style="color:${c};font-weight:600">${rem<0?(zh?"已逾期 "+(-rem)+"d":"overdue "+(-rem)+"d"):(zh?"剩 "+rem+"d":rem+"d left")}</span></div></div>`; }
+       else { h+=`<div class="fp-sec"><div class="fp-lab">${zh?"應完成日 / 倒數":"Due / countdown"}</div>`
+           +`<div class="fp-daterow"><span class="fp-date-note">${zh?"上一步完成後起算":"starts when the previous step finishes"} · ${dLim}d</span></div></div>`; }
+     }
    }}
   // 覆蓋型日期（launch＝FB1 到貨日、update＝UL6 上線日）— 卡上唯一要手填的日期，所以直接開在流程圖的節點卡片上，不用先跳進卡片詳情
   {const vn=V3MAP[n.code]||{};
@@ -4861,9 +4853,10 @@ function viewLaunch(){
       ${chips?`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"並行":"In hand"}</span><span class="ld-stat-v">${chips}</span></div>`:""}`; })()}
     <div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"階段":"Stage"}</span><span class="ld-stat-v">${l.complete?(LANG==="zh"?"已完成":"Complete"):esc(l.stage)}</span></div>
     ${lTpl(l)==="update"?"":`<div class="ld-stat"><span class="ld-stat-k">${T("開啟","Opened")}</span><span class="ld-stat-v">${fmt(openDate(l))}</span></div>`}
-    ${(()=>{ const fn=v3FdNode(l); if(!fn)return "";   // 只有帶 fdate 的模板（update 的 U6）才有這格
-      const ft=v3Task(l,fn.c), fsrc=v3FdSrc(l);
-      return `<div class="ld-stat" title="${T("工廠報的大貨完成日 —— 在「大貨生產」那一步填（詳情列或流程圖節點都可以）；填了就以它推下游日期","the bulk finish date the factory quotes — fill it on Bulk production (detail row or flow node); downstream dates follow it")}"><span class="ld-stat-k">${v3FdTx(fn,"hdr")}</span><span class="ld-stat-v">${fsrc?`<b>${fmt(fsrc.d)}</b>${fsrc.done?` <span class="ghostnote">${T("實際","actual")}</span>`:""}`:`<span style="color:var(--faint);font-weight:500">${T("未填","—")}</span>`}</span></div>`; })()}
+    ${(()=>{ const hn=v3HdrDateNode(l); if(!hn)return "";   // 只有帶 hdrDate 標記的模板（update 的 U6）才有這格
+      const hs=v3HdrDateSrc(l);
+      const tip=T("大貨生產的完成日 —— 已完成就是實際完成日（可在該步驟的「完成日」欄補正），未完成則是排程推算的預期完成日","the bulk-production finish date — the actual one once done (correct it on that step's Done-on field), otherwise the schedule's projected finish");
+      return `<div class="ld-stat" title="${tip}"><span class="ld-stat-k">${LANG==="zh"?hn.hdrDate.zh:hn.hdrDate.en}</span><span class="ld-stat-v">${hs&&hs.d?`<b>${fmt(hs.d)}</b> <span class="ghostnote">${hs.done?T("實際","actual"):T("預估","est.")}</span>`:`<span style="color:var(--faint);font-weight:500">—</span>`}</span></div>`; })()}
     ${lTpl(l)==="update"?"":`<div class="ld-stat"><span class="ld-stat-k">${T("送出","Submitted")}</span><span class="ld-stat-v">${submitted?fmt(formSubmitDate(l)):`<span style="color:var(--faint);font-weight:500">${T("未送出","—")}</span>`}</span></div>`}
     <div class="ld-stat"><span class="ld-stat-k">${lTpl(l)==="update"?T("預計完成","Proj. done"):T("預計上市","Projected")}</span><span class="ld-stat-v"><b>${fmt(proj)}</b>${lTpl(l)==="update"&&arrSrc&&!arrSrc.fb?` <span class="ghostnote" title="${T("由『更新上線（UL6）』的上線日決定 —— 手填優先，清空就回到自動推算","set by hand on Update live (UL6) — clearing it returns to the auto-projection")}">${T("手填","by hand")}</span>`:l.complete?"":submitted?(pend.nAff?` <span class="v3pdwarn" title="${T("推算上市日需要的天數還沒填，目前當 0 天算 ⇒ 日期偏早","durations the projection needs are unset — counted as 0 days, so it runs early")}">⚠${pend.nAff}</span>`:""):` <span class="ghostnote">${T("暫估","est.")}</span>`}</span></div>
     ${(()=>{ if(lTpl(l)==="update")return "";   // 到貨日（FB1）是 launch 模板的概念；update 的覆蓋日期就是抬頭上的「預計完成」本身,不另開一格
