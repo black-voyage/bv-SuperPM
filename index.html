@@ -1120,7 +1120,7 @@ const V3=[
  {c:"C10", en:"Design freeze", zh:"設計凍結", ph:1, dept:"Product", o:"Zac + Ben", days:0, req:["C9"], out:{en:"freeze data = product data filing (feeds MB1)",zh:"凍結資料＝產品資料建檔（供 MB1）"}},
  {c:"P1", evid:1, en:"Pre-production sample + BOM", zh:"產前樣＆BOM", ph:1, dept:"Product", o:"Zac", days:14, req:["C10"], out:{en:"to Taiwan + BOM filed",zh:"送台灣＆BOM 歸檔"}, note:{en:"make 7 + ship 7",zh:"製作 7＋運輸 7"}},
  // 大貨生產不掛 evid：產線進度靠天數與大貨樣日追蹤，沒有一份「證明連結」可附（QC 報告是選配，不該擋完工）
- {c:"P3", en:"Mass production", zh:"大貨生產", ph:1, dept:"Product", o:"Zac", days:null, req:["P1"], sample:1, hdrDate:{zh:"大貨完成",en:"Bulk done"}, out:{en:"day countdown",zh:"天數倒數"}, note:{en:"packaging (D3) to factory during production",zh:"包裝檔（D3）於生產期間交廠"}},
+ {c:"P3", en:"Mass production", zh:"大貨生產", ph:1, dept:"Product", o:"Zac", days:30, req:["P1"], sample:1, hdrDate:{zh:"大貨完成",en:"Bulk done"}, out:{en:"day countdown",zh:"天數倒數"}, note:{en:"packaging (D3) to factory during production",zh:"包裝檔（D3）於生產期間交廠"}},
  // 2 — Launch Prep
  {c:"P2", en:"Product intro video", zh:"產品介紹", ph:2, dept:"Product", o:"Zac", days:1, req:["P1"], asset:1, out:{en:"quick how-to video → whole company",zh:"簡單操作影片 → 全公司"}, isNew:1},
  {c:"CT1", en:"Factory order created", zh:"工廠訂單建立", ph:2, dept:"Catalog", o:"Zac", days:1, req:["P1"], note:{en:"do at P3 start (= P1 done)",zh:"大貨生產開啟（＝P1 完成）即做"}},
@@ -1157,7 +1157,7 @@ const V3=[
   note:{en:"Ongoing — the whole influencer line in one lane: mega + normal outreach, sourcing, shooting. Shooting waits for P5 marketing samples; record usage rights.",
         zh:"Ongoing——網紅全線一格管理：Mega／一般接洽、尋找、拍攝。拍攝要等 P5 行銷樣品；需記錄 usage rights。"}},
  // 4 — Logistics
- {c:"FB1", en:"First batch on sale", zh:"首波開賣日", ph:4, dept:"Logistics", o:"LC", days:31, req:["P3"], arrival:1, out:{en:"arrival date → whole company",zh:"到貨日 → 全公司"}, note:{en:"LC runs shipping end-to-end; only the arrival date is tracked here — once set it becomes the projected launch. Unset → 31d (sea 30 + intake 1) placeholder.",zh:"LC 一條龍處理出貨，這裡只追到貨日 —— 填了就以它為預計上市日；未填前用 31d（海運 30＋入庫 1）暫估"}},
+ {c:"FB1", en:"First batch on sale", zh:"首波開賣日", ph:4, dept:"Logistics", o:"LC", days:31, req:["P3"], arrival:1, arrAny:1, out:{en:"arrival date → whole company",zh:"到貨日 → 全公司"}, note:{en:"LC runs shipping end-to-end; only the arrival date is tracked here — once set it becomes the projected launch. Unset → 31d (sea 30 + intake 1) placeholder.",zh:"LC 一條龍處理出貨，這裡只追到貨日 —— 填了就以它為預計上市日；未填前用 31d（海運 30＋入庫 1）暫估"}},
  // （KOL4/KOL5 已併入上方的 KOL 單節點；原第 5 階段「KOL 執行」隨之整個移除 —— 見 V3PH 的註記）
 ];
 /* ================= THE PRODUCT-UPDATE FLOW — V3U =================
@@ -1435,9 +1435,10 @@ function v3SyncTasks(l){
     if(!old&&l.complete){ t.st="x"; t.doneAt=(Array.isArray(l.history)&&l.history.length&&l.history[l.history.length-1].end)||today; }
     t.code=n.c; t.t=n.en; t.d=v3Dept(n); t.gate=!!n.ben; t.stage=V3PH[n.ph].en;
     if(!("days" in t)||(old&&old.days===undefined)) t.days=(n.days==null?null:n.days);
-    // 模板由「手填天數」改成固定天數後（如 U6 大貨生產 2026-08-20 定為 30d），卡上殘留的舊覆寫值已經沒有任何
-    // 輸入框可以改，卻仍被 taskDayLimit 優先採用 —— 詳情面板印 30d、排程卻用舊值 0，靜默不一致。就地校正。
-    if(n.days!=null&&t.days!=null&&t.days!==n.days) t.days=n.days;
+    // 模板由「手填天數」改成固定天數後（U6／P3 於 2026-08-20 定為 30d），卡上殘留的 0 已經沒有輸入框可改，
+    // 卻仍被 taskDayLimit 優先採用（面板印 30d、排程用 0）。只清 0：對生產／打樣這種步驟 0 天不可能，
+    // 幾乎確定是舊手填欄的殘值。其他覆寫值（某張卡大貨真的要 45 天）保留，改由面板標明「本卡覆寫」。
+    if(n.days!=null&&t.days===0) t.days=n.days;
     t.st=t.st||"o"; t.links=t.links||[]; t.codes=t.codes||[]; t.notes=t.notes||[]; t.urg=t.urg||"med"; if(t.assignee==null)t.assignee="";
     return t;
   });
@@ -3592,7 +3593,10 @@ function taskDetail(l,t,i,ro,vn,lk){
   info.push([vn.c==="P3"?T("生產天數","Production days"):T("預設天數","Default days"), vn.days==null
     ? (ro?`<span style="color:var(--amber)">${T("待負責部門填寫","to be filled in")}</span>`
         :`<input type="number" min="0" class="v3days-inp${t.days==null?" unfilled":""}" value="${t.days==null?"":t.days}" placeholder="${vn.est!=null?vn.est:T("需填寫","required")}" title="${T("此步驟天數每個產品不同，由負責部門填寫","varies per product — the owning dept fills it in")}" onclick="event.stopPropagation()" onchange="v3SetDays('${l.slug}',${i},this.value)"> ${T("天","d")}${vn.est!=null?` <span class="ghostnote">${T("預估 "+vn.est+"d","est "+vn.est+"d")}</span>`:""}`)
-    : (vn.days===0?T("即時 / 事件","instant"):vn.days+"d")]);
+    : (vn.days===0?T("即時 / 事件","instant")
+        :(t.days!=null&&t.days!==vn.days
+          ? `${t.days}d <span class="ghostnote">${T("本卡覆寫 · 模板 "+vn.days+"d","overridden on this card · template "+vn.days+"d")}</span>`
+          : vn.days+"d"))]);
   // due-date countdown — the clock starts automatically when the predecessor step(s) finish.
   // Manual-days steps (vn.days==null) take the due date DIRECTLY as a date input once the clock runs:
   // factories quote a delivery date, not a duration — typing it back-fills t.days (v3SetDue → v3SetDays).
@@ -4862,8 +4866,7 @@ function viewLaunch(){
         :T("大貨到貨、可以開賣的那一天 — 由 LC 在物流〈首波開賣日〉填寫；填了就成為預計上市日","the day stock lands and selling can start — LC fills it on Logistics › First batch on sale; once set it becomes the projected launch");
       return `<div class="ld-stat" title="${tip}"><span class="ld-stat-k">${T("到貨日","Arrival")}</span><span class="ld-stat-v">${src?`<b>${fmt(src.d)}</b>${src.fb?` <span class="ghostnote">${T("待補填","unset")}</span>`:""}`:eta?`<span style="color:var(--dim);font-weight:500">~${fmt(eta)} <span class="ghostnote">${T("預估","est.")}</span></span>`:`<span style="color:var(--faint);font-weight:500">${T("未填","—")}</span>`}</span></div>`; })()}
     <div class="ld-stat"><span class="ld-stat-k">${lTpl(l)==="update"?T("預計完成","Proj. done"):T("預計上市","Projected")}</span><span class="ld-stat-v"><b>${fmt(proj)}</b>${lTpl(l)==="update"&&arrSrc&&!arrSrc.fb?` <span class="ghostnote" title="${T("由『更新上線（UL6）』的上線日決定 —— 手填優先，清空就回到自動推算","set by hand on Update live (UL6) — clearing it returns to the auto-projection")}">${T("手填","by hand")}</span>`:l.complete?"":submitted?(pend.nAff?` <span class="v3pdwarn" title="${T("推算上市日需要的天數還沒填，目前當 0 天算 ⇒ 日期偏早","durations the projection needs are unset — counted as 0 days, so it runs early")}">⚠${pend.nAff}</span>`:""):` <span class="ghostnote">${T("暫估","est.")}</span>`}</span></div>
-    ${l.complete?"":`${lTpl(l)==="update"?"":`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"速度":"Velocity"}</span><span class="ld-stat-v">${velocity(l).toFixed(1)}/wk</span></div>`}
-    <div class="ld-stat ld-stat-rd ld-readycluster"><span class="ld-ready-item"><span class="ld-stat-k">Gate readiness</span>${readinessPop(l)}</span><span class="ld-ready-item"><span class="ld-stat-k">${LANG==="zh"?"待填天數":"Days pending"}</span>${daysPendingPop(l)}</span></div>`}
+    ${l.complete?"":`<div class="ld-stat ld-stat-rd ld-readycluster"><span class="ld-ready-item"><span class="ld-stat-k">Gate readiness</span>${readinessPop(l)}</span><span class="ld-ready-item"><span class="ld-stat-k">${LANG==="zh"?"待填天數":"Days pending"}</span>${daysPendingPop(l)}</span></div>`}
   </div>
 
   ${(()=>{ if(l.complete) return "";
