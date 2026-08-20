@@ -1120,7 +1120,7 @@ const V3=[
  {c:"C10", en:"Design freeze", zh:"設計凍結", ph:1, dept:"Product", o:"Zac + Ben", days:0, req:["C9"], out:{en:"freeze data = product data filing (feeds MB1)",zh:"凍結資料＝產品資料建檔（供 MB1）"}},
  {c:"P1", evid:1, en:"Pre-production sample + BOM", zh:"產前樣＆BOM", ph:1, dept:"Product", o:"Zac", days:14, req:["C10"], out:{en:"to Taiwan + BOM filed",zh:"送台灣＆BOM 歸檔"}, note:{en:"make 7 + ship 7",zh:"製作 7＋運輸 7"}},
  // 大貨生產不掛 evid：產線進度靠天數與大貨樣日追蹤，沒有一份「證明連結」可附（QC 報告是選配，不該擋完工）
- {c:"P3", en:"Mass production", zh:"大貨生產", ph:1, dept:"Product", o:"Zac", days:null, req:["P1"], sample:1, out:{en:"day countdown",zh:"天數倒數"}, note:{en:"packaging (D3) to factory during production",zh:"包裝檔（D3）於生產期間交廠"}},
+ {c:"P3", en:"Mass production", zh:"大貨生產", ph:1, dept:"Product", o:"Zac", days:null, req:["P1"], sample:1, hdrDate:{zh:"大貨完成",en:"Bulk done"}, out:{en:"day countdown",zh:"天數倒數"}, note:{en:"packaging (D3) to factory during production",zh:"包裝檔（D3）於生產期間交廠"}},
  // 2 — Launch Prep
  {c:"P2", en:"Product intro video", zh:"產品介紹", ph:2, dept:"Product", o:"Zac", days:1, req:["P1"], asset:1, out:{en:"quick how-to video → whole company",zh:"簡單操作影片 → 全公司"}, isNew:1},
  {c:"CT1", en:"Factory order created", zh:"工廠訂單建立", ph:2, dept:"Catalog", o:"Zac", days:1, req:["P1"], note:{en:"do at P3 start (= P1 done)",zh:"大貨生產開啟（＝P1 完成）即做"}},
@@ -4247,10 +4247,10 @@ function flowPopHTML(d,i){
   // 預計大貨樣日（P3）— P5 的解鎖鑰匙，跟 FB1 到貨日一樣直接開在流程圖節點卡片上，不用先跳進卡片詳情
   {const vn=V3MAP[n.code]||{};
    if(vn.sample&&task&&ti>=0){
-     const set=!!task.sampleDate, sDone=task.st==="x";   // P3 完工後日期只剩記錄用途 → 唯讀
+     const set=!!task.sampleDate, sDone=task.st==="x";   // P3 完工後這個日期只剩記錄用途,但仍可補正（詳情面板一直都可改,這裡原本 disabled ＝ 兩處不一致）
      h+=`<div class="fp-sec"><div class="fp-lab">${zh?"預計大貨樣日":"Bulk-sample date"}</div>`
-       +`<div class="fp-daterow"><span class="fp-days fp-days-edit${set||sDone?"":" tbd"}">📅 <input type="date" value="${esc(task.sampleDate||"")}"${sDone?` disabled aria-disabled="true"`:""} aria-label="${zh?"預計大貨樣日":"bulk-sample date"}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${ti},'sampleDate',this.value)"></span>`
-       +`<span class="fp-date-note">${sDone?(zh?"大貨已完工 — 此日期僅供記錄":"production finished — record only"):set?(zh?"P5 部署行銷樣品於此日解鎖":"P5 (deploy samples) unlocks on this date"):(zh?"未填 — P5 要等大貨完工才解鎖":"unset — P5 waits for mass production to finish")}</span></div></div>`;
+       +`<div class="fp-daterow"><span class="fp-days fp-days-edit${set||sDone?"":" tbd"}">📅 <input type="date" value="${esc(task.sampleDate||"")}" aria-label="${zh?"預計大貨樣日":"bulk-sample date"}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${ti},'sampleDate',this.value)"></span>`
+       +`<span class="fp-date-note">${sDone?(zh?"大貨已完工 — 此日期僅供記錄，仍可補正":"production finished — record only, still correctable"):set?(zh?"P5 部署行銷樣品於此日解鎖":"P5 (deploy samples) unlocks on this date"):(zh?"未填 — P5 要等大貨完工才解鎖":"unset — P5 waits for mass production to finish")}</span></div></div>`;
    }}
   // 產出與備註 — 流程真相原本只活在詳情面板，節點卡片自己要說得清楚這步交付什麼
   {const vn=V3MAP[n.code]||{};
@@ -4691,7 +4691,7 @@ function v3Overview(l){
   const verdict=`<div class="panel" style="display:flex;flex-wrap:wrap;align-items:center;gap:14px 20px">
     <span class="pill ${cls}" style="font-size:13.5px">${h}</span>
     <b style="font-size:15px;flex:1 1 240px">${esc(v3Narrative(l))}</b>
-    <span style="display:flex;gap:18px;flex-wrap:wrap">${lTpl(l)==="update"?"":kv(T("開啟","Opened"),fmt(openDate(l)))}${lTpl(l)==="update"?"":kv(T("送出","Submitted"),isSubmitted(l)?fmt(formSubmitDate(l)):T("未送出","—"))}${kv(lTpl(l)==="update"?T("預計完成","Proj. done"):T("預計上市","Projected"),fmt(projLaunchDate(l)))}${bt?kv(T("基準","Baseline"),fmt(bt),"",T("送出需求表當下凍結的預計上市日","the projected launch frozen when the intake form was submitted")):""}${bt?kv("Float",(fl>0?"+":"")+fl+"d",fl<0?"var(--red)":"var(--green)",fTip):""}${slip>0?kv(T("預估延遲","Slip"),slip+"d","var(--red)"):""}</span>
+    <span style="display:flex;gap:18px;flex-wrap:wrap">${kv(lTpl(l)==="update"?T("預計完成","Proj. done"):T("預計上市","Projected"),fmt(projLaunchDate(l)))}${bt?kv(T("基準","Baseline"),fmt(bt),"",T("送出需求表當下凍結的預計上市日","the projected launch frozen when the intake form was submitted")):""}${bt?kv("Float",(fl>0?"+":"")+fl+"d",fl<0?"var(--red)":"var(--green)",fTip):""}${slip>0?kv(T("預估延遲","Slip"),slip+"d","var(--red)"):""}</span>
   </div>`;
   // ---- ② plan vs actual, by phase ----
   const segBy={}; segments(l).forEach(s=>segBy[s.stage]=s);
@@ -4852,18 +4852,16 @@ function viewLaunch(){
       return `<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"關鍵路徑":"Critical path"}</span><span class="ld-stat-v">${ct?`🎯 ${esc(flowTaskName(ct))}${co?` · <span style="color:${v3OColor(co)}"><!--notx-->${esc(co)}<!--/notx--></span>`:""}${taskLocked(l,ct)?" 🔒":""}`:"—"}</span></div>
       ${chips?`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"並行":"In hand"}</span><span class="ld-stat-v">${chips}</span></div>`:""}`; })()}
     <div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"階段":"Stage"}</span><span class="ld-stat-v">${l.complete?(LANG==="zh"?"已完成":"Complete"):esc(l.stage)}</span></div>
-    ${lTpl(l)==="update"?"":`<div class="ld-stat"><span class="ld-stat-k">${T("開啟","Opened")}</span><span class="ld-stat-v">${fmt(openDate(l))}</span></div>`}
     ${(()=>{ const hn=v3HdrDateNode(l); if(!hn)return "";   // 只有帶 hdrDate 標記的模板（update 的 U6）才有這格
       const hs=v3HdrDateSrc(l);
       const tip=T("大貨生產的完成日 —— 已完成就是實際完成日（可在該步驟的「完成日」欄補正），未完成則是排程推算的預期完成日","the bulk-production finish date — the actual one once done (correct it on that step's Done-on field), otherwise the schedule's projected finish");
       return `<div class="ld-stat" title="${tip}"><span class="ld-stat-k">${LANG==="zh"?hn.hdrDate.zh:hn.hdrDate.en}</span><span class="ld-stat-v">${hs&&hs.d?`<b>${fmt(hs.d)}</b> <span class="ghostnote">${hs.done?T("實際","actual"):T("預估","est.")}</span>`:`<span style="color:var(--faint);font-weight:500">—</span>`}</span></div>`; })()}
-    ${lTpl(l)==="update"?"":`<div class="ld-stat"><span class="ld-stat-k">${T("送出","Submitted")}</span><span class="ld-stat-v">${submitted?fmt(formSubmitDate(l)):`<span style="color:var(--faint);font-weight:500">${T("未送出","—")}</span>`}</span></div>`}
-    <div class="ld-stat"><span class="ld-stat-k">${lTpl(l)==="update"?T("預計完成","Proj. done"):T("預計上市","Projected")}</span><span class="ld-stat-v"><b>${fmt(proj)}</b>${lTpl(l)==="update"&&arrSrc&&!arrSrc.fb?` <span class="ghostnote" title="${T("由『更新上線（UL6）』的上線日決定 —— 手填優先，清空就回到自動推算","set by hand on Update live (UL6) — clearing it returns to the auto-projection")}">${T("手填","by hand")}</span>`:l.complete?"":submitted?(pend.nAff?` <span class="v3pdwarn" title="${T("推算上市日需要的天數還沒填，目前當 0 天算 ⇒ 日期偏早","durations the projection needs are unset — counted as 0 days, so it runs early")}">⚠${pend.nAff}</span>`:""):` <span class="ghostnote">${T("暫估","est.")}</span>`}</span></div>
     ${(()=>{ if(lTpl(l)==="update")return "";   // 到貨日（FB1）是 launch 模板的概念；update 的覆蓋日期就是抬頭上的「預計完成」本身,不另開一格
       const src=v3ArrivalSrc(l), eta=src?"":v3EtaBulk(l);   // 到貨日＝LC 在 FB1 填的首波開賣日；未填時顯示由 P3 推估的預計值
       const tip=src&&src.fb?T("首波開賣日已標完成但沒填實際到貨日 — 這裡顯示的是完成日，請補填","First batch on sale is done but the real arrival date is unset — showing the completion date; please fill it in")
         :T("大貨到貨、可以開賣的那一天 — 由 LC 在物流〈首波開賣日〉填寫；填了就成為預計上市日","the day stock lands and selling can start — LC fills it on Logistics › First batch on sale; once set it becomes the projected launch");
       return `<div class="ld-stat" title="${tip}"><span class="ld-stat-k">${T("到貨日","Arrival")}</span><span class="ld-stat-v">${src?`<b>${fmt(src.d)}</b>${src.fb?` <span class="ghostnote">${T("待補填","unset")}</span>`:""}`:eta?`<span style="color:var(--dim);font-weight:500">~${fmt(eta)} <span class="ghostnote">${T("預估","est.")}</span></span>`:`<span style="color:var(--faint);font-weight:500">${T("未填","—")}</span>`}</span></div>`; })()}
+    <div class="ld-stat"><span class="ld-stat-k">${lTpl(l)==="update"?T("預計完成","Proj. done"):T("預計上市","Projected")}</span><span class="ld-stat-v"><b>${fmt(proj)}</b>${lTpl(l)==="update"&&arrSrc&&!arrSrc.fb?` <span class="ghostnote" title="${T("由『更新上線（UL6）』的上線日決定 —— 手填優先，清空就回到自動推算","set by hand on Update live (UL6) — clearing it returns to the auto-projection")}">${T("手填","by hand")}</span>`:l.complete?"":submitted?(pend.nAff?` <span class="v3pdwarn" title="${T("推算上市日需要的天數還沒填，目前當 0 天算 ⇒ 日期偏早","durations the projection needs are unset — counted as 0 days, so it runs early")}">⚠${pend.nAff}</span>`:""):` <span class="ghostnote">${T("暫估","est.")}</span>`}</span></div>
     ${l.complete?"":`${lTpl(l)==="update"?"":`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"速度":"Velocity"}</span><span class="ld-stat-v">${velocity(l).toFixed(1)}/wk</span></div>`}
     <div class="ld-stat ld-stat-rd ld-readycluster"><span class="ld-ready-item"><span class="ld-stat-k">Gate readiness</span>${readinessPop(l)}</span><span class="ld-ready-item"><span class="ld-stat-k">${LANG==="zh"?"待填天數":"Days pending"}</span>${daysPendingPop(l)}</span></div>`}
   </div>
