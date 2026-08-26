@@ -4160,6 +4160,32 @@ async function fpStart(slug,i,el){
   if(on){ if(t.startAt)delete t.startAt; } else if(!t.startAt) t.startAt=today;
   v3Advance(l); save(); render();
 }
+/* 右鍵退回一段 —— 與左鍵的逐段推進成對：已完成 → 進行中 → 未開始（卡關也視為「做過了」，退回未開始）。
+   已完成往回退會讓下游已完成的步驟失效，所以照 stepStatus／fpComplete 的規矩走 guardReopen 的 cascade 確認。
+   時間戳跟著回捲：離開完成清 doneAt、退到未開始清 startAt —— 不清的話排程會以為這步還在跑。 */
+async function fpBack(slug,i,el){
+  let l=L(slug),t=l&&l.tasks[i]; if(!t)return;
+  if(taskLocked(l,t)){ bvShake(el); toast("🔒 "+lockReason(l,t)); return; }
+  const zh=LANG==="zh";
+  if(t.st==="o"){ bvShake(el); toast(zh?"已經是「未開始」了":"already at not-started"); return; }
+  const code=t.code, wasDone=t.st==="x";
+  if(!await confirmFrozenStepEdit(l,t))return;
+  l=L(slug); t=l&&(l.tasks||[]).find(x=>x.code===code); if(!l||!t)return;   // re-resolve：確認框開著時遠端快照可能重建過 LAUNCHES
+  if(wasDone){
+    const g=await guardReopen(l,t,el); if(!g.ok)return;
+    l=L(slug); t=l&&(l.tasks||[]).find(x=>x.code===code); if(!l||!t)return;
+    const resetCodes=g.reset.map(d=>d.code);
+    const reset=(l.tasks||[]).filter(x=>resetCodes.includes(x.code));
+    reset.forEach(d=>{d.st="o"; if(d.doneAt)delete d.doneAt;});
+    if(reset.length) toast(zh?("↩ 已一併退回後續 "+reset.length+" 個步驟"):("↩ Reset "+reset.length+" downstream step(s)"));
+  }
+  const nx=wasDone?"p":"o";                                   // 完成 → 進行中；進行中／卡關 → 未開始
+  const r=applyTaskStatus(l,t,nx); if(!r.ok){toast(r.reason);return;}
+  if(t.doneAt)delete t.doneAt;
+  if(nx==="p"){ if(!t.startAt)t.startAt=today; } else if(t.startAt)delete t.startAt;
+  toast(zh?("↩ 退回「"+(nx==="p"?"進行中":"未開始")+"」"):("↩ back to "+(nx==="p"?"in progress":"not started")));
+  v3Advance(l); save(); render();
+}
 // approve / revoke a Ben ◆ gate straight from the inspector — same verbs as the card's approve()/unapprove(),
 // plus the cascade-reopen guard so revoking a gate can't leave done downstream steps hanging off an undone prerequisite
 async function fpApprove(slug,i,el){
@@ -4217,9 +4243,10 @@ function flowPopHTML(d,i){
           days===0 的即時／事件里程碑（C1／C10／U0／UL6…）沒有「進行中」可言 → 直接給完成鈕。
           卡關（b）先回到進行中，別讓人從卡關一鍵跳完成。退回未開始請在任務列上右鍵（cycleBack）。 */
        :(()=>{ const st=task.st, instant=vn.days===0;
-          if(doneNow) return `<button class="btn ghost fp-mark" onclick="fpComplete('${l.slug}',${ti},this)">${zh?"↩ 重新開啟":"↩ Reopen"}</button>`;
-          if(instant||st==="p") return `<button class="btn fp-mark" title="${zh?"標記完成 —— 完成後彈窗自動跳到下一步":"mark done — the inspector then steps to the next node"}" onclick="fpComplete('${l.slug}',${ti},this)">${zh?"✓ 標記完成":"✓ Complete"}</button>`;
-          return `<button class="btn fp-mark" title="${zh?"開始進行 —— 開工日蓋今天，彈窗留在這一步":"start work — stamps today as the start date; the inspector stays here"}" onclick="fpStart('${l.slug}',${ti},this)">${zh?"⏳ 進行中":"⏳ Start"}</button>`; })())
+          const back=` oncontextmenu="fpBack('${l.slug}',${ti},this);return false"`;   // 右鍵退回一段（與左鍵推進成對，同任務列的左右鍵）
+          if(doneNow) return `<button class="btn ghost fp-mark" title="${zh?"重新開啟（右鍵：退回「進行中」）":"reopen (right-click: back to in progress)"}" onclick="fpComplete('${l.slug}',${ti},this)"${back}>${zh?"↩ 重新開啟":"↩ Reopen"}</button>`;
+          if(instant||st==="p") return `<button class="btn fp-mark" title="${zh?"標記完成 —— 完成後彈窗自動跳到下一步（右鍵：退回上一段）":"mark done — the inspector then steps to the next node (right-click: step back)"}" onclick="fpComplete('${l.slug}',${ti},this)"${back}>${zh?"✓ 標記完成":"✓ Complete"}</button>`;
+          return `<button class="btn fp-mark" title="${zh?"開始進行 —— 開工日蓋今天，彈窗留在這一步（右鍵：退回上一段）":"start work — stamps today as the start date; the inspector stays here (right-click: step back)"}" onclick="fpStart('${l.slug}',${ti},this)"${back}>${zh?"⏳ 進行中":"⏳ Start"}</button>`; })())
      :`<span class="fp-act-note">${locked?("🔒 "+esc(lockReason(l,task))+(n.d?(zh?"，Ben 尚無法拍板":" — not yet Ben's call"):"")):(zh?"無對應任務":"no linked task")}</span>`;
    // this step's day estimate — per-product manual steps (vn.days==null, not a ◆ gate) edit right here:
    // once the clock runs (prereqs done) the factory quotes a DATE, so show a date picker (v3SetDue back-fills
