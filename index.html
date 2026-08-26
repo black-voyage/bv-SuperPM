@@ -4147,6 +4147,19 @@ async function fpComplete(slug,i,el){
   if(!done) flowStepTo(flowAdvanceRoute(l,t.code,S.route&&S.route.d,S.route&&S.route.i));   // just completed → step the popover to the next node in the path
   save(); render();
 }
+// 進行中 ⇄ 未開始 —— 流程圖上直接切，不必在任務列左鍵繞整圈狀態迴圈。守門與 stepStatus 一致（鎖定、設計凍結），
+// 開工日的規則也一致：切進行中就蓋今天，退回未開始就把它清掉（否則排程會以為這步已經在跑）。
+async function fpStart(slug,i,el){
+  let l=L(slug),t=l&&l.tasks[i]; if(!t)return;
+  if(taskLocked(l,t)){ bvShake(el); toast("🔒 "+lockReason(l,t)); return; }
+  const code=t.code;
+  if(!await confirmFrozenStepEdit(l,t))return;
+  l=L(slug); t=l&&(l.tasks||[]).find(x=>x.code===code); if(!l||!t)return;   // re-resolve：確認框開著時遠端快照可能重建過 LAUNCHES
+  const on=t.st==="p";
+  const r=applyTaskStatus(l,t,on?"o":"p"); if(!r.ok){toast(r.reason);return;}
+  if(on){ if(t.startAt)delete t.startAt; } else if(!t.startAt) t.startAt=today;
+  v3Advance(l); save(); render();
+}
 // approve / revoke a Ben ◆ gate straight from the inspector — same verbs as the card's approve()/unapprove(),
 // plus the cascade-reopen guard so revoking a gate can't leave done downstream steps hanging off an undone prerequisite
 async function fpApprove(slug,i,el){
@@ -4199,7 +4212,14 @@ function flowPopHTML(d,i){
      ?(n.d
        ?`<button class="btn fp-mark${doneNow?" ghost":""}" title="${zh?"◆ 關卡由 Ben（CEO）拍板":"◆ gates are decided by Ben (CEO)"}" onclick="fpApprove('${l.slug}',${ti},this)">${doneNow?(zh?"↩ 撤銷核准":"↩ Revoke ◆"):(zh?"◆ 核准":"◆ Approve")}</button>`
         +(doneNow?"":`<button class="btn ghost fp-mark" title="${zh?"否決 — 退回重做":"reject — send back for rework"}" onclick="gateReject('${l.slug}',${ti})">✕ ${zh?"駁回":"Reject"}</button>`)
-       :`<button class="btn fp-mark${doneNow?" ghost":""}" onclick="fpComplete('${l.slug}',${ti},this)">${doneNow?(zh?"↩ 重新開啟":"↩ Reopen"):(zh?"✓ 標記完成":"✓ Complete")}</button>`)
+       /* 單顆鈕逐段推進（Zac 2026-08-26）：未開始 →「⏳ 進行中」→「✓ 標記完成」→「↩ 重新開啟」。
+          只有按下「完成」才會把彈窗帶到下一個節點（fpComplete 裡的 flowStepTo）；切進行中留在原地。
+          days===0 的即時／事件里程碑（C1／C10／U0／UL6…）沒有「進行中」可言 → 直接給完成鈕。
+          卡關（b）先回到進行中，別讓人從卡關一鍵跳完成。退回未開始請在任務列上右鍵（cycleBack）。 */
+       :(()=>{ const st=task.st, instant=vn.days===0;
+          if(doneNow) return `<button class="btn ghost fp-mark" onclick="fpComplete('${l.slug}',${ti},this)">${zh?"↩ 重新開啟":"↩ Reopen"}</button>`;
+          if(instant||st==="p") return `<button class="btn fp-mark" title="${zh?"標記完成 —— 完成後彈窗自動跳到下一步":"mark done — the inspector then steps to the next node"}" onclick="fpComplete('${l.slug}',${ti},this)">${zh?"✓ 標記完成":"✓ Complete"}</button>`;
+          return `<button class="btn fp-mark" title="${zh?"開始進行 —— 開工日蓋今天，彈窗留在這一步":"start work — stamps today as the start date; the inspector stays here"}" onclick="fpStart('${l.slug}',${ti},this)">${zh?"⏳ 進行中":"⏳ Start"}</button>`; })())
      :`<span class="fp-act-note">${locked?("🔒 "+esc(lockReason(l,task))+(n.d?(zh?"，Ben 尚無法拍板":" — not yet Ben's call"):"")):(zh?"無對應任務":"no linked task")}</span>`;
    // this step's day estimate — per-product manual steps (vn.days==null, not a ◆ gate) edit right here:
    // once the clock runs (prereqs done) the factory quotes a DATE, so show a date picker (v3SetDue back-fills
