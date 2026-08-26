@@ -4246,7 +4246,9 @@ function flowPopHTML(d,i){
           const back=` oncontextmenu="fpBack('${l.slug}',${ti},this);return false"`;   // 右鍵退回一段（與左鍵推進成對，同任務列的左右鍵）
           if(doneNow) return `<button class="btn ghost fp-mark" title="${zh?"重新開啟（右鍵：退回「進行中」）":"reopen (right-click: back to in progress)"}" onclick="fpComplete('${l.slug}',${ti},this)"${back}>${zh?"↩ 重新開啟":"↩ Reopen"}</button>`;
           if(instant||st==="p") return `<button class="btn fp-mark" title="${zh?"標記完成 —— 完成後彈窗自動跳到下一步（右鍵：退回上一段）":"mark done — the inspector then steps to the next node (right-click: step back)"}" onclick="fpComplete('${l.slug}',${ti},this)"${back}>${zh?"✓ 標記完成":"✓ Complete"}</button>`;
-          return `<button class="btn fp-mark" title="${zh?"開始進行 —— 開工日蓋今天，彈窗留在這一步（右鍵：退回上一段）":"start work — stamps today as the start date; the inspector stays here (right-click: step back)"}" onclick="fpStart('${l.slug}',${ti},this)"${back}>${zh?"⏳ 進行中":"⏳ Start"}</button>`; })())
+          // 「開始執行」用灰底 ghost、「標記完成」才是紅色主行動（Zac 2026-08-26）：一條動作列同時只有一個紅鈕，
+          // 紅色留給真正不可逆、且會把彈窗帶往下一步的那一下。
+          return `<button class="btn ghost fp-mark" title="${zh?"開始執行 —— 開工日蓋今天，彈窗留在這一步（右鍵：退回上一段）":"start work — stamps today as the start date; the inspector stays here (right-click: step back)"}" onclick="fpStart('${l.slug}',${ti},this)"${back}>${zh?"▶ 開始執行":"▶ Start"}</button>`; })())
      :`<span class="fp-act-note">${locked?("🔒 "+esc(lockReason(l,task))+(n.d?(zh?"，Ben 尚無法拍板":" — not yet Ben's call"):"")):(zh?"無對應任務":"no linked task")}</span>`;
    // this step's day estimate — per-product manual steps (vn.days==null, not a ◆ gate) edit right here:
    // once the clock runs (prereqs done) the factory quotes a DATE, so show a date picker (v3SetDue back-fills
