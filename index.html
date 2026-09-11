@@ -725,7 +725,23 @@
   @media(max-width:600px){.ld-act-t{display:none}.ld-act{padding:7px 11px}}
   /* stat row — labeled, scannable (replaces the run-on sub line) */
   /* stat strip — spacious KV cells split by hairline dividers (DESIGN.md §Components KV rows) */
-  .ld-stats{display:flex;flex-wrap:wrap;align-items:center;gap:14px 0;margin:16px 0 20px;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  /* 日期優先的抬頭（Zac 2026-09-11：拿掉「並行」「階段」——用下來不是重要資訊；大家每天在看的是日期）。
+     第一列＝這張卡的所有日期（含每條面料各自的開賣日），第二列＝負責人／關鍵路徑／警示。
+     兩列共用同一組 KV 儲存格語彙（.ld-stat），只有字級與標籤顏色分層，不另造元件。 */
+  .ld-dates{display:flex;flex-wrap:wrap;align-items:center;gap:14px 0;margin:16px 0 0;padding:14px 0 13px;border-top:1px solid var(--line)}
+  .ld-meta{display:flex;flex-wrap:wrap;align-items:center;gap:14px 0;margin:0 0 20px;padding:13px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .ld-dates .ld-stat-v{font-size:17px;font-variant-numeric:tabular-nums}   /* 日期是主資訊 —— 比次要列大一階 */
+  .ld-meta .ld-stat-v{font-size:14px}
+  /* 面料名是專有名詞：比通用標籤亮一階，且不吃 .ld-stat-k 的 uppercase（"Ultra 400" 不該變成 "ULTRA 400"）。
+     狀態 class 不能叫 .done —— 全站 .done 是 health pill 的藍底樣式，撞上去那一格會長出方框像被選取。 */
+  .ld-fabcell .ld-stat-k{color:var(--dim);text-transform:none;letter-spacing:.04em}
+  .ld-fabcell.onsale .ld-stat-v{color:var(--green)}
+  .ldyr{font-size:.72em;color:var(--dim);margin-left:2px;font-weight:600;letter-spacing:.02em}
+  /* 「預計上市」是打開這張卡的理由 —— 給它一階層級，並用一段留白把它與成因（生產／各面料開賣）分開，
+     這一列才讀得出「這些日期 → 所以是這天」而不是四個等權欄位。 */
+  .ld-dates .ld-primary:not(:first-child){margin-left:10px;padding-left:34px}
+  .ld-dates .ld-primary .ld-stat-v{font-size:19px}
+  .ld-metaadd{margin-left:22px;align-self:center}
   .ld-stat{display:flex;flex-direction:column;gap:6px;padding:0 24px;border-left:1px solid var(--line);min-width:0}
   .ld-stat:first-child{padding-left:0;border-left:none}
   .ld-stat-k{font-family:var(--font-mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
@@ -2999,6 +3015,12 @@ async function loadProjectsData(){
 const NAVS=[["home","Home"],["portfolio","Portfolio"],["progress","Progress"],["campaign","Campaigns"],["settings","Settings"]];
 const stIcon={x:"✓",p:"…",b:"!",o:"○"};
 const fmt=d=>new Date(d+"T00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+/* 跨年版：fmt() 只印月日，抬頭上「大貨完成 Sep 11 → 預計上市 Mar 4」看不出後者是明年 —— 有人會把滑到
+   明年的案子讀成下個月。同一年不加任何東西（密度不變），跨年才補一個小小的 '27。回傳含 HTML，只能插進
+   HTML 內容，不要塞進 title/aria 這類屬性（那裡照舊用 fmt）。 */
+const fmtY=d=>{ if(!d)return fmt(d);
+  const y=String(d).slice(0,4), cy=String(today).slice(0,4);
+  return fmt(d)+((y&&cy&&y!==cy)?`<span class="ldyr">'${y.slice(2)}</span>`:""); };
 let today=pjToday();     // real current date (Asia/Taipei)；let 不是 const —— 換日 interval 會就地更新（見下方註解），前景分頁才不會停在舊日期
 /* 跨夜分頁殺手（2026-08-13 第三輪；2026-08-14 第四輪補洞）：today —— P5 的 sampleDate 解鎖、
    預計上市日 clamp、逾期計算全吃它。兩個開在「不同日期」的分頁對同一份資料會算出不同的鎖定與
@@ -3952,7 +3974,7 @@ function fabStrip(l,ro){
   const chips=fabLaunch(l).map(f=>{
     const sb=fabSt(fb,f.id), sp=fabSt(p3,f.id);
     const sub=sb.st==="x"?T("已開賣","on sale"):sp.st==="x"?T("待到貨","in transit"):sp.st==="p"?T("生產中","in production"):T("未開始","not started");
-    return `<span class="fabchip${sb.st==="x"?" done":""}" title="${esc(f.n)} · ${sub}">${stIcon[sb.st]||"○"} <b><!--notx-->${esc(f.n)}<!--/notx--></b> <span class="fabchip-d">${f.d?fmt(f.d):"—"}</span></span>`;
+    return `<span class="fabchip${sb.st==="x"?" done":""}" title="${esc(f.n)} · ${sub}">${stIcon[sb.st]||"○"} <b><!--notx-->${esc(f.n)}<!--/notx--></b> <span class="fabchip-d">${f.d?fmtY(f.d):"—"}</span></span>`;
   }).join("");
   return `<div class="fabstrip"><span class="fabstrip-k">🧵 ${T("面料時程","Fabric schedule")}</span>${chips}`
     +`${ro?"":`<button class="fabadd" title="${T("新增面料","add a fabric")}" onclick="v3FabAdd('${l.slug}')">＋</button>`}`
@@ -3968,7 +3990,7 @@ function readinessPop(l){
   const rows=mandatory(l).map(d=>{const o=g.cs.filter(c=>c.d===d&&c.task.st!=="x").length; return {d,o,ready:o===0};});
   const notReady=rows.filter(r=>!r.ready).length;
   const cls=open===0?"ok":"warn";
-  const trig=open===0?"✓ Gate ready":`⚠ ${open} open`;
+  const trig=open===0?"✓ Gate ready":`◇ ${open} open`;   // ◇ 呼應 ◆ 決策關卡；⚠ 保留給「會讓上市日算錯」那一種
   const aria=open===0?`Gate ready — all exit criteria met`:`${open} exit criteria open across ${notReady} department${notReady===1?"":"s"}. Hover or focus for the breakdown.`;
   return `<span class="ld-rd"><span class="ld-rd-trig ${cls}" tabindex="0" role="button" aria-label="${aria}">${trig}</span>`
     +`<span class="ld-rd-pop" role="tooltip"><div class="ld-rd-pop-h">Gate readiness · ${esc(l.stage)}</div>`
@@ -3987,7 +4009,7 @@ function daysPendingPop(l){
   if(!list.length) return `<span class="ld-rd"><span class="ld-rd-trig ok" tabindex="0" role="button" aria-label="${T("所有步驟都已填天數","every step has a day estimate")}">${T("✓ 天數齊全","✓ Days set")}</span></span>`;
   const byDept={}; list.forEach(x=>{const d=x.t.d||(x.n&&v3Dept(x.n))||"—"; (byDept[d]=byDept[d]||[]).push(x);});
   const n=list.length, nd=Object.keys(byDept).length;
-  const trig=T(`⚠ ${n} 項待填天數`,`⚠ ${n} days unset`);
+  const trig=T(`◐ ${n} 項待填天數`,`◐ ${n} days unset`);   // ◐ 與下方待補 band 同一個符號
   const aria=T(`${n} 個步驟尚未填寫天數，跨 ${nd} 個部門；游標移上可看是誰`,`${n} steps still need a day estimate across ${nd} department${nd===1?"":"s"}. Hover or focus for who.`);
   return `<span class="ld-rd"><span class="ld-rd-trig days" tabindex="0" role="button" aria-label="${aria}">${trig}</span>`
     +`<span class="ld-rd-pop" role="tooltip"><div class="ld-rd-pop-h">${T("待填天數","Days not set")}</div>`
@@ -4050,7 +4072,7 @@ const cardHTML=l=>{const [h,cls]=health(l);
       return `<div class="r"><span class="k">${LANG==="zh"?"關鍵路徑":"Critical path"}</span><span class="v">${ct?`🎯 <b>${esc(flowTaskName(ct))}</b>${co?` · <span style="color:${v3OColor(co)}"><!--notx-->${esc(co)}<!--/notx--></span>`:""}${taskLocked(l,ct)?" 🔒":""}`:"—"}</span></div>
       ${chips?`<div class="r wrapv"><span class="k">${LANG==="zh"?"並行":"In hand"}</span><span class="v">${chips}</span></div>`:""}`; })()}
     ${(hasFabs(l)&&isSubmitted(l)&&!l.complete)
-      ? fabLaunch(l).map(f=>`<div class="r"><span class="k" title="${LANG==="zh"?"這條面料的預計開賣日":"this fabric's projected on-sale date"}">🧵 <!--notx-->${esc(f.n)}<!--/notx--></span><span class="v" style="font-family:var(--font-mono)">${f.st==="x"?`<b style="color:var(--green)">✓ </b>`:"🎯 "}${f.d?fmt(f.d):"—"}</span></div>`).join("")
+      ? fabLaunch(l).map(f=>`<div class="r"><span class="k" title="${LANG==="zh"?"這條面料的預計開賣日":"this fabric's projected on-sale date"}">🧵 <!--notx-->${esc(f.n)}<!--/notx--></span><span class="v" style="font-family:var(--font-mono)">${f.st==="x"?`<b style="color:var(--green)">✓ </b>`:"🎯 "}${f.d?fmtY(f.d):"—"}</span></div>`).join("")
       : `<div class="r"><span class="k">${lTpl(l)==="update"?(LANG==="zh"?"預計完成":"Proj. done"):(LANG==="zh"?"預計上市":"Projected")}</span><span class="v" style="font-family:var(--font-mono)">🎯 ${isSubmitted(l)?fmt(projLaunchDate(l)):`<span style="color:var(--faint)">${LANG==="zh"?"未送出":"—"}</span>`}</span></div>`}
   </div>
   <div class="card-ft"><span class="pill ${cls}">${h}</span>${l.complete||!l.baselineTarget?"":` <span class="pill ${floatDays(l)<0?"bad":"ok"}">float ${floatDays(l)}d</span>`}</div></div>`;};
@@ -4962,7 +4984,7 @@ function portfolioOverview(){
     const bt=r.bott?`<span style="color:${DCOLOR(r.bott.dept)};font-weight:600">${r.bott.onCP?"🔴 ":""}${esc(r.bott.dept)}</span>`:`<span class="ghostnote">—</span>`;
     return `<div onclick="${act}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${act}}" role="button" tabindex="0" title="${esc(v3Narrative(l))}" style="display:grid;${cols};align-items:center;padding:10px 0;border-top:1px solid var(--line);cursor:pointer">
       <span style="min-width:0"><span style="display:flex;align-items:center;gap:8px;min-width:0"><span class="pill ${r.cls}" style="font-size:10px;flex:none">${r.h}</span><b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(l.name)}</b></span>
-        ${(hasFabs(l)&&!l.complete)?`<span class="ghostnote" style="display:block;font-size:10.5px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${T("每條面料各自的預計開賣日","each fabric's projected on-sale date")}">🧵 ${fabLaunch(l).map(f=>esc(f.n)+" "+(f.d?fmt(f.d):"—")).join(" · ")}</span>`:""}</span>
+        ${(hasFabs(l)&&!l.complete)?`<span class="ghostnote" style="display:block;font-size:10.5px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${T("每條面料各自的預計開賣日","each fabric's projected on-sale date")}">🧵 ${fabLaunch(l).map(f=>esc(f.n)+" "+(f.d?fmtY(f.d):"—")).join(" · ")}</span>`:""}</span>
       <span class="ghostnote" style="font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.complete?T("完成","Complete"):esc(l.stage)}</span>
       <span style="display:flex;align-items:center;gap:8px">${bar(r.done,r.total)}<span class="ghostnote" style="font-size:11px;flex:none;font-variant-numeric:tabular-nums">${r.done}/${r.total}</span></span>
       <span style="font-size:12px;font-variant-numeric:tabular-nums">${sched}</span>
@@ -5211,26 +5233,43 @@ function viewLaunch(){
     ${ldActs}
   </div>
   <div class="ld-minibar" id="ldMini"><div class="ld-minibar-in">${ldBack}<div class="ld-title-row">${ldId}</div>${ldActs}</div></div>
-  <div class="ld-stats">
-    <div class="ld-stat"><span class="ld-stat-k">DRI</span><span class="ld-stat-v" style="color:${DCOLOR(l.dri)}">${esc(l.dri)}</span></div>
-    ${l.complete?"":(()=>{ const ct=v3CpNow(l), co=ct?v3Own(V3MAP[ct.code]):"", chips=v3BallChips(l);
-      return `<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"關鍵路徑":"Critical path"}</span><span class="ld-stat-v">${ct?`🎯 ${esc(flowTaskName(ct))}${co?` · <span style="color:${v3OColor(co)}"><!--notx-->${esc(co)}<!--/notx--></span>`:""}${taskLocked(l,ct)?" 🔒":""}`:"—"}</span></div>
-      ${chips?`<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"並行":"In hand"}</span><span class="ld-stat-v">${chips}</span></div>`:""}`; })()}
-    <div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"階段":"Stage"}</span><span class="ld-stat-v">${l.complete?(LANG==="zh"?"已完成":"Complete"):esc(l.stage)}</span></div>
-    ${(()=>{ const hn=v3HdrDateNode(l); if(!hn)return "";   // 只有帶 hdrDate 標記的模板（update 的 U6）才有這格
+  <!-- 抬頭第一列＝日期（Zac 2026-09-11：拿掉「並行」「階段」，日期才是每天真正在看的東西）。
+       有面料分支時逐條列出各自的開賣日，並取代「到貨日」那一格 —— 到貨日＝首波＝最早的那條面料，
+       兩者並存等於同一個數字畫兩次（原本掛在抬頭下方的 fabStrip 因此併進這一列）。 -->
+  <div class="ld-dates">
+    ${(()=>{ const hn=v3HdrDateNode(l); if(!hn)return "";   // 帶 hdrDate 的節點（launch＝P3 大貨生產、update＝U6）
       const hs=v3HdrDateSrc(l);
       const tip=T("大貨生產的完成日 —— 已完成就是實際完成日（可在該步驟的「完成日」欄補正），未完成則是排程推算的預期完成日","the bulk-production finish date — the actual one once done (correct it on that step's Done-on field), otherwise the schedule's projected finish");
-      return `<div class="ld-stat" title="${tip}"><span class="ld-stat-k">${LANG==="zh"?hn.hdrDate.zh:hn.hdrDate.en}</span><span class="ld-stat-v">${hs&&hs.d?`<b>${fmt(hs.d)}</b> <span class="ghostnote">${hs.done?T("實際","actual"):T("預估","est.")}</span>`:`<span style="color:var(--faint);font-weight:500">—</span>`}</span></div>`; })()}
-    ${(()=>{ if(lTpl(l)==="update")return "";   // 到貨日（FB1）是 launch 模板的概念；update 的覆蓋日期就是抬頭上的「預計完成」本身,不另開一格
-      const src=v3ArrivalSrc(l), eta=src?"":v3EtaBulk(l);   // 到貨日＝LC 在 FB1 填的首波開賣日；未填時顯示由 P3 推估的預計值
+      return `<div class="ld-stat" title="${tip}"><span class="ld-stat-k">${LANG==="zh"?hn.hdrDate.zh:hn.hdrDate.en}</span><span class="ld-stat-v">${hs&&hs.d?`<b>${fmtY(hs.d)}</b> <span class="ghostnote">${hs.done?T("實際","actual"):T("預估","est.")}</span>`:`<span style="color:var(--faint);font-weight:500">—</span>`}</span></div>`; })()}
+    ${(()=>{
+      if(hasFabs(l)) return fabLaunch(l).map(f=>{ const sold=f.st==="x";
+        const tip=T(f.n+" 的首波開賣日 —— 這條面料的大貨到貨、可以開賣的那一天","first batch on sale for "+f.n+" — the day this fabric's stock lands and selling can start");
+        return `<div class="ld-stat ld-fabcell${sold?" onsale":""}" title="${esc(tip)}"><span class="ld-stat-k">🧵 ${T("到貨","arrival")} · <!--notx-->${esc(f.n)}<!--/notx--></span><span class="ld-stat-v">${f.d?`<b>${fmtY(f.d)}</b>`:`<span style="color:var(--faint);font-weight:500">—</span>`}${sold?` <span class="ghostnote">${T("已開賣","on sale")}</span>`:""}</span></div>`; }).join("");
+      if(lTpl(l)==="update")return "";   // update 的覆蓋日期就是「預計完成」本身,不另開一格
+      const src=v3ArrivalSrc(l), eta=src?"":v3EtaBulk(l);
       const tip=src&&src.fb?T("首波開賣日已標完成但沒填實際到貨日 — 這裡顯示的是完成日，請補填","First batch on sale is done but the real arrival date is unset — showing the completion date; please fill it in")
         :T("大貨到貨、可以開賣的那一天 — 由 LC 在物流〈首波開賣日〉填寫；填了就成為預計上市日","the day stock lands and selling can start — LC fills it on Logistics › First batch on sale; once set it becomes the projected launch");
-      return `<div class="ld-stat" title="${tip}"><span class="ld-stat-k">${T("到貨日","Arrival")}</span><span class="ld-stat-v">${src?`<b>${fmt(src.d)}</b>${src.fb?` <span class="ghostnote">${T("待補填","unset")}</span>`:""}`:eta?`<span style="color:var(--dim);font-weight:500">~${fmt(eta)} <span class="ghostnote">${T("預估","est.")}</span></span>`:`<span style="color:var(--faint);font-weight:500">${T("未填","—")}</span>`}</span></div>`; })()}
-    <div class="ld-stat"><span class="ld-stat-k">${lTpl(l)==="update"?T("預計完成","Proj. done"):T("預計上市","Projected")}</span><span class="ld-stat-v"><b>${fmt(proj)}</b>${lTpl(l)==="update"&&arrSrc&&!arrSrc.fb?` <span class="ghostnote" title="${T("由『更新上線（UL6）』的上線日決定 —— 手填優先，清空就回到自動推算","set by hand on Update live (UL6) — clearing it returns to the auto-projection")}">${T("手填","by hand")}</span>`:l.complete?"":submitted?(pend.nAff?` <span class="v3pdwarn" title="${T("推算上市日需要的天數還沒填，目前當 0 天算 ⇒ 日期偏早","durations the projection needs are unset — counted as 0 days, so it runs early")}">⚠${pend.nAff}</span>`:""):` <span class="ghostnote">${T("暫估","est.")}</span>`}</span></div>
+      return `<div class="ld-stat" title="${tip}"><span class="ld-stat-k">${T("到貨日","Arrival")}</span><span class="ld-stat-v">${src?`<b>${fmtY(src.d)}</b>${src.fb?` <span class="ghostnote">${T("待補填","unset")}</span>`:""}`:eta?`<span style="color:var(--dim);font-weight:500">~${fmtY(eta)} <span class="ghostnote">${T("預估","est.")}</span></span>`:`<span style="color:var(--faint);font-weight:500">${T("未填","—")}</span>`}</span></div>`; })()}
+    <div class="ld-stat ld-primary" title="${hasFabs(l)
+      ?T("這張卡全部做完的日子 —— 取「最慢的那條面料」與「素材鏈（正式 PDP／行銷影片）」兩者較晚的一個，所以它有時等於最後一條面料、有時比它更晚","when this card is fully done — the later of the slowest fabric and the asset chain (official PDP / marketing video), so it sometimes equals the last fabric and sometimes runs later")
+      :T("沿 req 流程正向排程推算出來的上市日；填了到貨日就以到貨日為準","projected from the req schedule; a filled arrival date overrides it")}"><span class="ld-stat-k">${lTpl(l)==="update"?T("預計完成","Proj. done"):T("預計上市","Projected")}</span><span class="ld-stat-v"><b>${fmtY(proj)}</b>${lTpl(l)==="update"&&arrSrc&&!arrSrc.fb?` <span class="ghostnote" title="${T("由『更新上線（UL6）』的上線日決定 —— 手填優先，清空就回到自動推算","set by hand on Update live (UL6) — clearing it returns to the auto-projection")}">${T("手填","by hand")}</span>`:l.complete?"":submitted?(pend.nAff?` <span class="v3pdwarn" title="${T("推算上市日需要的天數還沒填，目前當 0 天算 ⇒ 日期偏早","durations the projection needs are unset — counted as 0 days, so it runs early")}">⚠${pend.nAff}</span>`:""):` <span class="ghostnote">${T("暫估","est.")}</span>`}${(()=>{
+      // 預計上市常常就等於最慢的那條面料 —— 兩個一樣的數字並排會讓人愣住，所以把關係講明白；
+      // 不相等時更值得說：那代表瓶頸不在生產，而在素材鏈（正式 PDP／行銷影片）。
+      if(!hasFabs(l)||l.complete||!submitted)return "";
+      const fl=fabLaunch(l), last=fl.length?fl[fl.length-1].d:""; if(!last)return "";
+      return proj>last
+        ? ` <span class="ghostnote" title="${T("最後一條面料 "+fmt(last)+" 就能開賣，但素材鏈（正式 PDP／行銷影片）要到這天才齊 —— 瓶頸不在生產","the last fabric could go on sale "+fmt(last)+"; the asset chain (official PDP / marketing video) is what runs to this date — the bottleneck is not production")}">${T("素材鏈較晚","asset chain")}</span>`
+        : ` <span class="ghostnote">＝ <!--notx-->${esc(fl[fl.length-1].n)}<!--/notx--></span>`; })()}</span></div>
+  </div>
+  <!-- 第二列＝誰負責、現在卡在哪、還缺什麼。日期以外的一切都降到這裡。 -->
+  <div class="ld-meta">
+    <div class="ld-stat"><span class="ld-stat-k">DRI</span><span class="ld-stat-v" style="color:${DCOLOR(l.dri)}">${esc(l.dri)}</span></div>
+    ${l.complete?"":(()=>{ const ct=v3CpNow(l), co=ct?v3Own(V3MAP[ct.code]):"";
+      return `<div class="ld-stat"><span class="ld-stat-k">${LANG==="zh"?"關鍵路徑":"Critical path"}</span><span class="ld-stat-v">${ct?`🎯 ${esc(flowTaskName(ct))}${co?` · <span style="color:${v3OColor(co)}"><!--notx-->${esc(co)}<!--/notx--></span>`:""}${taskLocked(l,ct)?" 🔒":""}`:"—"}</span></div>`; })()}
+    ${l.complete?"":`<button class="fabadd ld-metaadd" title="${T("設計共用一份；大貨生產與首波開賣各面料各自跑","design is shared; mass production and first-batch on-sale run per fabric")}" onclick="v3FabAdd('${l.slug}')">🧵 ＋ ${hasFabs(l)?T("面料","fabric"):T("拆面料分支","split by fabric")}</button>`}
     ${l.complete?"":`<div class="ld-stat ld-stat-rd ld-readycluster"><span class="ld-ready-item"><span class="ld-stat-k">Gate readiness</span>${readinessPop(l)}</span><span class="ld-ready-item"><span class="ld-stat-k">${LANG==="zh"?"待填天數":"Days pending"}</span>${daysPendingPop(l)}</span></div>`}
   </div>
 
-  ${fabStrip(l,false)}
   ${(()=>{ if(l.complete) return "";
     if(!submitted){ const ic=tplIntake(l), inm=V3MAP[ic]?v3T({en:V3MAP[ic].en,zh:V3MAP[ic].zh}):ic;
       return `<div class="ld-formnudge">📋 <b>${T("尚未送出需求表","Intake form not submitted")}</b> — ${T("勾選 "+ic+"〈"+inm+"〉完成即開始排程，並鎖定預計日期的起算點。","complete "+ic+" ("+inm+") to start scheduling and lock the projected-date anchor.")} <button class="pdchip cp" onclick="v3jump('${l.slug}','${ic}')">→ ${ic} ${esc(inm)}</button></div>`; }
