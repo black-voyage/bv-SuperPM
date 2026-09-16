@@ -1139,7 +1139,8 @@ const DEPTS = () => Object.keys(FLOW);
      req  [codes that must finish first] — the unlock gating (cross-lane, cross-phase)
      ben  ◆ Ben decision   asset  feeds the readiness dashboard   out/note  ▸產出 / *備註 ({en,zh})
      evid  a proof link must be attached before it can be ticked done (EVID below is derived from this)
-     sample  P3 carries the 預計大貨樣日 field that gates P5
+     ship    大貨生產帶「出貨日」欄位（原「預計大貨樣日」，2026-09-16 合併）—— 它就是這一步的完成日，
+             下游的到貨日從它＋運輸天數起算，P5 部署行銷樣品也等它
    STAGES/PLAN are code-only (never snapshotted); GATES/FLOW/XROUTES are re-derived from V3 by
    v3Rederive() inside applySnapshot, so editing V3 here needs NO migration. */
 const V3PH=[
@@ -1167,7 +1168,7 @@ const V3=[
  {c:"C10", en:"Design freeze", zh:"設計凍結", ph:1, dept:"Product", o:"Zac + Ben", days:0, req:["C9"], out:{en:"freeze data = product data filing (feeds MB1)",zh:"凍結資料＝產品資料建檔（供 MB1）"}},
  {c:"P1", evid:1, en:"Pre-production sample + BOM", zh:"產前樣＆BOM", ph:1, dept:"Product", o:"Zac", days:14, req:["C10"], out:{en:"to Taiwan + BOM filed",zh:"送台灣＆BOM 歸檔"}, note:{en:"make 7 + ship 7",zh:"製作 7＋運輸 7"}},
  // 大貨生產不掛 evid：產線進度靠天數與大貨樣日追蹤，沒有一份「證明連結」可附（QC 報告是選配，不該擋完工）
- {c:"P3", en:"Mass production", zh:"大貨生產", ph:1, dept:"Product", o:"Zac", days:30, req:["P1"], sample:1, hdrDate:{zh:"大貨完成",en:"Bulk done"}, out:{en:"day countdown",zh:"天數倒數"}, note:{en:"packaging (D3) to factory during production",zh:"包裝檔（D3）於生產期間交廠"}},
+ {c:"P3", en:"Mass production", zh:"大貨生產", ph:1, dept:"Product", o:"Zac", days:30, req:["P1"], ship:1, hdrDate:{zh:"出貨日",en:"Ship date"}, out:{en:"day countdown",zh:"天數倒數"}, note:{en:"packaging (D3) to factory during production",zh:"包裝檔（D3）於生產期間交廠"}},
  // 2 — Launch Prep
  {c:"P2", en:"Product intro video", zh:"產品介紹", ph:2, dept:"Product", o:"Zac", days:1, req:["P1"], asset:1, out:{en:"quick how-to video → whole company",zh:"簡單操作影片 → 全公司"}, isNew:1},
  {c:"CT1", en:"Factory order created", zh:"工廠訂單建立", ph:2, dept:"Catalog", o:"Zac", days:1, req:["P1"], note:{en:"do at P3 start (= P1 done)",zh:"大貨生產開啟（＝P1 完成）即做"}},
@@ -1225,8 +1226,8 @@ const V3U=[
  // 2 — Launch Prep (量產與內容)
  // 天數固定 30（Zac 2026-08-20）：大貨工期不必每張卡重填。日期入口用既有的兩欄 —— 未完成看「應完成日」、
  // 完成後在「完成日」補正實際日；hdrDate 只是「把這一步的完成日搬上抬頭狀態列」的顯示標記，不另存欄位。
- {c:"U6", en:"Bulk production", zh:"大貨生產", ph:2, dept:"Product", o:"Zac", days:30, req:["U5"],
-  hdrDate:{zh:"大貨完成",en:"Bulk done"}},   // 同 P3：大貨生產不附證明連結
+ {c:"U6", en:"Bulk production", zh:"大貨生產", ph:2, dept:"Product", o:"Zac", days:30, req:["U5"], ship:1,
+  hdrDate:{zh:"出貨日",en:"Ship date"}},   // 同 P3：大貨生產不附證明連結
  {c:"UD1", en:"Refresh shoot brief", zh:"棚拍需求", ph:2, dept:"Design", o:"Mi", days:2, req:["U5"], note:{en:"opens once the revised PPS exists",zh:"產前樣出來後開啟"}},
  {c:"UD2", en:"Refresh studio shoot", zh:"棚拍拍攝", ph:2, dept:"Design", o:"Mi", days:null, est:7, req:["UD1"]},
  {c:"UC1", en:"Catalog photos refresh", zh:"照片更新", ph:2, dept:"Catalog", o:"Zac", days:1, req:["UD2"], note:{en:"after the studio shoot delivers",zh:"棚拍拍好後更新"}},
@@ -1265,7 +1266,7 @@ const V3ASSETS=V3ALL.filter(n=>n.asset).map(n=>n.c);   // both templates — the
    在好幾個專案裡；現在一張卡就能同時追 N 條生產線。
    資料形狀（都在既有快照裡，零 migration —— verSnap 整包序列化 LAUNCHES）：
      l.fabs = [{id:"f1", n:"330D Cordura"}]   卡片的面料清單。空／不存在 ⇒ 行為與改版前完全相同
-     t.fx   = {f1:{st,startAt,doneAt,days,sampleDate,arrivalDate}}   只掛在分支那兩格上的子狀態
+     t.fx   = {f1:{st,startAt,doneAt,days,shipDate,arrivalDate}}   只掛在分支那兩格上的子狀態
    設計樞紐 —— fabRoll()：子狀態一律彙總回任務本身（t.st／t.doneAt／t.days…），所以 unlockBlockers、
    v3Reconcile、v3ProjFin、gateState、健康度那整套引擎都不必知道面料存在，照舊讀 t.st 就對。彙總掛在
    v3Advance 起手（唯一的狀態變更出口），任何路徑改完都會自動對齊。 */
@@ -1289,7 +1290,7 @@ const fabDayOf=(l,t,fid)=>{const s=fabSt(t,fid), n=V3MAP[t.code]||{};
 /* 子狀態 → 任務本身。整個設計的樞紐：只要這裡彙總對了，其他引擎零改動。
    st：全部完成才算完成 · 任一受阻＝受阻 · 有人動過就是進行中
    days：取最長那條（這一格的整體工期＝關鍵路徑上該用的值）· doneAt：最晚完成那天 · startAt：最早開工那天
-   sampleDate／arrivalDate：取最早 —— 大貨樣只要有一個面料到就能部署行銷樣品（P5），
+   shipDate／arrivalDate：取最早 —— 只要有一條面料出貨就能部署行銷樣品（P5），
    而「首波」開賣日照字面就是第一個到貨的面料。 */
 function fabRoll(l,t){
   if(!fabSplit(l,t))return t;
@@ -1301,7 +1302,7 @@ function fabRoll(l,t){
   if(st0)t.startAt=st0; else if(t.startAt)delete t.startAt;
   const dys=ids.map(id=>fabDayOf(l,t,id));   // 用實際生效的工期（沒填的那條算模板值），只取「有明填」的會低估關鍵路徑
   if(dys.length)t.days=Math.max.apply(null,dys);
-  const sd=pick("sampleDate",false); if(sd)t.sampleDate=sd; else if(t.sampleDate)delete t.sampleDate;
+  const sd=pick("shipDate",false); if(sd)t.shipDate=sd; else if(t.shipDate)delete t.shipDate;
   const sp=pick("shipDate",false); if(sp)t.shipDate=sp; else if(t.shipDate)delete t.shipDate;
   const ad=pick("arrivalDate",false); if(ad)t.arrivalDate=ad; else if(t.arrivalDate)delete t.arrivalDate;
   return t;
@@ -1339,9 +1340,9 @@ function v3FabFin(l){
       const d=fabDayOf(l,t,f.id); let end;
       if(s.arrivalDate) end=s.arrivalDate;                  // 到貨日一填就是答案（比照 projLaunchDate 的覆蓋規則）
       else if(s.st==="x") end=s.doneAt||start||today;
-      // 出貨日＝運輸的實際起點。貨已經上船，就別再用排程推估這一段：到貨＝出貨＋這條面料的運輸天數。
-      // 這正是「到貨日沒填時它自己會長出來」的機制（Zac 2026-09-16）。
-      else if(s.shipDate){ end=v3AddD(s.shipDate,d); if(end<today)end=today; }
+      // 生產節點填了出貨日 ⇒ 那就是這一步的完成日；下一圈（上線節點）的 start＝prev＝出貨日，
+      // 到貨日於是自動變成「出貨＋運輸天數」—— 這就是「到貨日沒填時它自己會長出來」的機制。
+      else if(s.shipDate&&n.ship){ end=s.shipDate; }
       else if(s.startAt){ end=v3AddD(s.startAt,d); if(end<today)end=today; }
       else { if(!start||start<today)start=today; end=v3AddD(start,d); }
       o[c]=end; prev=end;
@@ -1455,8 +1456,8 @@ function v3LockText(l,t){
   const blks=unlockBlockers(l,t); if(!blks.length)return ""; const zh=LANG==="zh";
   const pre=[],notes=[];
   blks.forEach(b=>{
-    if(b==="P3s"){notes.push(zh?("等大貨樣：請在 P3 填「預計大貨樣日」（"+v3Own(V3MAP.P3)+"）"):("waiting on the bulk-sample date — set it on P3 ("+v3Own(V3MAP.P3)+")"));return;}
-    if(b==="P3w"){const p3=v3Task(l,"P3");notes.push(zh?("大貨樣預計 "+fmt(p3.sampleDate)+" 到，屆時自動解鎖"):("bulk sample due "+fmt(p3.sampleDate)+" — unlocks then"));return;}
+    if(b==="P3s"){notes.push(zh?("等出貨：請在 P3 填「出貨日」（"+v3Own(V3MAP.P3)+"）"):("waiting on the ship date — set it on P3 ("+v3Own(V3MAP.P3)+")"));return;}
+    if(b==="P3w"){const p3=v3Task(l,"P3");notes.push(zh?("大貨預計 "+fmt(p3.shipDate)+" 出貨，屆時自動解鎖"):("bulk ships "+fmt(p3.shipDate)+" — unlocks then"));return;}
     const n=V3MAP[b]; pre.push(n?(zh?(b+" "+n.zh+"（"+v3Own(n)+"）"):(b+" "+n.en+" ("+v3Own(n)+")")):b);
   });
   return [pre.length?(zh?"等 "+pre.join("、"):"waiting on "+pre.join(", ")):"",...notes].filter(Boolean).join(zh?"；":"; ");
@@ -1508,7 +1509,7 @@ function v3Advance(l){ // derive stage (= first phase with open work) + complete
 }
 function v3SetDays(slug,i,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;const n=parseInt(v,10);t.days=isNaN(n)?null:n;syncProjected(l);save();render();}
 // 日期寫入口（大貨樣日／到貨日）。到貨日守門照 v3SetDue 的模式：擋不可能的輸入，不擋「過去」。
-// 寫完必須 reconcile —— P5 的 "P3s" 解鎖條件看的就是 sampleDate，改日期會讓已完成的下游重新變成 locked（假綠）。
+// 寫完必須 reconcile —— P5 的 "P3s" 解鎖條件看的就是 shipDate，改日期會讓已完成的下游重新變成 locked（假綠）。
 function v3SetDate(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;
   if((k==="arrivalDate"||k==="shipDate")&&v){const zh=LANG==="zh";
     const lk=v3ArrivalLock(l,t); if(lk){toast(arrTx(l,"short")+(zh?"尚不可填 · ":" not fillable yet · ")+lk);render();return;}
@@ -1517,7 +1518,7 @@ function v3SetDate(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;
     if(k==="arrivalDate"&&t.shipDate&&v<t.shipDate){toast(zh?("到貨日不可早於出貨日 "+fmt(t.shipDate)):("arrival can't precede the ship date "+fmt(t.shipDate)));render();return;}
     if(k==="shipDate"&&t.arrivalDate&&v>t.arrivalDate){toast(zh?("出貨日不可晚於到貨日 "+fmt(t.arrivalDate)):("ship date can't follow the arrival date "+fmt(t.arrivalDate)));render();return;}}
   t[k]=v||"";
-  v3ReconcileLoud(l); syncProjected(l); ntfSweep(l); save(); render();}   // sweep 補刀：sampleDate 影響 P5 解鎖，而這條寫入路不經 v3Advance
+  v3ReconcileLoud(l); syncProjected(l); ntfSweep(l); save(); render();}   // sweep 補刀：shipDate 影響 P5 解鎖，而這條寫入路不經 v3Advance
 // 完成日／開工日的修正入口 —— 每條蓋章路徑都寫死 today，補勾一天就把整條 DAG（含預計上市日）往後推，
 // 而退回重勾只會再蓋今天。守門：完成日不可早於任一前置的完成日（否則排程倒著跑），也不可填未來。
 function v3SetStamp(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;
@@ -1615,6 +1616,20 @@ function v3SyncTasks(l){
     t.st=t.st||"o"; t.links=t.links||[]; t.codes=t.codes||[]; t.notes=t.notes||[]; t.urg=t.urg||"med"; if(t.assignee==null)t.assignee="";
     return t;
   });
+  /* 2026-09-16 日期合併遷移（Zac：「性質是一樣的」）：
+     ① 大貨生產的「預計大貨樣日」sampleDate → 改名為「出貨日」shipDate。同一個欄位換名字，不換語意，
+        不搬的話 Firestore 上的舊值會整批讀不到，畫面全變「未填」。
+     ② 上一版（09-16 稍早）把出貨日短暫掛在「首波開賣／更新上線」那一格，若有人已經填過就搬回生產節點。 */
+  (function(){ const cs=v3FabCodes(l), pc=cs[0], lc=cs[cs.length-1];
+    const mv=o=>{ if(o&&o.sampleDate){ if(!o.shipDate)o.shipDate=o.sampleDate; delete o.sampleDate; } };
+    (l.tasks||[]).forEach(t=>{ mv(t); if(t.fx)Object.keys(t.fx).forEach(k=>mv(t.fx[k])); });
+    const pt=v3Task(l,pc), lt=v3Task(l,lc);
+    if(pt&&lt){
+      if(lt.shipDate){ if(!pt.shipDate)pt.shipDate=lt.shipDate; delete lt.shipDate; }
+      if(lt.fx) Object.keys(lt.fx).forEach(k=>{ const x=lt.fx[k]; if(x&&x.shipDate){
+        const d=fabMut(pt,k); if(!d.shipDate)d.shipDate=x.shipDate; delete x.shipDate; } });
+    }
+  })();
   // remap a legacy stage name to a V3 phase so the card doesn't sit on a dead stage
   if(STAGES.indexOf(l.stage)<0) l.stage=STAGES[0];
   // history 自癒：階段被刪（如 2026-08-12 移除「KOL 執行」）後，舊段的死階段名改掛前一段的階段
@@ -1809,7 +1824,7 @@ function unlockBlockers(l,task){
   const code=task&&task.code, n=code&&V3MAP[code]; if(!n||code==="C1"||code==="U0") return [];   // C1/U0 = the two templates' intake roots
   const out=(n.req||[]).filter(r=>{const rt=(l.tasks||[]).find(t=>t.code===r); return !rt||rt.st!=="x";});
   if(code==="P5"){ const p3=(l.tasks||[]).find(t=>t.code==="P3");
-    if(p3&&p3.st!=="x"&&!(p3.sampleDate&&today>=p3.sampleDate)) out.push(p3.sampleDate?"P3w":"P3s"); }
+    if(p3&&p3.st!=="x"&&!(p3.shipDate&&today>=p3.shipDate)) out.push(p3.shipDate?"P3w":"P3s"); }
   return out;
 }
 function unlockBlocker(l,task){ return unlockBlockers(l,task)[0]||""; } // "" if unlocked, else the FIRST blocking code
@@ -1971,15 +1986,16 @@ function v3ProjFin(l){                                                   // code
     let start=sub;
     (n.req||[]).forEach(r=>{if(V3MAP[r]){const f=walk(r); if(f>start)start=f;}});
     // 行銷樣不可能早於大貨：填了大貨樣日以它為準，沒填就至少不早於 P3 的（實際或推算）起跑日 ——
-    // 排程端與解鎖端的 "P3s" 特例同源。沒有這個下限，sampleDate 空（新卡的預設）就等於假設樣品在 MS1 完成當天到。
+    // 排程端與解鎖端的 "P3s" 特例同源。沒有這個下限，shipDate 空（新卡的預設）就等於假設樣品在 MS1 完成當天到。
     if(c==="P5"){const p3=v3Task(l,"P3"); walk("P3");
-      const fl=(p3&&p3.sampleDate)||(p3&&p3.startAt)||beg.P3;
+      const fl=(p3&&p3.shipDate)||(p3&&p3.startAt)||beg.P3;
       if(fl&&fl>start)start=fl;}
     const d=v3DayOf(l,c);
     // 夾的是「起算日」不是完成日：未開工的步驟最早只能今天起跑，剩餘工期才不會整段蒸發（夾完成日會把 35d 的影片壓成今天完成）
     let end;
-    const shp=(n.arrival&&t&&t.shipDate)||"";   // 出貨日＝運輸起點，優先於「開工日」：貨上船那天才是這段的真實起算
-    if(shp){ beg[c]=shp; end=v3AddD(shp,d); if(end<today)end=today; }
+    // 出貨日填在「大貨生產」那一步：它就是那一步的完成日。下游的到貨日沿 req 鏈自然從它起算，不必另開特例。
+    const shp=(n.ship&&t&&t.st!=="x"&&t.shipDate)||"";
+    if(shp){ beg[c]=(start<today?today:start); end=shp; }
     else if(t&&t.startAt){ beg[c]=t.startAt; end=v3AddD(t.startAt,d); if(end<today)end=today; }   // 已開工：startAt＋天數，但不可能落在過去
     else { if(start<today)start=today; beg[c]=start; end=v3AddD(start,d); }                  // 未開工：起算日＝max(前置完成日, 今天)
     return fin[c]=end;
@@ -2972,8 +2988,8 @@ const DOD={
       zh:"不再變更，凍結公告給所有部門。凍結資料＝產品資料建檔，供行銷簡報 V1（MB1）使用。"},
  P1:{en:"Pre-production sample sent to Taiwan and the BOM filed (make 7d + ship 7d).",
      zh:"產前樣已送台灣、BOM 已歸檔（製作 7＋運輸 7）。"},
- P3:{en:"Factory confirms the bulk run is finished. The bulk-sample date is filled in so P5 can start mid-production, and packaging (D3) went to the factory during the run.",
-     zh:"工廠確認大貨完工。預計大貨樣日已填（P5 才能在生產期間就開工），包裝檔（D3）已於生產期間交廠。"},
+ P3:{en:"Factory confirms the bulk run is finished. The ship date is filled in (it drives the arrival date and releases P5), and packaging (D3) went to the factory during the run.",
+     zh:"工廠確認大貨完工。出貨日已填（到貨日由它推算，P5 也靠它放行），包裝檔（D3）已於生產期間交廠。"},
  CT4:{en:"Shopify SKU exists for this product.", zh:"此產品的 Shopify SKU 已建立。"},
  D3:{en:"Dielines final and delivered to the factory between the pre-production sample and mass production.",
      zh:"包裝檔定稿，並於產前樣確定～大貨生產期間交付工廠。"},
@@ -3048,7 +3064,7 @@ const fmtY=d=>{ if(!d)return fmt(d);
   const y=String(d).slice(0,4), cy=String(today).slice(0,4);
   return fmt(d)+((y&&cy&&y!==cy)?`<span class="ldyr">'${y.slice(2)}</span>`:""); };
 let today=pjToday();     // real current date (Asia/Taipei)；let 不是 const —— 換日 interval 會就地更新（見下方註解），前景分頁才不會停在舊日期
-/* 跨夜分頁殺手（2026-08-13 第三輪；2026-08-14 第四輪補洞）：today —— P5 的 sampleDate 解鎖、
+/* 跨夜分頁殺手（2026-08-13 第三輪；2026-08-14 第四輪補洞）：today —— P5 的 shipDate 解鎖、
    預計上市日 clamp、逾期計算全吃它。兩個開在「不同日期」的分頁對同一份資料會算出不同的鎖定與
    l.target，v3Reconcile 與 self-heal 便互相「修正」＝無聲回朔製造機，且雙方都是「新」寫入、
    時序防護攔不到。第三輪只做「切背景才重載」——筆電掀蓋分頁在前景就無限期停在舊 today，
@@ -3074,14 +3090,14 @@ seedStamps();            // 種子卡 doneAt/startAt：要等 today 與所有日
 // 並吃掉真正待過的階段（Cyclone 的 Marketing Prep 段整段消失，8/12 步的進度變成「還沒開始」）。
 // 跟 seedStamps 一樣要等 today 出 TDZ：v3CurPhase 現在會問 taskLocked，而 P5 的 P3w 判斷讀 today。
 LAUNCHES.forEach(l=>{ if(STAGES.indexOf(l.stage)>=0) l.stage=v3CurPhase(l); });
-/* 兩個日期欄位（大貨樣日 P3.sampleDate、到貨日 FB1.arrivalDate）在種子裡全空，儀表板「② 物流就緒」三個錨點就
+/* 兩個日期欄位（大貨樣日 P3.shipDate、到貨日 FB1.arrivalDate）在種子裡全空，儀表板「② 物流就緒」三個錨點就
    全印「—」，兩套機制在 demo 裡看不到。依 seedStamps 算出的真實時間軸回填：
    Cyclone 的大貨樣在生產期間出（P3 完工前，也是 P5 得以提早部署的那天）；Zephyr 已上市，到貨日＝FB1 完成日。
-   註：規劃書寫「Cyclone 補未來 sampleDate」，但 Cyclone 的 P3／P5 都已完成，未來日期會與時間軸互相矛盾
+   註：規劃書寫「Cyclone 補未來 shipDate」，但 Cyclone 的 P3／P5 都已完成，未來日期會與時間軸互相矛盾
    （且 unlockBlockers 只在 P3 未完成時看這個欄位），所以取生產期間的過去日期。 */
 (function seedDates(){   // L() is still in its TDZ here — reach into LAUNCHES directly
   const pick=(s,c)=>{const l=LAUNCHES.find(x=>x.slug===s);return l&&v3Task(l,c);};
-  const p3=pick("cyclone","P3"); if(p3&&p3.doneAt&&!p3.sampleDate) p3.sampleDate=v3AddD(p3.doneAt,-10);
+  const p3=pick("cyclone","P3"); if(p3&&p3.doneAt&&!p3.shipDate) p3.shipDate=v3AddD(p3.doneAt,-10);
   const fb=pick("zephyr","FB1"); if(fb&&fb.doneAt&&!fb.arrivalDate) fb.arrivalDate=fb.doneAt;
 })();
 const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
@@ -3771,7 +3787,7 @@ function taskRow(l,t,extra,ro,noexp){   // noexp（個人視角用）：不給�
   const ctrls=t.gate?"":`${lk?"":renderLinkMenu(t,l.slug,i)}${noexp?"":exp}`;   // Ben ◆ gates carry no expand panel — the decision button says it all
   // the step's output/explanation now lives in the ▾ details panel (taskDetail), keeping the row short; a shot-list total shows for MS3a/b
   const shotChip=(vn&&vn.shots&&!extra&&v3ShotTotal(t)>0)?`<span class="ghostnote" title="${LANG==="zh"?"素材需求合計":"asset shot-list total"}">${vn.shots==="video"?"🎬":"📸"} ${v3ShotTotal(t)}</span>`:"";
-  // 預計大貨樣日 moved INTO the detail panel (taskDetail's 應完成日 block) — no more duplicate outer strip
+  // 出貨日 moved INTO the detail panel (taskDetail's 應完成日 block) — no more duplicate outer strip
   // 面料分支：列上帶一顆「完成幾條／共幾條」的 chip —— 個人 to-do 不展開詳情也知道這格拆過
   const fabsChip=fabSplit(l,t)?(()=>{const fs=fabsOf(l), dn=fs.filter(f=>fabSt(t,f.id).st==="x").length;
     return `<span class="ghostnote" title="${esc(fs.map(f=>f.n+"："+stWord(fabSt(t,f.id).st)).join(" · "))}">🧵 ${dn}/${fs.length}</span>`;})():"";
@@ -3842,12 +3858,12 @@ function taskDetail(l,t,i,ro,vn,lk){
   // 面料子分支（P3／FB1）：這一格拆成每條面料各一列，狀態鈕、工期、專屬日期全部各走各的。
   // 下面那些「單一份」的日期欄位在有面料時整個讓位 —— 同一件事只畫一次。
   if(fabSplit(l,t)) info.push([T("面料分支","Fabric branches"), fabPanel(l,t,i,ro)]);
-  // 大貨樣步驟（P3）：預計大貨樣日就住在詳情裡（原本的外層列已移除）— 生產期間即可寄樣，P5 等這一天
-  if(vn.sample&&!fabSplit(l,t)){
-    const sTip=T("大貨樣可寄出的日期 — P5（部署行銷樣品）等這一天。生產期間即可寄樣，非完工日","the date bulk samples can ship — P5 (Deploy marketing samples) waits for this. Ships mid-production; not the finish date");
-    info.push([T("預計大貨樣日","Bulk-sample date"),
-      ro?(t.sampleDate?fmt(t.sampleDate):"—")
-        :`<input type="date" class="v3due-inp${t.sampleDate?"":" unfilled"}" value="${esc(t.sampleDate||"")}" title="${sTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'sampleDate',this.value)"> <span class="ghostnote">${t.sampleDate?T("P5（部署行銷樣品）等這一天","P5 waits for this day"):T("未填 — P5 部署行銷樣品無法解鎖","unset — P5 stays locked")}</span>`]);
+  // 出貨日（帶 ship 旗標的大貨生產）：住在詳情裡 — 它是這一步的完成日，到貨日由它推算，P5 也等這一天
+  if(vn.ship&&!fabSplit(l,t)){
+    const sTip=T("大貨出貨的那一天 —— 到貨日從它＋運輸天數算起，P5（部署行銷樣品）也等這一天","the day bulk ships — the arrival date is computed from it plus transit days, and P5 (Deploy marketing samples) waits for it");
+    info.push([T("出貨日","Ship date"),
+      ro?(t.shipDate?fmt(t.shipDate):"—")
+        :`<input type="date" class="v3due-inp${t.shipDate?"":" unfilled"}" value="${esc(t.shipDate||"")}" title="${sTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'shipDate',this.value)"> <span class="ghostnote">${t.shipDate?T("P5（部署行銷樣品）等這一天","P5 waits for this day"):T("未填 — P5 部署行銷樣品無法解鎖","unset — P5 stays locked")}</span>`]);
   }
   // 覆蓋型日期（launch＝FB1 首波開賣日、update＝UL6 上線日）：填了就直接當預計完成日，全公司看卡片抬頭即可
   if(vn.arrival&&!fabSplit(l,t)){
@@ -3910,7 +3926,7 @@ async function v3FabAdd(slug){
   (l.fabs=l.fabs||[]).push(f);
   // 第一條面料繼承這兩格既有的進度（那本來就是「這個產品」的生產狀態，不該歸零）；之後新增的面料從未開始起跑
   v3FabCodes(l).forEach(c=>{const t=v3Task(l,c); if(!t)return; const s=fabMut(t,f.id);
-    if(first){ s.st=t.st||"o"; ["startAt","doneAt","days","sampleDate","arrivalDate"].forEach(k=>{ if(t[k]!=null&&t[k]!=="")s[k]=t[k]; }); }});
+    if(first){ s.st=t.st||"o"; ["startAt","doneAt","days","shipDate","arrivalDate"].forEach(k=>{ if(t[k]!=null&&t[k]!=="")s[k]=t[k]; }); }});
   fabRollAll(l); v3Advance(l);
   toast("🧵 "+(LANG==="zh"?("已新增面料「"+f.n+"」"):("Fabric added — "+f.n))); render();
 }
@@ -4015,11 +4031,11 @@ function dCell(l,code,fid,k,opts){
     +`${opts.lab?`<span class="dlab">${esc(opts.lab)}</span>`:""}${body}</button>`;
 }
 /* 詳情面板／流程圖彈窗共用的面料分支表：一列一條面料，各自的狀態鈕、工期、專屬日期與預計完成日。
-   專屬日期跟著節點旗標走：P3 是「預計大貨樣日」、FB1 是「到貨／首波開賣日」。 */
+   專屬日期跟著節點旗標走：大貨生產是「出貨日」、首波開賣／更新上線是「到貨日」。 */
 function fabPanel(l,t,i,ro){
   const zh=LANG==="zh", T=(z,e)=>zh?z:e, code=t.code, vn=V3MAP[code]||{}, ff=v3FabFin(l)||{};
-  const dk=vn.sample?"sampleDate":vn.arrival?"arrivalDate":"";
-  const dLab=vn.sample?T("大貨樣","Sample"):vn.arrival?arrTx(l,"short"):"";
+  const dk=vn.ship?"shipDate":vn.arrival?"arrivalDate":"";
+  const dLab=vn.ship?T("出貨","Ship"):vn.arrival?arrTx(l,"short"):"";
   const rows=fabsOf(l).map(f=>{
     const s=fabSt(t,f.id), lk=fabLock(l,t,f.id), fin=(ff[f.id]||{})[code]||"", days=fabDayOf(l,t,f.id);
     const stBtn=ro
@@ -4029,14 +4045,11 @@ function fabPanel(l,t,i,ro){
       : `<input type="number" min="0" class="v3shot-q fabd-inp" value="${s.days!=null?s.days:""}" placeholder="${vn.days!=null?vn.days:(vn.est!=null?vn.est:"")}" title="${T("這條面料的工期 — 留白就用模板的 "+(vn.days!=null?vn.days:"—")+"d","this fabric's duration — blank uses the template's "+(vn.days!=null?vn.days:"—")+"d")}" onclick="event.stopPropagation()" onchange="v3FabSetDays('${l.slug}',${i},'${f.id}',this.value)"> d`;
     const dateInp=!dk?"":(ro?(s[dk]?fmt(s[dk]):"—")
       : `<input type="date" class="v3due-inp${s[dk]?"":" unfilled"}" value="${esc(s[dk]||"")}"${(dk==="arrivalDate"&&fabArrFloor(l,f.id))?` min="${fabArrFloor(l,f.id)}"`:""} title="${esc(dLab)}" onclick="event.stopPropagation()" onchange="v3FabSetDate('${l.slug}',${i},'${f.id}','${dk}',this.value)">`);
-    // 出貨日：只有「到貨／上線」那一格有，填了就用它＋運輸天數推到貨日
-    const shipInp=!vn.arrival?"":(ro?(s.shipDate?fmt(s.shipDate):"—")
-      : `<input type="date" class="v3due-inp${s.shipDate?"":" unfilled"}" value="${esc(s.shipDate||"")}"${fabArrFloor(l,f.id)?` min="${fabArrFloor(l,f.id)}"`:""}${s.arrivalDate?` max="${s.arrivalDate}"`:""} title="${T("大貨從工廠出貨的那天","the day bulk ships from the factory")}" onclick="event.stopPropagation()" onchange="v3FabSetDate('${l.slug}',${i},'${f.id}','shipDate',this.value)">`);
     const finCell=s.st==="x"
       ? `<b style="color:var(--green)">✓ ${s.doneAt?fmt(s.doneAt):""}</b>`
       : (fin?`<b>${fmt(fin)}</b> <span class="ghostnote">${T("預計","est.")}</span>`:"—");
     return `<div class="fabrow${lk?" lk":""}">${stBtn}<span class="fabnm"${ro?"":` role="button" tabindex="0" title="${T("點擊改名","click to rename")}" onclick="event.stopPropagation();v3FabRename('${l.slug}','${f.id}')"`}><!--notx-->${esc(f.n)}<!--/notx--></span>`
-      +`<span class="fabmeta">${vn.arrival?`<span>${T("出貨","ship")} ${shipInp}</span>`:""}${dk?`<span>${dLab} ${dateInp}</span>`:""}<span>${dayCell}</span><span>${finCell}</span>`
+      +`<span class="fabmeta">${dk?`<span>${dLab} ${dateInp}</span>`:""}<span>${dayCell}</span><span>${finCell}</span>`
       +`${ro?"":`<button class="fabx" title="${T("移除這條面料","remove this fabric")}" onclick="event.stopPropagation();v3FabDel('${l.slug}','${f.id}')">✕</button>`}</span></div>`;
   }).join("");
   return `<div class="fabtbl">${rows}${ro?"":`<button class="fabadd" onclick="event.stopPropagation();v3FabAdd('${l.slug}')">＋ ${T("新增面料","add fabric")}</button>`}</div>`;
@@ -4345,7 +4358,7 @@ function flowSVG(l){
     const _live=st!=="fut"&&st!=="x";
     const needDays=!!(_live&&_vnn&&!_vnn.ongoing&&_vnn.days==null&&_vnn.est==null&&_tt&&_tt.days==null);
     // arrAny 的日期（UL6 上線日）是必填且不等解鎖 → 徽章從一開始就提醒，不像其他日期要等節點活起來
-    const needDate=!!(_tt&&_vnn&&((_vnn.arrAny&&_tt.st!=="x"&&!_tt.arrivalDate)||(_live&&((_vnn.arrival&&!_tt.arrivalDate)||(_vnn.sample&&!_tt.sampleDate)))));
+    const needDate=!!(_tt&&_vnn&&((_vnn.arrAny&&_tt.st!=="x"&&!_tt.arrivalDate)||(_live&&((_vnn.arrival&&!_tt.arrivalDate)||(_vnn.ship&&!_tt.shipDate)))));
     const needIn=needDays?"⏱":needDate?"📅":"";
     const key=d+"|"+n.l, inHi=depOn&&depKeys.has(key);
     const isSel=S.route&&S.route.d===d&&S.route.i===i;     // currently-open node (drives the popover anchor)
@@ -4429,7 +4442,7 @@ function flowSVG(l){
           }
         } }
       return `<g pointer-events="none"><rect x="${x-4}" y="${BRY}" width="${w}" height="18" rx="9" fill="${BJ.bg}"/><text x="${x-4+w/2}" y="${BTY}" text-anchor="middle" fill="${BJ.fg}" font-size="11" font-weight="700">${BJ.t}</text>${inSVG}${ownSVG}</g>`;})()}
-    <title>${esc(n.l)} — ${LANG==="zh"?"階段：":"stage: "}${n.s} · ${LANG==="zh"?"點一下看依賴與快捷動作":"click for route + quick actions"}${st==="fut"&&ti>=0?(LANG==="zh"?" · 🔒 鎖定中 — 等前一步完成":" · 🔒 locked until previous step is done"):""}${live==="o"?(LANG==="zh"?" · 📍 已解鎖，可開始":" · 📍 unlocked — ready to start")+(v3Own(_vnn)||(_tt&&_tt.o)?(LANG==="zh"?" · 負責人 ":" · owner: ")+"<!--notx-->"+esc(String(v3Own(_vnn)||(_tt&&_tt.o)))+"<!--/notx-->":""):live==="p"?(LANG==="zh"?" · ⏳ 進行中":" · ⏳ in progress"):live==="b"?(LANG==="zh"?" · ⛔ 卡關":" · ⛔ blocked"):""}${needDays?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}${needDate&&_vnn&&_vnn.arrival?" · "+arrTx(l,"ico")+" "+arrTx(l,"short")+(LANG==="zh"?"未填":" not set"):""}${needDate&&_vnn&&_vnn.sample?(LANG==="zh"?" · 🧵 大貨樣日未填":" · 🧵 bulk-sample date not set"):""}</title></g>`;}));
+    <title>${esc(n.l)} — ${LANG==="zh"?"階段：":"stage: "}${n.s} · ${LANG==="zh"?"點一下看依賴與快捷動作":"click for route + quick actions"}${st==="fut"&&ti>=0?(LANG==="zh"?" · 🔒 鎖定中 — 等前一步完成":" · 🔒 locked until previous step is done"):""}${live==="o"?(LANG==="zh"?" · 📍 已解鎖，可開始":" · 📍 unlocked — ready to start")+(v3Own(_vnn)||(_tt&&_tt.o)?(LANG==="zh"?" · 負責人 ":" · owner: ")+"<!--notx-->"+esc(String(v3Own(_vnn)||(_tt&&_tt.o)))+"<!--/notx-->":""):live==="p"?(LANG==="zh"?" · ⏳ 進行中":" · ⏳ in progress"):live==="b"?(LANG==="zh"?" · ⛔ 卡關":" · ⛔ blocked"):""}${needDays?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}${needDate&&_vnn&&_vnn.arrival?" · "+arrTx(l,"ico")+" "+arrTx(l,"short")+(LANG==="zh"?"未填":" not set"):""}${needDate&&_vnn&&_vnn.ship?(LANG==="zh"?" · 🧵 大貨樣日未填":" · 🧵 bulk-sample date not set"):""}</title></g>`;}));
   // red dependency arrows (drawn on top so they clearly reach the highlighted nodes)
   depEdges.forEach(([a,b])=>{const pa=pos(a[0],a[1]),pb=pos(b[0],b[1]),ha=hgt(a[0],a[1]),hb=hgt(b[0],b[1]); let dpath;
     if(a[0]===b[0]){ const ax=pa.x+CW/2, ay=pa.y+ha, bx=pb.x+CW/2, by=pb.y-5, my=(ay+by)/2; dpath=`M${ax} ${ay} C ${ax} ${my}, ${bx} ${my}, ${bx} ${by}`; }
@@ -4705,12 +4718,12 @@ function flowPopHTML(d,i){
        +(v3ArrivalNudge(l)?`<span class="fp-date-note" style="color:var(--amber)">${arrTx(l,"nudge")}</span>`:"")
        +`</div></div>`;
    }}
-  // 預計大貨樣日（P3）— P5 的解鎖鑰匙，跟 FB1 到貨日一樣直接開在流程圖節點卡片上，不用先跳進卡片詳情
+  // 出貨日（大貨生產）— 到貨日的來源，也是 P5 的解鎖鑰匙；跟到貨日一樣直接開在流程圖節點卡片上
   {const vn=V3MAP[n.code]||{};
-   if(vn.sample&&task&&ti>=0&&!fabSplit(l,task)){
-     const set=!!task.sampleDate, sDone=task.st==="x";   // P3 完工後這個日期只剩記錄用途,但仍可補正（詳情面板一直都可改,這裡原本 disabled ＝ 兩處不一致）
-     h+=`<div class="fp-sec"><div class="fp-lab">${zh?"預計大貨樣日":"Bulk-sample date"}</div>`
-       +`<div class="fp-daterow"><span class="fp-days fp-days-edit${set||sDone?"":" tbd"}">📅 <input type="date" value="${esc(task.sampleDate||"")}" aria-label="${zh?"預計大貨樣日":"bulk-sample date"}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${ti},'sampleDate',this.value)"></span>`
+   if(vn.ship&&task&&ti>=0&&!fabSplit(l,task)){
+     const set=!!task.shipDate, sDone=task.st==="x";   // P3 完工後這個日期只剩記錄用途,但仍可補正（詳情面板一直都可改,這裡原本 disabled ＝ 兩處不一致）
+     h+=`<div class="fp-sec"><div class="fp-lab">${zh?"出貨日":"Ship date"}</div>`
+       +`<div class="fp-daterow"><span class="fp-days fp-days-edit${set||sDone?"":" tbd"}">📅 <input type="date" value="${esc(task.shipDate||"")}" aria-label="${zh?"出貨日":"bulk-sample date"}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${ti},'shipDate',this.value)"></span>`
        +`<span class="fp-date-note">${sDone?(zh?"大貨已完工 — 此日期僅供記錄，仍可補正":"production finished — record only, still correctable"):set?(zh?"P5 部署行銷樣品於此日解鎖":"P5 (deploy samples) unlocks on this date"):(zh?"未填 — P5 要等大貨完工才解鎖":"unset — P5 waits for mass production to finish")}</span></div></div>`;
    }}
   // 面料子分支（P3／FB1）：彈窗裡就能逐條推進、逐條填日期，不用先跳進卡片詳情
@@ -4824,7 +4837,7 @@ function pulseData(){
     ((n&&n.req)||[]).forEach(rc=>{ const rt=(l.tasks||[]).find(x=>x.code===rc);
       if(rt&&rt.doneAt&&rt.doneAt>from) from=rt.doneAt; }); // undated done reqs = unlocked long ago
     if(t.code==="P5"){ const p3=(l.tasks||[]).find(x=>x.code==="P3");
-      if(p3&&p3.sampleDate&&p3.sampleDate>from) from=p3.sampleDate; }
+      if(p3&&p3.shipDate&&p3.shipDate>from) from=p3.shipDate; }
     const to=t.st==="x"?t.doneAt:today;
     if(to<from) from=to;                                   // doneAt-order drift guard
     if(to<w0||from>wEnd) return;
@@ -5251,7 +5264,7 @@ function v3Dash(l){
     rdy&&asrc&&rdy>asrc.d?`<span>${T(`素材鏈預計 ${fmt(rdy)} 齊備（到貨日以實填為準）`,`asset chain ready ~${fmt(rdy)} (the filled arrival date wins)`)}</span>`:""
   ].filter(Boolean).join("");
   const anchors=`<div class="v3anchors">
-    <div><span>${T("預計大貨樣日","Planned bulk-sample")}</span><b>${p3&&p3.sampleDate?fmt(p3.sampleDate):"—"}</b></div>
+    <div><span>${T("出貨日","Ship date")}</span><b>${p3&&p3.shipDate?fmt(p3.shipDate):"—"}</b></div>
     <div><span>${T("樣品到貨（P5）","Sample arrival (P5)")}</span><b>${p5&&p5.doneAt?fmt(p5.doneAt):"—"}</b></div>
     <div><span>${T("到貨日 / 首波開賣","Arrival / on sale")}</span><b>${asrc?fmt(asrc.d):(v3EtaBulk(l)?`${T("預計","est")} ~${fmt(v3EtaBulk(l))}`:"—")}</b></div>
     ${p3&&p3.st==="p"&&p3.days!=null&&p3.startAt?`<div><span>${T("大貨倒數","Bulk countdown")}</span><b>${Math.max(0,p3.days-dayDiff(p3.startAt,today))}d</b></div>`:""}
@@ -5315,22 +5328,25 @@ function viewLaunch(){
        有面料分支時逐條列出各自的開賣日，並取代「到貨日」那一格 —— 到貨日＝首波＝最早的那條面料，
        兩者並存等於同一個數字畫兩次（原本掛在抬頭下方的 fabStrip 因此併進這一列）。 -->
   <div class="ld-dates">
-    ${(()=>{ const hn=v3HdrDateNode(l); if(!hn)return "";   // 帶 hdrDate 的節點（launch＝P3 大貨生產、update＝U6）
+    ${(()=>{ if(hasFabs(l))return "";   // 有面料時每一格自己帶出貨日，不再畫彙總的那一格（同一個數字不畫兩次）
+      const hn=v3HdrDateNode(l); if(!hn)return "";
       const hs=v3HdrDateSrc(l);
-      const tip=T("大貨生產的完成日 —— 已完成就是實際完成日（可在該步驟的「完成日」欄補正），未完成則是排程推算的預期完成日","the bulk-production finish date — the actual one once done (correct it on that step's Done-on field), otherwise the schedule's projected finish");
-      return `<div class="ld-stat" title="${tip}"><span class="ld-stat-k">${LANG==="zh"?hn.hdrDate.zh:hn.hdrDate.en}</span><span class="ld-stat-v">${hs&&hs.d?`<b>${fmtY(hs.d)}</b> <span class="ghostnote">${hs.done?T("實際","actual"):T("預估","est.")}</span>`:`<span style="color:var(--faint);font-weight:500">—</span>`}</span></div>`; })()}
+      const tip=T("大貨出貨的那一天 —— 到貨日就從它＋運輸天數算起。還沒填的時候顯示的是排程推算的完工日","the day bulk ships — the arrival date is computed from it plus transit days; until it is filled this shows the scheduled finish");
+      return `<div class="ld-stat" title="${esc(tip)}"><span class="ld-stat-k">${LANG==="zh"?hn.hdrDate.zh:hn.hdrDate.en}</span><span class="ld-stat-v">`
+        +dCell(l,hn.c,"","shipDate",{big:1,fallback:(hs&&hs.d)||"",tip:T("點擊填寫實際出貨日","click to set the actual ship date")})
+        +`</span></div>`; })()}
     ${(()=>{
       // 每條面料一格：到貨／上線日是主角（點一下原地就能填），出貨日掛在它底下。已經開賣的就不再問出貨日。
       if(hasFabs(l)) return fabLaunch(l).map(f=>{ const sold=f.st==="x";
-        const cs=v3FabCodes(l), lc=cs[cs.length-1], ft=v3Task(l,lc), fs=ft?fabSt(ft,f.id):{};
+        const cs=v3FabCodes(l), pc=cs[0], lc=cs[cs.length-1], ft=v3Task(l,lc), fs=ft?fabSt(ft,f.id):{};
         const tip=T(f.n+" 的"+arrTx(l,"short")+" —— 點日期就能填；還沒填的時候顯示的是排程推算值",
                     arrTx(l,"short")+" for "+f.n+" — click the date to set it; until then this is the scheduled estimate");
         return `<div class="ld-stat ld-fabcell${sold?" onsale":""}" title="${esc(tip)}"><span class="ld-stat-k">🧵 ${arrTx(l,"short")} · <!--notx-->${esc(f.n)}<!--/notx--></span><span class="ld-stat-v">`
           +dCell(l,lc,f.id,"arrivalDate",{big:1,fallback:f.d,min:fabArrFloor(l,f.id)||fs.shipDate||"",
              tip:T("點擊填寫實際"+arrTx(l,"short"),"click to set the actual date")})
           +(sold?` <span class="ghostnote">${T("已開賣","on sale")}</span>`
-                :`<span class="ld-ship">${dCell(l,lc,f.id,"shipDate",{lab:T("出貨","ship"),max:fs.arrivalDate||"",
-                   tip:T("大貨從工廠出貨的那天 —— 填了就用「出貨日＋運輸天數」推算到貨日","the day bulk ships from the factory — arrival is then computed from it + transit days")})}</span>`)
+                :`<span class="ld-ship">${dCell(l,pc,f.id,"shipDate",{lab:T("出貨","ship"),max:fs.arrivalDate||"",
+                   tip:T("這條面料的大貨出貨日（填在「大貨生產」那一步）—— 到貨日就從它＋運輸天數算起","this fabric's bulk ship date (lives on the Mass production step) — arrival is computed from it plus transit days")})}</span>`)
           +`</span></div>`; }).join("");
       // 沒有面料的卡：同一格，只是沒有面料名。update 卡以前整格不畫（理由是「預計完成就是它」），
       // 但那等於沒有任何地方填得到上線日 —— 正是 Zac 回報的問題，所以兩個模板一律都畫。
@@ -5340,8 +5356,6 @@ function viewLaunch(){
       return `<div class="ld-stat" title="${esc(tip)}"><span class="ld-stat-k">${arrTx(l,"short")}</span><span class="ld-stat-v">`
         +dCell(l,lc,"","arrivalDate",{big:1,fallback:((src&&src.fb)?src.d:"")||eta,min:v3ArrivalFloor(l)||at.shipDate||""})
         +((src&&src.fb)?` <span class="ghostnote">${T("待補填","unset")}</span>`:"")
-        +(done?"":`<span class="ld-ship">${dCell(l,lc,"","shipDate",{lab:T("出貨","ship"),max:at.arrivalDate||"",
-            tip:T("大貨從工廠出貨的那天 —— 填了就用「出貨日＋運輸天數」推算到貨日","the day bulk ships from the factory — arrival is then computed from it + transit days")})}</span>`)
         +`</span></div>`; })()}
     <div class="ld-stat ld-primary" title="${hasFabs(l)
       ?T("這張卡全部做完的日子 —— 取「最慢的那條面料」與「素材鏈（正式 PDP／行銷影片）」兩者較晚的一個，所以它有時等於最後一條面料、有時比它更晚","when this card is fully done — the later of the slowest fabric and the asset chain (official PDP / marketing video), so it sometimes equals the last fabric and sometimes runs later")
