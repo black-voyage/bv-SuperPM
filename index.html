@@ -1427,11 +1427,22 @@ const V3ASSETS=V3ALL.filter(n=>n.asset).map(n=>n.c);   // both templates — the
 /* 依面料分支的步驟，順序＝分支內的先後。**兩個模板的節點代碼不同**：新品走 P3 大貨生產 → FB1 首波開賣，
    產品更新走 U6 大貨生產 → UL6 更新上線。2026-09-16 修：原本寫死 launch 那組，於是 update 卡加了面料以後
    每條面料都沒有節點可掛，日期永遠顯示「—」，也沒有任何地方填得進去（Zac 回報）。 */
+/* 面料分支有兩種成員,不能混在同一個陣列:
+   · V3FABT ＝「生產 → 上線」的**有序日期鏈**。位置有意義：fc[0] 是生產節點(帶 shipDate)、
+     fc[最後] 是上線節點(帶 arrivalDate)。v3FabFin 把它當成前後相接的管線在推日期,
+     v3EtaBulk／fabStrip／RAIL_LEAD／railRows 還直接寫死 fc[1]。**陣列一變長就會壞。**
+   · V3FABX ＝只需要「逐條面料勾選」的步驟,不帶日期也不進日期鏈(2026-09-17 加入
+     UD2 棚拍拍攝、UL1 新版切換確認)。順序無意義。
+   兩者的聯集 v3FabAll() 才是「哪些格子要拆成 N 條面料」;凡是成員判斷都用它,
+   凡是靠位置取節點或推日期的都只能用 v3FabCodes()。 */
 const V3FABT={launch:["P3","FB1"], update:["U6","UL6"]};
-const v3FabCodes=l=>V3FABT[lTpl(l)]||V3FABT.launch;
+const V3FABX={launch:[], update:["UD2","UL1"]};
+const v3FabCodes=l=>V3FABT[lTpl(l)]||V3FABT.launch;                    // 日期鏈（有序，位置有意義）
+const v3FabAll=l=>v3FabCodes(l).concat(V3FABX[lTpl(l)]||[]);           // 分支成員全集（成員判斷用這個）
+const v3FabDated=(l,code)=>v3FabCodes(l).indexOf(code)>=0;             // 這一格要不要天數/日期欄
 const fabsOf=l=>(l&&Array.isArray(l.fabs))?l.fabs:[];
 const hasFabs=l=>fabsOf(l).length>0;
-const fabSplit=(l,t)=>hasFabs(l)&&!!t&&v3FabCodes(l).indexOf(t.code)>=0;   // 這一格要不要拆成 N 條
+const fabSplit=(l,t)=>hasFabs(l)&&!!t&&v3FabAll(l).indexOf(t.code)>=0;   // 這一格要不要拆成 N 條
 const fabOf=(l,fid)=>fabsOf(l).find(f=>f.id===fid)||null;
 const fabName=(l,fid)=>{const f=fabOf(l,fid); return f?f.n:fid;};
 const fabSt=(t,fid)=>((t&&t.fx&&t.fx[fid])||{st:"o"});                // 讀子狀態（缺 ⇒ 未開始）
@@ -1454,7 +1465,9 @@ function fabRoll(l,t){
   const dn=pick("doneAt",true), st0=pick("startAt",false);
   if(t.st==="x"&&dn)t.doneAt=dn; else if(t.doneAt)delete t.doneAt;
   if(st0)t.startAt=st0; else if(t.startAt)delete t.startAt;
-  const dys=ids.map(id=>fabDayOf(l,t,id));   // 用實際生效的工期（沒填的那條算模板值），只取「有明填」的會低估關鍵路徑
+  /* 只有日期鏈上的節點才彙總工期。純勾選的分支步驟若也彙總，fabDayOf 的 fallback 會拿模板的 est
+     去填，把 UD2 的 days:null 變成 7 —— 拆面料不該改變排程數學，也不該讓待補天數的提醒憑空消失。 */
+  const dys=v3FabDated(l,t.code)?ids.map(id=>fabDayOf(l,t,id)):[];   // 用實際生效的工期（沒填的那條算模板值），只取「有明填」的會低估關鍵路徑
   if(dys.length)t.days=Math.max.apply(null,dys);
   const sd=pick("shipDate",false); if(sd)t.shipDate=sd; else if(t.shipDate)delete t.shipDate;
   const sp=pick("shipDate",false); if(sp)t.shipDate=sp; else if(t.shipDate)delete t.shipDate;
@@ -1490,7 +1503,7 @@ function v3FabFin(l){
       const n=V3MAP[c]||{}, t=v3Task(l,c); if(!t){o[c]=prev;return;}
       const s=fabSt(t,f.id);
       let start=prev||"";                                   // 分支段的第一步跟共用段的前置走（P3←P1），之後接自己上一步
-      (n.req||[]).forEach(r=>{ if(v3FabCodes(l).indexOf(r)>=0)return; const d=fin[r]; if(d&&d>start)start=d; });
+      (n.req||[]).forEach(r=>{ if(v3FabAll(l).indexOf(r)>=0)return; const d=fin[r]; if(d&&d>start)start=d; });
       const d=fabDayOf(l,t,f.id); let end;
       if(s.arrivalDate) end=s.arrivalDate;                  // 到貨日一填就是答案（比照 projLaunchDate 的覆蓋規則）
       else if(s.st==="x") end=s.doneAt||start||today;
@@ -1524,11 +1537,11 @@ function fabLock(l,t,fid){
   const n=V3MAP[t.code]||{}, zh=LANG==="zh";
   // 共用前置（非分支步驟）沒做完 ⇒ 每條面料一起等。用 unlockBlockers 拿理由，但要把分支步驟濾掉：
   // 那些的彙總狀態是「全部面料都完成才算完成」，拿它擋單條面料，330D 生產完了也出不了貨。
-  const sh=unlockBlockers(l,t).filter(b=>v3FabCodes(l).indexOf(b)<0);
+  const sh=unlockBlockers(l,t).filter(b=>v3FabAll(l).indexOf(b)<0);
   if(sh.length){const sn=V3MAP[sh[0]]||{};
     return zh?("等 "+sh[0]+" "+(sn.zh||"")+"（"+v3Own(sn)+"）"):("waiting on "+sh[0]+" "+(sn.en||"")+" ("+v3Own(sn)+")");}
   // 分支前置：只看「同一條面料」的那一份 —— 330D 大貨做完就能出貨，不必等 X-Pac
-  const bad=(n.req||[]).filter(r=>v3FabCodes(l).indexOf(r)>=0)
+  const bad=(n.req||[]).filter(r=>v3FabAll(l).indexOf(r)>=0)
     .find(r=>{const rt=v3Task(l,r); return !rt||fabSt(rt,fid).st!=="x";});
   if(bad){const bn=V3MAP[bad]||{};
     return zh?("等 "+bad+" "+(bn.zh||"")+"（"+fabName(l,fid)+"）"):("waiting on "+bad+" "+(bn.en||"")+" for "+fabName(l,fid));}
@@ -2165,7 +2178,7 @@ function projLaunchDate(l){                                              // 預�
       const lc=v3FabCodes(l)[v3FabCodes(l).length-1];
       Object.keys(ff).forEach(k=>{const d=ff[k][lc]; if(d&&d>m)m=d;});
       const f0=v3ProjFin(l);
-      if(f0) tplNodes(l).forEach(n=>{ if(v3FabCodes(l).indexOf(n.c)>=0)return; const d=f0[n.c]; if(d&&d>m)m=d; });
+      if(f0) tplNodes(l).forEach(n=>{ if(v3FabAll(l).indexOf(n.c)>=0)return; const d=f0[n.c]; if(d&&d>m)m=d; });
       if(m)return m; } }
   const arr=v3Arrival(l); if(arr)return arr;                             // LC 在 FB1 填了到貨日 → 以實填日期為準，蓋過正向排程的推估
   const fin=v3ProjFin(l);
@@ -4029,7 +4042,7 @@ function taskDetail(l,t,i,ro,vn,lk){
         :`<input type="date" class="v3due-inp${t.arrivalDate?"":" unfilled"}" value="${esc(t.arrivalDate||"")}"${aFl?` min="${aFl}"`:""} title="${aTip}" onclick="event.stopPropagation()" onchange="v3SetDate('${l.slug}',${i},'arrivalDate',this.value)"> <span class="ghostnote">${t.arrivalDate?arrTx(l,"set"):arrTx(l,"unset")}</span>${v3ArrivalNudge(l)?` <span class="urg high">${arrTx(l,"nudge")}</span>`:""}`]);
   }
   // 切換日期記錄（UL1）：多個面料分批換新版，LC 在同一步驟重複記多筆日期 — 純記錄，不進排程/解鎖
-  if(vn.swlog&&hasFabs(l)) info.push([T("切換日期","Switch dates"),
+  if(vn.swlog&&hasFabs(l)&&!fabSplit(l,t)) info.push([T("切換日期","Switch dates"),
     `<span class="ghostnote">${T("已改由每條面料自己的上線日管理 —— 見卡片抬頭的日期列","now tracked as each fabric's own go-live date — see the date row in the card header")}</span>`]);
   if(vn.swlog&&!hasFabs(l)){
     const sw=t.swDates||[];
@@ -4079,7 +4092,7 @@ async function v3FabAdd(slug){
   const first=!hasFabs(l), f={id:fabNewId(l),n:nm.trim()};
   (l.fabs=l.fabs||[]).push(f);
   // 第一條面料繼承這兩格既有的進度（那本來就是「這個產品」的生產狀態，不該歸零）；之後新增的面料從未開始起跑
-  v3FabCodes(l).forEach(c=>{const t=v3Task(l,c); if(!t)return; const s=fabMut(t,f.id);
+  v3FabAll(l).forEach(c=>{const t=v3Task(l,c); if(!t)return; const s=fabMut(t,f.id);
     if(first){ s.st=t.st||"o"; ["startAt","doneAt","days","shipDate","arrivalDate"].forEach(k=>{ if(t[k]!=null&&t[k]!=="")s[k]=t[k]; }); }});
   fabRollAll(l); v3Advance(l);
   toast("🧵 "+(LANG==="zh"?("已新增面料「"+f.n+"」"):("Fabric added — "+f.n))); render();
@@ -4096,7 +4109,7 @@ async function v3FabDel(slug,fid){
                                  :("Remove fabric “"+nm+"”?\n\nIts mass-production and on-sale progress is deleted with it; the other fabrics are untouched."),true))return;
   const l=L(slug); if(!l||!fabOf(l,fid))return;
   l.fabs=fabsOf(l).filter(f=>f.id!==fid);
-  v3FabCodes(l).forEach(c=>{const t=v3Task(l,c); if(t&&t.fx){delete t.fx[fid]; if(!Object.keys(t.fx).length)delete t.fx;}});
+  v3FabAll(l).forEach(c=>{const t=v3Task(l,c); if(t&&t.fx){delete t.fx[fid]; if(!Object.keys(t.fx).length)delete t.fx;}});
   if(!l.fabs.length)delete l.fabs;                     // 最後一條刪掉 ⇒ 整張卡回到單一時程，行為與沒有面料時完全相同
   fabRollAll(l); v3Advance(l); render();
 }
@@ -4107,16 +4120,16 @@ async function fabStep(slug,i,fid,dir,el){
   const lk=fabLock(l0,t0,fid); if(lk){ bvShake(el); toast("🔒 "+lk); return; }
   const cur=fabSt(t0,fid).st, nx=(dir<0?{p:"o",x:"p",b:"x",o:"b"}:{o:"p",p:"x",x:"b",b:"o"})[cur];
   if(cur==="x"&&nx!=="x"){                             // 退出「完成」→ 這條面料的下游步驟失效，一併退回
-    const cs0=v3FabCodes(l0);
-    const down=cs0.slice(cs0.indexOf(code)+1).filter(c=>{const rt=v3Task(l0,c); return rt&&fabSt(rt,fid).st==="x";});
+    const cs0=v3FabCodes(l0), ix0=cs0.indexOf(code);   // 純勾選的分支步驟（V3FABX）不在日期鏈上，indexOf=-1
+    const down=(ix0<0?[]:cs0.slice(ix0+1)).filter(c=>{const rt=v3Task(l0,c); return rt&&fabSt(rt,fid).st==="x";});
     if(down.length){ const nms=down.map(c=>c+" "+v3T(V3MAP[c]||{})).join(LANG==="zh"?"、":", ");
       if(!await uiConfirm(LANG==="zh"?("退回「"+fabName(l0,fid)+"」的這一步，會一併退回它的後續："+nms+"。要繼續嗎？")
                                      :("Stepping “"+fabName(l0,fid)+"” back will also reopen: "+nms+". Continue?")))return; }
   }
   const l=L(slug), t=l&&(l.tasks||[]).find(x=>x.code===code); if(!l||!t)return;   // re-resolve（同 stepStatus）
   const s=fabMut(t,fid);
-  const cs=v3FabCodes(l);
-  if(s.st==="x"&&nx!=="x") cs.slice(cs.indexOf(code)+1).forEach(c=>{const rt=v3Task(l,c); if(!rt)return;
+  const cs=v3FabCodes(l), ix=cs.indexOf(code);
+  if(s.st==="x"&&nx!=="x"&&ix>=0) cs.slice(ix+1).forEach(c=>{const rt=v3Task(l,c); if(!rt)return;
     const rs=fabMut(rt,fid); if(rs.st==="x"){rs.st="o"; delete rs.doneAt;} fabRoll(l,rt);});
   s.st=nx;
   if(nx==="p"&&!s.startAt)s.startAt=today;
@@ -4188,6 +4201,7 @@ function dCell(l,code,fid,k,opts){
    專屬日期跟著節點旗標走：大貨生產是「出貨日」、首波開賣／更新上線是「到貨日」。 */
 function fabPanel(l,t,i,ro){
   const zh=LANG==="zh", T=(z,e)=>zh?z:e, code=t.code, vn=V3MAP[code]||{}, ff=v3FabFin(l)||{};
+  const dated=v3FabDated(l,code);        // 在日期鏈上才有天數／預計完成日；純勾選步驟只留狀態鈕
   const dk=vn.ship?"shipDate":vn.arrival?"arrivalDate":"";
   const dLab=vn.ship?T("出貨","Ship"):vn.arrival?arrTx(l,"short"):"";
   const rows=fabsOf(l).map(f=>{
@@ -4195,15 +4209,16 @@ function fabPanel(l,t,i,ro){
     const stBtn=ro
       ? `<span class="st ${lk?"":s.st}" title="${lk?esc(lk):stWord(s.st)}">${lk?"🔒":stIcon[s.st]}</span>`
       : `<button type="button" class="st ${lk?"":s.st}" aria-label="${esc(f.n)} — ${lk?("locked: "+esc(lk)):stWord(s.st)}" title="${lk?("🔒 "+esc(lk)):T("左鍵推進 · 右鍵退回","left-click: advance · right-click: step back")}" onclick="event.stopPropagation();fabStep('${l.slug}',${i},'${f.id}',1,this)" oncontextmenu="event.stopPropagation();fabStep('${l.slug}',${i},'${f.id}',-1,this);return false">${lk?"🔒":stIcon[s.st]}</button>`;
-    const dayCell=ro?(days+"d")
+    const dayCell=!dated?"":ro?(days+"d")
       : `<input type="number" min="0" class="v3shot-q fabd-inp" value="${s.days!=null?s.days:""}" placeholder="${vn.days!=null?vn.days:(vn.est!=null?vn.est:"")}" title="${T("這條面料的工期 — 留白就用模板的 "+(vn.days!=null?vn.days:"—")+"d","this fabric's duration — blank uses the template's "+(vn.days!=null?vn.days:"—")+"d")}" onclick="event.stopPropagation()" onchange="v3FabSetDays('${l.slug}',${i},'${f.id}',this.value)"> d`;
     const dateInp=!dk?"":(ro?(s[dk]?fmt(s[dk]):"—")
       : `<input type="date" class="v3due-inp${s[dk]?"":" unfilled"}" value="${esc(s[dk]||"")}"${(dk==="arrivalDate"&&fabArrFloor(l,f.id))?` min="${fabArrFloor(l,f.id)}"`:""} title="${esc(dLab)}" onclick="event.stopPropagation()" onchange="v3FabSetDate('${l.slug}',${i},'${f.id}','${dk}',this.value)">`);
     const finCell=s.st==="x"
       ? `<b style="color:var(--green)">✓ ${s.doneAt?fmt(s.doneAt):""}</b>`
+      : !dated ? ""                                   // 純勾選的步驟沒有「預計完成日」可言（不在 v3FabFin 的鏈上）
       : (fin?`<b>${fmt(fin)}</b> <span class="ghostnote">${T("預計","est.")}</span>`:"—");
     return `<div class="fabrow${lk?" lk":""}">${stBtn}<span class="fabnm"${ro?"":` role="button" tabindex="0" title="${T("點擊改名","click to rename")}" onclick="event.stopPropagation();v3FabRename('${l.slug}','${f.id}')"`}><!--notx-->${esc(f.n)}<!--/notx--></span>`
-      +`<span class="fabmeta">${dk?`<span>${dLab} ${dateInp}</span>`:""}<span>${dayCell}</span><span>${finCell}</span>`
+      +`<span class="fabmeta">${dk?`<span>${dLab} ${dateInp}</span>`:""}${dayCell?`<span>${dayCell}</span>`:""}${finCell?`<span>${finCell}</span>`:""}`
       +`${ro?"":`<button class="fabx" title="${T("移除這條面料","remove this fabric")}" onclick="event.stopPropagation();v3FabDel('${l.slug}','${f.id}')">✕</button>`}</span></div>`;
   }).join("");
   return `<div class="fabtbl">${rows}${ro?"":`<button class="fabadd" onclick="event.stopPropagation();v3FabAdd('${l.slug}')">＋ ${T("新增面料","add fabric")}</button>`}</div>`;
@@ -4416,7 +4431,7 @@ function flowSVG(l){
   FL_LS=(LANG==="zh")?0.06:0;                         // 繁中 node labels get wider tracking; latin stays tight (factored into flowDW sizing + applied to <text>)
   // 面料子分支（P3／FB1）：卡片有面料時這兩格要多讓出一排小塊的高度；其餘節點仍是等高的扁磚。
   // 標籤區固定用上半的 NH（見下方 LTOP/LBH），所以節點標題與鄰欄仍在同一條水平線上。
-  const FABROW=21, FABCOL=3, isFabNode=n=>hasFabs(l)&&n&&v3FabCodes(l).indexOf(n.code)>=0;
+  const FABROW=21, FABCOL=3, isFabNode=n=>hasFabs(l)&&n&&v3FabAll(l).indexOf(n.code)>=0;
   const fabNCol=Math.min(fabsOf(l).length||1,FABCOL), fabNRow=Math.ceil((fabsOf(l).length||1)/FABCOL);   // 一排最多 3 塊：118px 再切下去，名字只剩一個字
   const nodeH=n=>NH+(isFabNode(n)?FABROW*fabNRow:0);   // every other V3 node is a flat tile — height is uniform
   const LY={};                                        // per-lane cumulative Y — supports variable node heights
