@@ -1051,6 +1051,9 @@
   .ld-cardtab:hover{color:var(--text);border-color:var(--accent)}
   .ld-cardtab.on{background:var(--accent);border-color:var(--accent);color:#fff}
 
+  .ov-bar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:-4px 0 16px}
+  .ov-sortbar{display:inline-flex;align-items:center;gap:6px;flex:none}
+  .ov-sortlab{font-family:var(--font-mono);font-size:var(--fs-caption);letter-spacing:.07em;text-transform:uppercase;color:var(--dim);margin-right:2px}
   /* ══ 總覽看板（overviewBoard）的樣式 ══
      刻意放在這個靜態 <style> 而不是 render 字串裡：render 出來的 HTML 會經過 tx()，
      而 tx() 把 <style> 內容當文字節點做字串替換，凡是兩側被非字元包住、又命中 ZH 字典
@@ -5390,6 +5393,9 @@ const OVOPEN={}; let OVFIN=false; const OVFAB={};   // OVFAB：甘特上哪些�
 function ovTog(s,el){OVOPEN[s]=el?el.open:!OVOPEN[s];}
 function ovFin(){OVFIN=!OVFIN;render();}
 function ovFab(s){OVFAB[s]=!OVFAB[s];render();}
+/* 排序偏好存 localStorage —— 跟 bv-flow-hints / bv-chat-model 同一套做法 */
+function ovSort(k){ S.ovSort=k; try{localStorage.setItem("bv-ov-sort",k);}catch(e){} render(); }
+try{ const _os=localStorage.getItem("bv-ov-sort"); if(_os==="risk"||_os==="date")S.ovSort=_os; }catch(e){}
 const OVR=60;                                            // 今天置中,前後各 60 天(照參考稿)
 const OVX=d=>50+dayDiff(today,d)/OVR*50;
 const OVin=d=>Math.abs(dayDiff(today,d))<=OVR;
@@ -5569,19 +5575,34 @@ function overviewBoard(){
   const RK={bad:3,dec:2,risk:1,ok:0,done:-1};
   /* 全域搜尋框(S.q)必須照舊生效 —— 舊的 portfolioBoard/portfolioOverview 都有吃,漏掉就是回歸 */
   const fq=l=>!S.q||l.name.toLowerCase().includes(S.q.toLowerCase())||(l.dri||"").toLowerCase().includes(S.q.toLowerCase());
-  /* 排序＝到貨日由近到遠(到貨＝可開賣,最近的最急)。沒有日期的排最後,同日期再退回風險排序。
-     這讓甘特的琥珀點形成一道由左到右的階梯,「先後順序」用看的就知道。 */
+  /* 兩種排序,使用者可切換(S.ovSort,存 localStorage):
+       date ＝ 到貨日由近到遠(到貨＝可開賣,最近的最急)。沒有日期的排最後。
+              甘特的琥珀點會形成一道由左到右的階梯,「先後順序」用掃的就知道。
+       risk ＝ 最需關注排最前(受阻 > 等決策 > 有風險 > 正常),同級再比餘裕。
+     兩種都以另一個當同分時的第二鍵,所以順序永遠是確定的。 */
   const ak=l=>{const a=MK_arr(l); return a?a.d:"9999-12-31";};
-  const live=LAUNCHES.filter(l=>!l.complete&&fq(l)).slice().sort((a,b)=>{
-    const ka=ak(a), kb=ak(b); if(ka!==kb) return ka<kb?-1:1;
-    const d=(RK[health(b)[1]]||0)-(RK[health(a)[1]]||0); if(d)return d;
-    const fa=a.baselineTarget?floatDays(a):999, fb=b.baselineTarget?floatDays(b):999; return fa-fb; });
+  const rk=l=>RK[health(l)[1]]||0;
+  const fl=l=>l.baselineTarget?floatDays(l):999;
+  const byDate=(a,b)=>{const ka=ak(a),kb=ak(b); if(ka!==kb)return ka<kb?-1:1;
+    const d=rk(b)-rk(a); if(d)return d; return fl(a)-fl(b);};
+  const byRisk=(a,b)=>{const d=rk(b)-rk(a); if(d)return d;
+    const f=fl(a)-fl(b); if(f)return f; const ka=ak(a),kb=ak(b); return ka<kb?-1:ka>kb?1:0;};
+  const live=LAUNCHES.filter(l=>!l.complete&&fq(l)).slice().sort(S.ovSort==="risk"?byRisk:byDate);
   const gaps=railRows().filter(r=>r.gap);
   const warn=gaps.length?`<div class="lx-warn" style="margin:0 0 14px">${gaps.map(r=>
     `<a class="lx-wa" onclick="openL('${r.l.slug}')">${ICO("warn","sm")}<!--notx-->${esc(r.lab)}<!--/notx--> ${T("已出貨 "+dayDiff(r.ship.d,today)+"d,到貨日還沒填","shipped "+dayDiff(r.ship.d,today)+"d ago, arrival unset")}</a>`).join("")}</div>`:"";
   if(!live.length) return `<div class="panel"><div class="empty-hero">${S.q?T("沒有符合「"+S.q+"」的產品","No products match “"+S.q+"”"):T("目前沒有進行中的產品","No products in flight")}</div></div>`;
   return `
-    <p class="sub" style="margin:-4px 0 16px">${T("兩塊都依「到貨日由近到遠」排序 —— 最快能開賣的排最前。拆過面料的產品可在總時間軸展開，看每條面料各自的時程。","Both panels are ordered by arrival date, soonest first — what can go on sale next comes first. Fabric-split products expand on the master timeline to show each fabric's own dates.")}</p>
+    <div class="ov-bar">
+      <p class="sub" style="margin:0;flex:1 1 320px;min-width:0">${S.ovSort==="risk"
+        ? T("兩塊都依「最需關注」排序 —— 受阻與等決策的排最前。拆過面料的產品可在總時間軸展開。","Both panels are ordered by what needs attention most — blocked and awaiting-decision first. Fabric-split products expand on the master timeline.")
+        : T("兩塊都依「到貨日由近到遠」排序 —— 最快能開賣的排最前。拆過面料的產品可在總時間軸展開。","Both panels are ordered by arrival date, soonest first. Fabric-split products expand on the master timeline.")}</p>
+      <span class="ov-sortbar" role="group" aria-label="${T("排序方式","Sort order")}">
+        <span class="ov-sortlab">${T("排序","Sort")}</span>
+        <button class="ld-cardtab${S.ovSort==="risk"?"":" on"}" aria-pressed="${S.ovSort!=="risk"}" onclick="ovSort('date')">${T("到貨日","Arrival")}</button>
+        <button class="ld-cardtab${S.ovSort==="risk"?" on":""}" aria-pressed="${S.ovSort==="risk"}" onclick="ovSort('risk')">${T("最需關注","At risk")}</button>
+      </span>
+    </div>
     ${warn}${ovTimeline(live)}${ovList(live)}${ovFinBlock()}`;
 }
 
