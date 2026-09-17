@@ -1050,6 +1050,157 @@
   .ld-cardtab{background:var(--panel2);border:1px solid var(--line);color:var(--dim);font-size:12px;padding:4px 11px;border-radius:var(--r-pill,14px);cursor:pointer;font-family:inherit}
   .ld-cardtab:hover{color:var(--text);border-color:var(--accent)}
   .ld-cardtab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  /* ══ 總覽看板（overviewBoard）的樣式 ══
+     刻意放在這個靜態 <style> 而不是 render 字串裡：render 出來的 HTML 會經過 tx()，
+     而 tx() 把 <style> 內容當文字節點做字串替換，凡是兩側被非字元包住、又命中 ZH 字典
+     的詞都會被翻掉 —— 實際踩到的有 [open]→[項未完成]、::-webkit-details-marker→
+     ::-webkit-詳情-marker、:first-child→:-child，而且只在中文模式壞、極難察覺。
+     放這裡就永遠免疫，也省掉每次 render 重新注入 10KB。 */
+.lx-fin{margin:16px 0 0 40px;border-top:1px solid var(--line);padding-top:12px}
+.lx-fsum{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:var(--fs-meta);color:var(--dim);cursor:pointer;background:none;border:none;font-family:inherit;padding:3px 0;width:100%;text-align:left;border-radius:var(--r-xs)}
+.lx-fsum:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.lx-fsum b{color:var(--text);font-family:var(--font-head);font-size:var(--fs-sm);font-weight:700}
+.lx-fg{display:grid;grid-template-columns:repeat(auto-fill,minmax(246px,290px));justify-content:start;gap:10px;margin-top:12px}
+.lx-fc{border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 13px;background:var(--panel2)}
+.lx-fn{font-family:var(--font-head);font-size:var(--fs-sm);font-weight:700;margin-bottom:6px}
+.lx-fn a{color:var(--text);text-decoration:none;border-radius:var(--r-xs)}
+.lx-fn a:hover{color:var(--accent)}
+.lx-fn a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.lx-fr{display:flex;justify-content:space-between;gap:12px;padding:4px 0;font-size:var(--fs-caption)}
+.lx-fr>span:first-child{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.07em;color:var(--dim)}
+.lx-fr b{color:var(--text);font-family:var(--font-mono);font-weight:500}
+.lx-fr b.ovd{color:var(--red)}.lx-fr b.ahd{color:var(--green)}
+.lx-warn{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 12px 40px}
+.lx-wa{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-caption);color:var(--amber);border:1px solid color-mix(in srgb,var(--amber) 34%,transparent);border-radius:var(--r-xs);padding:3px 9px;cursor:pointer;background:color-mix(in srgb,var(--amber) 6%,transparent)}
+.ov-bvi{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+/* ── 總時間軸 ── */
+.ov-tp{padding:20px 26px 18px}
+.ov-ph{display:flex;align-items:baseline;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+.ov-pt{font-family:var(--font-head);font-weight:700;font-size:var(--fs-sm);color:var(--text)}
+.ov-ps{font-size:var(--fs-meta);color:var(--dim)}
+.ov-plot{display:grid;grid-template-columns:116px 1fr;column-gap:16px;grid-template-rows:20px auto}
+.ov-ax{position:relative;height:20px}
+.ov-ax span{position:absolute;top:0;transform:translateX(-50%);font-family:var(--font-mono);font-size:var(--fs-caption);color:var(--dim);white-space:nowrap}
+.ov-ax .ov-tdl{color:var(--accent);font-weight:700}
+.ov-nc{display:flex;flex-direction:column}
+.ov-nr{height:38px;display:flex;align-items:center;font-size:var(--fs-meta);font-weight:600;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-nr a{color:inherit;text-decoration:none;border-radius:var(--r-xs)}
+.ov-nr a:hover{color:var(--accent)}
+.ov-nr a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* 面料風琴:母列的展開鈕 ＋ 子列的縮排與連接線 */
+.ov-fx{width:16px;height:16px;flex:none;background:none;border:none;padding:0;margin-right:4px;color:var(--dim);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:3px;transition:color .15s,transform .18s}
+.ov-fx:hover{color:var(--text)}
+.ov-fx:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ov-fx.on{transform:rotate(180deg);color:var(--text)}
+.ov-fxsp{width:16px;margin-right:4px;flex:none}
+.ov-fn{margin-left:6px;font-family:var(--font-mono);font-size:10px;color:var(--dim);border:1px solid var(--line);border-radius:var(--r-pill);padding:0 5px;flex:none}
+.ov-nf{padding-left:20px;font-weight:500;color:var(--dim);gap:7px}
+.ov-fbar{width:9px;height:1px;background:var(--line);flex:none}
+.ov-pc{position:relative}
+.ov-gl{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
+.ov-td{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);z-index:1;border-radius:1px}
+.ov-pr{position:relative;height:38px}
+.ov-dt em{}
+.ov-pl{position:absolute;top:50%;height:2px;transform:translateY(-50%);border-radius:1px}
+.ov-pl.sea{background:var(--amber)}
+.ov-pl.est{background-image:linear-gradient(to right,var(--line) 0 5px,transparent 5px 10px);background-size:10px 2px;background-repeat:repeat-x}
+.ov-pd{position:absolute;top:50%;width:9px;height:9px;border-radius:50%;transform:translate(-50%,-50%);z-index:2;box-sizing:border-box}
+.ov-pd.s{background:var(--blue)}
+.ov-pd.s.ho{background:var(--panel);border:2px solid var(--blue)}
+.ov-pd.a{background:var(--amber)}
+.ov-pd.a.ho{background:var(--panel);border:2px solid var(--amber)}
+.ov-pd.a.hist{background:var(--green)}
+.ov-dt{position:absolute;font-family:var(--font-mono);font-size:var(--fs-caption);color:var(--dim);white-space:nowrap}
+.ov-dt.l{transform:translateX(8px)}
+.ov-dt.r{transform:translateX(calc(-100% - 8px))}
+.ov-dt em{font-style:normal;opacity:.72;margin-left:5px;font-family:var(--font-head)}
+.ov-dt.up{top:-1px}.ov-dt.dn{top:21px}
+.ov-edge{position:absolute;top:50%;transform:translateY(-50%);font-size:var(--fs-caption);color:var(--dim);z-index:3}
+.ov-lg{display:flex;flex-wrap:wrap;gap:18px;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
+.ov-li{display:flex;align-items:center;gap:7px;font-size:var(--fs-caption);color:var(--dim)}
+.ov-ld{width:8px;height:8px;border-radius:50%;flex:none;box-sizing:border-box}
+.ov-ll{width:20px;height:2px;flex:none;border-radius:1px}
+.ov-lt{width:2px;height:12px;background:var(--accent);flex:none;border-radius:1px}
+.ov-empty{padding:26px 0;text-align:center;font-size:var(--fs-meta);color:var(--dim)}
+/* ── 緊湊列表 ── */
+.ov-lp{margin-top:20px;padding:0}
+.ov-hr{display:flex;align-items:center;gap:16px;padding:14px 20px 9px;font-family:var(--font-mono);
+  font-size:var(--fs-caption);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:600;border-bottom:1px solid var(--line)}
+.ov-row{border-bottom:1px solid var(--line)}
+.ov-row:last-child{border-bottom:none}
+.ov-rm{display:flex;align-items:center;gap:16px;padding:0 20px;min-height:56px;cursor:pointer;list-style:none;transition:background .16s}
+.ov-rm::-webkit-details-marker{display:none}
+.ov-rm:hover{background:var(--panel2)}
+.ov-rm:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.ov-row[open] .ov-rm{background:var(--panel2)}
+.ov-c{min-width:0}
+.ov-id{display:flex;align-items:center;gap:10px;min-width:0}
+.ov-av{width:26px;height:26px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:var(--fs-caption);font-weight:700;flex:none}
+.ov-it{display:flex;flex-direction:column;gap:1px;min-width:0}
+.ov-nm{font-family:var(--font-head);font-weight:700;font-size:var(--fs-sm);color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none;border-radius:var(--r-xs)}
+.ov-nm:hover{color:var(--accent)}
+.ov-nm:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ov-st{font-size:var(--fs-caption);color:var(--dim)}
+.ov-bg{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-pill);
+  font-size:var(--fs-caption);font-weight:600;white-space:nowrap}
+.ov-bd{width:5px;height:5px;border-radius:50%;flex:none}
+/* 迷你時程 */
+.ov-ms{display:flex;flex-direction:column;gap:4px}
+.ov-mt{display:flex;align-items:center;width:150px}
+.ov-md{width:7px;height:7px;border-radius:50%;flex:none;box-sizing:border-box}
+.ov-md.s{background:var(--blue)}.ov-md.s.ho{background:var(--panel2);border:1.5px solid var(--blue)}
+.ov-md.a{background:var(--amber)}.ov-md.a.ho{background:var(--panel2);border:1.5px solid var(--amber)}
+.ov-md.a.hist{background:var(--green)}
+.ov-ml{flex:1 1 auto;height:2px;margin:0 5px;border-radius:1px}
+.ov-ml.sea{background:var(--amber)}
+.ov-ml.est{background-image:linear-gradient(to right,var(--line) 0 4px,transparent 4px 8px);background-size:8px 2px}
+.ov-mdt{display:flex;justify-content:space-between;width:150px;font-family:var(--font-mono);font-size:var(--fs-caption);color:var(--dim)}
+.ov-plc{font-size:var(--fs-meta);color:var(--dim)}
+/* 步驟 / chip / 餘裕 / 進度 */
+.ov-sp{display:flex;align-items:center;gap:7px;min-width:0}
+.ov-sp .ov-bvi{color:var(--blue)}
+.ov-spt{font-size:var(--fs-meta);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-chips{display:flex;gap:6px;flex-wrap:wrap}
+.ov-ch{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-caption);color:var(--dim);
+  background:var(--panel2);border:1px solid var(--line);padding:3px 9px;border-radius:var(--r-pill);white-space:nowrap}
+.ov-cd{width:5px;height:5px;border-radius:50%;flex:none}
+.ov-bp{font-size:var(--fs-caption);color:var(--dim);background:var(--panel2);border:1px solid var(--line);
+  padding:3px 10px;border-radius:var(--r-pill);white-space:nowrap;font-family:var(--font-mono)}
+.ov-bp.ok{color:var(--green);border-color:rgba(74,222,128,.34)}
+.ov-bp.bad{color:var(--red);border-color:rgba(248,113,113,.4)}
+.ov-pg{display:flex;flex-direction:column;gap:5px}
+.ov-pb{width:96px;height:5px;border-radius:var(--r-pill);background:var(--void);border:1px solid var(--line);position:relative}
+.ov-pf{height:100%;border-radius:var(--r-pill);background:var(--blue)}
+.ov-pdue{position:absolute;top:-4px;width:2px;height:11px;background:var(--accent);border-radius:1px}
+.ov-pt2{font-family:var(--font-mono);font-size:var(--fs-caption);color:var(--dim)}
+.ov-xb{width:28px;height:28px;border-radius:var(--r-sm);background:transparent;border:1px solid transparent;
+  color:var(--dim);display:flex;align-items:center;justify-content:center;flex:none;transition:background .16s,color .16s,border-color .16s}
+.ov-rm:hover .ov-xb{background:var(--panel);border-color:var(--line);color:var(--text)}
+.ov-row[open] .ov-xb{transform:rotate(180deg)}
+/* 展開明細:四欄 */
+.ov-xd{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:24px;padding:16px 20px 18px;
+  background:var(--panel2);border-top:1px solid var(--line)}
+.ov-xc{display:flex;flex-direction:column;gap:8px;min-width:0}
+.ov-xl{font-family:var(--font-mono);font-size:var(--fs-caption);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:600}
+.ov-xr{margin:0;font-size:var(--fs-meta);color:var(--dim);line-height:1.55}
+.ov-xr b{color:var(--text);font-weight:600}
+.ov-xr em{font-style:normal;opacity:.85}
+.ov-xt{display:flex;flex-direction:column;gap:6px}
+.ov-xdt{display:flex;justify-content:space-between;gap:10px;font-family:var(--font-mono);font-size:var(--fs-meta);color:var(--text)}
+.ov-xdt em{font-style:normal;font-family:var(--font-head);font-size:var(--fs-caption);color:var(--dim);margin-left:5px}
+.ov-xtr{display:flex;align-items:center}
+.ov-xlb{display:flex;justify-content:space-between;gap:10px;font-size:var(--fs-caption);color:var(--dim)}
+@media (max-width:1280px){
+  .ov-hr{display:none}
+  .ov-rm{flex-wrap:wrap;padding:12px 16px;gap:12px}
+  .ov-rm>.ov-c{flex:1 1 auto!important}
+  .ov-plot{grid-template-columns:92px 1fr;column-gap:10px}
+}
   </style>
 </head>
 <body>
@@ -5226,154 +5377,19 @@ function MK3_sentence(x){
 }
 
 /* 只保留總覽用到的規則(其餘 v4 樣式未進版) */
-const LX_CSS=`
-.lx-fin{margin:16px 0 0 40px;border-top:1px solid var(--line);padding-top:12px}
-.lx-fsum{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:var(--fs-meta);color:var(--dim);cursor:pointer;background:none;border:none;font-family:inherit;padding:3px 0;width:100%;text-align:left;border-radius:var(--r-xs)}
-.lx-fsum:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.lx-fsum b{color:var(--text);font-family:var(--font-head);font-size:var(--fs-sm);font-weight:700}
-.lx-fg{display:grid;grid-template-columns:repeat(auto-fill,minmax(246px,290px));justify-content:start;gap:10px;margin-top:12px}
-.lx-fc{border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 13px;background:var(--panel2)}
-.lx-fn{font-family:var(--font-head);font-size:var(--fs-sm);font-weight:700;margin-bottom:6px}
-.lx-fn a{color:var(--text);text-decoration:none;border-radius:var(--r-xs)}
-.lx-fn a:hover{color:var(--accent)}
-.lx-fn a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-.lx-fr{display:flex;justify-content:space-between;gap:12px;padding:4px 0;font-size:var(--fs-caption)}
-.lx-fr>span:first-child{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.07em;color:var(--dim)}
-.lx-fr b{color:var(--text);font-family:var(--font-mono);font-weight:500}
-.lx-fr b.ovd{color:var(--red)}.lx-fr b.ahd{color:var(--green)}
-.lx-warn{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 12px 40px}
-.lx-wa{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-caption);color:var(--amber);border:1px solid color-mix(in srgb,var(--amber) 34%,transparent);border-radius:var(--r-xs);padding:3px 9px;cursor:pointer;background:color-mix(in srgb,var(--amber) 6%,transparent)}
-`;
+/* LX_CSS / OV_CSS 已移入 head 的靜態 <style> —— 見上方說明 */
 
 /* 依 Claude Design 畫布 project/Overview.dc.html(緊湊版)重做:
    上＝總時間軸甘特(共用 ±60 天刻度、今天置中)、下＝56px 八欄緊湊列表(可展開四欄明細)。
    色彩/字體沿用專案 token(DESIGN.md:9 identity-preservation 勝過 reference-matching):
    出貨＝--blue、到貨＝--amber、今天＝--accent(品牌信號色)、線=實心在海上/虛線未出貨。
    類名前綴 ov- —— 避開 ZH 字典鍵(CSS 在 <style> 內會被 tx() 字串替換掃到)。 */
-const OV_CSS=`
-.ov-bvi{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
-/* ── 總時間軸 ── */
-.ov-tp{padding:20px 26px 18px}
-.ov-ph{display:flex;align-items:baseline;gap:12px;margin-bottom:8px;flex-wrap:wrap}
-.ov-pt{font-family:var(--font-head);font-weight:700;font-size:var(--fs-sm);color:var(--text)}
-.ov-ps{font-size:var(--fs-meta);color:var(--dim)}
-.ov-plot{display:grid;grid-template-columns:116px 1fr;column-gap:16px;grid-template-rows:20px auto}
-.ov-ax{position:relative;height:20px}
-.ov-ax span{position:absolute;top:0;transform:translateX(-50%);font-family:var(--font-mono);font-size:var(--fs-caption);color:var(--dim);white-space:nowrap}
-.ov-ax .ov-tdl{color:var(--accent);font-weight:700}
-.ov-nc{display:flex;flex-direction:column}
-.ov-nr{height:38px;display:flex;align-items:center;font-size:var(--fs-meta);font-weight:600;color:var(--text);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ov-nr a{color:inherit;text-decoration:none;border-radius:var(--r-xs)}
-.ov-nr a:hover{color:var(--accent)}
-.ov-nr a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.ov-pc{position:relative}
-.ov-gl{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
-.ov-td{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);z-index:1;border-radius:1px}
-.ov-pr{position:relative;height:38px}
-.ov-dt em{}
-.ov-pl{position:absolute;top:50%;height:2px;transform:translateY(-50%);border-radius:1px}
-.ov-pl.sea{background:var(--amber)}
-.ov-pl.est{background-image:linear-gradient(to right,var(--line) 0 5px,transparent 5px 10px);background-size:10px 2px;background-repeat:repeat-x}
-.ov-pd{position:absolute;top:50%;width:9px;height:9px;border-radius:50%;transform:translate(-50%,-50%);z-index:2;box-sizing:border-box}
-.ov-pd.s{background:var(--blue)}
-.ov-pd.s.ho{background:var(--panel);border:2px solid var(--blue)}
-.ov-pd.a{background:var(--amber)}
-.ov-pd.a.ho{background:var(--panel);border:2px solid var(--amber)}
-.ov-pd.a.hist{background:var(--green)}
-.ov-dt{position:absolute;font-family:var(--font-mono);font-size:var(--fs-caption);color:var(--dim);white-space:nowrap}
-.ov-dt.l{transform:translateX(8px)}
-.ov-dt.r{transform:translateX(calc(-100% - 8px))}
-.ov-dt em{font-style:normal;opacity:.72;margin-left:5px;font-family:var(--font-head)}
-.ov-dt.up{top:-1px}.ov-dt.dn{top:21px}
-.ov-edge{position:absolute;top:50%;transform:translateY(-50%);font-size:var(--fs-caption);color:var(--dim);z-index:3}
-.ov-lg{display:flex;flex-wrap:wrap;gap:18px;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
-.ov-li{display:flex;align-items:center;gap:7px;font-size:var(--fs-caption);color:var(--dim)}
-.ov-ld{width:8px;height:8px;border-radius:50%;flex:none;box-sizing:border-box}
-.ov-ll{width:20px;height:2px;flex:none;border-radius:1px}
-.ov-lt{width:2px;height:12px;background:var(--accent);flex:none;border-radius:1px}
-.ov-empty{padding:26px 0;text-align:center;font-size:var(--fs-meta);color:var(--dim)}
-/* ── 緊湊列表 ── */
-.ov-lp{margin-top:20px;padding:0}
-.ov-hr{display:flex;align-items:center;gap:16px;padding:14px 20px 9px;font-family:var(--font-mono);
-  font-size:var(--fs-caption);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:600;border-bottom:1px solid var(--line)}
-.ov-row{border-bottom:1px solid var(--line)}
-.ov-row:last-child{border-bottom:none}
-.ov-rm{display:flex;align-items:center;gap:16px;padding:0 20px;min-height:56px;cursor:pointer;list-style:none;transition:background .16s}
-.ov-rm::-webkit-details-marker{display:none}
-.ov-rm:hover{background:var(--panel2)}
-.ov-rm:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
-.ov-row[open] .ov-rm{background:var(--panel2)}
-.ov-c{min-width:0}
-.ov-id{display:flex;align-items:center;gap:10px;min-width:0}
-.ov-av{width:26px;height:26px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);
-  display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:var(--fs-caption);font-weight:700;flex:none}
-.ov-it{display:flex;flex-direction:column;gap:1px;min-width:0}
-.ov-nm{font-family:var(--font-head);font-weight:700;font-size:var(--fs-sm);color:var(--text);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none;border-radius:var(--r-xs)}
-.ov-nm:hover{color:var(--accent)}
-.ov-nm:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.ov-st{font-size:var(--fs-caption);color:var(--dim)}
-.ov-bg{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-pill);
-  font-size:var(--fs-caption);font-weight:600;white-space:nowrap}
-.ov-bd{width:5px;height:5px;border-radius:50%;flex:none}
-/* 迷你時程 */
-.ov-ms{display:flex;flex-direction:column;gap:4px}
-.ov-mt{display:flex;align-items:center;width:150px}
-.ov-md{width:7px;height:7px;border-radius:50%;flex:none;box-sizing:border-box}
-.ov-md.s{background:var(--blue)}.ov-md.s.ho{background:var(--panel2);border:1.5px solid var(--blue)}
-.ov-md.a{background:var(--amber)}.ov-md.a.ho{background:var(--panel2);border:1.5px solid var(--amber)}
-.ov-md.a.hist{background:var(--green)}
-.ov-ml{flex:1 1 auto;height:2px;margin:0 5px;border-radius:1px}
-.ov-ml.sea{background:var(--amber)}
-.ov-ml.est{background-image:linear-gradient(to right,var(--line) 0 4px,transparent 4px 8px);background-size:8px 2px}
-.ov-mdt{display:flex;justify-content:space-between;width:150px;font-family:var(--font-mono);font-size:var(--fs-caption);color:var(--dim)}
-.ov-plc{font-size:var(--fs-meta);color:var(--dim)}
-/* 步驟 / chip / 餘裕 / 進度 */
-.ov-sp{display:flex;align-items:center;gap:7px;min-width:0}
-.ov-sp .ov-bvi{color:var(--blue)}
-.ov-spt{font-size:var(--fs-meta);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ov-chips{display:flex;gap:6px;flex-wrap:wrap}
-.ov-ch{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-caption);color:var(--dim);
-  background:var(--panel2);border:1px solid var(--line);padding:3px 9px;border-radius:var(--r-pill);white-space:nowrap}
-.ov-cd{width:5px;height:5px;border-radius:50%;flex:none}
-.ov-bp{font-size:var(--fs-caption);color:var(--dim);background:var(--panel2);border:1px solid var(--line);
-  padding:3px 10px;border-radius:var(--r-pill);white-space:nowrap;font-family:var(--font-mono)}
-.ov-bp.ok{color:var(--green);border-color:rgba(74,222,128,.34)}
-.ov-bp.bad{color:var(--red);border-color:rgba(248,113,113,.4)}
-.ov-pg{display:flex;flex-direction:column;gap:5px}
-.ov-pb{width:96px;height:5px;border-radius:var(--r-pill);background:var(--void);border:1px solid var(--line);position:relative}
-.ov-pf{height:100%;border-radius:var(--r-pill);background:var(--blue)}
-.ov-pdue{position:absolute;top:-4px;width:2px;height:11px;background:var(--accent);border-radius:1px}
-.ov-pt2{font-family:var(--font-mono);font-size:var(--fs-caption);color:var(--dim)}
-.ov-xb{width:28px;height:28px;border-radius:var(--r-sm);background:transparent;border:1px solid transparent;
-  color:var(--dim);display:flex;align-items:center;justify-content:center;flex:none;transition:background .16s,color .16s,border-color .16s}
-.ov-rm:hover .ov-xb{background:var(--panel);border-color:var(--line);color:var(--text)}
-.ov-row[open] .ov-xb{transform:rotate(180deg)}
-/* 展開明細:四欄 */
-.ov-xd{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:24px;padding:16px 20px 18px;
-  background:var(--panel2);border-top:1px solid var(--line)}
-.ov-xc{display:flex;flex-direction:column;gap:8px;min-width:0}
-.ov-xl{font-family:var(--font-mono);font-size:var(--fs-caption);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:600}
-.ov-xr{margin:0;font-size:var(--fs-meta);color:var(--dim);line-height:1.55}
-.ov-xr b{color:var(--text);font-weight:600}
-.ov-xr em{font-style:normal;opacity:.85}
-.ov-xt{display:flex;flex-direction:column;gap:6px}
-.ov-xdt{display:flex;justify-content:space-between;gap:10px;font-family:var(--font-mono);font-size:var(--fs-meta);color:var(--text)}
-.ov-xdt em{font-style:normal;font-family:var(--font-head);font-size:var(--fs-caption);color:var(--dim);margin-left:5px}
-.ov-xtr{display:flex;align-items:center}
-.ov-xlb{display:flex;justify-content:space-between;gap:10px;font-size:var(--fs-caption);color:var(--dim)}
-@media (max-width:1280px){
-  .ov-hr{display:none}
-  .ov-rm{flex-wrap:wrap;padding:12px 16px;gap:12px}
-  .ov-rm>.ov-c{flex:1 1 auto!important}
-  .ov-plot{grid-template-columns:92px 1fr;column-gap:10px}
-}
-`;
 
-const OVOPEN={}; let OVFIN=false;
+
+const OVOPEN={}; let OVFIN=false; const OVFAB={};   // OVFAB：甘特上哪些產品展開了面料
 function ovTog(s,el){OVOPEN[s]=el?el.open:!OVOPEN[s];}
 function ovFin(){OVFIN=!OVFIN;render();}
+function ovFab(s){OVFAB[s]=!OVFAB[s];render();}
 const OVR=60;                                            // 今天置中,前後各 60 天(照參考稿)
 const OVX=d=>50+dayDiff(today,d)/OVR*50;
 const OVin=d=>Math.abs(dayDiff(today,d))<=OVR;
@@ -5395,11 +5411,36 @@ function ovPts(l){
   return {sh:sh?{d:sh.d,est:!sh.typed}:null, ar:ar?{d:ar.d,est:ar.est}:null, sea, gap};
 }
 
+/* 一條面料自己的兩個里程碑。守門與整卡同源(span 超過 lead+14 就不是航程,是資料缺口)。 */
+function ovPtsFab(l,f){
+  const sh=railShip(l,f.id);
+  const fc=v3FabCodes(l), fb=v3Task(l,fc[fc.length-1]);
+  const sub=fb?fabSt(fb,f.id):{};
+  const ar=f.d?{d:f.d,est:!sub.arrivalDate}:null;
+  let sea=false,gap=false;
+  if(sh&&ar){ const span=dayDiff(sh.d,ar.d), lead=RAIL_LEAD(l);
+    if(span>=0&&span<=lead+14) sea=(sh.d<=today&&ar.d>today);
+    else if(ar.est&&sh.done) gap=true; }
+  return {sh:sh?{d:sh.d,est:!sh.typed}:null, ar, sea, gap};
+}
+/* 甘特要畫的列:拆過面料且展開時,母列下面接每條面料一列(風琴式) */
+function ovRows(list){
+  const out=[];
+  list.forEach(l=>{
+    const p=ovPts(l), fabs=hasFabs(l)?fabLaunch(l):[];
+    if(p.sh||p.ar||fabs.length) out.push({l,p,kind:"l",fabs});
+    if(fabs.length&&OVFAB[l.slug]) fabs.forEach(f=>{
+      const fp=ovPtsFab(l,f); if(fp.sh||fp.ar) out.push({l,p:fp,kind:"f",f});
+    });
+  });
+  return out;
+}
 function ovTimeline(list){
   const zh=LANG==="zh", T=(z,e)=>zh?z:e;
-  const rows=list.map(l=>({l,p:ovPts(l)})).filter(r=>r.p.sh||r.p.ar);
+  const rows=ovRows(list);
+  const nProd=rows.filter(r=>r.kind==="l").length;
   const hdr=`<div class="ov-ph"><span class="ov-pt">${T("總時間軸","Master timeline")}</span>
-    <span class="ov-ps">${T("今天置中，前後各 "+OVR+" 天","today centred, ±"+OVR+" days")}・${T("共 "+rows.length+" 個已排入時程的產品",rows.length+" scheduled")}</span></div>`;
+    <span class="ov-ps">${T("今天置中，前後各 "+OVR+" 天","today centred, ±"+OVR+" days")}・${T("共 "+nProd+" 個已排入時程的產品",nProd+" scheduled")}</span></div>`;
   if(!rows.length) return `<div class="panel ov-tp">${hdr}<div class="ov-empty">${T("目前沒有任何產品排入出貨／到貨時程","No ship or arrival dates scheduled yet")}</div></div>`;
   // 月份格線
   const ticks=[]; {const d=D(v3AddD(today,-OVR)); d.setDate(1); d.setMonth(d.getMonth()+1);
@@ -5423,7 +5464,9 @@ function ovTimeline(list){
       <div></div>
       <div class="ov-ax">${ticks.map(t=>`<span style="left:${OVcl(OVX(t))}%">${mon(t)}</span>`).join("")}
         <span class="ov-tdl" style="left:50%">${T("今天・","today ")}${OVmd(today)}</span></div>
-      <div class="ov-nc">${rows.map(r=>`<div class="ov-nr"><a href="#launch/${r.l.slug}" onclick="event.preventDefault();openL('${r.l.slug}')"><!--notx-->${esc(r.l.name)}<!--/notx--></a></div>`).join("")}</div>
+      <div class="ov-nc">${rows.map(r=>r.kind==="f"
+        ? `<div class="ov-nr ov-nf"><span class="ov-fbar"></span><!--notx-->${esc(r.f.n)}<!--/notx--></div>`
+        : `<div class="ov-nr">${r.fabs.length?`<button class="ov-fx${OVFAB[r.l.slug]?" on":""}" onclick="ovFab('${r.l.slug}')" aria-expanded="${!!OVFAB[r.l.slug]}" aria-label="${T("展開面料","show fabrics")}">${ICON.chev.replace('class="bvi"','class="ov-bvi"')}</button>`:`<span class="ov-fxsp"></span>`}<a href="#launch/${r.l.slug}" onclick="event.preventDefault();openL('${r.l.slug}')"><!--notx-->${esc(r.l.name)}<!--/notx--></a>${r.fabs.length?`<span class="ov-fn">${r.fabs.length}</span>`:""}</div>`).join("")}</div>
       <div class="ov-pc">
         ${ticks.map(t=>`<span class="ov-gl" style="left:${OVcl(OVX(t))}%"></span>`).join("")}
         <span class="ov-td" style="left:50%"></span>
@@ -5526,15 +5569,19 @@ function overviewBoard(){
   const RK={bad:3,dec:2,risk:1,ok:0,done:-1};
   /* 全域搜尋框(S.q)必須照舊生效 —— 舊的 portfolioBoard/portfolioOverview 都有吃,漏掉就是回歸 */
   const fq=l=>!S.q||l.name.toLowerCase().includes(S.q.toLowerCase())||(l.dri||"").toLowerCase().includes(S.q.toLowerCase());
+  /* 排序＝到貨日由近到遠(到貨＝可開賣,最近的最急)。沒有日期的排最後,同日期再退回風險排序。
+     這讓甘特的琥珀點形成一道由左到右的階梯,「先後順序」用看的就知道。 */
+  const ak=l=>{const a=MK_arr(l); return a?a.d:"9999-12-31";};
   const live=LAUNCHES.filter(l=>!l.complete&&fq(l)).slice().sort((a,b)=>{
+    const ka=ak(a), kb=ak(b); if(ka!==kb) return ka<kb?-1:1;
     const d=(RK[health(b)[1]]||0)-(RK[health(a)[1]]||0); if(d)return d;
     const fa=a.baselineTarget?floatDays(a):999, fb=b.baselineTarget?floatDays(b):999; return fa-fb; });
   const gaps=railRows().filter(r=>r.gap);
   const warn=gaps.length?`<div class="lx-warn" style="margin:0 0 14px">${gaps.map(r=>
     `<a class="lx-wa" onclick="openL('${r.l.slug}')">${ICO("warn","sm")}<!--notx-->${esc(r.lab)}<!--/notx--> ${T("已出貨 "+dayDiff(r.ship.d,today)+"d,到貨日還沒填","shipped "+dayDiff(r.ship.d,today)+"d ago, arrival unset")}</a>`).join("")}</div>`:"";
-  if(!live.length) return `<style>${OV_CSS}</style><div class="panel"><div class="empty-hero">${S.q?T("沒有符合「"+S.q+"」的產品","No products match “"+S.q+"”"):T("目前沒有進行中的產品","No products in flight")}</div></div>`;
-  return `<style>${LX_CSS}</style><style>${OV_CSS}</style>
-    <p class="sub" style="margin:-4px 0 16px">${T("總時間軸讓所有產品的出貨與到貨進度一次看到；下方列表依關注程度排序，點右側箭頭展開細節。","The master timeline shows every product's ship and arrival at once; the list below is sorted by how much it needs attention — the chevron expands it.")}</p>
+  if(!live.length) return `<div class="panel"><div class="empty-hero">${S.q?T("沒有符合「"+S.q+"」的產品","No products match “"+S.q+"”"):T("目前沒有進行中的產品","No products in flight")}</div></div>`;
+  return `
+    <p class="sub" style="margin:-4px 0 16px">${T("兩塊都依「到貨日由近到遠」排序 —— 最快能開賣的排最前。拆過面料的產品可在總時間軸展開，看每條面料各自的時程。","Both panels are ordered by arrival date, soonest first — what can go on sale next comes first. Fabric-split products expand on the master timeline to show each fabric's own dates.")}</p>
     ${warn}${ovTimeline(live)}${ovList(live)}${ovFinBlock()}`;
 }
 
