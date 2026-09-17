@@ -5029,6 +5029,515 @@ function homeDept(){
   ${groups.length?`<div class="pv-sum">${sum}</div>${prodHTML}`:empty}
   ${pendHTML}`;
 }
+
+/* ═══════════════ 總覽看板 — 總時間軸 ＋ 緊湊列表（2026-09-17） ═══════════════
+   取代 portfolio 視圖原本的「階段欄看板 ＋ 健康總覽表」。設計依據:Claude Design 畫布
+   project/Overview.dc.html(使用者提供的方向),色彩與字體沿用專案 token(DESIGN.md:9
+   identity-preservation 勝過 reference-matching)。
+   ⚠ 這段的 CSS 寫在 <style> 裡,會被 tx() 的字串替換掃到 —— 類名一律避開 ZH 字典鍵
+     (open/done/late/low/high 等),故統一用 ov- / lx- 前綴。改名前先用 zhText() 自測。
+   portfolioBoard()/cardHTML() 保留不動:homeCEO() 與 viewCampaign() 仍在用。 */
+/* ===== 共用：兩個方案都要的「球在誰手上 / 卡在誰 / 停滯幾天」引擎 =====
+   全部用 index.html 既有的函式推導，沒有新資料來源。 */
+const isoL=dt=>dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0");
+const MK_open=l=>(l.tasks||[]).filter(t=>t.st!=="x");
+const MK_live=l=>MK_open(l).filter(t=>!taskLocked(l,t));          // 已解鎖、還沒完成 = 現在「可以動」的步驟
+// 「等船」不是人在拖：帶 arrival 旗標的節點（FB1 到貨日）等的是物流,不該算進停滯天數
+const MK_human=(l,t)=>!((V3MAP[t.code]||{}).arrival);
+const MK_run =l=>MK_live(l).filter(t=>t.st==="p");                 // 真的有人在動
+const MK_blk =l=>MK_open(l).filter(t=>t.st==="b");                 // 受阻
+
+// 這一步「等了幾天」：進行中 → 從開工日算；已解鎖未動 → 從最後一個前置完成日算
+function MK_waitDays(l,t){
+  const vn=t.code&&V3MAP[t.code];
+  const from=(t.st==="p"&&t.startAt)?t.startAt:(vn?v3StartClock(l,vn):null);
+  return from?Math.max(0,dayDiff(from,today)):0;
+}
+// 整張卡的停滯天數 = 可動步驟裡等最久的那一個
+function MK_stall(l){ let w=0,who=null; MK_live(l).filter(t=>MK_human(l,t)).forEach(t=>{const d=MK_waitDays(l,t); if(d>w){w=d;who=t;}}); return {d:w,t:who}; }
+
+// 球在誰手上：把「關鍵路徑」與「並行」合成一份名冊
+function MK_roster(l){
+  const m={}, ct=v3CpNow(l);
+  MK_live(l).forEach(t=>{ const vn=V3MAP[t.code]||{};
+    v3Owners(v3Own(vn)||t.assignee||"").forEach(p=>{
+      const o=m[p]||(m[p]={p,n:0,run:0,wait:0}); o.n++; if(t.st==="p")o.run++; else o.wait=Math.max(o.wait,MK_waitDays(l,t)); }); });
+  MK_blk(l).forEach(t=>{ const vn=V3MAP[t.code]||{};
+    v3Owners(v3Own(vn)||t.assignee||"").forEach(p=>{ const o=m[p]||(m[p]={p,n:0,run:0,wait:0}); o.blk=(o.blk||0)+1; }); });
+  const cpOwn=ct?v3Owners(v3Own(V3MAP[ct.code]||{})):[];
+  cpOwn.forEach(p=>{ if(!m[p])m[p]={p,n:0,run:0,wait:0}; m[p].cp=true; });
+  return Object.values(m).sort((a,b)=>(!!b.cp-!!a.cp)||(b.run-a.run)||(b.n-a.n));
+}
+// 一句話：進度卡在誰
+function MK_blame(l){
+  const zh=LANG==="zh", ct=v3CpNow(l);
+  if(l.complete) return {cls:"done", txt:zh?"已完成":"complete"};
+  if(!isSubmitted(l)) return {cls:"none", txt:zh?"需求表尚未送出 — 時程還沒起算":"intake not submitted"};
+  const dedup=(nm,ow)=>(ow&&ow!=="—"&&nm.indexOf(ow)>=0)?nm:(nm+" · "+(ow||"—"));
+  const b=MK_blk(l)[0];
+  if(b) return {cls:"bad", txt:(zh?"受阻：":"blocked: ")+dedup(flowTaskName(b),v3Own(V3MAP[b.code]||{}))};
+  const g=MK_live(l).find(t=>(V3MAP[t.code]||{}).ben);
+  if(g){ const gn=flowTaskName(g), dup=gn.indexOf("Ben")>=0;   // 任務名本身就叫「Ben 決策」時不要再冠一次
+    return {cls:"dec", txt:(dup?(zh?"等 ":"awaiting "):(zh?"等 Ben 決策 · ":"awaiting Ben · "))+gn+" · "+(zh?"已 ":"")+MK_waitDays(l,g)+"d"}; }
+  const st=MK_stall(l);
+  if(!MK_run(l).filter(t=>MK_human(l,t)).length&&st.t) return {cls:"bad", txt:(zh?"無人動工：":"nobody on it: ")+dedup(flowTaskName(st.t),v3Own(V3MAP[st.t.code]||{}))+" · "+(zh?"已解鎖 ":"unlocked ")+st.d+"d"};
+  const c=ct?(v3Own(V3MAP[ct.code]||{})||"—"):"—";
+  if(ct&&!MK_human(l,ct)) return {cls:"ok", txt:(zh?"在途：":"in transit: ")+dedup(flowTaskName(ct),c)+(zh?" · 等到貨":"")};
+  return {cls:"ok", txt:(zh?"進行中：":"running: ")+(ct?dedup(flowTaskName(ct),c):"—")+(st.d?" · "+(zh?"已 ":"")+st.d+"d":"")};
+}
+const MK_prog=l=>{const d=(l.tasks||[]).filter(t=>t.st==="x").length,t=(l.tasks||[]).length||1;return{d,t,pct:Math.round(d/t*100)};};
+const MK_arr=l=>{const a=v3Arrival(l); return a?{d:a,est:false}:(v3EtaBulk(l)?{d:v3EtaBulk(l),est:true}:null);};
+const MK_initial=p=>String(p||"?").trim().slice(0,1);
+
+/* ============ 頂部總時間軸(物流軌) ============
+   今天永遠釘在正中央,視窗隨日期自動推進。節點兩種:
+     🏭 大貨完成(P3 完成日 ＝ 可出貨那天。資料模型沒有獨立「出貨日」欄位 — index.html:5207 明示只追兩個日期)
+     📦 到貨日  (FB1 實填 v3Arrival,否則 v3EtaBulk 推估)
+   🏭→📦 之間只有在「到貨日確實是從大貨完成日推出來的」時候才畫成航程;
+   若大貨早已完成、到貨日卻仍是「今天+lead」的佔位推估(index.html:1663 的夾今天規則),
+   那不是航程而是資料缺口 — 改用 ⚠ 明示,不畫假線。 */
+
+const RAIL_LEAD=l=>{const fc=(l&&typeof v3FabCodes==="function")?v3FabCodes(l):["P3","FB1"];return ((V3MAP[fc[1]]||{}).days)||31;};   // 海運30＋入庫1
+// 「大貨完成日」＝可出貨那天:實際完成日 → 開工＋工期推估 → 無
+function railShip(l,fid){
+  // 2026-09-16 起 P3(生產節點)帶真正的手填「出貨日」shipDate(commit dfc62bb/09b8705,原 sampleDate 併入)。
+  // 手填值優先,沒填才退回完成日 / 開工＋工期的推估。節點代碼走 v3FabCodes 以同時支援 launch 與 update 模板。
+  const fc=(typeof v3FabCodes==="function")?v3FabCodes(l):["P3","FB1"];
+  const p3=v3Task(l,fc[0]); if(!p3)return null;
+  const s=fid?fabSt(p3,fid):p3;
+  const days=(s.days!=null)?s.days:(((V3MAP[fc[0]]||{}).days)||30);
+  const typed=s.shipDate||"";
+  const d=typed||s.doneAt||(s.startAt?v3AddD(s.startAt,days):null);
+  return d?{d, done:!!(typed||(s.st==="x"&&s.doneAt)), typed:!!typed}:null;
+}
+function railRows(){
+  const out=[];
+  LAUNCHES.filter(l=>!l.complete).forEach(l=>{
+    if(hasFabs(l)){ const fc=(typeof v3FabCodes==="function")?v3FabCodes(l):["P3","FB1"];
+      const fin=v3FabFin(l)||{}, fb=v3Task(l,fc[1]);
+      fabsOf(l).forEach(f=>{ const sh=railShip(l,f.id), ad=(fin[f.id]||{})[fc[1]]||"", sub=fabSt(fb,f.id);
+        if(sh||ad) out.push({l,lab:l.name+" · "+f.n,ship:sh,arr:ad?{d:ad,est:!sub.arrivalDate}:null}); });
+    } else { const sh=railShip(l), a=MK_arr(l); if(sh||a) out.push({l,lab:l.name,ship:sh,arr:a}); }
+  });
+  // 航程真偽:到貨日必須看起來真的是從大貨完成日推出來的(容差 ±14d),否則就是佔位推估
+  const lead=RAIL_LEAD(out[0]&&out[0].l);
+  out.forEach(r=>{ r.sail=false; r.gap=false;
+    if(!r.ship||!r.arr)return;
+    const span=dayDiff(r.ship.d,r.arr.d);
+    if(span>=0&&span<=lead+14) r.sail=true;
+    else if(r.arr.est&&r.ship.done) r.gap=true;   // 大貨早完成、到貨日卻沒填 → 資料缺口,不是航程
+  });
+  return out;
+}
+
+/* ═══════════════ 總覽看板 v2 ═══════════════
+   v1 的三個結構性錯誤,這一版逐一修掉:
+   ① 兩把尺 → 共用一把 MKX。今天固定在軌道欄的 50%,上下每一條軸、每一條 TODAY 線都用它。
+   ② bar 填充是「任務完成率」卻畫在日期軸上(完成一件小事就往右跳 ~7 天)→ 軸上只放日期,
+      完成率改用右欄的 bullet chart(含「照計畫今天該到哪」的刻度)。
+   ③ hover 揭露撐開版面(+28px,推開下方每一列)→ 改成點擊展開(可駐留、觸控可用、鍵盤可達);
+      hover 只做看得見的底色回饋,不動版面。 */
+
+
+/* ── 完成度 bullet:完成率 vs「照時程今天該完成多少」──
+   v1 把完成率畫在日期軸上是錯的;它該有自己的座標系。 */
+function MKbullet(l){
+  const pr=MK_prog(l);
+  const s=(l.history&&l.history[0]&&l.history[0].start)||null, e=isSubmitted(l)?projLaunchDate(l):null;
+  let due=null;                                  // 照計畫,今天應該完成幾 %
+  if(s&&e&&dayDiff(s,e)>0) due=Math.max(0,Math.min(100,Math.round(dayDiff(s,today)/dayDiff(s,e)*100)));
+  return {...pr, due};
+}
+/* 已完成的卡:欄位換一套 —— 「還要多久」換成「花了多久」 */
+function MKdone(l){
+  const h=l.history||[], s=h[0]&&h[0].start, e=h.length&&h[h.length-1].end;
+  const dts=(l.tasks||[]).map(t=>t.doneAt).filter(Boolean).sort();
+  const arr=v3Arrival(l)||"";
+  const base=l.baselineTarget||l.target||"";
+  return {name:l.name, slug:l.slug, sale:arr||e||"", end:e||"", start:s||"",
+          cycle:(dts.length>1)?dayDiff(dts[0],dts[dts.length-1]):((s&&e)?dayDiff(s,e):null),
+          vs:(base&&e)?dayDiff(base,e):null, base,
+          tasks:(l.tasks||[]).filter(t=>t.st==="x").length, total:(l.tasks||[]).length};
+}
+
+/* ══ BV 線性圖示組 ══
+   .impeccable/briefs/overview-redesign.md 已確認的決策:emoji → 自製 inline-SVG 線性圖示
+   (16px box · 1.5px stroke · currentColor · 幾何收尾)。emoji 在 11px 下是一團彩色像素,
+   而且 📦 的棕色是 token 表裡不存在的第二個暖色,會跟 --accent 搶信號位(PRODUCT.md 反參考:emoji 過量)。
+   決策菱形 ◆ 照 brief 畫成真的幾何字形,不用文字 glyph。 */
+const BVI=(p,o)=>`<svg class="bvi" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"${o||""}>${p}</svg>`;
+const ICON={
+  // 出貨:箭頭離開界線 |→
+  ship:  BVI('<path d="M2.6 2.4v11.2"/><path d="M5.6 8h7.8"/><path d="M10.6 5.2 13.4 8l-2.8 2.8"/>'),
+  // 到貨:箭頭進入界線 →|
+  arrive:BVI('<path d="M13.4 2.4v11.2"/><path d="M2.6 8h7.8"/><path d="M7.6 5.2 10.4 8l-2.8 2.8"/>'),
+  // 上市:菱形輪廓(目標/里程碑)
+  launch:BVI('<path d="M8 2.2 13.8 8 8 13.8 2.2 8z"/>'),
+  // 決策:實心菱形(brief 指定保留 ◆,畫成真幾何)
+  gate:  BVI('<path d="M8 2.2 13.8 8 8 13.8 2.2 8z" fill="currentColor" stroke="none"/>'),
+  // 警示:三角＋驚嘆
+  warn:  BVI('<path d="M8 2.6 14.6 13.4H1.4z"/><path d="M8 6.6v3.1"/><circle cx="8" cy="11.6" r=".75" fill="currentColor" stroke="none"/>'),
+  // 等待:時鐘
+  clock: BVI('<circle cx="8" cy="8" r="5.8"/><path d="M8 4.6V8l2.4 1.7"/>'),
+  // 面料:堆疊
+  layers:BVI('<path d="M8 1.9 14.4 5 8 8.1 1.6 5z"/><path d="m1.6 8 6.4 3.1L14.4 8"/><path d="m1.6 11 6.4 3.1 6.4-3.1"/>'),
+  // 無人動工:空心圈加斜線
+  chev:  BVI('<polyline points="4.5 6.5 8 10 11.5 6.5"/>'),
+  idle:  BVI('<circle cx="8" cy="8" r="5.8"/><path d="m4.6 11.4 6.8-6.8"/>'),
+  // 進行中:實心三角(播放)
+  run:   BVI('<path d="M5.4 3.4 12.2 8l-6.8 4.6z" fill="currentColor" stroke="none"/>'),
+};
+const ICO=(k,cls,style)=>`<span class="bvi-w${cls?" "+cls:""}"${style?` style="${style}"`:""}>${ICON[k]||""}</span>`;
+
+/* MK3_blame:回傳「零件」而不是一整條字串 —— 才能做 DESIGN.md 的混合強調句
+   (同一句裡關鍵字 --text w600、其餘 --dim/--faint)。判準沿用 MK_blame,不改語意。 */
+function MK3_blame(l){
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  const own=t=>v3Own(V3MAP[t.code]||{})||"";
+  const nm =t=>flowTaskName(t);
+  if(l.complete)   return {tone:"fin", ic:"launch", tag:T("已完成","COMPLETE")};
+  if(!isSubmitted(l)) return {tone:"nil", ic:"idle", tag:T("未起算","NOT STARTED"),
+    lead:T("需求表尚未送出","intake form not submitted"), tail:T("時程還沒起算","no schedule yet")};
+  const b=MK_blk(l)[0];
+  if(b) return {tone:"bad", ic:"warn", tag:T("受阻","BLOCKED"),
+    lead:T("受阻於","blocked on"), step:nm(b), who:own(b)};
+  const g=MK_live(l).find(t=>(V3MAP[t.code]||{}).ben);
+  if(g) return {tone:"dec", ic:"gate", tag:T("等決策","DECISION"),
+    lead:T("等","waiting on"), step:nm(g), who:(nm(g).indexOf("Ben")>=0?"":"Ben"), days:MK_waitDays(l,g)};
+  const st=MK_stall(l), running=MK_run(l).filter(t=>MK_human(l,t));
+  if(!running.length&&st.t) return {tone:"bad", ic:"idle", tag:T("無人動工","NOBODY ON IT"),
+    lead:T("等","waiting on"), step:nm(st.t), who:own(st.t), days:st.d, dl:T("已解鎖","unlocked")};
+  const ct=v3CpNow(l);
+  if(ct&&!MK_human(l,ct)) return {tone:"ok", ic:"arrive", tag:T("在途","IN TRANSIT"),
+    lead:T("等","waiting on"), step:nm(ct), who:own(ct), tail:T("等到貨,非人為","at sea — not a person")};
+  return {tone:"ok", ic:"run", tag:T("進行中","RUNNING"),
+    lead:T("正在做","on"), step:ct?nm(ct):"—", who:ct?own(ct):"", days:st.d};
+}
+const MK3_TONE={bad:"var(--red)",dec:"var(--purple)",ok:"var(--green)",nil:"var(--faint)",fin:"var(--green)"};
+/* 組句:lead 沉、step/who 亮、天數用 mono 中間色 —— 一句話裡三個層次 */
+function MK3_sentence(x){
+  const zh=LANG==="zh", p=[];
+  if(x.lead) p.push(`<em>${esc(x.lead)}</em>`);
+  if(x.who)  p.push(`<b><!--notx-->${esc(x.who)}<!--/notx--></b>${zh&&x.step?"<em> 的</em>":""}`);
+  if(x.step&&x.step!=="—") p.push(`<b>${esc(x.step)}</b>`);
+  if(x.days) p.push(`<span class="num">· ${x.dl?esc(x.dl)+" ":(zh?"已 ":"")}${x.days}d</span>`);
+  if(x.tail) p.push(`<em>· ${esc(x.tail)}</em>`);
+  return p.join(" ");
+}
+
+/* 只保留總覽用到的規則(其餘 v4 樣式未進版) */
+const LX_CSS=`
+.lx-fin{margin:16px 0 0 40px;border-top:1px solid var(--line);padding-top:12px}
+.lx-fsum{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:var(--fs-meta);color:var(--dim);cursor:pointer;background:none;border:none;font-family:inherit;padding:3px 0;width:100%;text-align:left;border-radius:var(--r-xs)}
+.lx-fsum:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.lx-fsum b{color:var(--text);font-family:var(--font-head);font-size:var(--fs-sm);font-weight:700}
+.lx-fg{display:grid;grid-template-columns:repeat(auto-fill,minmax(246px,290px));justify-content:start;gap:10px;margin-top:12px}
+.lx-fc{border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 13px;background:var(--panel2)}
+.lx-fn{font-family:var(--font-head);font-size:var(--fs-sm);font-weight:700;margin-bottom:6px}
+.lx-fn a{color:var(--text);text-decoration:none;border-radius:var(--r-xs)}
+.lx-fn a:hover{color:var(--accent)}
+.lx-fn a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.lx-fr{display:flex;justify-content:space-between;gap:12px;padding:4px 0;font-size:var(--fs-caption)}
+.lx-fr>span:first-child{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.07em;color:var(--dim)}
+.lx-fr b{color:var(--text);font-family:var(--font-mono);font-weight:500}
+.lx-fr b.ovd{color:var(--red)}.lx-fr b.ahd{color:var(--green)}
+.lx-warn{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 12px 40px}
+.lx-wa{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-caption);color:var(--amber);border:1px solid color-mix(in srgb,var(--amber) 34%,transparent);border-radius:var(--r-xs);padding:3px 9px;cursor:pointer;background:color-mix(in srgb,var(--amber) 6%,transparent)}
+`;
+
+/* 依 Claude Design 畫布 project/Overview.dc.html(緊湊版)重做:
+   上＝總時間軸甘特(共用 ±60 天刻度、今天置中)、下＝56px 八欄緊湊列表(可展開四欄明細)。
+   色彩/字體沿用專案 token(DESIGN.md:9 identity-preservation 勝過 reference-matching):
+   出貨＝--blue、到貨＝--amber、今天＝--accent(品牌信號色)、線=實心在海上/虛線未出貨。
+   類名前綴 ov- —— 避開 ZH 字典鍵(CSS 在 <style> 內會被 tx() 字串替換掃到)。 */
+const OV_CSS=`
+.ov-bvi{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+/* ── 總時間軸 ── */
+.ov-tp{padding:20px 26px 18px}
+.ov-ph{display:flex;align-items:baseline;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+.ov-pt{font-family:var(--font-head);font-weight:700;font-size:var(--fs-sm);color:var(--text)}
+.ov-ps{font-size:var(--fs-meta);color:var(--dim)}
+.ov-plot{display:grid;grid-template-columns:116px 1fr;column-gap:16px;grid-template-rows:20px auto}
+.ov-ax{position:relative;height:20px}
+.ov-ax span{position:absolute;top:0;transform:translateX(-50%);font-family:var(--font-mono);font-size:var(--fs-caption);color:var(--dim);white-space:nowrap}
+.ov-ax .ov-tdl{color:var(--accent);font-weight:700}
+.ov-nc{display:flex;flex-direction:column}
+.ov-nr{height:38px;display:flex;align-items:center;font-size:var(--fs-meta);font-weight:600;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-nr a{color:inherit;text-decoration:none;border-radius:var(--r-xs)}
+.ov-nr a:hover{color:var(--accent)}
+.ov-nr a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ov-pc{position:relative}
+.ov-gl{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
+.ov-td{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);z-index:1;border-radius:1px}
+.ov-pr{position:relative;height:38px}
+.ov-dt em{}
+.ov-pl{position:absolute;top:50%;height:2px;transform:translateY(-50%);border-radius:1px}
+.ov-pl.sea{background:var(--amber)}
+.ov-pl.est{background-image:linear-gradient(to right,var(--line) 0 5px,transparent 5px 10px);background-size:10px 2px;background-repeat:repeat-x}
+.ov-pd{position:absolute;top:50%;width:9px;height:9px;border-radius:50%;transform:translate(-50%,-50%);z-index:2;box-sizing:border-box}
+.ov-pd.s{background:var(--blue)}
+.ov-pd.s.ho{background:var(--panel);border:2px solid var(--blue)}
+.ov-pd.a{background:var(--amber)}
+.ov-pd.a.ho{background:var(--panel);border:2px solid var(--amber)}
+.ov-pd.a.hist{background:var(--green)}
+.ov-dt{position:absolute;font-family:var(--font-mono);font-size:var(--fs-caption);color:var(--dim);white-space:nowrap}
+.ov-dt.l{transform:translateX(8px)}
+.ov-dt.r{transform:translateX(calc(-100% - 8px))}
+.ov-dt em{font-style:normal;opacity:.72;margin-left:5px;font-family:var(--font-head)}
+.ov-dt.up{top:-1px}.ov-dt.dn{top:21px}
+.ov-edge{position:absolute;top:50%;transform:translateY(-50%);font-size:var(--fs-caption);color:var(--dim);z-index:3}
+.ov-lg{display:flex;flex-wrap:wrap;gap:18px;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
+.ov-li{display:flex;align-items:center;gap:7px;font-size:var(--fs-caption);color:var(--dim)}
+.ov-ld{width:8px;height:8px;border-radius:50%;flex:none;box-sizing:border-box}
+.ov-ll{width:20px;height:2px;flex:none;border-radius:1px}
+.ov-lt{width:2px;height:12px;background:var(--accent);flex:none;border-radius:1px}
+.ov-empty{padding:26px 0;text-align:center;font-size:var(--fs-meta);color:var(--dim)}
+/* ── 緊湊列表 ── */
+.ov-lp{margin-top:20px;padding:0}
+.ov-hr{display:flex;align-items:center;gap:16px;padding:14px 20px 9px;font-family:var(--font-mono);
+  font-size:var(--fs-caption);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:600;border-bottom:1px solid var(--line)}
+.ov-row{border-bottom:1px solid var(--line)}
+.ov-row:last-child{border-bottom:none}
+.ov-rm{display:flex;align-items:center;gap:16px;padding:0 20px;min-height:56px;cursor:pointer;list-style:none;transition:background .16s}
+.ov-rm::-webkit-details-marker{display:none}
+.ov-rm:hover{background:var(--panel2)}
+.ov-rm:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.ov-row[open] .ov-rm{background:var(--panel2)}
+.ov-c{min-width:0}
+.ov-id{display:flex;align-items:center;gap:10px;min-width:0}
+.ov-av{width:26px;height:26px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:var(--fs-caption);font-weight:700;flex:none}
+.ov-it{display:flex;flex-direction:column;gap:1px;min-width:0}
+.ov-nm{font-family:var(--font-head);font-weight:700;font-size:var(--fs-sm);color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none;border-radius:var(--r-xs)}
+.ov-nm:hover{color:var(--accent)}
+.ov-nm:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ov-st{font-size:var(--fs-caption);color:var(--dim)}
+.ov-bg{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-pill);
+  font-size:var(--fs-caption);font-weight:600;white-space:nowrap}
+.ov-bd{width:5px;height:5px;border-radius:50%;flex:none}
+/* 迷你時程 */
+.ov-ms{display:flex;flex-direction:column;gap:4px}
+.ov-mt{display:flex;align-items:center;width:150px}
+.ov-md{width:7px;height:7px;border-radius:50%;flex:none;box-sizing:border-box}
+.ov-md.s{background:var(--blue)}.ov-md.s.ho{background:var(--panel2);border:1.5px solid var(--blue)}
+.ov-md.a{background:var(--amber)}.ov-md.a.ho{background:var(--panel2);border:1.5px solid var(--amber)}
+.ov-md.a.hist{background:var(--green)}
+.ov-ml{flex:1 1 auto;height:2px;margin:0 5px;border-radius:1px}
+.ov-ml.sea{background:var(--amber)}
+.ov-ml.est{background-image:linear-gradient(to right,var(--line) 0 4px,transparent 4px 8px);background-size:8px 2px}
+.ov-mdt{display:flex;justify-content:space-between;width:150px;font-family:var(--font-mono);font-size:var(--fs-caption);color:var(--dim)}
+.ov-plc{font-size:var(--fs-meta);color:var(--dim)}
+/* 步驟 / chip / 餘裕 / 進度 */
+.ov-sp{display:flex;align-items:center;gap:7px;min-width:0}
+.ov-sp .ov-bvi{color:var(--blue)}
+.ov-spt{font-size:var(--fs-meta);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-chips{display:flex;gap:6px;flex-wrap:wrap}
+.ov-ch{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-caption);color:var(--dim);
+  background:var(--panel2);border:1px solid var(--line);padding:3px 9px;border-radius:var(--r-pill);white-space:nowrap}
+.ov-cd{width:5px;height:5px;border-radius:50%;flex:none}
+.ov-bp{font-size:var(--fs-caption);color:var(--dim);background:var(--panel2);border:1px solid var(--line);
+  padding:3px 10px;border-radius:var(--r-pill);white-space:nowrap;font-family:var(--font-mono)}
+.ov-bp.ok{color:var(--green);border-color:rgba(74,222,128,.34)}
+.ov-bp.bad{color:var(--red);border-color:rgba(248,113,113,.4)}
+.ov-pg{display:flex;flex-direction:column;gap:5px}
+.ov-pb{width:96px;height:5px;border-radius:var(--r-pill);background:var(--void);border:1px solid var(--line);position:relative}
+.ov-pf{height:100%;border-radius:var(--r-pill);background:var(--blue)}
+.ov-pdue{position:absolute;top:-4px;width:2px;height:11px;background:var(--accent);border-radius:1px}
+.ov-pt2{font-family:var(--font-mono);font-size:var(--fs-caption);color:var(--dim)}
+.ov-xb{width:28px;height:28px;border-radius:var(--r-sm);background:transparent;border:1px solid transparent;
+  color:var(--dim);display:flex;align-items:center;justify-content:center;flex:none;transition:background .16s,color .16s,border-color .16s}
+.ov-rm:hover .ov-xb{background:var(--panel);border-color:var(--line);color:var(--text)}
+.ov-row[open] .ov-xb{transform:rotate(180deg)}
+/* 展開明細:四欄 */
+.ov-xd{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:24px;padding:16px 20px 18px;
+  background:var(--panel2);border-top:1px solid var(--line)}
+.ov-xc{display:flex;flex-direction:column;gap:8px;min-width:0}
+.ov-xl{font-family:var(--font-mono);font-size:var(--fs-caption);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:600}
+.ov-xr{margin:0;font-size:var(--fs-meta);color:var(--dim);line-height:1.55}
+.ov-xr b{color:var(--text);font-weight:600}
+.ov-xr em{font-style:normal;opacity:.85}
+.ov-xt{display:flex;flex-direction:column;gap:6px}
+.ov-xdt{display:flex;justify-content:space-between;gap:10px;font-family:var(--font-mono);font-size:var(--fs-meta);color:var(--text)}
+.ov-xdt em{font-style:normal;font-family:var(--font-head);font-size:var(--fs-caption);color:var(--dim);margin-left:5px}
+.ov-xtr{display:flex;align-items:center}
+.ov-xlb{display:flex;justify-content:space-between;gap:10px;font-size:var(--fs-caption);color:var(--dim)}
+@media (max-width:1280px){
+  .ov-hr{display:none}
+  .ov-rm{flex-wrap:wrap;padding:12px 16px;gap:12px}
+  .ov-rm>.ov-c{flex:1 1 auto!important}
+  .ov-plot{grid-template-columns:92px 1fr;column-gap:10px}
+}
+`;
+
+const OVOPEN={}; let OVFIN=false;
+function ovTog(s,el){OVOPEN[s]=el?el.open:!OVOPEN[s];}
+function ovFin(){OVFIN=!OVFIN;render();}
+const OVR=60;                                            // 今天置中,前後各 60 天(照參考稿)
+const OVX=d=>50+dayDiff(today,d)/OVR*50;
+const OVin=d=>Math.abs(dayDiff(today,d))<=OVR;
+const OVcl=x=>Math.max(0,Math.min(100,x));
+const OVd=(d,zh)=>{const n=dayDiff(today,d);return n===0?(zh?"今天":"today"):n>0?(zh?n+" 天後":n+"d"):(zh?(-n)+" 天前":(-n)+"d ago");};
+const OVmd=d=>{const x=D(d);return (x.getMonth()+1)+"/"+x.getDate();};
+const OVTONE={bad:["var(--red)","rgba(248,113,113,.13)"],dec:["var(--purple)","rgba(192,132,252,.13)"],
+  ok:["var(--green)","rgba(74,222,128,.12)"],nil:["var(--dim)","rgba(173,182,198,.10)"],fin:["var(--green)","rgba(74,222,128,.12)"]};
+/* 一張卡的兩個里程碑:出貨(P3 shipDate/推估)與到貨(FB1 arrivalDate/推估) */
+function ovPts(l){
+  const sh=railShip(l), ar=MK_arr(l);
+  /* 「正在海上」必須是真的航程:到貨日看起來確實是從出貨日推出來的(容差 lead+14)。
+     大貨早就出了、到貨日卻還是「今天＋lead」的佔位推估時,span 會長達數月 ——
+     那是資料缺口不是航程,畫成實線等於說謊(右上角的 ⚠ 才是正確表達)。 */
+  let sea=false, gap=false;
+  if(sh&&ar){ const span=dayDiff(sh.d,ar.d), lead=RAIL_LEAD(l);
+    if(span>=0&&span<=lead+14) sea=(sh.d<=today&&ar.d>today);
+    else if(ar.est&&sh.done) gap=true; }
+  return {sh:sh?{d:sh.d,est:!sh.typed}:null, ar:ar?{d:ar.d,est:ar.est}:null, sea, gap};
+}
+
+function ovTimeline(list){
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  const rows=list.map(l=>({l,p:ovPts(l)})).filter(r=>r.p.sh||r.p.ar);
+  const hdr=`<div class="ov-ph"><span class="ov-pt">${T("總時間軸","Master timeline")}</span>
+    <span class="ov-ps">${T("今天置中，前後各 "+OVR+" 天","today centred, ±"+OVR+" days")}・${T("共 "+rows.length+" 個已排入時程的產品",rows.length+" scheduled")}</span></div>`;
+  if(!rows.length) return `<div class="panel ov-tp">${hdr}<div class="ov-empty">${T("目前沒有任何產品排入出貨／到貨時程","No ship or arrival dates scheduled yet")}</div></div>`;
+  // 月份格線
+  const ticks=[]; {const d=D(v3AddD(today,-OVR)); d.setDate(1); d.setMonth(d.getMonth()+1);
+    while(dayDiff(today,isoL(d))<=OVR){ ticks.push(isoL(d)); d.setMonth(d.getMonth()+1); } }
+  const mon=t=>zh?(D(t).getMonth()+1)+"月":D(t).toLocaleDateString("en-US",{month:"short"});
+  const plotRow=r=>{
+    const {sh,ar,sea,gap}=r.p, o=[];
+    if(sh&&ar){ const a=OVcl(OVX(sh.d)), b=OVcl(OVX(ar.d));
+      o.push(`<span class="ov-pl ${sea?"sea":"est"}" style="left:${Math.min(a,b)}%;width:${Math.abs(b-a)}%"${gap?` title="${T("已出貨但到貨日未填 —— 這條不是實際航程","shipped but arrival unset — not a real voyage")}"`:""}></span>`); }
+    if(sh){ const x=OVcl(OVX(sh.d));
+      o.push(`<span class="ov-pd s${sh.est?" ho":""}" style="left:${x}%" title="${T("出貨日","ship")} ${fmt(sh.d)}"></span>`);
+      if(OVin(sh.d))o.push(`<span class="ov-dt up l" style="left:${x}%">${sh.est?"~":""}${OVmd(sh.d)}<em>${OVd(sh.d,zh)}</em></span>`); }
+    if(ar){ const x=OVcl(OVX(ar.d));
+      o.push(`<span class="ov-pd a${ar.est?" ho":""}${ar.d<today?" hist":""}" style="left:${x}%" title="${T("到貨・首波開賣","arrival")} ${fmt(ar.d)}"></span>`);
+      if(OVin(ar.d))o.push(`<span class="ov-dt dn r" style="left:${x}%">${ar.est?"~":""}${OVmd(ar.d)}<em>${OVd(ar.d,zh)}</em></span>`); }
+    const off=[sh,ar].filter(Boolean).some(p=>!OVin(p.d));
+    if(off)o.push(`<span class="ov-edge" style="${[sh,ar].some(p=>p&&dayDiff(today,p.d)>OVR)?"right:-11px":"left:-11px"}" title="${T("超出 ±"+OVR+" 天視窗","outside the ±"+OVR+"d window")}">${[sh,ar].some(p=>p&&dayDiff(today,p.d)>OVR)?"▸":"◂"}</span>`);
+    return `<div class="ov-pr">${o.join("")}</div>`;};
+  return `<div class="panel ov-tp">${hdr}
+    <div class="ov-plot">
+      <div></div>
+      <div class="ov-ax">${ticks.map(t=>`<span style="left:${OVcl(OVX(t))}%">${mon(t)}</span>`).join("")}
+        <span class="ov-tdl" style="left:50%">${T("今天・","today ")}${OVmd(today)}</span></div>
+      <div class="ov-nc">${rows.map(r=>`<div class="ov-nr"><a href="#launch/${r.l.slug}" onclick="event.preventDefault();openL('${r.l.slug}')"><!--notx-->${esc(r.l.name)}<!--/notx--></a></div>`).join("")}</div>
+      <div class="ov-pc">
+        ${ticks.map(t=>`<span class="ov-gl" style="left:${OVcl(OVX(t))}%"></span>`).join("")}
+        <span class="ov-td" style="left:50%"></span>
+        ${rows.map(plotRow).join("")}</div>
+    </div>
+    <div class="ov-lg">
+      <span class="ov-li"><span class="ov-ld" style="background:var(--blue)"></span>${T("出貨日（實心＝已確認）","Ship (filled = confirmed)")}</span>
+      <span class="ov-li"><span class="ov-ld" style="background:var(--panel);border:2px solid var(--blue)"></span>${T("出貨日（空心＝推估）","Ship (hollow = estimate)")}</span>
+      <span class="ov-li"><span class="ov-ld" style="background:var(--amber)"></span>${T("到貨・首波開賣日","Arrival · on sale")}</span>
+      <span class="ov-li"><span class="ov-ll" style="background:var(--amber)"></span>${T("正在海上運送中","At sea now")}</span>
+      <span class="ov-li"><span class="ov-ll" style="background-image:linear-gradient(to right,var(--line) 0 5px,transparent 5px 10px);background-size:10px 2px"></span>${T("預估時程（尚未出貨，或到貨日未填）","Estimated (not shipped, or arrival unset)")}</span>
+      <span class="ov-li"><span class="ov-lt"></span>${T("今天","Today")}</span>
+    </div></div>`;
+}
+
+const OVW={id:260,st:96,sc:200,cp:190,tk:140,fl:100,pg:110,x:28};
+function ovRow(l){
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  const x=MK3_blame(l), bl=MKbullet(l), {sh,ar,sea,gap}=ovPts(l), ct=v3CpNow(l), stl=MK_stall(l);
+  const run=MK_run(l).length, idle=MK_live(l).length-run, blk=MK_blk(l).length;
+  const fl=l.baselineTarget?floatDays(l):null, op=!!OVOPEN[l.slug], tone=OVTONE[x.tone]||OVTONE.nil;
+  const W=(k,extra)=>`style="flex:0 0 ${OVW[k]}px;${extra||""}"`;
+  const mini=(sh||ar)?`<div class="ov-mt"${gap?` title="${T("已出貨但到貨日未填","shipped but arrival unset")}"`:""}>
+      <span class="ov-md s${(!sh||sh.est)?" ho":""}"></span>
+      <span class="ov-ml ${sea?"sea":"est"}"></span>
+      <span class="ov-md a${(!ar||ar.est)?" ho":""}${ar&&ar.d<today?" hist":""}"></span></div>
+    <div class="ov-mdt"><span>${sh?(sh.est?"~":"")+OVmd(sh.d):"—"}</span><span>${ar?(ar.est?"~":"")+OVmd(ar.d):"—"}</span></div>`
+    :`<span class="ov-plc">${T("尚未排程","not scheduled")}</span>`;
+  const det=`<div class="ov-xd">
+    <div class="ov-xc"><span class="ov-xl">${T("原因","Why")}</span><p class="ov-xr">${MK3_sentence(x)}</p></div>
+    <div class="ov-xc"><span class="ov-xl">${T("時程細節","Schedule")}</span>
+      ${(sh||ar)?`<div class="ov-xt">
+        <div class="ov-xdt"><span>${sh?(sh.est?"~":"")+OVmd(sh.d)+`<em>${OVd(sh.d,zh)}</em>`:"—"}</span><span>${ar?(ar.est?"~":"")+OVmd(ar.d)+`<em>${OVd(ar.d,zh)}</em>`:"—"}</span></div>
+        <div class="ov-xtr"><span class="ov-md s${(!sh||sh.est)?" ho":""}"></span><span class="ov-ml ${sea?"sea":"est"}" style="flex:1 1 auto"></span><span class="ov-md a${(!ar||ar.est)?" ho":""}"></span></div>
+        <div class="ov-xlb"><span>${T("出貨日","Ship")}</span><span>${T("到貨・首波開賣","Arrival · on sale")}</span></div></div>`
+        :`<p class="ov-xr">${T("需求表送出、大貨排產後才會有日期","dates appear once the intake form is in and production is scheduled")}</p>`}</div>
+    <div class="ov-xc"><span class="ov-xl">${T("關鍵路徑任務","Critical-path tasks")}</span>
+      <div class="ov-chips">
+        <span class="ov-ch"><span class="ov-cd" style="background:${run?"var(--green)":"#6b7280"}"></span>${T("進行","Running")} ${run}</span>
+        <span class="ov-ch"><span class="ov-cd" style="background:${idle?"var(--amber)":"#6b7280"}"></span>${T("待動","Idle")} ${idle}</span>
+        <span class="ov-ch"><span class="ov-cd" style="background:${blk?"var(--red)":"#6b7280"}"></span>${T("受阻","Blocked")} ${blk}</span></div>
+      ${stl.t?`<p class="ov-xr">${T("等最久","Longest wait")}：<b>${esc(flowTaskName(stl.t))}</b> ${stl.d}d</p>`:""}</div>
+    <div class="ov-xc"><span class="ov-xl">${T("餘裕","Float")}</span>
+      <span class="ov-bp${fl==null?"":fl<0?" bad":" ok"}" style="width:fit-content">${fl==null?T("尚未計算・需求表送出後才能推算","not computed until the intake form is in"):fl+"d"}</span>
+      ${hasFabs(l)?`<p class="ov-xr">${T("各面料開賣","Per fabric")}：${fabLaunch(l).map(f=>esc(f.n)+" "+(f.d?OVmd(f.d):"—")).join("　·　")}</p>`:""}</div>
+  </div>`;
+  return `<details class="ov-row"${op?" open":""} ontoggle="ovTog('${l.slug}',this)">
+    <summary class="ov-rm" aria-label="${esc(l.name)} — ${esc(x.tag)}">
+      <div class="ov-c ov-id" ${W("id")}>
+        <span class="ov-av" style="color:${v3OColor((MK_roster(l)[0]||{}).p||"")}">${esc(MK_initial((MK_roster(l)[0]||{}).p||l.dri||"?"))}</span>
+        <span class="ov-it">
+          <a class="ov-nm" href="#launch/${l.slug}" onclick="event.stopPropagation();event.preventDefault();openL('${l.slug}')"><!--notx-->${esc(l.name)}<!--/notx--></a>
+          <span class="ov-st">${esc(l.stage)}</span></span></div>
+      <div class="ov-c" ${W("st")}><span class="ov-bg" style="color:${tone[0]};background:${tone[1]}"><span class="ov-bd" style="background:${tone[0]}"></span>${esc(x.tag)}</span></div>
+      <div class="ov-c ov-ms" ${W("sc")}>${mini}</div>
+      <div class="ov-c ov-sp" ${W("cp")}>${ct?ICON.launch.replace('class="bvi"','class="ov-bvi"'):""}<span class="ov-spt">${ct?esc(flowTaskName(ct)):"—"}</span></div>
+      <div class="ov-c ov-chips" ${W("tk")} title="${T("進行 / 待動 / 受阻","running / idle / blocked")}">
+        <span class="ov-ch" style="padding:3px 8px;gap:7px">
+          <span style="display:inline-flex;align-items:center;gap:4px"><span class="ov-cd" style="background:${run?"var(--green)":"#4b5158"}"></span>${run}</span>
+          <span style="display:inline-flex;align-items:center;gap:4px"><span class="ov-cd" style="background:${idle?"var(--amber)":"#4b5158"}"></span>${idle}</span>
+          <span style="display:inline-flex;align-items:center;gap:4px"><span class="ov-cd" style="background:${blk?"var(--red)":"#4b5158"}"></span>${blk}</span></span></div>
+      <div class="ov-c" ${W("fl")}><span class="ov-bp${fl==null?"":fl<0?" bad":" ok"}">${fl==null?T("—","—"):fl+"d"}</span></div>
+      <div class="ov-c ov-pg" ${W("pg")}>
+        <div class="ov-pb"><div class="ov-pf" style="width:${bl.pct}%"></div>${bl.due!=null?`<span class="ov-pdue" style="left:calc(${Math.min(100,bl.due)}% - 1px)" title="${T("照時程今天應完成","plan says today")} ${bl.due}%"></span>`:""}</div>
+        <span class="ov-pt2">${bl.d}/${bl.t}</span></div>
+      <span class="ov-xb" ${W("x")} aria-hidden="true">${ICON.chev.replace('class="bvi"','class="ov-bvi"')}</span>
+    </summary>${det}</details>`;
+}
+function ovList(list){
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  const H=(k,t)=>`<span style="flex:0 0 ${OVW[k]}px">${t}</span>`;
+  return `<div class="panel ov-lp">
+    <div class="ov-hr">${H("id",T("產品","Product"))}${H("st",T("狀態","Status"))}${H("sc",T("時程","Schedule"))}${H("cp",T("關鍵路徑","Critical path"))}${H("tk",T("任務","Tasks"))}${H("fl",T("餘裕","Float"))}${H("pg",T("整體進度","Progress"))}${H("x","")}</div>
+    ${list.map(ovRow).join("")}</div>`;
+}
+/* 已完成:欄位換一套(花了多久 / 準不準),沿用既有摺疊語彙 */
+function ovFinBlock(){
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  const fq=l=>!S.q||l.name.toLowerCase().includes(S.q.toLowerCase())||(l.dri||"").toLowerCase().includes(S.q.toLowerCase());
+  const rows=LAUNCHES.filter(l=>l.complete&&fq(l)).map(MKdone).sort((a,b)=>(b.sale||"")<(a.sale||"")?-1:1);
+  if(!rows.length) return "";
+  const wv=rows.filter(r=>r.vs!=null), avg=wv.length?Math.round(wv.reduce((a,r)=>a+r.vs,0)/wv.length):null;
+  const cy=rows.filter(r=>r.cycle!=null).map(r=>r.cycle).sort((a,b)=>a-b), med=cy.length?cy[Math.floor(cy.length/2)]:null;
+  const sum=[`<b>${T("已完成","Completed")} ${rows.length}</b>`,
+    rows[0]&&rows[0].sale?`${T("最近","latest")} <!--notx-->${esc(rows[0].name)}<!--/notx--> ${fmtY(rows[0].sale)}`:"",
+    med!=null?`${T("週期中位數","median cycle")} ${med}d`:"",
+    avg!=null?`${T("平均比原定","vs plan avg")} ${avg>0?"+":""}${avg}d`:T("無基準日可比","no baseline")].filter(Boolean).join("　·　");
+  const cell=r=>`<div class="lx-fc">
+    <div class="lx-fn"><a href="#launch/${r.slug}" onclick="event.preventDefault();openL('${r.slug}')"><!--notx-->${esc(r.name)}<!--/notx--></a></div>
+    <div class="lx-fr"><span>${T("實際開賣","On sale")}</span><b>${r.sale?fmtY(r.sale):"—"}</b></div>
+    <div class="lx-fr"><span>${T("vs 原定","vs plan")}</span><b class="${r.vs==null?"":r.vs>0?"ovd":"ahd"}">${r.vs==null?"—":r.vs>0?(zh?"晚 ":"+")+r.vs+"d":r.vs<0?(zh?"早 ":"-")+(-r.vs)+"d":T("準時","on time")}</b></div>
+    <div class="lx-fr"><span>${T("總週期","Cycle")}</span><b>${r.cycle!=null?r.cycle+"d":"—"}</b></div>
+    <div class="lx-fr"><span>${T("任務","Tasks")}</span><b>${r.tasks}/${r.total}</b></div></div>`;
+  return `<div class="lx-fin" style="margin-left:0">
+    <button class="lx-fsum" aria-expanded="${OVFIN}" onclick="ovFin()"><span style="opacity:.7">${OVFIN?"▾":"▸"}</span><span>${sum}</span></button>
+    ${OVFIN?`<div class="lx-fg">${rows.map(cell).join("")}</div>`:""}</div>`;
+}
+function overviewBoard(){
+  const zh=LANG==="zh", T=(z,e)=>zh?z:e;
+  const RK={bad:3,dec:2,risk:1,ok:0,done:-1};
+  /* 全域搜尋框(S.q)必須照舊生效 —— 舊的 portfolioBoard/portfolioOverview 都有吃,漏掉就是回歸 */
+  const fq=l=>!S.q||l.name.toLowerCase().includes(S.q.toLowerCase())||(l.dri||"").toLowerCase().includes(S.q.toLowerCase());
+  const live=LAUNCHES.filter(l=>!l.complete&&fq(l)).slice().sort((a,b)=>{
+    const d=(RK[health(b)[1]]||0)-(RK[health(a)[1]]||0); if(d)return d;
+    const fa=a.baselineTarget?floatDays(a):999, fb=b.baselineTarget?floatDays(b):999; return fa-fb; });
+  const gaps=railRows().filter(r=>r.gap);
+  const warn=gaps.length?`<div class="lx-warn" style="margin:0 0 14px">${gaps.map(r=>
+    `<a class="lx-wa" onclick="openL('${r.l.slug}')">${ICO("warn","sm")}<!--notx-->${esc(r.lab)}<!--/notx--> ${T("已出貨 "+dayDiff(r.ship.d,today)+"d,到貨日還沒填","shipped "+dayDiff(r.ship.d,today)+"d ago, arrival unset")}</a>`).join("")}</div>`:"";
+  if(!live.length) return `<style>${OV_CSS}</style><div class="panel"><div class="empty-hero">${S.q?T("沒有符合「"+S.q+"」的產品","No products match “"+S.q+"”"):T("目前沒有進行中的產品","No products in flight")}</div></div>`;
+  return `<style>${LX_CSS}</style><style>${OV_CSS}</style>
+    <p class="sub" style="margin:-4px 0 16px">${T("總時間軸讓所有產品的出貨與到貨進度一次看到；下方列表依關注程度排序，點右側箭頭展開細節。","The master timeline shows every product's ship and arrival at once; the list below is sorted by how much it needs attention — the chevron expands it.")}</p>
+    ${warn}${ovTimeline(live)}${ovList(live)}${ovFinBlock()}`;
+}
+
 function portfolioBoard(){
   const fq=l=>!S.q||l.name.toLowerCase().includes(S.q.toLowerCase())||l.dri.toLowerCase().includes(S.q.toLowerCase());
   // stage spine: every stage is a junction dot on ONE hairline rail, laid on equal-width columns
@@ -7529,7 +8038,7 @@ function render(){
   if(S.view!=="launch")FLOWSEEN="";   // left the flow view → next open replays the entrance (once), not on in-view re-renders
   if(S.view==="launch") html=viewLaunch();
   else if(S.view==="digest") html=viewDigest();
-  else if(S.view==="portfolio") html=`<h2>Portfolio <button class="btn" style="margin-left:8px" onclick="newLaunch()">${LANG==="zh"?"＋ 新增上市產品":"+ New launch"}</button><button class="btn ghost" style="margin-left:6px" onclick="newLaunch('update')">${LANG==="zh"?"🔁 產品更新":"🔁 Product update"}</button></h2><div class="sub">${LANG==="zh"?"依階段的流程總覽在上,各產品健康與進度明細在下(最需關注排最前)。":"Stage pipeline up top; per-product health and progress below (most-at-risk first)."}</div>${portfolioBoard()}${portfolioOverview()}`;
+  else if(S.view==="portfolio") html=`<h2>Portfolio <button class="btn" style="margin-left:8px" onclick="newLaunch()">${LANG==="zh"?"＋ 新增上市產品":"+ New launch"}</button><button class="btn ghost" style="margin-left:6px" onclick="newLaunch('update')">${LANG==="zh"?"🔁 產品更新":"🔁 Product update"}</button></h2>${overviewBoard()}`;
   else if(S.view==="progress") html=viewProgress();
   else if(S.view==="dept") html=viewDept();
   else if(S.view==="campaign") html=viewCampaign();
