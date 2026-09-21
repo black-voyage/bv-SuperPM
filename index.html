@@ -1124,6 +1124,27 @@
 .ov-dt em{font-style:normal;opacity:.72;margin-left:5px;font-family:var(--font-head)}
 .ov-dt.up{top:-1px}.ov-dt.dn{top:21px}
 .ov-edge{position:absolute;top:50%;transform:translateY(-50%);font-size:var(--fs-caption);color:var(--dim);z-index:3}
+/* ── 狀態色階（2026-09-21）：線條說「現在走到哪」，不再只有「正在海上」一種實線 ── */
+.ov-pr{border-radius:var(--r-xs);transition:background .12s}
+.ov-pr:hover{background:rgba(246,248,252,.035)}
+.ov-pl.st-plan{background-image:linear-gradient(to right,var(--line) 0 5px,transparent 5px 10px);background-size:10px 2px;background-repeat:repeat-x}
+.ov-pl.st-sea{background:var(--amber)}
+.ov-pl.st-landed{background:var(--green);opacity:.5}
+.ov-pl.st-drift{background-image:linear-gradient(to right,var(--amber) 0 5px,transparent 5px 10px);background-size:10px 2px;background-repeat:repeat-x;opacity:.8}
+/* 對位引導線：hover 該列才出現，從點往上下漸淡延伸到月份刻度。中性白 —— 紅色專屬「今天」 */
+.ov-gd{position:absolute;top:-260px;bottom:-260px;width:1px;opacity:0;pointer-events:none;z-index:0;
+  background:linear-gradient(to bottom,transparent,rgba(246,248,252,.62) 46%,rgba(246,248,252,.62) 54%,transparent);transition:opacity .14s}
+.ov-pr:hover .ov-gd{opacity:.5}
+/* 日期標籤同一條水平線（出貨在點左、到貨在點右），不再一上一下交錯 —— 那是要用眼睛校對位置的主因 */
+.ov-dt.mid{top:50%;transform:translateY(-50%)}
+.ov-dt.mid.l{transform:translate(calc(-100% - 9px),-50%)}
+.ov-dt.mid.r{transform:translate(9px,-50%)}
+.ov-pr:hover .ov-dt{color:var(--text)}
+/* 母列展開後的「整體跨度」範圍條 */
+.ov-band{position:absolute;top:50%;height:16px;transform:translateY(-50%);border-radius:8px;background:rgba(246,248,252,.055);border:1px solid var(--line)}
+.ov-bandlab{position:absolute;top:50%;transform:translate(9px,-50%);font-size:var(--fs-caption);color:var(--faint);white-space:nowrap}
+.ov-lgdash{background-image:linear-gradient(to right,var(--line) 0 5px,transparent 5px 10px);background-size:10px 2px}
+.ov-lgdrift{background-image:linear-gradient(to right,var(--amber) 0 5px,transparent 5px 10px);background-size:10px 2px}
 .ov-lg{display:flex;flex-wrap:wrap;gap:18px;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
 .ov-li{display:flex;align-items:center;gap:7px;font-size:var(--fs-caption);color:var(--dim)}
 .ov-ld{width:8px;height:8px;border-radius:50%;flex:none;box-sizing:border-box}
@@ -5426,17 +5447,27 @@ const OVd=(d,zh)=>{const n=dayDiff(today,d);return n===0?(zh?"今天":"today"):n
 const OVmd=d=>{const x=D(d);return (x.getMonth()+1)+"/"+x.getDate();};
 const OVTONE={bad:["var(--red)","rgba(248,113,113,.13)"],dec:["var(--purple)","rgba(192,132,252,.13)"],
   ok:["var(--green)","rgba(74,222,128,.12)"],nil:["var(--dim)","rgba(173,182,198,.10)"],fin:["var(--green)","rgba(74,222,128,.12)"]};
+/* 這段航程「現在」走到哪 —— 狀態，不是里程碑類型。
+   2026-09-21 Zac 回報「只有 Cyclone 是黃線，其他已經出貨的都沒變色，看起來每個都還沒出貨」。
+   根因：舊版的「正在海上」要求 span<=lead+14（＝45 天），於是真的走 52 天的海運被當成資料缺口
+   畫成灰虛線；而「已到貨」根本沒有線條狀態，只有圓點變綠。
+   改成先看「出貨日過了沒／到貨日過了沒」，容差只留給真正的資料缺口（已出貨但到貨日是佔位推估）。 */
+function ovStage(sh,ar,lead){
+  if(!sh||sh.d>today) return "plan";                        // 還沒出貨
+  if(ar&&ar.d<=today) return "landed";                      // 已到貨
+  if(!ar) return "sea";
+  if(ar.est&&dayDiff(sh.d,ar.d)>lead+14) return "drift";    // 出貨了，但到貨日只是佔位推估 → 資料缺口
+  return "sea";                                             // 運送中
+}
 /* 一張卡的兩個里程碑:出貨(P3 shipDate/推估)與到貨(FB1 arrivalDate/推估) */
 function ovPts(l){
   const sh=railShip(l), ar=MK_arr(l);
   /* 「正在海上」必須是真的航程:到貨日看起來確實是從出貨日推出來的(容差 lead+14)。
      大貨早就出了、到貨日卻還是「今天＋lead」的佔位推估時,span 會長達數月 ——
      那是資料缺口不是航程,畫成實線等於說謊(右上角的 ⚠ 才是正確表達)。 */
-  let sea=false, gap=false;
-  if(sh&&ar){ const span=dayDiff(sh.d,ar.d), lead=RAIL_LEAD(l);
-    if(span>=0&&span<=lead+14) sea=(sh.d<=today&&ar.d>today);
-    else if(ar.est&&sh.done) gap=true; }
-  return {sh:sh?{d:sh.d,est:!sh.typed}:null, ar:ar?{d:ar.d,est:ar.est}:null, sea, gap};
+  const S1=sh?{d:sh.d,est:!sh.typed}:null, A1=ar?{d:ar.d,est:ar.est}:null;
+  const stage=ovStage(S1,A1,RAIL_LEAD(l));
+  return {sh:S1, ar:A1, stage, sea:stage==="sea", gap:stage==="drift"};   // sea/gap 保留:railRows 的警示列仍在讀
 }
 
 /* 一條面料自己的兩個里程碑。守門與整卡同源(span 超過 lead+14 就不是航程,是資料缺口)。 */
@@ -5445,18 +5476,16 @@ function ovPtsFab(l,f){
   const fc=v3FabCodes(l), fb=v3Task(l,fc[fc.length-1]);
   const sub=fb?fabSt(fb,f.id):{};
   const ar=f.d?{d:f.d,est:!sub.arrivalDate}:null;
-  let sea=false,gap=false;
-  if(sh&&ar){ const span=dayDiff(sh.d,ar.d), lead=RAIL_LEAD(l);
-    if(span>=0&&span<=lead+14) sea=(sh.d<=today&&ar.d>today);
-    else if(ar.est&&sh.done) gap=true; }
-  return {sh:sh?{d:sh.d,est:!sh.typed}:null, ar, sea, gap};
+  const S1=sh?{d:sh.d,est:!sh.typed}:null;
+  const stage=ovStage(S1,ar,RAIL_LEAD(l));
+  return {sh:S1, ar, stage, sea:stage==="sea", gap:stage==="drift"};
 }
 /* 甘特要畫的列:拆過面料且展開時,母列下面接每條面料一列(風琴式) */
 function ovRows(list){
   const out=[];
   list.forEach(l=>{
     const p=ovPts(l), fabs=hasFabs(l)?fabLaunch(l):[];
-    if(p.sh||p.ar||fabs.length) out.push({l,p,kind:"l",fabs});
+    if(p.sh||p.ar||fabs.length) out.push({l,p,kind:"l",fabs,open:!!(fabs.length&&OVFAB[l.slug])});
     if(fabs.length&&OVFAB[l.slug]) fabs.forEach(f=>{
       const fp=ovPtsFab(l,f); if(fp.sh||fp.ar) out.push({l,p:fp,kind:"f",f});
     });
@@ -5485,19 +5514,35 @@ function ovTimeline(list){
     need=Math.max(need, tw(r.kind==="f"?r.f.n:r.l.name)+chrome);
   });
   const NW=Math.round(Math.min(260,need+12));
+  const LB=st=>({plan:T("未出貨（計畫中）","not shipped"),sea:T("運送中","at sea"),
+    landed:T("已到貨","landed"),drift:T("已出貨・到貨日未填","shipped · arrival unset")})[st]||"";
   const plotRow=r=>{
-    const {sh,ar,sea,gap}=r.p, o=[];
+    const {sh,ar,stage}=r.p, o=[];
+    /* 母列展開後不畫自己的航程 —— 它是彙總值，跟底下三條面料並排會被讀成「第四個時程」
+       （Zac 2026-09-21：「這樣是不是導致使用者有點疑惑現在到底是顯示哪一個面料」）。
+       改成一條範圍條，明講「這是整個產品的跨度」，細節交給展開後的子列。 */
+    if(r.kind==="l"&&r.open){
+      const ds=r.fabs.map(f=>f.d).filter(Boolean).concat(sh?[sh.d]:[]);
+      if(ds.length>1){ const lo=ds.reduce((m,d)=>d<m?d:m), hi=ds.reduce((m,d)=>d>m?d:m);
+        const a=OVcl(OVX(lo)), b=OVcl(OVX(hi));
+        o.push(`<span class="ov-band" style="left:${Math.min(a,b)}%;width:${Math.abs(b-a)}%"></span>`);
+        o.push(`<span class="ov-bandlab" style="left:${Math.min(a,b)}%">${T(r.fabs.length+" 條面料的跨度",r.fabs.length+" fabrics")}</span>`); }
+      return `<div class="ov-pr ov-parent">${o.join("")}</div>`; }
     if(sh&&ar){ const a=OVcl(OVX(sh.d)), b=OVcl(OVX(ar.d));
-      o.push(`<span class="ov-pl ${sea?"sea":"est"}" style="left:${Math.min(a,b)}%;width:${Math.abs(b-a)}%"${gap?` title="${T("已出貨但到貨日未填 —— 這條不是實際航程","shipped but arrival unset — not a real voyage")}"`:""}></span>`); }
+      o.push(`<span class="ov-pl st-${stage}" style="left:${Math.min(a,b)}%;width:${Math.abs(b-a)}%"${stage==="drift"?` title="${T("已出貨但到貨日還沒填 —— 這條不是實際航程","shipped but arrival unset — not a real voyage")}"`:""}></span>`); }
+    /* 對位引導線：平常不存在，hover 該列才從點往上下漸淡延伸，眼睛可以直接往上追到月份刻度
+       （Zac：「要用眼睛去校對位置…讓線條延伸」）。用中性白不用 accent —— 紅色是「今天」的。 */
     if(sh){ const x=OVcl(OVX(sh.d));
+      o.push(`<span class="ov-gd" style="left:${x}%"></span>`);
       o.push(`<span class="ov-pd s${sh.est?" ho":""}" style="left:${x}%" title="${T("出貨日","ship")} ${fmt(sh.d)}"></span>`);
-      if(OVin(sh.d))o.push(`<span class="ov-dt up l" style="left:${x}%">${sh.est?"~":""}${OVmd(sh.d)}<em>${OVd(sh.d,zh)}</em></span>`); }
+      if(OVin(sh.d))o.push(`<span class="ov-dt mid l" style="left:${x}%">${sh.est?"~":""}${OVmd(sh.d)}</span>`); }
     if(ar){ const x=OVcl(OVX(ar.d));
-      o.push(`<span class="ov-pd a${ar.est?" ho":""}${ar.d<today?" hist":""}" style="left:${x}%" title="${T("到貨・首波開賣","arrival")} ${fmt(ar.d)}"></span>`);
-      if(OVin(ar.d))o.push(`<span class="ov-dt dn r" style="left:${x}%">${ar.est?"~":""}${OVmd(ar.d)}<em>${OVd(ar.d,zh)}</em></span>`); }
+      o.push(`<span class="ov-gd" style="left:${x}%"></span>`);
+      o.push(`<span class="ov-pd a${ar.est?" ho":""}${stage==="landed"?" hist":""}" style="left:${x}%" title="${T("到貨・首波開賣","arrival")} ${fmt(ar.d)}"></span>`);
+      if(OVin(ar.d))o.push(`<span class="ov-dt mid r" style="left:${x}%">${ar.est?"~":""}${OVmd(ar.d)}<em>${OVd(ar.d,zh)}</em></span>`); }
     const off=[sh,ar].filter(Boolean).some(p=>!OVin(p.d));
     if(off)o.push(`<span class="ov-edge" style="${[sh,ar].some(p=>p&&dayDiff(today,p.d)>OVR)?"right:-11px":"left:-11px"}" title="${T("超出 ±"+OVR+" 天視窗","outside the ±"+OVR+"d window")}">${[sh,ar].some(p=>p&&dayDiff(today,p.d)>OVR)?"▸":"◂"}</span>`);
-    return `<div class="ov-pr">${o.join("")}</div>`;};
+    return `<div class="ov-pr" title="${LB(stage)}">${o.join("")}</div>`;};
   return `<div class="panel ov-tp">${hdr}
     <div class="ov-plot" style="--nw:${NW}px">
       <div></div>
@@ -5512,11 +5557,12 @@ function ovTimeline(list){
         ${rows.map(plotRow).join("")}</div>
     </div>
     <div class="ov-lg">
-      <span class="ov-li"><span class="ov-ld" style="background:var(--blue)"></span>${T("出貨日（實心＝已確認）","Ship (filled = confirmed)")}</span>
-      <span class="ov-li"><span class="ov-ld" style="background:var(--panel);border:2px solid var(--blue)"></span>${T("出貨日（空心＝推估）","Ship (hollow = estimate)")}</span>
+      <span class="ov-li"><span class="ov-ll ov-lgdash"></span>${T("未出貨（計畫中）","Not shipped")}</span>
+      <span class="ov-li"><span class="ov-ll" style="background:var(--amber)"></span>${T("運送中","At sea")}</span>
+      <span class="ov-li"><span class="ov-ll" style="background:var(--green);opacity:.55"></span>${T("已到貨","Landed")}</span>
+      <span class="ov-li"><span class="ov-ll ov-lgdrift"></span>${T("已出貨・到貨日未填","Arrival unset")}</span>
+      <span class="ov-li"><span class="ov-ld" style="background:var(--blue)"></span>${T("出貨日（空心＝推估）","Ship (hollow = estimate)")}</span>
       <span class="ov-li"><span class="ov-ld" style="background:var(--amber)"></span>${T("到貨・首波開賣日","Arrival · on sale")}</span>
-      <span class="ov-li"><span class="ov-ll" style="background:var(--amber)"></span>${T("正在海上運送中","At sea now")}</span>
-      <span class="ov-li"><span class="ov-ll" style="background-image:linear-gradient(to right,var(--line) 0 5px,transparent 5px 10px);background-size:10px 2px"></span>${T("預估時程（尚未出貨，或到貨日未填）","Estimated (not shipped, or arrival unset)")}</span>
       <span class="ov-li"><span class="ov-lt"></span>${T("今天","Today")}</span>
     </div></div>`;
 }
