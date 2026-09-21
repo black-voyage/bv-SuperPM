@@ -1127,10 +1127,10 @@
 /* ── 狀態色階（2026-09-21）：線條說「現在走到哪」，不再只有「正在海上」一種實線 ── */
 .ov-pr{border-radius:var(--r-xs);transition:background .12s}
 .ov-pr:hover{background:rgba(246,248,252,.035)}
-.ov-pl.st-plan{background-image:linear-gradient(to right,var(--line) 0 5px,transparent 5px 10px);background-size:10px 2px;background-repeat:repeat-x}
-.ov-pl.st-sea{background:var(--amber)}
-.ov-pl.st-landed{background:var(--green);opacity:.5}
-.ov-pl.st-drift{background-image:linear-gradient(to right,var(--amber) 0 5px,transparent 5px 10px);background-size:10px 2px;background-repeat:repeat-x;opacity:.8}
+.ov-pl.st-plan,.ov-ffb.st-plan,.ov-ml.st-plan{background-image:linear-gradient(to right,var(--line) 0 5px,transparent 5px 10px);background-size:10px 2px;background-repeat:repeat-x}
+.ov-pl.st-sea,.ov-ffb.st-sea,.ov-ml.st-sea{background:var(--amber)}
+.ov-pl.st-landed,.ov-ffb.st-landed,.ov-ml.st-landed{background:var(--green);opacity:.5}
+.ov-pl.st-drift,.ov-ffb.st-drift,.ov-ml.st-drift{background-image:linear-gradient(to right,var(--amber) 0 5px,transparent 5px 10px);background-size:10px 2px;background-repeat:repeat-x;opacity:.8}
 /* 對位引導線：hover 該列才出現，從點往上下漸淡延伸到月份刻度。中性白 —— 紅色專屬「今天」 */
 .ov-gd{position:absolute;top:-260px;bottom:-260px;width:1px;opacity:0;pointer-events:none;z-index:0;
   background:linear-gradient(to bottom,transparent,rgba(246,248,252,.62) 46%,rgba(246,248,252,.62) 54%,transparent);transition:opacity .14s}
@@ -1143,6 +1143,48 @@
 /* 母列展開後的「整體跨度」範圍條 */
 .ov-band{position:absolute;top:50%;height:16px;transform:translateY(-50%);border-radius:8px;background:rgba(246,248,252,.055);border:1px solid var(--line)}
 .ov-bandlab{position:absolute;top:50%;transform:translate(9px,-50%);font-size:var(--fs-caption);color:var(--faint);white-space:nowrap}
+/* ── 整列都是把手 ＋ 同組聚焦（2026-09-21 Zac：「需要點擊 UI 後可以展開」「移到其中一個產品時其他的透明都可以降低」）──
+   名稱欄(.ov-nc)與甘特欄(.ov-pc)是兩個並排的 DOM 子樹，CSS 沒辦法把「第 i 列」互相關聯，
+   所以由 ovHi() 依 data-g（同一個產品，含展開的面料子列）／data-ri（正在滑的那一列）掛 class。 */
+.ov-clk{cursor:pointer}
+.ov-nc .ov-nr,.ov-pc .ov-pr{transition:opacity .13s,background .12s}
+.ov-plot.ov-dim .ov-nr,.ov-plot.ov-dim .ov-pr{opacity:.24}
+.ov-plot.ov-dim .ov-hv{opacity:1}
+.ov-pr.ov-hv1{background:rgba(246,248,252,.035)}
+.ov-pr.ov-hv1 .ov-gd{opacity:.5}
+.ov-pr.ov-hv1 .ov-dt{color:var(--text)}
+.ov-nr.ov-hv1 a,.ov-nr.ov-hv1 .ov-ntx{color:var(--text)}   /* 提亮就夠了；橘色是信號色，不拿來當 hover 裝飾 */
+.ov-nr.ov-hv1 .ov-fx{color:var(--text)}                    /* 滑到哪一列，那列的展開鈕就亮起來 —— 告訴使用者「這列可以展開」 */
+/* ── 展開列裡的「各面料時程」（2026-09-21 Zac：「下方的詳細也要能展開面料的時間，不然詳細就沒意義」）──
+   母列那條 mini 線是彙總值（最早出貨→首波開賣），面料各自的出貨／開賣攤在這裡，
+   共用同一條時間尺（整組最早→最晚），所以長短與先後可以直接互比。 */
+.ov-ffc{grid-column:1/-1;gap:10px;border-top:1px solid var(--line);padding-top:14px}
+.ov-ffh{display:flex;align-items:center;gap:8px;background:none;border:none;padding:0;cursor:pointer;color:inherit;width:fit-content}
+.ov-ffh .ov-bvi{width:13px;height:13px;color:var(--dim);transition:transform .15s}
+.ov-ffh.on .ov-bvi{transform:rotate(180deg)}
+.ov-ffh:hover .ov-xl,.ov-ffh:hover .ov-bvi{color:var(--text)}
+.ov-ffh:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:var(--r-xs)}
+.ov-ffn2{font-family:var(--font-mono);font-size:10px;color:var(--dim);border:1px solid var(--line);border-radius:var(--r-pill);padding:0 5px}
+.ov-ffs{display:flex;flex-direction:column}
+.ov-ffr{display:grid;grid-template-columns:minmax(78px,190px) 46px minmax(90px,1fr) 104px 96px;
+  align-items:center;gap:12px;height:30px;border-top:1px solid var(--line)}
+.ov-ffr:first-child{border-top:none}
+.ov-ffhd{height:22px;font-family:var(--font-mono);font-size:var(--fs-caption);letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.ov-ffhd span{white-space:nowrap}
+.ov-ffn{font-size:var(--fs-meta);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-ffd{font-family:var(--font-mono);font-size:var(--fs-caption);color:var(--dim);white-space:nowrap}
+.ov-ffd em{font-style:normal;font-family:var(--font-head);margin-left:5px;color:var(--faint)}
+.ov-fft{position:relative;height:9px;margin:0 7px}
+.ov-ffb{position:absolute;top:50%;height:2px;transform:translateY(-50%);border-radius:1px}
+.ov-ffp{position:absolute;top:50%;width:7px;height:7px;border-radius:50%;transform:translate(-50%,-50%);box-sizing:border-box;z-index:1}
+.ov-ffp.s{background:var(--blue)}.ov-ffp.s.ho{background:var(--panel2);border:1.5px solid var(--blue)}
+.ov-ffp.a{background:var(--amber)}.ov-ffp.a.ho{background:var(--panel2);border:1.5px solid var(--amber)}
+.ov-ffp.a.hist{background:var(--green)}
+.ov-ffst{display:flex;align-items:center;gap:6px;font-size:var(--fs-caption);color:var(--dim);white-space:nowrap}
+.ov-ffst::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--faint);flex:none}
+.ov-ffst.st-sea::before{background:var(--amber)}
+.ov-ffst.st-landed::before{background:var(--green)}
+.ov-ffst.st-drift::before{background:var(--amber);opacity:.55}
 .ov-lgdash{background-image:linear-gradient(to right,var(--line) 0 5px,transparent 5px 10px);background-size:10px 2px}
 .ov-lgdrift{background-image:linear-gradient(to right,var(--amber) 0 5px,transparent 5px 10px);background-size:10px 2px}
 .ov-lg{display:flex;flex-wrap:wrap;gap:18px;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
@@ -1228,6 +1270,15 @@
   .ov-rm>.ov-c{flex:1 1 auto!important}
   .ov-plot{column-gap:10px}   /* 欄寬交給 min(var(--nw),38%)，不再寫死 92px */
 }
+/* 窄螢幕：各面料時程只留「誰・出貨・開賣」，時間條與狀態字收起來（五欄 ~460px 會撐破手機） */
+@media (max-width:640px){
+  .ov-ffr{grid-template-columns:minmax(70px,1fr) 52px 104px;gap:8px}
+  .ov-ffr>*:nth-child(2){grid-column:2}
+  .ov-ffr>*:nth-child(3){display:none}
+  .ov-ffr>*:nth-child(4){grid-column:3}
+  .ov-ffr>*:nth-child(5){display:none}
+}
+@media (prefers-reduced-motion:reduce){.ov-nc .ov-nr,.ov-pc .ov-pr{transition:none}}
   </style>
 </head>
 <body>
@@ -5441,6 +5492,19 @@ const OVOPEN={}; let OVFIN=false; const OVFAB={};   // OVFAB：甘特上哪些�
 function ovTog(s,el){OVOPEN[s]=el?el.open:!OVOPEN[s];}
 function ovFin(){OVFIN=!OVFIN;render();}
 function ovFab(s){OVFAB[s]=!OVFAB[s];render();}
+const OVXF={};                                     // 展開列裡「各面料時程」的收合狀態（沒紀錄＝展開）
+function ovXf(s){OVXF[s]=OVXF[s]===false;render();}
+/* 甘特列聚焦（2026-09-21 Zac：「移到其中一個產品時其他的透明都可以降低」）。
+   名稱欄與甘特欄是兩個並排子樹，CSS 沒辦法把「同一列」關聯起來 —— 由這支依
+   data-g（同一個產品，含它展開的面料子列）與 data-ri（正在滑的那一列）掛 class。 */
+function ovHi(g,i){
+  const p=document.querySelector(".ov-plot"); if(!p)return;
+  p.querySelectorAll(".ov-hv,.ov-hv1").forEach(e=>e.classList.remove("ov-hv","ov-hv1"));
+  if(!g){p.classList.remove("ov-dim");return;}
+  p.classList.add("ov-dim");
+  p.querySelectorAll('[data-g="'+g+'"]').forEach(e=>e.classList.add("ov-hv"));
+  if(i!=null)p.querySelectorAll('[data-ri="'+i+'"]').forEach(e=>e.classList.add("ov-hv1"));
+}
 /* 排序偏好存 localStorage —— 跟 bv-flow-hints / bv-chat-model 同一套做法 */
 function ovSort(k){ S.ovSort=k; try{localStorage.setItem("bv-ov-sort",k);}catch(e){} render(); }
 try{ const _os=localStorage.getItem("bv-ov-sort"); if(_os==="risk"||_os==="date")S.ovSort=_os; }catch(e){}
@@ -5464,6 +5528,13 @@ function ovStage(sh,ar,lead){
   if(ar.est&&dayDiff(sh.d,ar.d)>lead+14) return "drift";    // 出貨了，但到貨日只是佔位推估 → 資料缺口
   return "sea";                                             // 運送中
 }
+/* 狀態說法只寫一次：甘特列的 title、圖例、展開列的各面料狀態共用。c＝密集版（欄寬有限） */
+const OVLB=(st,zh,c)=>({
+  plan  :zh?(c?"未出貨":"未出貨（計畫中）"):(c?"not shipped":"not shipped"),
+  sea   :zh?"運送中":"at sea",
+  landed:zh?"已到貨":"landed",
+  drift :zh?(c?"到貨日未填":"已出貨・到貨日未填"):(c?"arrival unset":"shipped · arrival unset")
+})[st]||"";
 /* 一張卡的兩個里程碑:出貨(P3 shipDate/推估)與到貨(FB1 arrivalDate/推估) */
 function ovPts(l){
   const sh=railShip(l), ar=MK_arr(l);
@@ -5519,9 +5590,16 @@ function ovTimeline(list){
     need=Math.max(need, tw(r.kind==="f"?r.f.n:r.l.name)+chrome);
   });
   const NW=Math.round(Math.min(260,need+12));
-  const LB=st=>({plan:T("未出貨（計畫中）","not shipped"),sea:T("運送中","at sea"),
-    landed:T("已到貨","landed"),drift:T("已出貨・到貨日未填","shipped · arrival unset")})[st]||"";
-  const plotRow=r=>{
+  const LB=st=>OVLB(st,zh);
+  /* 整列都是把手（Zac 2026-09-21：「需要點擊 UI 後可以展開」）——
+     原本只有名稱欄那顆 16px 的小箭頭能展開，看著甘特條的人根本不知道可以展開。
+     有面料 → 點一下展開／收合；沒有面料 → 點一下開啟產品卡。名稱連結與箭頭鈕各自 stopPropagation。 */
+  const rAttr=(r,i)=>` data-ri="${i}" data-g="${r.l.slug}" onmouseenter="ovHi('${r.l.slug}',${i})" onmouseleave="ovHi()"`
+    +(r.kind==="f"?"":` onclick="${r.fabs.length?`ovFab('${r.l.slug}')`:`openL('${r.l.slug}')`}"`);
+  const rTip=r=>r.kind==="f"?"":(r.fabs.length
+    ?T((r.open?"收合":"展開")+"面料（"+r.fabs.length+" 條）",(r.open?"hide":"show")+" fabrics ("+r.fabs.length+")")
+    :T("開啟產品卡","open card"));
+  const plotRow=(r,i)=>{
     const {sh,ar,stage}=r.p, o=[];
     /* 母列展開後不畫自己的航程 —— 它是彙總值，跟底下三條面料並排會被讀成「第四個時程」
        （Zac 2026-09-21：「這樣是不是導致使用者有點疑惑現在到底是顯示哪一個面料」）。
@@ -5532,7 +5610,7 @@ function ovTimeline(list){
         const a=OVcl(OVX(lo)), b=OVcl(OVX(hi));
         o.push(`<span class="ov-band" style="left:${Math.min(a,b)}%;width:${Math.abs(b-a)}%"></span>`);
         o.push(`<span class="ov-bandlab" style="left:${Math.min(a,b)}%">${T(r.fabs.length+" 條面料的跨度",r.fabs.length+" fabrics")}</span>`); }
-      return `<div class="ov-pr ov-parent">${o.join("")}</div>`; }
+      return `<div class="ov-pr ov-parent ov-clk" title="${rTip(r)}"${rAttr(r,i)}>${o.join("")}</div>`; }
     if(sh&&ar){ const a=OVcl(OVX(sh.d)), b=OVcl(OVX(ar.d));
       o.push(`<span class="ov-pl st-${stage}" style="left:${Math.min(a,b)}%;width:${Math.abs(b-a)}%"${stage==="drift"?` title="${T("已出貨但到貨日還沒填 —— 這條不是實際航程","shipped but arrival unset — not a real voyage")}"`:""}></span>`); }
     /* 對位引導線：平常不存在，hover 該列才從點往上下漸淡延伸，眼睛可以直接往上追到月份刻度
@@ -5547,15 +5625,15 @@ function ovTimeline(list){
       if(OVin(ar.d))o.push(`<span class="ov-dt mid r" style="left:${x}%">${ar.est?"~":""}${OVmd(ar.d)}<em>${OVd(ar.d,zh)}</em></span>`); }
     const off=[sh,ar].filter(Boolean).some(p=>!OVin(p.d));
     if(off)o.push(`<span class="ov-edge" style="${[sh,ar].some(p=>p&&dayDiff(today,p.d)>OVR)?"right:-11px":"left:-11px"}" title="${T("超出 ±"+OVR+" 天視窗","outside the ±"+OVR+"d window")}">${[sh,ar].some(p=>p&&dayDiff(today,p.d)>OVR)?"▸":"◂"}</span>`);
-    return `<div class="ov-pr" title="${LB(stage)}">${o.join("")}</div>`;};
+    return `<div class="ov-pr${r.kind==="f"?"":" ov-clk"}" title="${LB(stage)}${rTip(r)?" ・ "+rTip(r):""}"${rAttr(r,i)}>${o.join("")}</div>`;};
   return `<div class="panel ov-tp">${hdr}
     <div class="ov-plot" style="--nw:${NW}px">
       <div></div>
       <div class="ov-ax">${ticks.map(t=>`<span style="left:${OVcl(OVX(t))}%">${mon(t)}</span>`).join("")}
         <span class="ov-tdl" style="left:50%">${T("今天・","today ")}${OVmd(today)}</span></div>
-      <div class="ov-nc">${rows.map(r=>r.kind==="f"
-        ? `<div class="ov-nr ov-nf" title="${esc(r.l.name)} · ${esc(r.f.n)}"><span class="ov-fbar"></span><span class="ov-ntx"><!--notx-->${esc(r.f.n)}<!--/notx--></span></div>`
-        : `<div class="ov-nr">${r.fabs.length?`<button class="ov-fx${OVFAB[r.l.slug]?" on":""}" onclick="ovFab('${r.l.slug}')" aria-expanded="${!!OVFAB[r.l.slug]}" aria-label="${T("展開面料","show fabrics")}">${ICON.chev.replace('class="bvi"','class="ov-bvi"')}</button>`:`<span class="ov-fxsp"></span>`}<a href="#launch/${r.l.slug}" title="${esc(r.l.name)}" onclick="event.preventDefault();openL('${r.l.slug}')"><!--notx-->${esc(r.l.name)}<!--/notx--></a>${r.fabs.length?`<span class="ov-fn" title="${T(r.fabs.length+" 條面料",r.fabs.length+" fabrics")}">${r.fabs.length}</span>`:""}</div>`).join("")}</div>
+      <div class="ov-nc">${rows.map((r,i)=>r.kind==="f"
+        ? `<div class="ov-nr ov-nf" title="${esc(r.l.name)} · ${esc(r.f.n)}"${rAttr(r,i)}><span class="ov-fbar"></span><span class="ov-ntx"><!--notx-->${esc(r.f.n)}<!--/notx--></span></div>`
+        : `<div class="ov-nr ov-clk" title="${rTip(r)}"${rAttr(r,i)}>${r.fabs.length?`<button class="ov-fx${OVFAB[r.l.slug]?" on":""}" onclick="event.stopPropagation();ovFab('${r.l.slug}')" aria-expanded="${!!OVFAB[r.l.slug]}" aria-label="${T("展開面料","show fabrics")}">${ICON.chev.replace('class="bvi"','class="ov-bvi"')}</button>`:`<span class="ov-fxsp"></span>`}<a href="#launch/${r.l.slug}" title="${esc(r.l.name)}" onclick="event.stopPropagation();event.preventDefault();openL('${r.l.slug}')"><!--notx-->${esc(r.l.name)}<!--/notx--></a>${r.fabs.length?`<span class="ov-fn" title="${T(r.fabs.length+" 條面料",r.fabs.length+" fabrics")}">${r.fabs.length}</span>`:""}</div>`).join("")}</div>
       <div class="ov-pc">
         ${ticks.map(t=>`<span class="ov-gl" style="left:${OVcl(OVX(t))}%"></span>`).join("")}
         <span class="ov-td" style="left:50%"></span>
@@ -5573,16 +5651,45 @@ function ovTimeline(list){
     </div></div>`;
 }
 
+/* 展開列裡的「各面料時程」（2026-09-21 Zac：「下方的資訊也需要有面料的詳細時間可以展開，不然詳細就沒意義了」）。
+   母列那條 mini 線是彙總值（最早出貨 → 首波開賣），看不出第二、第三條面料排在哪。
+   這裡把每條面料自己的出貨／開賣攤開，並共用同一條時間尺（整組最早 → 最晚），長短與先後可以直接互比。 */
+function ovFabDet(l,zh,T){
+  if(!hasFabs(l))return "";
+  const fs=fabLaunch(l).map(f=>({f,p:ovPtsFab(l,f)})), ds=[];
+  fs.forEach(r=>{ if(r.p.sh)ds.push(r.p.sh.d); if(r.p.ar)ds.push(r.p.ar.d); });
+  if(!ds.length)return "";
+  const lo=ds.reduce((m,d)=>d<m?d:m), hi=ds.reduce((m,d)=>d>m?d:m);
+  const span=Math.max(1,dayDiff(lo,hi)), PX=d=>Math.max(0,Math.min(100,dayDiff(lo,d)/span*100));
+  const op=OVXF[l.slug]!==false;
+  const row=r=>{
+    const sh=r.p.sh, ar=r.p.ar, st=r.p.stage, a=sh?PX(sh.d):0, b=ar?PX(ar.d):a;
+    return `<div class="ov-ffr" title="${esc(r.f.n)} ・ ${OVLB(st,zh)}">
+      <span class="ov-ffn"><!--notx-->${esc(r.f.n)}<!--/notx--></span>
+      <span class="ov-ffd">${sh?(sh.est?"~":"")+OVmd(sh.d):"—"}</span>
+      <span class="ov-fft">${(sh&&ar)?`<span class="ov-ffb st-${st}" style="left:${Math.min(a,b)}%;width:${Math.max(.8,Math.abs(b-a))}%"></span>`:""}${sh?`<span class="ov-ffp s${sh.est?" ho":""}" style="left:${a}%"></span>`:""}${ar?`<span class="ov-ffp a${ar.est?" ho":""}${st==="landed"?" hist":""}" style="left:${b}%"></span>`:""}</span>
+      <span class="ov-ffd">${ar?(ar.est?"~":"")+OVmd(ar.d)+`<em>${OVd(ar.d,zh)}</em>`:"—"}</span>
+      <span class="ov-ffst st-${st}">${OVLB(st,zh,1)}</span></div>`;
+  };
+  return `<div class="ov-xc ov-ffc">
+    <button class="ov-ffh${op?" on":""}" onclick="event.stopPropagation();ovXf('${l.slug}')" aria-expanded="${op}">
+      <span class="ov-xl">${T("各面料時程","Per-fabric schedule")}</span>
+      <span class="ov-ffn2">${fs.length}</span>${ICON.chev.replace('class="bvi"','class="ov-bvi"')}</button>
+    ${op?`<div class="ov-ffs">
+      <div class="ov-ffr ov-ffhd"><span></span><span>${T("出貨","Ship")}</span><span></span><span>${T("到貨・開賣","On sale")}</span><span>${T("狀態","State")}</span></div>
+      ${fs.map(row).join("")}</div>`:""}</div>`;
+}
+
 const OVW={id:260,st:96,sc:200,cp:190,tk:140,fl:100,pg:110,x:28};
 function ovRow(l){
   const zh=LANG==="zh", T=(z,e)=>zh?z:e;
-  const x=MK3_blame(l), bl=MKbullet(l), {sh,ar,sea,gap}=ovPts(l), ct=v3CpNow(l), stl=MK_stall(l);
+  const x=MK3_blame(l), bl=MKbullet(l), {sh,ar,sea,gap,stage}=ovPts(l), ct=v3CpNow(l), stl=MK_stall(l);
   const run=MK_run(l).length, idle=MK_live(l).length-run, blk=MK_blk(l).length;
   const fl=l.baselineTarget?floatDays(l):null, op=!!OVOPEN[l.slug], tone=OVTONE[x.tone]||OVTONE.nil;
   const W=(k,extra)=>`style="flex:0 0 ${OVW[k]}px;${extra||""}"`;
   const mini=(sh||ar)?`<div class="ov-mt"${gap?` title="${T("已出貨但到貨日未填","shipped but arrival unset")}"`:""}>
       <span class="ov-md s${(!sh||sh.est)?" ho":""}"></span>
-      <span class="ov-ml ${sea?"sea":"est"}"></span>
+      <span class="ov-ml st-${stage}"></span>
       <span class="ov-md a${(!ar||ar.est)?" ho":""}${ar&&ar.d<today?" hist":""}"></span></div>
     <div class="ov-mdt"><span>${sh?(sh.est?"~":"")+OVmd(sh.d):"—"}</span><span>${ar?(ar.est?"~":"")+OVmd(ar.d):"—"}</span></div>`
     :`<span class="ov-plc">${T("尚未排程","not scheduled")}</span>`;
@@ -5591,7 +5698,7 @@ function ovRow(l){
     <div class="ov-xc"><span class="ov-xl">${T("時程細節","Schedule")}</span>
       ${(sh||ar)?`<div class="ov-xt">
         <div class="ov-xdt"><span>${sh?(sh.est?"~":"")+OVmd(sh.d)+`<em>${OVd(sh.d,zh)}</em>`:"—"}</span><span>${ar?(ar.est?"~":"")+OVmd(ar.d)+`<em>${OVd(ar.d,zh)}</em>`:"—"}</span></div>
-        <div class="ov-xtr"><span class="ov-md s${(!sh||sh.est)?" ho":""}"></span><span class="ov-ml ${sea?"sea":"est"}" style="flex:1 1 auto"></span><span class="ov-md a${(!ar||ar.est)?" ho":""}"></span></div>
+        <div class="ov-xtr"><span class="ov-md s${(!sh||sh.est)?" ho":""}"></span><span class="ov-ml st-${stage}" style="flex:1 1 auto"></span><span class="ov-md a${(!ar||ar.est)?" ho":""}${stage==="landed"?" hist":""}"></span></div>
         <div class="ov-xlb"><span>${T("出貨日","Ship")}</span><span>${T("到貨・首波開賣","Arrival · on sale")}</span></div></div>`
         :`<p class="ov-xr">${T("需求表送出、大貨排產後才會有日期","dates appear once the intake form is in and production is scheduled")}</p>`}</div>
     <div class="ov-xc"><span class="ov-xl">${T("關鍵路徑任務","Critical-path tasks")}</span>
@@ -5602,7 +5709,8 @@ function ovRow(l){
       ${stl.t?`<p class="ov-xr">${T("等最久","Longest wait")}：<b>${esc(flowTaskName(stl.t))}</b> ${stl.d}d</p>`:""}</div>
     <div class="ov-xc"><span class="ov-xl">${T("餘裕","Float")}</span>
       <span class="ov-bp${fl==null?"":fl<0?" bad":" ok"}" style="width:fit-content">${fl==null?T("尚未計算・需求表送出後才能推算","not computed until the intake form is in"):fl+"d"}</span>
-      ${hasFabs(l)?`<p class="ov-xr">${T("各面料開賣","Per fabric")}：${fabLaunch(l).map(f=>esc(f.n)+" "+(f.d?OVmd(f.d):"—")).join("　·　")}</p>`:""}</div>
+      </div>
+    ${ovFabDet(l,zh,T)}
   </div>`;
   return `<details class="ov-row"${op?" open":""} ontoggle="ovTog('${l.slug}',this)">
     <summary class="ov-rm" aria-label="${esc(l.name)} — ${esc(x.tag)}">
