@@ -1148,6 +1148,7 @@
 .ov-lg{display:flex;flex-wrap:wrap;gap:18px;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
 .ov-li{display:flex;align-items:center;gap:7px;font-size:var(--fs-caption);color:var(--dim)}
 .ov-ld{width:8px;height:8px;border-radius:50%;flex:none;box-sizing:border-box}
+.ov-lho{background:var(--panel);border:2px solid var(--faint)}   /* 圖例的空心示意點，對應 .ov-pd.ho */
 .ov-ll{width:20px;height:2px;flex:none;border-radius:1px}
 .ov-lt{width:2px;height:12px;background:var(--accent);flex:none;border-radius:1px}
 .ov-empty{padding:26px 0;text-align:center;font-size:var(--fs-meta);color:var(--dim)}
@@ -4230,6 +4231,10 @@ function fabPanel(l,t,i,ro){
      直接點著編（見 .ld-fabcell 的兩個 dCell），這裡再畫一次就是同一個欄位出現兩次。
      注意不能把整排面料拿掉 —— v3FabSetDate 只寫日期、不設完成，而上線日是「預先填的計畫值」
      （UL6 的 arrAny 註解），所以每條面料仍然需要這裡的勾選鈕才標記得了完成。 */
+  /* 工期欄只在「真的有工期」時才畫。判準是節點的模板工期 > 0 —— 不是寫死節點代碼：
+     UL6 更新上線是 days:0 的瞬間標記（上線的那一刻），沒有工期可以逐條面料填；
+     FB1 首波開賣的 days:31 是海運前置，每條面料可能不同（空運/海運），那就該留。 */
+  const hasDur=dated&&((vn.days!=null?vn.days:(vn.est||0))>0);
   const dk="";
   const dLab="";
   const rows=fabsOf(l).map(f=>{
@@ -4237,7 +4242,7 @@ function fabPanel(l,t,i,ro){
     const stBtn=ro
       ? `<span class="st ${lk?"":s.st}" title="${lk?esc(lk):stWord(s.st)}">${lk?"🔒":stIcon[s.st]}</span>`
       : `<button type="button" class="st ${lk?"":s.st}" aria-label="${esc(f.n)} — ${lk?("locked: "+esc(lk)):stWord(s.st)}" title="${lk?("🔒 "+esc(lk)):T("左鍵推進 · 右鍵退回","left-click: advance · right-click: step back")}" onclick="event.stopPropagation();fabStep('${l.slug}',${i},'${f.id}',1,this)" oncontextmenu="event.stopPropagation();fabStep('${l.slug}',${i},'${f.id}',-1,this);return false">${lk?"🔒":stIcon[s.st]}</button>`;
-    const dayCell=!dated?"":ro?(days+"d")
+    const dayCell=!hasDur?"":ro?(days+"d")
       : `<input type="number" min="0" class="v3shot-q fabd-inp" value="${s.days!=null?s.days:""}" placeholder="${vn.days!=null?vn.days:(vn.est!=null?vn.est:"")}" title="${T("這條面料的工期 — 留白就用模板的 "+(vn.days!=null?vn.days:"—")+"d","this fabric's duration — blank uses the template's "+(vn.days!=null?vn.days:"—")+"d")}" onclick="event.stopPropagation()" onchange="v3FabSetDays('${l.slug}',${i},'${f.id}',this.value)"> d`;
     const dateInp=!dk?"":(ro?(s[dk]?fmt(s[dk]):"—")
       : `<input type="date" class="v3due-inp${s[dk]?"":" unfilled"}" value="${esc(s[dk]||"")}"${(dk==="arrivalDate"&&fabArrFloor(l,f.id))?` min="${fabArrFloor(l,f.id)}"`:""} title="${esc(dLab)}" onclick="event.stopPropagation()" onchange="v3FabSetDate('${l.slug}',${i},'${f.id}','${dk}',this.value)">`);
@@ -5561,8 +5566,9 @@ function ovTimeline(list){
       <span class="ov-li"><span class="ov-ll" style="background:var(--amber)"></span>${T("運送中","At sea")}</span>
       <span class="ov-li"><span class="ov-ll" style="background:var(--green);opacity:.55"></span>${T("已到貨","Landed")}</span>
       <span class="ov-li"><span class="ov-ll ov-lgdrift"></span>${T("已出貨・到貨日未填","Arrival unset")}</span>
-      <span class="ov-li"><span class="ov-ld" style="background:var(--blue)"></span>${T("出貨日（空心＝推估）","Ship (hollow = estimate)")}</span>
+      <span class="ov-li"><span class="ov-ld" style="background:var(--blue)"></span>${T("出貨日","Ship")}</span>
       <span class="ov-li"><span class="ov-ld" style="background:var(--amber)"></span>${T("到貨・首波開賣日","Arrival · on sale")}</span>
+      <span class="ov-li"><span class="ov-ld ov-lho"></span>${T("空心＝推估日","Hollow = estimated")}</span>
       <span class="ov-li"><span class="ov-lt"></span>${T("今天","Today")}</span>
     </div></div>`;
 }
