@@ -1438,7 +1438,7 @@ const V3ASSETS=V3ALL.filter(n=>n.asset).map(n=>n.c);   // both templates — the
    兩者的聯集 v3FabAll() 才是「哪些格子要拆成 N 條面料」;凡是成員判斷都用它,
    凡是靠位置取節點或推日期的都只能用 v3FabCodes()。 */
 const V3FABT={launch:["P3","FB1"], update:["U6","UL6"]};
-const V3FABX={launch:[], update:["UD2","UL1"]};
+const V3FABX={launch:["D7"], update:["UD2","UL1"]};   // D7 棚拍需求（2026-09-18 加入）
 const v3FabCodes=l=>V3FABT[lTpl(l)]||V3FABT.launch;                    // 日期鏈（有序，位置有意義）
 const v3FabAll=l=>v3FabCodes(l).concat(V3FABX[lTpl(l)]||[]);           // 分支成員全集（成員判斷用這個）
 const v3FabDated=(l,code)=>v3FabCodes(l).indexOf(code)>=0;             // 這一格要不要天數/日期欄
@@ -4204,8 +4204,13 @@ function dCell(l,code,fid,k,opts){
 function fabPanel(l,t,i,ro){
   const zh=LANG==="zh", T=(z,e)=>zh?z:e, code=t.code, vn=V3MAP[code]||{}, ff=v3FabFin(l)||{};
   const dated=v3FabDated(l,code);        // 在日期鏈上才有天數／預計完成日；純勾選步驟只留狀態鈕
-  const dk=vn.ship?"shipDate":vn.arrival?"arrivalDate":"";
-  const dLab=vn.ship?T("出貨","Ship"):vn.arrival?arrTx(l,"short"):"";
+  /* 分工（2026-09-18，Zac）：**日期一律在卡片抬頭填，任務列只管狀態與工期。**
+     抬頭的每條面料各有一格，`arrivalDate`（上線／到貨）與 `shipDate`（出貨）都已經可以
+     直接點著編（見 .ld-fabcell 的兩個 dCell），這裡再畫一次就是同一個欄位出現兩次。
+     注意不能把整排面料拿掉 —— v3FabSetDate 只寫日期、不設完成，而上線日是「預先填的計畫值」
+     （UL6 的 arrAny 註解），所以每條面料仍然需要這裡的勾選鈕才標記得了完成。 */
+  const dk="";
+  const dLab="";
   const rows=fabsOf(l).map(f=>{
     const s=fabSt(t,f.id), lk=fabLock(l,t,f.id), fin=(ff[f.id]||{})[code]||"", days=fabDayOf(l,t,f.id);
     const stBtn=ro
