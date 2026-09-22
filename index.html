@@ -3171,11 +3171,13 @@ function ntfSweep(l){
   });
   if(NTFQ.length){ clearTimeout(NTFT); NTFT=setTimeout(()=>ntfFlush(false),1200); }
 }
+// text/plain＝CORS simple request（關分頁時 keepalive 也送得出去，沒有 preflight 會被丟掉）
+const ntfPost=(events,unload)=>fetch(NOTIFY_API_URL,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify({events}),keepalive:!!unload});
 function ntfFlush(unload){
   if(!NTFQ.length) return;
   const events=NTFQ.splice(0,20); NTFT=null;
-  // fire-and-forget：text/plain＝CORS simple request（關分頁時 keepalive 也送得出去）；失敗不重試 —— 旗標已標，寧漏勿轟
-  try{ fetch(NOTIFY_API_URL,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify({events}),keepalive:!!unload}).catch(()=>{}); }catch(e){}
+  // 自動那條維持 fire-and-forget：失敗不重試 —— 旗標已標，寧漏勿轟
+  try{ ntfPost(events,unload).catch(()=>{}); }catch(e){}
   if(NTFQ.length){ clearTimeout(NTFT); NTFT=setTimeout(()=>ntfFlush(false),1200); }
 }
 window.addEventListener("pagehide",()=>ntfFlush(true));
@@ -3224,9 +3226,14 @@ async function ntfNudge(slug,ti){
   // start 帶「預估幾天」（對方要排工），done 帶「已進行幾天」（對方要交代進度）
   const dv=(kind==="start") ? (t.days!=null?t.days:(vn.days!=null?vn.days:(vn.est!=null?vn.est:null)))
                             : (t.startAt?dayDiff(t.startAt,today):null);
-  tg.forEach(x=>NTFQ.push({uid:x.uid, launch:l.name, step:nm, days:dv, kind}));
-  ntfFlush(false);                              // 人按的就立刻送，不進 1.2s 合批
-  toast(zh?"🔔 已送出 Slack 提醒":"🔔 Nudge sent");
+  /* 人按的那一下不走 NTFQ 合批，而且要等回應 —— 自動通知漏一則沒人會發現，但「我剛剛催過了」
+     是會被當真的資訊。proxy 掛掉（或伺服器把對方丟掉）就照實說，並把防連點解除讓人能重試。 */
+  let sent=0;
+  try{ const r=await ntfPost(tg.map(x=>({uid:x.uid, launch:l.name, step:nm, days:dv, kind})),false);
+       if(r&&r.ok){ const j=await r.json().catch(()=>null);
+         sent=(j&&Array.isArray(j.sent))?j.sent.filter(x=>x&&x.ok).length:0; } }catch(e){}
+  if(sent) toast(zh?"🔔 已送出 Slack 提醒":"🔔 Nudge sent");
+  else { NUDGED.delete(key); toast(zh?"送不出去 —— Slack 通知服務目前連不上，稍後再試":"couldn't send — the Slack notifier is unreachable"); }
 }
 
 function exportJSON(){try{
