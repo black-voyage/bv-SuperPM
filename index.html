@@ -1459,9 +1459,12 @@ const V3U=[
  // 完成後在「完成日」補正實際日；hdrDate 只是「把這一步的完成日搬上抬頭狀態列」的顯示標記，不另存欄位。
  {c:"U6", en:"Bulk production", zh:"大貨生產", ph:2, dept:"Product", o:"Zac", days:30, req:["U5"], ship:1,
   hdrDate:{zh:"出貨日",en:"Ship date"}},   // 同 P3：大貨生產不附證明連結
- {c:"UD1", en:"Refresh shoot brief", zh:"棚拍需求", ph:2, dept:"Design", o:"Mi", days:2, req:["U5"], note:{en:"opens once the revised PPS exists",zh:"產前樣出來後開啟"}},
- {c:"UD2", en:"Refresh studio shoot", zh:"棚拍拍攝", ph:2, dept:"Design", o:"Mi", days:null, est:7, req:["UD1"]},
- {c:"UC1", en:"Catalog photos refresh", zh:"照片更新", ph:2, dept:"Catalog", o:"Zac", days:1, req:["UD2"], note:{en:"after the studio shoot delivers",zh:"棚拍拍好後更新"}},
+ // 2026-09-22 合併（Zac：「他們重複了」）：原本 UD1 棚拍需求（2d，寫需求）→ UD2 棚拍拍攝（7d，實際拍）
+ // 是兩格，實務上就是同一件事。併成單一節點，留 UD2 的碼（面料子狀態掛在它身上，換碼等於丟資料），
+ // 前置接回 U5，工期吃下兩段（est 2+7=9）。舊卡的 UD1 狀態由 v3SyncTasks 的遷移折疊進來。
+ // 命名與新品模板對齊：棚拍需求（D7／UD2）→ 產品照片（MS3c／UC1），兩個模板逐格對得上。
+ {c:"UD2", en:"Refresh shoot requirements", zh:"棚拍需求", ph:2, dept:"Design", o:"Mi", days:null, est:9, req:["U5"], note:{en:"opens once the revised PPS exists — covers both the brief and the shoot itself",zh:"產前樣出來後開啟——寫需求與實際棚拍合併在這一格"}},
+ {c:"UC1", en:"Catalog photos refresh", zh:"產品照片", ph:2, dept:"Catalog", o:"Zac", days:1, req:["UD2"], note:{en:"after the shoot delivers",zh:"棚拍交件後更新"}},
  {c:"UC2", en:"Catalog info refresh", zh:"資訊更新", ph:2, dept:"Catalog", o:"Zac", days:1, req:["U5"], out:{en:"marketing site updated",zh:"更新產品行銷網站"}},
  {c:"UD3", en:"New PDP build", zh:"製作新版 PDP", ph:2, dept:"Design", o:"Ann", days:5, req:["UD2","UC2"], asset:1, note:{en:"starts after new photos + updated site info",zh:"棚拍照片＋行銷網站更新後製作"}},
  // 4 — Logistics (切換上線)
@@ -1509,11 +1512,11 @@ const V3ASSETS=V3ALL.filter(n=>n.asset).map(n=>n.c);   // both templates — the
      fc[最後] 是上線節點(帶 arrivalDate)。v3FabFin 把它當成前後相接的管線在推日期,
      v3EtaBulk／fabStrip／RAIL_LEAD／railRows 還直接寫死 fc[1]。**陣列一變長就會壞。**
    · V3FABX ＝只需要「逐條面料勾選」的步驟,不帶日期也不進日期鏈(2026-09-17 加入
-     UD2 棚拍拍攝、UL1 新版切換確認)。順序無意義。
+     UD2 棚拍需求、UL1 新版切換確認;2026-09-22 再加 MS3c／UC1 產品照片)。順序無意義。
    兩者的聯集 v3FabAll() 才是「哪些格子要拆成 N 條面料」;凡是成員判斷都用它,
    凡是靠位置取節點或推日期的都只能用 v3FabCodes()。 */
 const V3FABT={launch:["P3","FB1"], update:["U6","UL6"]};
-const V3FABX={launch:["D7","MS3c"], update:["UD2","UL1"]};   // D7 棚拍需求（2026-09-18）、MS3c 產品照片（2026-09-22）
+const V3FABX={launch:["D7","MS3c"], update:["UD2","UC1","UL1"]};   // 兩個模板對齊：棚拍需求（D7／UD2）＋產品照片（MS3c／UC1）都逐條面料勾選
 const v3FabCodes=l=>V3FABT[lTpl(l)]||V3FABT.launch;                    // 日期鏈（有序，位置有意義）
 const v3FabAll=l=>v3FabCodes(l).concat(V3FABX[lTpl(l)]||[]);           // 分支成員全集（成員判斷用這個）
 const v3FabDated=(l,code)=>v3FabCodes(l).indexOf(code)>=0;             // 這一格要不要天數/日期欄
@@ -1846,6 +1849,19 @@ function v3SyncTasks(l){
       const dn=olds.map(t=>t.doneAt).filter(Boolean).sort(); if(m.st==="x"&&dn.length)m.doneAt=dn[dn.length-1];
       const st0=olds.map(t=>t.startAt).filter(Boolean).sort(); if(st0.length&&m.st!=="o")m.startAt=st0[0];
       byCode.KOL=m; } }
+  /* 2026-09-22 合併遷移（Zac：「他們重複了」）：UD1 棚拍需求 ＋ UD2 棚拍拍攝 → 併成單一節點（留 UD2 的碼）。
+     比照上面 KOL1–5 的折疊寫法：兩格都完成才算完成、有一格卡住就是卡住、動過任一格算進行中；
+     證明連結彙整、完成日取晚的、開工日取早的。UD1 已不在模板裡，下面的 rebuild 會自然把它丟掉 ——
+     沒有這段的話，已經做完的「寫需求」會無聲消失，卡片看起來整個退回去。 */
+  // 注意：byCode 只收 V3MAP 認得的碼，UD1 已經從模板刪掉，所以舊任務只能從 l.tasks 直接撈（同 KOL 那段）
+  if(!V3MAP.UD1&&V3MAP.UD2){ const o1=(l.tasks||[]).find(t=>t&&t.code==="UD1");
+   if(o1){ const m=byCode.UD2||v3NewTask(V3MAP.UD2), olds=[o1].concat(byCode.UD2?[byCode.UD2]:[]);
+    m.st=olds.every(t=>t.st==="x")?"x":(olds.some(t=>t.st==="b")?"b":(olds.some(t=>t.st!=="o")?"p":"o"));
+    m.links=m.links||[]; (o1.links||[]).forEach(k=>m.links.push(k));
+    const dn=olds.map(t=>t.doneAt).filter(Boolean).sort();
+    if(m.st==="x"&&dn.length)m.doneAt=dn[dn.length-1]; else if(m.st!=="x"&&m.doneAt)delete m.doneAt;
+    const st0=olds.map(t=>t.startAt).filter(Boolean).sort(); if(st0.length&&m.st!=="o")m.startAt=st0[0];
+    byCode.UD2=m; } }
   l.tasks=tplNodes(l).map(n=>{ const old=byCode[n.c];   // rebuild onto the card's OWN template (l.tpl)
     const t=old||v3NewTask(n);
     // 已完結的卡不因模板事後新增節點而復活（如 0de3925 把 L1–L8 併成新節點 FB1）：新格直接視為完成，
