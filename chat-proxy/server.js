@@ -86,18 +86,28 @@ app.post("/notify", express.text({ type: "text/*", limit: "64kb" }), async (req,
     let body = req.body;
     if (typeof body === "string") { try { body = JSON.parse(body); } catch (e) { return res.status(400).json({ error: { message: "bad JSON" } }); } }
     const events = Array.isArray(body && body.events) ? body.events.slice(0, 20) : [];
-    const byUid = {};
+    // kind picks the header AND how the number is labelled. Unknown/absent kind falls back to "unlock",
+    // so an older app build (which sends no kind) keeps working unchanged.
+    const KINDS = {
+      unlock: { head: "🔓 該你上場 — 前置已完成，可以開工：", num: (n) => "（預估 " + n + " 天）" },
+      start:  { head: "⏰ 進度確認 — 這幾項還沒開始，方便說一下什麼時候能動工嗎？", num: (n) => "（預估 " + n + " 天）" },
+      done:   { head: "⏰ 進度確認 — 這幾項進行中，目前進度如何？大概什麼時候完成？", num: (n) => "（已進行 " + n + " 天）" },
+    };
+    const byKey = {};
     for (const ev of events) {
       const uid = clip(ev && ev.uid, 20);
       if (!SLACK_ALLOWED.has(uid)) continue; // unknown target → drop silently
+      const kind = KINDS[clip(ev && ev.kind, 12)] ? clip(ev.kind, 12) : "unlock";
       const days = parseInt(ev && ev.days, 10);
-      (byUid[uid] = byUid[uid] || []).push(
+      const key = uid + "\u0000" + kind;
+      (byKey[key] = byKey[key] || []).push(
         "•《" + (clip(ev.launch, 60) || "?") + "》" + (clip(ev.step, 80) || "?") +
-        (isNaN(days) ? "" : "（預估 " + Math.min(365, Math.max(0, days)) + " 天）"));
+        (isNaN(days) ? "" : KINDS[kind].num(Math.min(365, Math.max(0, days)))));
     }
     const results = [];
-    for (const uid of Object.keys(byUid)) {
-      const text = "🔓 該你上場 — 前置已完成，可以開工：\n" + byUid[uid].join("\n") + "\n→ https://bv-superpm.web.app";
+    for (const key of Object.keys(byKey)) {
+      const uid = key.split("\u0000")[0], kind = key.split("\u0000")[1];
+      const text = KINDS[kind].head + "\n" + byKey[key].join("\n") + "\n→ https://bv-superpm.web.app";
       const r = await fetch("https://slack.com/api/chat.postMessage", {
         method: "POST",
         headers: { "Authorization": "Bearer " + process.env.SLACK_BOT_TOKEN, "Content-Type": "application/json; charset=utf-8" },

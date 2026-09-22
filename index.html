@@ -219,6 +219,8 @@
   .fp-add:hover{border-color:var(--accent);color:var(--accent)}
   .fp-foot{display:flex;align-items:center;justify-content:space-between;gap:10px 12px;padding:10px 12px;flex-wrap:wrap}
   .fp-open{padding:6px 12px;font-size:12px}
+  .fp-foot-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .fp-open[disabled]{opacity:.45;cursor:not-allowed}
   .fp-foot-note{font-size:11px;color:var(--dim)}
   .fp-toggle{display:inline-flex;align-items:center;gap:7px;cursor:pointer;user-select:none;position:relative}
   .fp-toggle input{position:absolute;opacity:0;width:0;height:0;margin:0}
@@ -3163,6 +3165,54 @@ function ntfFlush(unload){
 window.addEventListener("pagehide",()=>ntfFlush(true));
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") ntfFlush(true); });
 
+/* ----- 手動催辦（2026-09-22，Zac）-----
+   ntfSweep 是「解鎖那一刻」自動發、而且只發一次；卡住不動的步驟之後沒有人再提醒。這裡補上人按的那一下：
+   未開始 → 問「開工了嗎」，進行中 → 問「目前進度、何時完成」。走同一支 /notify（同一份 uid 白名單、
+   同一套伺服器端模板），只多帶一個 kind 欄位讓 proxy 換標題。
+   刻意不做的事：①不寫任何旗標進快照 —— 催辦是一次性動作，不該進 LWW 的競爭範圍；②失敗不重試；
+   ③防連點只在本分頁（NUDGED），因為「同一天要不要催第二次」是人的判斷，不是系統該鎖死的事。 */
+const NUDGED=new Set();                       // 本分頁防連點：slug|code|kind|日期
+function ntfTargets(l,t){                     // 與 ntfSweep 同一套負責人解析：任務上指名的真人優先
+  const vn=V3MAP[t.code];
+  return (t.assignee?[t.assignee]:v3Owners(vn?v3Own(vn):"")).map(n=>({name:n,uid:SLACK_IDS[n]})).filter(x=>x.uid);
+}
+const ntfKind=t=>(t&&t.st==="o")?"start":((t&&t.st==="p")?"done":"");
+function ntfNudgeBtn(l,t,ti){
+  if(!t||ti<0||taskLockedUI(l,t)) return "";   // 用 UI 版：拆面料時只要有一條解鎖了就能催
+  const kind=ntfKind(t); if(!kind) return "";   // 完成不必催；卡關（b）要的是排除障礙，不是催進度
+  const zh=LANG==="zh", tg=ntfTargets(l,t);
+  const lab=zh?(kind==="start"?"🔔 催開工":"🔔 催進度"):(kind==="start"?"🔔 Nudge":"🔔 Status?");
+  if(!tg.length)   // 有負責人但對不到 Slack（Ben／未指名的「各攝影師」）—— 畫成停用並說明怎麼辦，別給一顆按了沒反應的鈕
+    return `<button class="btn ghost fp-open" disabled aria-disabled="true" title="${esc(zh?"這一步還沒有可私訊的負責人 —— 先在任務列指名真人":"no Slack contact yet — name a person on the task row first")}">${lab}</button>`;
+  const who=tg.map(x=>x.name).join(zh?"、":", ");
+  return `<button class="btn ghost fp-open" title="${esc(zh?("Slack 私訊 "+who+"："+(kind==="start"?"問是否已開工":"問目前進度與預計完成日")):("DM "+who+" on Slack"))}" onclick="ntfNudge('${l.slug}',${ti})">${lab}</button>`;
+}
+async function ntfNudge(slug,ti){
+  const l=L(slug), t=l&&(l.tasks||[])[ti]; if(!l||!t) return;
+  const zh=LANG==="zh";
+  if(taskLockedUI(l,t)){ toast("🔒 "+lockReason(l,t)); return; }
+  const kind=ntfKind(t);
+  if(!kind){ toast(zh?"只有「未開始」與「進行中」的步驟可以催":"only to-do / in-progress steps can be nudged"); return; }
+  const tg=ntfTargets(l,t);
+  if(!tg.length){ toast(zh?"這一步沒有可私訊的負責人 —— 先在任務列指名真人":"no Slack contact — name a person on the task row first"); return; }
+  const key=slug+"|"+t.code+"|"+kind+"|"+today;
+  if(NUDGED.has(key)){ toast(zh?"這一步今天已經催過了":"already nudged today"); return; }
+  const nm=FLOWZH[t.t]||t.t, who=tg.map(x=>x.name).join(zh?"、":", ");
+  if(!await uiConfirm(zh?("Slack 私訊 "+who+"？\n\n《"+l.name+"》"+nm+"\n"+(kind==="start"?"— 問是否已經開工":"— 問目前進度、預計何時完成"))
+                        :("DM "+who+" on Slack?\n\n"+l.name+" — "+nm+"\n"+(kind==="start"?"— has this started?":"— how is it going?")))) return;
+  // 環境守衛擺在確認之後：先讓人看到要送什麼，再告訴他這裡送不出去（比按鈕憑空消失好懂）
+  if(!FB.ready||!FB.serverSeen||FB.stale){ toast(zh?"尚未連上雲端 —— 沒有送出":"not synced — nothing sent"); return; }
+  if(NOTIFY_HOSTS.indexOf(location.hostname)<0&&!window.NTF_TEST){ toast(zh?"只有正式站會真的送出 Slack 訊息":"Slack DMs only go out from the live site"); return; }
+  NUDGED.add(key);
+  const vn=V3MAP[t.code]||{};
+  // start 帶「預估幾天」（對方要排工），done 帶「已進行幾天」（對方要交代進度）
+  const dv=(kind==="start") ? (t.days!=null?t.days:(vn.days!=null?vn.days:(vn.est!=null?vn.est:null)))
+                            : (t.startAt?dayDiff(t.startAt,today):null);
+  tg.forEach(x=>NTFQ.push({uid:x.uid, launch:l.name, step:nm, days:dv, kind}));
+  ntfFlush(false);                              // 人按的就立刻送，不進 1.2s 合批
+  toast(zh?"🔔 已送出 Slack 提醒":"🔔 Nudge sent");
+}
+
 function exportJSON(){try{
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([snapshot()],{type:"application/json"}));
@@ -5033,7 +5083,7 @@ function flowPopHTML(d,i){
   const aTask=ti>=0?`<button class="btn ghost fp-open" onclick="jumpTask('${l.slug}',${ti})">${zh?"在卡片上開啟":"Open on card"}</button>`:"";
   const action=aTask||`<span class="fp-foot-note">${zh?"此步驟沒有對應任務。":"No linked task on this step."}</span>`;
   const hintsOn=S.flowHints!==false;
-  h+=`<div class="fp-foot">${action}<label class="fp-toggle" title="${tip}">`
+  h+=`<div class="fp-foot"><span class="fp-foot-acts">${action}${ntfNudgeBtn(l,task,ti)}</span><label class="fp-toggle" title="${tip}">`
     +`<input type="checkbox" role="switch" aria-checked="${hintsOn}" ${hintsOn?"checked":""} onchange="toggleFlowHints(this.checked)">`
     +`<span class="fp-sw"></span><span class="fp-sw-t"><span aria-hidden="true">🔗 </span>${LANG==="zh"?"依賴標示":"Dependency lines"}</span></label></div>`;
   return h;
