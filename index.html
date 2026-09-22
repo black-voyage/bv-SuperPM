@@ -1511,7 +1511,7 @@ const V3ASSETS=V3ALL.filter(n=>n.asset).map(n=>n.c);   // both templates — the
    兩者的聯集 v3FabAll() 才是「哪些格子要拆成 N 條面料」;凡是成員判斷都用它,
    凡是靠位置取節點或推日期的都只能用 v3FabCodes()。 */
 const V3FABT={launch:["P3","FB1"], update:["U6","UL6"]};
-const V3FABX={launch:["D7"], update:["UD2","UL1"]};   // D7 棚拍需求（2026-09-18 加入）
+const V3FABX={launch:["D7","MS3c"], update:["UD2","UL1"]};   // D7 棚拍需求（2026-09-18）、MS3c 產品照片（2026-09-22）
 const v3FabCodes=l=>V3FABT[lTpl(l)]||V3FABT.launch;                    // 日期鏈（有序，位置有意義）
 const v3FabAll=l=>v3FabCodes(l).concat(V3FABX[lTpl(l)]||[]);           // 分支成員全集（成員判斷用這個）
 const v3FabDated=(l,code)=>v3FabCodes(l).indexOf(code)>=0;             // 這一格要不要天數/日期欄
@@ -4203,6 +4203,15 @@ async function fabStep(slug,i,fid,dir,el){
   }
   const l=L(slug), t=l&&(l.tasks||[]).find(x=>x.code===code); if(!l||!t)return;   // re-resolve（同 stepStatus）
   const s=fabMut(t,fid);
+  /* 證明連結閘（2026-09-22）：拆面料的格子不經 applyTaskStatus，那道「完成前要附證明」的閘會被繞過。
+     連結是整格共用（t.links），所以只擋「最後一條面料」—— 逐條進度不受影響，但 fabRoll 把整格
+     滾成完成時一定已經有連結，維持 EVID 的不變式。 */
+  if(nx==="x"&&EVID.has(code)&&!(t.links||[]).length
+     &&fabsOf(l).every(f=>f.id===fid||fabSt(t,f.id).st==="x")){
+    bvShake(el); const nmv=v3T(V3MAP[code]||{en:t.t,zh:t.t});
+    toast(LANG==="zh"?("📎 需附證明連結 —— 這是最後一條面料，勾完「"+nmv+"」就整格完成了，請先附上交付物連結")
+                     :("📎 Evidence required — this is the last fabric; attach the deliverable link before “"+nmv+"” completes"));
+    return; }
   const cs=v3FabCodes(l), ix=cs.indexOf(code);
   if(s.st==="x"&&nx!=="x"&&ix>=0) cs.slice(ix+1).forEach(c=>{const rt=v3Task(l,c); if(!rt)return;
     const rs=fabMut(rt,fid); if(rs.st==="x"){rs.st="o"; delete rs.doneAt;} fabRoll(l,rt);});
