@@ -1514,6 +1514,8 @@ const lTpl=l=>(l&&l.tpl==="update")?"update":"launch";
 const tplNodes=l=>TPLS[lTpl(l)].nodes;
 const tplIntake=l=>TPLS[lTpl(l)].intake;
 const V3MAP=Object.fromEntries(V3ALL.map(n=>[n.c,n]));
+// reqAny 只在 req 的迴圈裡被檢查,寫了卻沒進 req 會完全沒作用、也不會報錯 —— 開發期就喊出來
+V3ALL.forEach(n=>(n.reqAny||[]).forEach(c=>{ if((n.req||[]).indexOf(c)<0) console.warn("[V3] reqAny 不在 req 裡，會靜默失效：",n.c,"→",c); }));
 // 模板裡還有沒有 Ben ◆ 決策節點（2026-10-08 起兩個模板都沒有）。決策佇列／SLA／圖例這些「只為 ◆ 存在」的區塊靠它整塊隱藏，
 // 不留空標題；機制本身保留，日後若再加回帶 ben 旗標的節點，這些區塊會自動回來。
 const HAS_BEN=V3ALL.some(n=>n.ben);
@@ -1856,9 +1858,24 @@ async function v3SetStamp(slug,i,k,v){let l=L(slug),t=l&&l.tasks[i];if(!t)return
 // 指派真人（各攝影師這種通稱節點需要指名）—— 選單來自 render() 每次重建的 #people datalist
 function v3SetField(slug,i,k,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;t[k]=(v||"").trim();save();render();}
 // shared due-clock: root steps count from the project start; others from the LATEST predecessor doneAt (null until all are done)
+/* 這個前置「對 vn 而言」是哪一天滿足的？沒滿足回 null。
+   reqAny（2026-10-09）：拆面料的前置,取**最早**完成的那條面料的完成日 —— 那天就是下游真的可以
+   開工的日子。少了這段,unlockBlockers 已經放行、倒數卻永遠停在「上一步完成後起算」,
+   MB3 也就永遠不會被算成逾期（verifier 抓到的 I1）。 */
+const v3ReqDoneOn=(l,vn,rc)=>{const rt=v3Task(l,rc); if(!rt)return null;
+  /* reqAny 這一支必須擺在 st==="x" 之前。整格完成時 fabRoll 的 doneAt 是「最晚那條面料」,
+     若先走一般規則,最後一條面料拍完的那一刻,已經在倒數的下游會被往後推（應完成日突然變晚、
+     逾期天數憑空消失）。起算日一旦成立就不該再移動 —— 取最早完成的那條。 */
+  if(((vn&&vn.reqAny)||[]).indexOf(rc)>=0&&fabSplit(l,rt)){
+    const ds=fabsOf(l).map(f=>fabSt(rt,f.id)).filter(x=>x.st==="x"&&x.doneAt).map(x=>x.doneAt).sort();
+    if(ds.length)return ds[0];
+    return rt.st==="x"?(rt.doneAt||null):null;   // 面料都沒留 doneAt 的舊資料 → 退回整格的值
+  }
+  if(rt.st==="x")return rt.doneAt||null;
+  return null;};
 const v3StartClock=(l,vn)=>{const reqs=(vn&&vn.req)||[];
   if(!reqs.length)return (l.history&&l.history[0]&&l.history[0].start)||null;
-  let latest=null; for(const rc of reqs){const rt=v3Task(l,rc); if(!rt||rt.st!=="x"||!rt.doneAt)return null; if(!latest||rt.doneAt>latest)latest=rt.doneAt;} return latest;};
+  let latest=null; for(const rc of reqs){const d=v3ReqDoneOn(l,vn,rc); if(!d)return null; if(!latest||d>latest)latest=d;} return latest;};
 // factory quotes a DATE, not a duration — typing the due date back-fills t.days through v3SetDays,
 // so every day-consumer (critical path / float / delay trend / ETA bulk) stays on the single days source of truth
 function v3SetDue(slug,i,v){const l=L(slug),t=l&&l.tasks[i];if(!t)return;
@@ -5208,8 +5225,13 @@ function flowPopHTML(d,i){
    const named=code=>{const nn=V3MAP[code]; return code+(nn?" "+esc(zh?nn.zh:nn.en):"");};
    const reqs=(n.req||[]);
    // 前置 chips 帶狀態：已完成打勾、未完成標色＋負責人 —— 鎖住時一眼看出「還缺誰、該催誰」
+   /* reqAny 的前置：整格還沒完成、但已經有面料完成 ⇒ 對這一步來說已經滿足,不能再畫成紅色「還在等」
+      （否則 MB3 明明解鎖了,面板卻還在紅字催 MS3c）。用 ◐ 與 ✓ 區分「部分滿足」與「整格完成」。 */
+   const myN=V3MAP[n.code]||{};
    const reqChip=c=>{const rt=(l.tasks||[]).find(t=>t.code===c), dn=!!(rt&&rt.st==="x"), nn=V3MAP[c];
-     return `<span class="fp-dep ${dn?"done":"miss"}">${dn?"✓ ":""}${named(c)}${!dn&&nn&&v3Own(nn)?` <span class="fp-dep-o"><!--notx-->${esc(v3Own(nn))}<!--/notx--></span>`:""}</span>`;};
+     const part=!dn&&!!rt&&(myN.reqAny||[]).indexOf(c)>=0&&fabSplit(l,rt)&&fabsOf(l).some(f=>fabSt(rt,f.id).st==="x");
+     const okNow=dn||part;
+     return `<span class="fp-dep ${okNow?"done":"miss"}"${part?` title="${esc(zh?"已有面料完成，足以開工；其餘面料仍在進行":"at least one fabric is done — enough to start")}"`:""}>${dn?"✓ ":(part?"◐ ":"")}${named(c)}${!okNow&&nn&&v3Own(nn)?` <span class="fp-dep-o"><!--notx-->${esc(v3Own(nn))}<!--/notx--></span>`:""}</span>`;};
    const dependents=[]; Object.keys(FLOW).forEach(dd=>(FLOW[dd]||[]).forEach(nn=>{ if(nn.code&&(nn.req||[]).includes(n.code)&&!dependents.includes(nn.code)) dependents.push(nn.code); }));
    let r=`<div class="fp-route">`;
    if(reqs.length) r+=`<div class="fp-deps"><span class="fp-deplabel fp-deplock" title="${zh?"等待這些步驟完成":"waits on these"}" aria-label="${zh?"等待":"waits on"}">🔒</span>${reqs.map(reqChip).join("")}</div>`;
