@@ -1392,6 +1392,7 @@ const DEPTS = () => Object.keys(FLOW);
      ph  phase index into V3PH         dept   flow-chart lane (department)   o  owner (real person)
      days  number=fixed · null=manual per-launch · 0=milestone/event   ref/est  manual-day hint/estimate
      req  [codes that must finish first] — the unlock gating (cross-lane, cross-phase)
+     reqAny  [req 的子集] 這些前置若已拆面料,**任一條面料完成就算滿足**(整格不必全完成)
      ben  ◆ Ben decision   asset  feeds the readiness dashboard   out/note  ▸產出 / *備註 ({en,zh})
      evid  a proof link must be attached before it can be ticked done (EVID below is derived from this)
      ship    大貨生產帶「出貨日」欄位（原「預計大貨樣日」，2026-09-16 合併）—— 它就是這一步的完成日，
@@ -1444,7 +1445,8 @@ const V3=[
  {c:"P5", en:"Deploy marketing samples", zh:"部署行銷樣品", ph:3, dept:"Logistics", o:"LC", days:null, ref:{en:"air9/sea21",zh:"空9／海21"}, est:9, req:["MS1"], out:{en:"samples to teams",zh:"寄樣各部門"}, note:{en:"samples = bulk units; done = sample arrival",zh:"樣品＝大貨樣；完成＝樣品到貨日"}},
  {c:"MB1", en:"Marketing Brief V1", zh:"行銷簡報 V1", ph:3, dept:"Marketing", o:"Zac + Ben", days:5, req:["C10"]},
  {c:"MB2", en:"Marketing Brief V2", zh:"行銷簡報 V2", ph:3, dept:"Marketing", o:"Ann + Angel", days:7, req:["MB1"]},
- {c:"MB3", evid:1, en:"Marketing Brief V3", zh:"行銷簡報 V3", ph:3, dept:"Marketing", o:"Ann + Angel", days:10, req:["MS3c"]},
+ // reqAny（2026-10-09,Zac）：「只要有一個面料有了就可以放行,因為剩下只是面料的文案,並不影響接下去的任務」
+ {c:"MB3", evid:1, en:"Marketing Brief V3", zh:"行銷簡報 V3", ph:3, dept:"Marketing", o:"Ann + Angel", days:10, req:["MS3c"], reqAny:["MS3c"]},
  {c:"MS1", en:"Shoot requirements", zh:"行銷拍攝需求", ph:3, dept:"Content", o:"Ben + Ann", days:7, req:["MB2"], out:{en:"tally needs",zh:"統計需求"}, note:{en:"阿訊, Gonzalo, 小海, Brian",zh:"阿訊、Gonzalo、小海、Brian"}},
  {c:"MS2", en:"Shoot plan finalized", zh:"行銷拍攝定稿", ph:3, dept:"Content", o:"Ben + Ann", days:10, req:["MS1"], out:{en:"concept locked",zh:"概念定稿"}, note:{en:"deadline = sample arrival (can start 1d late)",zh:"死線＝樣品到貨日（可晚 1 天開拍）"}},
  {c:"MS3c", evid:1, en:"Product photos", zh:"產品照片", ph:3, dept:"Content", o:"各攝影師", days:null, req:["D7"], asset:1, shots:"product", note:{en:"studio set — opens once the shoot brief (D7) is done; feeds MB3 + the PDP",zh:"棚拍 — 棚拍需求（D7）結束後開啟；供 MB3 與 PDP 使用"}},
@@ -1496,12 +1498,12 @@ const V3U=[
  // 車道位置在 UL2 之下（使用者指定），但階段仍是 ph:2 —— 前置原本是 U2（Ben 決策），2026-10-08 該節點刪除後改接 U1 整合設計；包材要趕在 U6 大貨生產前交廠，
  // 排在 UL1 之後就來不及進這批大貨。同 D3：不掛 evid、不餵給任何人（系統會標「不影響上市日」）。
  {c:"UD4", en:"Packaging refresh finalized", zh:"包材設計定稿", ph:2, dept:"Design", o:"Mi", days:2, req:["U1"], note:{en:"opens once the design changes are integrated (U1) — mirrors D3; dielines must reach the factory before the bulk run (U6)",zh:"整合設計（U1）完成後即可製作——對齊新品 D3；包材需趕在大貨生產（U6）前交廠"}},
- {c:"UL3", en:"Notify KOL CRM", zh:"通知網紅 CRM", ph:4, dept:"CRM", o:"Angel", days:1, req:["UL1"], out:{en:"CRM info refreshed",zh:"CRM 新資訊通知網紅"}},
+ // UL3「通知網紅 CRM」於 2026-10-09 移除（Zac：產品更新不需要這一步）—— CRM 車道在更新模板因此消失
  {c:"UL4", en:"Shopify info update", zh:"更新 Shopify 資訊", ph:4, dept:"Marketing", o:"Zac", days:1, req:["UL1"]},
  {c:"UL5", en:"ShipBob SKU swap", zh:"更新 ShipBob SKU", ph:4, dept:"Logistics", o:"LC", days:1, req:["UL1"], out:{en:"ShipBob + Shopify SKU",zh:"ShipBob／Shopify SKU"}},
  // arrival：這條流程的終點日期就是全案完成日 —— 知道就直接填，填了蓋過正向排程（同 launch 的 FB1 到貨日機制）
  // arrAny：不必等解鎖（Zac 2026-08-17）—— 上線日是這張卡的必填計畫資訊，開卡就該填得進去，不是做完才知道的結果
- {c:"UL6", en:"Update live", zh:"更新上線", ph:4, dept:"Product", o:"Zac", days:0, req:["UL2","UL3","UL4","UL5"], arrival:1, arrAny:1,
+ {c:"UL6", en:"Update live", zh:"更新上線", ph:4, dept:"Product", o:"Zac", days:0, req:["UL2","UL4","UL5"], arrival:1, arrAny:1,
   note:{en:"the go-live date is required — fill it in as soon as it's known (no need to wait for the step to unlock); it becomes this card's projected completion",zh:"上線日必填 —— 一知道就填，不必等這一步解鎖；它會直接成為本卡的預計完成日"}},
 ];
 const V3ALL=V3.concat(V3U);
@@ -1731,7 +1733,10 @@ function v3LockText(l,t){
   blks.forEach(b=>{
     if(b==="P3s"){notes.push(zh?("等出貨：請在 P3 填「出貨日」（"+v3Own(V3MAP.P3)+"）"):("waiting on the ship date — set it on P3 ("+v3Own(V3MAP.P3)+")"));return;}
     if(b==="P3w"){const p3=v3Task(l,"P3");notes.push(zh?("大貨預計 "+fmt(p3.shipDate)+" 出貨，屆時自動解鎖"):("bulk ships "+fmt(p3.shipDate)+" — unlocks then"));return;}
-    const n=V3MAP[b]; pre.push(n?(zh?(b+" "+n.zh+"（"+v3Own(n)+"）"):(b+" "+n.en+" ("+v3Own(n)+")")):b);
+    const n=V3MAP[b], my=V3MAP[t.code]||{};
+    // reqAny 的前置：補一句「任一條就好」—— 否則畫面只說「等 MS3c 產品照片」,人會以為要全部面料拍完
+    const anyNote=(my.reqAny||[]).indexOf(b)>=0&&hasFabs(l)?(zh?"（任一條面料完成即可）":" (any one fabric)"):"";
+    pre.push(n?(zh?(b+" "+n.zh+"（"+v3Own(n)+"）"+anyNote):(b+" "+n.en+" ("+v3Own(n)+")"+anyNote)):b);
   });
   return [pre.length?(zh?"等 "+pre.join("、"):"waiting on "+pre.join(", ")):"",...notes].filter(Boolean).join(zh?"；":"; ");
 }
@@ -2169,7 +2174,15 @@ function v3BallChips(l){ const m={};
 // a field they already filled.
 function unlockBlockers(l,task){
   const code=task&&task.code, n=code&&V3MAP[code]; if(!n||code==="C1"||code==="U0") return [];   // C1/U0 = the two templates' intake roots
-  const out=(n.req||[]).filter(r=>{const rt=(l.tasks||[]).find(t=>t.code===r); return !rt||rt.st!=="x";});
+  /* reqAny（2026-10-09）：拆了面料的前置,彙總狀態要「每一條面料都完成」才會變 x。對 MB3 來說那太嚴 ——
+     第一組產品照片出來就能開始寫行銷簡報,剩下的面料只是替換文案裡的圖。列在 reqAny 的前置因此改成
+     「任一條面料完成即滿足」。沒拆面料的卡(hasFabs 為假)走原本的規則,行為不變。
+     這是唯一的解鎖判準出口,所以 taskLocked／v3Reconcile／v3CurPhase 全部自動跟著 —— 不會出現
+     「解鎖了但一存檔又被 reconcile 退回」。 */
+  const anyOk=n.reqAny&&n.reqAny.length?new Set(n.reqAny):null;
+  const out=(n.req||[]).filter(r=>{const rt=(l.tasks||[]).find(t=>t.code===r);
+    if(!rt||rt.st==="x") return !rt;
+    return !(anyOk&&anyOk.has(r)&&fabSplit(l,rt)&&fabsOf(l).some(f=>fabSt(rt,f.id).st==="x"));});
   if(code==="P5"){ const p3=(l.tasks||[]).find(t=>t.code==="P3");
     if(p3&&p3.st!=="x"&&!(p3.shipDate&&today>=p3.shipDate)) out.push(p3.shipDate?"P3w":"P3s"); }
   return out;
