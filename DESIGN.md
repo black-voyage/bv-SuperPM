@@ -64,6 +64,8 @@ Values widened 2026-07-03 for readable figure-ground — the first pass kept pag
 
 `--green:#4ade80` (on-track / success) · `--amber:#fbbf24` (warning / at-risk) · `--red:#f87171` (blocked / error) · `--purple:#c084fc` (code / system). Use for status dots, SLA pills, gate states — never decoratively.
 
+**Skipped (2026-10-13):** violet — dark `#221a35` fill · `#a78bfa` stroke · `#c4b5fd` text; light `#F1ECFE` · `#8B5CF6` · `#6D28D9`; glyph `↷`. The ONE meaning: *this step was skipped* (carried over / not needed — resolved without work). Deliberately distinct from every other step state (done green, in-progress amber, blocked red, open/locked grey, design-frozen ice blue, start-now orange) and separate from `--purple` (code / system). Dashed stroke = pre-skipped while still waiting on prerequisites. Used only for step/state surfaces (status button, flow node, legend, dashboard asset card) — never decoratively.
+
 **Blue — the secondary color (v3):** `#3D8BFF` (secondary actions/emphasis) · `#60a5fa` (info / links) · `#1ED1E9` (cyan, tertiary/data-viz). Blue is a real, usable supporting hue (links, secondary buttons, secondary emphasis in display copy, data-viz series, ambient glow) but stays **subordinate to Orange** — quieter, never the "primary action / current / act-now" role. When blue and orange could both apply to a control, orange wins.
 
 **Owner/person colors** (presence language, see Components): Ben `#c084fc` · Zac `#60a5fa` · Ann `#f472b6` · Angel `#fb923c` · LC `#34d399` · Design Team `#a78bfa` · 各攝影師 `#67e8f9`. These identify *people*, not states.
