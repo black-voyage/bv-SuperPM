@@ -1987,12 +1987,20 @@ function v3SyncTasks(l){
   if(!V3MAP.D1&&V3MAP.C6){ const o1=(l.tasks||[]).find(t=>t&&t.code==="D1"), o3=(l.tasks||[]).find(t=>t&&t.code==="D3");
    if(o1||o3){ const m=byCode.C6||v3NewTask(V3MAP.C6);
     if(o1){ const olds=[o1].concat(byCode.C6?[byCode.C6]:[]);
+      const c6x=!!(byCode.C6&&byCode.C6.st==="x");   // 先記下舊 C6 的狀態 —— m 就是 byCode.C6 本身，下一行會被合併結果蓋掉
       m.st=olds.every(t=>t.st==="x")?"x":(olds.some(t=>t.st==="b")?"b":(olds.some(t=>t.st!=="o")?"p":"o"));
       const dn=olds.map(t=>t.doneAt).filter(Boolean).sort();
       if(m.st==="x"&&dn.length)m.doneAt=dn[dn.length-1]; else if(m.st!=="x"&&m.doneAt)delete m.doneAt;
       const st0=olds.map(t=>t.startAt).filter(Boolean).sort(); if(st0.length&&m.st!=="o")m.startAt=st0[0];
       const dOf=(t,d0)=>(t&&typeof t.days==="number"&&t.days>0)?t.days:d0;   // 0／null＝舊手填殘值或沒存 → 退回當時的模板值（C6 4d、D1 7d）
-      m.days=Math.max(dOf(byCode.C6,4),dOf(o1,7)); }
+      m.days=Math.max(dOf(byCode.C6,4),dOf(o1,7));
+      /* 舊進度帶進四個勾選項（審查 M1／M2）：造型＋CMF＝舊整合設計 C6 的範圍、標誌＝識別設計 D1、包裝＝包材定稿 D3
+         （卡上沒有 D3 就跟 D1）。整格已完成但包材還沒定稿 → 包裝明寫「未做」：整格不退（C8 起的下游都已開工，
+         退了會整串被 v3Reconcile 退回），但「包裝還沒定稿」這件事仍看得到、補勾即可 —— 這正是這次要追的項目。 */
+      const d1x=o1.st==="x", d3x=o3?o3.st==="x":d1x, ck={};
+      if(c6x){ ck.form="x"; ck.cmf="x"; } if(d1x) ck.logo="x"; if(d3x) ck.pack="x";
+      if(m.st==="x"&&!d3x) ck.pack="o";
+      if(Object.keys(ck).length) m.ck=ck; else if(m.ck) delete m.ck; }
     m.links=m.links||[]; const seen=new Set(m.links.map(k=>k&&k.u));
     [o1,o3].forEach(o=>(o&&o.links||[]).forEach(k=>{ if(k&&!seen.has(k.u)){ seen.add(k.u); m.links.push(k); } }));
     const cs=new Set((m.codes||[]).map(c=>JSON.stringify(c)));
@@ -2277,7 +2285,7 @@ function v3ReconcileLoud(l){
 /* ================= 跳過（SKIP）— 2026-10-13，Zac：「有些是照舊，不需要再進行設計或是過去經驗已經不需要進行」 =================
    t.skip＝跳過前的狀態（"o"/"p"/"b"；truthy＝跳過中）。設計樞紐跟面料分支同一招：**跳過在引擎層就是「完成」**
    （t.st="x"＋doneAt），所以解鎖、完成判定、進度、燈號、Slack 通知、外部 launch-sheet-sync（狀態值域固定 o/p/b/x）
-   全部零改動 —— 只有畫面看 t.skip，換成紫色「↷ 跳過」。
+   全部零改動 —— 只有畫面看 t.skip，換成紫色「↪ 跳過」。
    · 鎖著的步驟也能先標跳過（規劃時就知道這步照舊）：st 留在原值，前置完成後由 v3SkipPass 自動放行。
    · v3Reconcile 退回「x 但被鎖」的步驟時不碰旗標 ⇒ 跳過的步驟自動變回「待放行」，前置再完成又自動放行。
    · 放行的完成日＝前置最晚完成日（決定性）。v3SkipPass 跑在 v3Advance 裡、套快照時每個分頁都會跑；
@@ -2304,7 +2312,7 @@ function v3SkipBlock(l,t){ const zh=LANG==="zh", n=t&&t.code&&V3MAP[t.code];
 // 跳過／取消跳過（同一顆鈕切換）。取消跳過時若這步已放行（x），比照 stepStatus 的離開完成：先走 guardReopen 級聯確認。
 async function v3SkipToggle(slug,i,el){
   let l=L(slug), t=l&&l.tasks[i]; if(!l||!t)return;
-  const why=v3SkipBlock(l,t); if(why){ bvShake(el); toast("↷ "+why); return; }
+  const why=v3SkipBlock(l,t); if(why){ bvShake(el); toast("↪ "+why); return; }
   const code=t.code, zh=LANG==="zh";
   if(!await confirmFrozenStepEdit(l,t)) return;
   l=L(slug); t=l&&(l.tasks||[]).find(x=>x.code===code); if(!l||!t)return;   // re-resolve：確認框開著時遠端快照可能重建過 LAUNCHES
@@ -2315,8 +2323,8 @@ async function v3SkipToggle(slug,i,el){
     const r=await ckApply(slug,code,cur,el); if(!r)return;
     l=L(slug); if(!l)return;
     toast(was?(zh?("↩ 已取消跳過「"+nm+"」"):("↩ “"+nm+"” is no longer skipped"))
-      :r==="skip"?(zh?("↷ 已跳過「"+nm+"」"):("↷ Skipped “"+nm+"”"))
-      :(zh?("↷ 其餘項目已標跳過 —— 「"+nm+"」完成"):("↷ Remaining items skipped — “"+nm+"” is done")));
+      :r==="skip"?(zh?("↪ 已跳過「"+nm+"」"):("↪ Skipped “"+nm+"”"))
+      :(zh?("↪ 其餘項目已標跳過 —— 「"+nm+"」完成"):("↪ Remaining items skipped — “"+nm+"” is done")));
     v3Advance(l); save(); render(); return; }
   if(t.skip){
     if(t.st==="x"){ const g=await guardReopen(l,t,el); if(!g.ok)return;
@@ -2324,17 +2332,19 @@ async function v3SkipToggle(slug,i,el){
       const rc=g.reset.map(d=>d.code);
       (l.tasks||[]).filter(x=>rc.includes(x.code)).forEach(d=>{d.st="o"; if(d.doneAt)delete d.doneAt;});
       t.st=(t.skip==="p"||t.skip==="b")?t.skip:"o"; if(t.doneAt)delete t.doneAt; }
-    else t.st=(t.skip==="p"||t.skip==="b")?t.skip:"o";   // 待放行（鎖著）：還原跳過前的狀態
+    else t.st="o";   // 待放行（鎖著）：一律回 o —— 鎖著的 p／b 會被 autopilot／WIP 當成活的工作（審查 L2）
     delete t.skip;
     logEvent("milestone","↩ "+(zh?"取消跳過":"un-skipped")+" · "+l.name+" — "+t.t,{card:l.slug});
     toast(zh?("↩ 已取消跳過「"+nm+"」"):("↩ “"+nm+"” is no longer skipped"));
   } else {
     t.skip=(t.st==="p"||t.st==="b")?t.st:"o";
     const lk=taskLocked(l,t);
+    // 完成日：當下按跳過＝今天（決定就是今天做的，下游從今天起算才不會一放行就逾期）；
+    // 預先跳過到前置完成時才放行＝前置完成日（v3SkipPass，決定性 —— 那一刻本來就可以開工）
     if(!lk){ t.st="x"; t.doneAt=today; } else t.st="o";   // 待放行一律停在 o（原狀態存在 t.skip）—— 否則鎖著的 p／b 會被 autopilot／WIP 當成活的工作
-    logEvent("milestone","↷ "+(zh?"跳過":"skipped")+" · "+l.name+" — "+t.t,{card:l.slug});
-    toast(lk?(zh?("↷ 已預先跳過「"+nm+"」—— 前置完成後自動放行"):("↷ “"+nm+"” pre-skipped — it passes through once its prerequisites finish"))
-            :(zh?("↷ 已跳過「"+nm+"」"):("↷ Skipped “"+nm+"”")));
+    logEvent("milestone","↪ "+(zh?"跳過":"skipped")+" · "+l.name+" — "+t.t,{card:l.slug});
+    toast(lk?(zh?("↪ 已預先跳過「"+nm+"」—— 前置完成後自動放行"):("↪ “"+nm+"” pre-skipped — it passes through once its prerequisites finish"))
+            :(zh?("↪ 已跳過「"+nm+"」"):("↪ Skipped “"+nm+"”")));
   }
   v3Advance(l); save(); render();
 }
@@ -2345,10 +2355,10 @@ async function v3SkipToggle(slug,i,el){
    · 最後一項處理完 ⇒ 整格完成；四項全跳過 ⇒ 整格跳過（走 t.skip，鎖著就待放行）。
    · 已完成的格子把任一項改回未做 ⇒ 整格退回（先走 guardReopen 級聯確認）。
    · 狀態鈕／彈窗／AI 要把整格標完成時，applyTaskStatus 擋下還沒處理的項目 —— 清單就是這一步的完成定義。
-   沒有記錄的項目跟著整格顯示（已完成＝✓、跳過＝↷），所以清單上線前就完成的舊卡不必補勾。 */
+   沒有記錄的項目跟著整格顯示（已完成＝✓、跳過＝↪），所以清單上線前就完成的舊卡不必補勾。 */
 const ckItems=t=>{const n=t&&t.code&&V3MAP[t.code]; return (n&&Array.isArray(n.ck))?n.ck:[];};
 const hasCk=t=>ckItems(t).length>0;
-const ckSt=(t,k)=>{const v=t&&t.ck&&t.ck[k]; if(v==="x"||v==="s")return v; return (t&&t.skip)?"s":(t&&t.st==="x"?"x":"o");};
+const ckSt=(t,k)=>{const v=t&&t.ck&&t.ck[k]; if(v==="x"||v==="s"||v==="o")return v; return (t&&t.skip)?"s":(t&&t.st==="x"?"x":"o");};   // 明寫的 "o"＝掛在已完成格子上的未做項（只有遷移會寫，例：舊卡包材還沒定稿）
 const ckOpen=t=>ckItems(t).filter(c=>ckSt(t,c.k)==="o");
 // 把「跟著整格」的隱含狀態釘成記錄 —— 整格要離開完成時用：退回後各項仍保留原本的 ✓
 const ckPin=t=>{ if(!hasCk(t))return; const ck={}; ckItems(t).forEach(c=>{const s=ckSt(t,c.k); if(s!=="o")ck[c.k]=s;}); if(Object.keys(ck).length)t.ck=ck; else delete t.ck; };
@@ -2357,28 +2367,36 @@ const ckPin=t=>{ if(!hasCk(t))return; const ck={}; ckItems(t).forEach(c=>{const 
 async function ckApply(slug,code,cur,el){
   let l=L(slug), t=l&&v3Task(l,code); if(!l||!t||!hasCk(t))return false;
   const items=ckItems(t), all=items.map(c=>cur[c.k]||"o");
-  const resolved=all.every(s=>s!=="o"), allSkip=all.every(s=>s==="s"), anyDone=all.some(s=>s!=="o");
+  const resolved=all.every(s=>s!=="o"), allSkip=all.every(s=>s==="s"), anyX=all.some(s=>s==="x");
   const wasX=t.st==="x";
-  if(wasX&&!resolved){   // 會讓已完成（含已放行的跳過）的整格退回 ⇒ 下游先確認（同 stepStatus 離開完成）
+  // 已完成的整格：只有「這一下新冒出來的未做項」才退回整格。遷移帶進來的舊未做項（例：包材當時還沒定稿）原本就
+  // 掛在完成的格子上，處理別的項目時不該因為它把整格連同下游一起退回（審查 M1）。
+  const openBefore=new Set(items.filter(c=>ckSt(t,c.k)==="o").map(c=>c.k));
+  const reopen=wasX&&items.some((c,ix)=>all[ix]==="o"&&!openBefore.has(c.k));
+  if(reopen){   // 下游先確認（同 stepStatus 離開完成）
     const g=await guardReopen(l,t,el); if(!g.ok)return false;
     l=L(slug); t=l&&v3Task(l,code); if(!l||!t)return false;   // re-resolve：確認框開著時遠端快照可能重建過 LAUNCHES
     const rc=g.reset.map(d=>d.code); (l.tasks||[]).filter(x=>rc.includes(x.code)).forEach(d=>{d.st="o"; if(d.doneAt)delete d.doneAt;}); }
-  const ck={}; items.forEach(c=>{ const v=cur[c.k]; if(v==="x"||v==="s")ck[c.k]=v; });
+  // 先寫完成／跳過的記錄（applyTaskStatus 的清單閘要讀到新狀態）；未做項只有「留在已完成格子上」時才明寫（最後處理）
+  const ck={}; items.forEach((c,ix)=>{ const v=all[ix]; if(v==="x"||v==="s")ck[c.k]=v; });
   if(Object.keys(ck).length)t.ck=ck; else delete t.ck;
-  const lk=taskLocked(l,t);
+  const lk=taskLocked(l,t); let r;
   if(resolved&&allSkip){                                   // 四項全跳過 ⇒ 整格跳過
     if(!t.skip){ t.skip=(t.st==="p"||t.st==="b")?t.st:"o"; if(!wasX){ if(lk) t.st="o"; else { t.st="x"; t.doneAt=today; } } }
-    return "skip"; }
-  if(resolved){                                            // 都處理了、至少一項真的做了 ⇒ 整格完成
-    if(t.skip){ delete t.skip; return wasX?"done":"open"; } // 已放行的跳過改記成完成（st 本來就是 x）
-    if(wasX) return "done";
-    if(lk) return "locked";                                // 項目早就勾好、前置後來被退回 —— 等前置完成再按完成
-    const r=applyTaskStatus(l,t,"x"); if(!r.ok){ toast(r.reason); return "blocked"; }
-    t.doneAt=today; if(!t.startAt)t.startAt=today; return "done"; }
-  if(t.skip) delete t.skip;                                // 還有沒處理的項目 ⇒ 整格未完成
-  if(wasX){ t.st=anyDone?"p":"o"; if(t.doneAt)delete t.doneAt; if(t.st==="p"&&!t.startAt)t.startAt=today; }
-  else if(t.st==="o"&&!lk&&all.some(s=>s==="x")){ t.st="p"; if(!t.startAt)t.startAt=today; }
-  return "open";
+    r="skip"; }
+  else if(resolved){                                       // 都處理了、至少一項真的做了 ⇒ 整格完成
+    if(t.skip){ delete t.skip; r=wasX?"done":"open"; }     // 已放行的跳過改記成完成（st 本來就是 x）
+    else if(wasX) r="done";
+    else if(lk) r="locked";                                // 項目早就勾好、前置後來被退回 —— 等前置完成再按完成
+    else { const ar=applyTaskStatus(l,t,"x"); if(!ar.ok){ toast(ar.reason); r="blocked"; } else { t.doneAt=today; if(!t.startAt)t.startAt=today; r="done"; } } }
+  else if(wasX&&!reopen) r="kept";                         // 舊未做項還掛著、這一下沒有新增未做 ⇒ 整格維持完成
+  else {                                                   // 還有沒處理的項目 ⇒ 整格未完成
+    if(t.skip){ delete t.skip; if(!wasX) t.st="o"; }       // 待放行的跳過被撤掉：鎖著的步驟一律回 o（審查 L2）
+    if(wasX){ t.st=anyX?"p":"o"; if(t.doneAt)delete t.doneAt; if(t.st==="p"&&!t.startAt)t.startAt=today; }   // 只有真的做了才算開工（只有跳過不算，審查 L5）
+    else if(t.st==="o"&&!lk&&anyX){ t.st="p"; if(!t.startAt)t.startAt=today; }
+    r="open"; }
+  if(t.st==="x"&&!t.skip) items.forEach((c,ix)=>{ if(all[ix]==="o"){ t.ck=t.ck||{}; t.ck[c.k]="o"; } });
+  return r;
 }
 // 清單上一項的動作：v＝"x"（完成）／"s"（跳過）／"o"（改回未做）。勾完成要等前置（同狀態鈕）；標跳過可以先規劃。
 async function ckSet(slug,i,k,v,el){
@@ -2393,7 +2411,7 @@ async function ckSet(slug,i,k,v,el){
   const r=await ckApply(slug,code,cur,el); if(!r)return;
   l=L(slug); if(!l)return;
   const nm=v3T(V3MAP[code]||{});
-  if(r==="skip") toast(zh?("↷ 四項都跳過 —— 「"+nm+"」整格跳過"):("↷ All items skipped — “"+nm+"” is skipped"));
+  if(r==="skip") toast(zh?("↪ 四項都跳過 —— 「"+nm+"」整格跳過"):("↪ All items skipped — “"+nm+"” is skipped"));
   else if(r==="done"&&!wasX) toast(zh?("✓ 項目都處理完 —— 「"+nm+"」完成"):("✓ All items resolved — “"+nm+"” is done"));
   else if(r==="locked") toast(zh?"☑ 項目都處理了 —— 前置完成後再把這一步標完成":"☑ Every item is resolved — mark the step done once its prerequisites finish");
   v3Advance(l); save(); render();
@@ -2611,7 +2629,7 @@ function v3DeptHealth(l){
   });
   Object.keys(depts).forEach(d=>{ let act=0,bud=0,started=0;
     // actual 與 budget 只累計「已開工的步驟」，比才是同一把尺；天數未知的步驟兩邊都不計（沒填 ≠ 0 天）。
-    (l.tasks||[]).forEach(t=>{ if(!t.code||t.d!==d||taskDaysUnknown(t))return;
+    (l.tasks||[]).forEach(t=>{ if(!t.code||t.d!==d||taskDaysUnknown(t)||t.skip)return;   // 跳過不是耗時（審查 L4）
       const lim=taskDayLimit(t)||0;
       if(t.st==="x"){ started++; bud+=lim; act+=(t.startAt&&t.doneAt)?Math.max(0,dayDiff(t.startAt,t.doneAt)):lim; }   // 完成卻沒時間戳 ⇒ 以預算計（中性），別當 0 天
       else if(t.startAt){ started++; bud+=lim; act+=Math.max(0,dayDiff(t.startAt,today)); } });
@@ -3654,7 +3672,7 @@ async function loadProjectsData(){
 }
 
 const NAVS=[["home","Home"],["portfolio","Portfolio"],["progress","Progress"],["campaign","Campaigns"],["settings","Settings"]];
-const stIcon={x:"✓",p:"…",b:"!",o:"○",sk:"↷"};   // sk＝跳過（顯示用狀態，不是 t.st 的值 —— 見 dispSt）
+const stIcon={x:"✓",p:"…",b:"!",o:"○",sk:"↪"};   // sk＝跳過（顯示用狀態，不是 t.st 的值 —— 見 dispSt）
 const fmt=d=>new Date(d+"T00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
 /* 跨年版：fmt() 只印月日，抬頭上「大貨完成 Sep 11 → 預計上市 Mar 4」看不出後者是明年 —— 有人會把滑到
    明年的案子讀成下個月。同一年不加任何東西（密度不變），跨年才補一個小小的 '27。回傳含 HTML，只能插進
@@ -4070,6 +4088,10 @@ function applyTaskStatus(l,t,nx){
                                       :("☑ "+op.length+" item(s) still open ("+op.map(c=>c.en).join(", ")+") — tick or skip each one and this step completes itself")}; }
   if(t.st==="x"&&nx!=="x"&&!t.skip) ckPin(t);   // 勾選項：整格從完成退回時，各項保留原本的 ✓（不然「跟著整格」的隱含值會一起消失）
   if(t.skip) delete t.skip;   // 任何手動改狀態都結束「跳過」—— 否則 v3SkipPass 會在下一次 v3Advance 把它改回完成
+  if(hasCk(t)&&t.ck){ const its=ckItems(t);   // 清單與整格同一套規則（審查 L1：AI 的 set_task_status 也走這裡）
+    if(nx==="x"&&its.every(c=>t.ck[c.k]==="s")) t.skip=(t.st==="p"||t.st==="b")?t.st:"o";   // 四項全跳過時的「完成」＝整格跳過
+    else if(nx!=="x"&&its.every(c=>t.ck[c.k]==="s")) delete t.ck;                          // 整格跳過被改回未完成 ⇒ 各項也回到未做
+    else if(nx==="x") its.forEach(c=>{ if(t.ck[c.k]==="o") delete t.ck[c.k]; }); }          // 不會走到（閘門擋未做項），保險
   t.st=nx;
   if(nx==="x")logEvent("milestone","✓ completed · "+l.name+" — "+t.t,{card:l.slug});
   else if(nx==="b")logEvent("blocked","⛔ blocked · "+l.name+" — "+t.t,{card:l.slug});
@@ -4401,10 +4423,10 @@ function taskRow(l,t,extra,ro,noexp){   // noexp（個人視角用）：不給�
   // 勾選項（C6 設計整合）：列上帶「☑ 已處理／總數」—— 不展開也知道還差幾項（同面料的 🧵 chip）
   const ckChip=hasCk(t)?(()=>{const its=ckItems(t), dn=its.filter(c=>ckSt(t,c.k)!=="o").length;
     return `<span class="ghostnote" title="${esc(its.map(c=>(LANG==="zh"?c.zh:c.en)+"："+({x:LANG==="zh"?"完成":"done",s:LANG==="zh"?"跳過":"skipped",o:LANG==="zh"?"未做":"to do"})[ckSt(t,c.k)]).join(" · "))}">☑ ${dn}/${its.length}</span>`;})():"";
-  // 跳過：狀態鈕換成紫色 ↷，點它＝取消跳過（鎖著也可以 —— 撤掉預先標的跳過）；列上補一個「跳過」字樣，掃一眼就分得出來
+  // 跳過：狀態鈕換成紫色 ↪，點它＝取消跳過（鎖著也可以 —— 撤掉預先標的跳過）；列上補一個「跳過」字樣，掃一眼就分得出來
   const sk=isSkip(t), lkB=lk&&!sk, skPend=sk&&t.st!=="x";
   const skTip=LANG==="zh"?("已跳過"+(skPend?"（前置完成後自動放行）":"")+" — 點擊取消跳過"):("skipped"+(skPend?" (passes through once its prerequisites finish)":"")+" — click to un-skip");
-  const skChip=sk?`<span class="skipchip" title="${esc(skTip)}">↷ ${LANG==="zh"?(skPend?"預先跳過":"跳過"):(skPend?"pre-skipped":"skipped")}</span>`:"";
+  const skChip=sk?`<span class="skipchip" title="${esc(skTip)}">↪ ${LANG==="zh"?(skPend?"預先跳過":"跳過"):(skPend?"pre-skipped":"skipped")}</span>`:"";
   const _hasPanel=open&&!t.gate;                                  // the detail panel is only rendered when open (non-gate)
   let _tpNew=""; if(_hasPanel){ if(!PANELSEEN.has(key)){PANELSEEN.add(key);_tpNew=" tp-in";} } else PANELSEEN.delete(key);  // first open → play reveal once; closed → forget so a reopen replays
   return `<div id="task-${l.slug}-${i}" class="taskwrap${_tpNew}" style="border-radius:2px"><div class="row${t.gate?" gaterow":""}" style="${(t.gate||noexp)?"":"cursor:pointer;"}${lk?(sk?"opacity:.6":"opacity:.38;filter:grayscale(.6)"):""}"${(t.gate||noexp)?"":` onclick="rowToggle(event,'${key}')"`}>
@@ -4450,7 +4472,7 @@ function taskDetail(l,t,i,ro,vn,lk){
     const days=(t.days!=null?t.days:vn.days);                                               // per-launch override wins, else the template default
     const editable=!ro&&vn.days==null&&t.st!=="x"&&!!startClock;
     let due;
-    if(t.skip){ due=`<span class="skipnote">↷ ${T("已跳過","skipped")}</span> <span class="ghostnote">${T("不計天數","no days counted")}${t.st!=="x"?T(" · 前置完成後自動放行"," · passes through once its prerequisites finish"):(t.doneAt?" · "+fmt(t.doneAt):"")}</span>`; }
+    if(t.skip){ due=`<span class="skipnote">↪ ${T("已跳過","skipped")}</span> <span class="ghostnote">${T("不計天數","no days counted")}${t.st!=="x"?T(" · 前置完成後自動放行"," · passes through once its prerequisites finish"):(t.doneAt?" · "+fmt(t.doneAt):"")}</span>`; }
     else if(t.st==="x"){ due=`<span class="ghostnote">${T("已完成","done")}${t.doneAt?" · "+fmt(t.doneAt):""}</span>`; }
     else if(editable){
       const dd=days!=null?v3AddD(startClock,days):"";
@@ -4501,9 +4523,9 @@ function taskDetail(l,t,i,ro,vn,lk){
     info.push([T("切換日期記錄","Switch log"), `${chips}${chips?"<br>":""}${add}`]);
   }
   // 跳過（2026-10-13）：照舊／不需要做的步驟。鎖著也能先標（前置完成後自動放行）；可隨時取消
-  if(t.skip) info.push([T("跳過","Skip"), `<span class="skipnote">↷ ${t.st==="x"?T("已跳過","skipped"):T("已預先跳過 —— 前置完成後自動放行","pre-skipped — passes through once its prerequisites finish")}</span>`
+  if(t.skip) info.push([T("跳過","Skip"), `<span class="skipnote">↪ ${t.st==="x"?T("已跳過","skipped"):T("已預先跳過 —— 前置完成後自動放行","pre-skipped — passes through once its prerequisites finish")}</span>`
     +(ro?"":` <button class="addlnk" onclick="event.stopPropagation();v3SkipToggle('${l.slug}',${i},this)">↩ ${T("取消跳過","Un-skip")}</button>`)]);
-  else if(!ro&&!t.gate&&!v3SkipBlock(l,t)) info.push([T("跳過","Skip"), `<button class="addlnk" onclick="event.stopPropagation();v3SkipToggle('${l.slug}',${i},this)">↷ ${T("跳過這一步","Skip this step")}</button> <span class="ghostnote">${hasCk(t)
+  else if(!ro&&!t.gate&&!v3SkipBlock(l,t)) info.push([T("跳過","Skip"), `<button class="addlnk" onclick="event.stopPropagation();v3SkipToggle('${l.slug}',${i},this)">↪ ${T("跳過這一步","Skip this step")}</button> <span class="ghostnote">${hasCk(t)
       ?T("＝把還沒做的項目全部標跳過","= marks every open item skipped")
       :T("照舊／不需要做時用 —— 下游照常解鎖、不計天數，之後可取消","for steps carried over or not needed — downstream unlocks as usual, no days counted; undo any time")}</span>`]);
   if(!lk) info.push([T("連結","Links"), linkChips(t,l.slug,i)]);   // the actual attached links live IN the detail, not only in the outer quick-link chip
@@ -4573,7 +4595,7 @@ async function v3FabDel(slug,fid){
    比照 stepStatus：鎖住就搖一下說明理由，離開「完成」要一併退回這條面料的下游（否則留下假綠）。 */
 async function fabStep(slug,i,fid,dir,el){
   const l0=L(slug), t0=l0&&l0.tasks[i]; if(!t0||!fabSplit(l0,t0))return; const code=t0.code;
-  if(t0.skip){ bvShake(el); toast(LANG==="zh"?"↷ 這一格整格跳過了 —— 要逐條推進請先取消跳過":"↷ This step is skipped — un-skip it to advance fabrics one by one"); return; }
+  if(t0.skip){ bvShake(el); toast(LANG==="zh"?"↪ 這一格整格跳過了 —— 要逐條推進請先取消跳過":"↪ This step is skipped — un-skip it to advance fabrics one by one"); return; }
   const lk=fabLock(l0,t0,fid); if(lk){ bvShake(el); toast("🔒 "+lk); return; }
   const cur=fabSt(t0,fid).st, nx=(dir<0?{p:"o",x:"p",b:"x",o:"b"}:{o:"p",p:"x",x:"b",b:"o"})[cur];
   if(cur==="x"&&nx!=="x"){                             // 退出「完成」→ 這條面料的下游步驟失效，一併退回
@@ -4685,7 +4707,7 @@ function dCell(l,code,fid,k,opts){
     +`${opts.lab?`<span class="dlab">${esc(opts.lab)}</span>`:""}${body}</button>`;
 }
 /* 詳情面板／流程圖彈窗共用的勾選項清單（C6 設計整合）：呈現比照下面的面料分支表 —— 一列一項、左邊狀態鈕 ——
-   但沒有日期與工期欄（Zac：「不用填寫日期」）。狀態鈕：○ 未做 ⇄ ✓ 完成；右邊小鈕切換「↷ 跳過」。
+   但沒有日期與工期欄（Zac：「不用填寫日期」）。狀態鈕：○ 未做 ⇄ ✓ 完成；右邊小鈕切換「↪ 跳過」。
    鎖著時可以先標跳過（規劃），勾完成要等解鎖（同狀態鈕的規則）。 */
 function ckPanel(l,t,i,ro){
   const zh=LANG==="zh", T=(z,e)=>zh?z:e, lk=taskLocked(l,t), its=ckItems(t);
@@ -4700,7 +4722,7 @@ function ckPanel(l,t,i,ro){
       :`<button type="button" class="st ${cls}" aria-label="${esc(nm)} — ${tip}" title="${tip}" onclick="event.stopPropagation();ckSet('${l.slug}',${i},'${c.k}','${next}',this)">${ico}</button>`;
     const skB=ro?"":(s==="s"
       ?`<button class="ckskip" title="${T("改回未做","mark not done")}" onclick="event.stopPropagation();ckSet('${l.slug}',${i},'${c.k}','o',this)">↩ ${T("取消跳過","un-skip")}</button>`
-      :`<button class="ckskip" title="${T("這一項照舊、不需要重做","this item carries over unchanged")}" onclick="event.stopPropagation();ckSet('${l.slug}',${i},'${c.k}','s',this)">↷ ${T("跳過","skip")}</button>`);
+      :`<button class="ckskip" title="${T("這一項照舊、不需要重做","this item carries over unchanged")}" onclick="event.stopPropagation();ckSet('${l.slug}',${i},'${c.k}','s',this)">↪ ${T("跳過","skip")}</button>`);
     return `<div class="fabrow ckrow${s==="s"?" sk":""}${lk&&s==="o"?" lk":""}">${stB}<span class="fabnm">${esc(nm)}</span><span class="fabmeta">${skB}</span></div>`;
   }).join("");
   const dn=its.filter(c=>ckSt(t,c.k)!=="o").length, all=dn===its.length;
@@ -4722,7 +4744,7 @@ async function ckFinish(slug,i,el){
   l=L(slug); if(!l)return;
   const nm=v3T(V3MAP[code]||{});
   if(r==="done") toast(zh?("✓ 「"+nm+"」完成"):("✓ “"+nm+"” is done"));
-  else if(r==="skip") toast(zh?("↷ 「"+nm+"」整格跳過"):("↷ “"+nm+"” is skipped"));
+  else if(r==="skip") toast(zh?("↪ 「"+nm+"」整格跳過"):("↪ “"+nm+"” is skipped"));
   v3Advance(l); save(); render();
 }
 /* 詳情面板／流程圖彈窗共用的面料分支表：一列一條面料，各自的狀態鈕、工期、專屬日期與預計完成日。
@@ -4751,7 +4773,7 @@ function fabPanel(l,t,i,ro){
       : `<input type="number" min="0" class="v3shot-q fabd-inp" value="${s.days!=null?s.days:""}" placeholder="${vn.days!=null?vn.days:(vn.est!=null?vn.est:"")}" title="${T("這條面料的工期 — 留白就用模板的 "+(vn.days!=null?vn.days:"—")+"d","this fabric's duration — blank uses the template's "+(vn.days!=null?vn.days:"—")+"d")}" onclick="event.stopPropagation()" onchange="v3FabSetDays('${l.slug}',${i},'${f.id}',this.value)"> d`;
     const dateInp=!dk?"":(ro?(s[dk]?fmt(s[dk]):"—")
       : `<input type="date" class="v3due-inp${s[dk]?"":" unfilled"}" value="${esc(s[dk]||"")}"${(dk==="arrivalDate"&&fabArrFloor(l,f.id))?` min="${fabArrFloor(l,f.id)}"`:""} title="${esc(dLab)}" onclick="event.stopPropagation()" onchange="v3FabSetDate('${l.slug}',${i},'${f.id}','${dk}',this.value)">`);
-    const finCell=t.skip?`<span class="skipnote">↷ ${T("跳過","skipped")}</span>`
+    const finCell=t.skip?`<span class="skipnote">↪ ${T("跳過","skipped")}</span>`
       :s.st==="x"
       ? `<b style="color:var(--green)">✓ ${s.doneAt?fmt(s.doneAt):""}</b>`
       : !dated ? ""                                   // 純勾選的步驟沒有「預計完成日」可言（不在 v3FabFin 的鏈上）
@@ -4955,7 +4977,7 @@ function flowLegend(){
   // Every entry here must correspond to something ACTUALLY drawn on the chart. The tiles carry only names now
   // (2026-07-30), so the old `C7 · 5d` key and the standalone 🔒 glyph were removed — "locked" is the dashed
   // swatch, and codes / day budgets live in the node popover.
-  return `<div class="legend">${sw(F.fill.x,F.strk.x,zh?"完成":"done")}${sw(F.fill.p,F.strk.p,zh?"進行中":"in progress")}${sw(F.fill.b,F.strk.b,zh?"卡關":"blocked")}${sw(F.fill.sk,F.strk.sk,zh?"↷ 跳過（虛線＝前置完成後自動放行）":"↷ skipped (dashed = passes once prereqs finish)")}${sw(F.fill.fut,F.strk.fut,zh?"未解鎖（虛線）＝等前置":"locked (dashed) = waiting on prereqs",";border-style:dashed")}${sw(F.ice.fill,F.ice.strk,zh?"設計凍結":"design-frozen")}
+  return `<div class="legend">${sw(F.fill.x,F.strk.x,zh?"完成":"done")}${sw(F.fill.p,F.strk.p,zh?"進行中":"in progress")}${sw(F.fill.b,F.strk.b,zh?"卡關":"blocked")}${sw(F.fill.sk,F.strk.sk,zh?"↪ 跳過（虛線＝前置完成後自動放行）":"↪ skipped (dashed = passes once prereqs finish)")}${sw(F.fill.fut,F.strk.fut,zh?"未解鎖（虛線）＝等前置":"locked (dashed) = waiting on prereqs",";border-style:dashed")}${sw(F.ice.fill,F.ice.strk,zh?"設計凍結":"design-frozen")}
   <span style="color:#EE3124">📍 ${zh?"現在可開工（右邊＝負責人）":"start now (owner on the right)"}</span><span>⏳ ${zh?"進行中":"in progress"}</span><span>⛔ ${zh?"卡關":"blocked"}</span><span>⏱／📅 ${zh?"待填天數／日期":"days / date to fill"}</span>${HAS_BEN?`<span style="color:var(--purple)">◆ ${zh?"決策關卡":"decision gate"}</span>`:""}
   <span class="ghostnote">⇢ ${zh?"虛線＝跨部門交棒":"dashed = cross-department hand-off"}</span><span class="ghostnote">🔗 ${zh?"點任一步驟＝亮出前置／解鎖，並看代號與天數":"click a step = deps, code and day budget"}</span></div>`;
 }
@@ -5167,7 +5189,7 @@ function flowSVG(l){
           }
         } }
       return `<g pointer-events="none"><rect x="${x-4}" y="${BRY}" width="${w}" height="18" rx="9" fill="${BJ.bg}"/><text x="${x-4+w/2}" y="${BTY}" text-anchor="middle" fill="${BJ.fg}" font-size="11" font-weight="700">${BJ.t}</text>${inSVG}${ownSVG}</g>`;})()}
-    <title>${esc(n.l)} — ${LANG==="zh"?"階段：":"stage: "}${n.s} · ${LANG==="zh"?"點一下看依賴與快捷動作":"click for route + quick actions"}${st==="fut"&&ti>=0?(LANG==="zh"?" · 🔒 鎖定中 — 等前一步完成":" · 🔒 locked until previous step is done"):""}${st==="sk"?(LANG==="zh"?(skPend?" · ↷ 已預先跳過（前置完成後自動放行）":" · ↷ 已跳過"):(skPend?" · ↷ pre-skipped (passes once prerequisites finish)":" · ↷ skipped")):""}${live==="o"?(LANG==="zh"?" · 📍 已解鎖，可開始":" · 📍 unlocked — ready to start")+(v3Own(_vnn)||(_tt&&_tt.o)?(LANG==="zh"?" · 負責人 ":" · owner: ")+"<!--notx-->"+esc(String(v3Own(_vnn)||(_tt&&_tt.o)))+"<!--/notx-->":""):live==="p"?(LANG==="zh"?" · ⏳ 進行中":" · ⏳ in progress"):live==="b"?(LANG==="zh"?" · ⛔ 卡關":" · ⛔ blocked"):""}${needDays?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}${needDate&&_vnn&&_vnn.arrival?" · "+arrTx(l,"ico")+" "+arrTx(l,"short")+(LANG==="zh"?"未填":" not set"):""}${needDate&&_vnn&&_vnn.ship?(LANG==="zh"?" · 🧵 大貨樣日未填":" · 🧵 bulk-sample date not set"):""}</title></g>`;}));
+    <title>${esc(n.l)} — ${LANG==="zh"?"階段：":"stage: "}${n.s} · ${LANG==="zh"?"點一下看依賴與快捷動作":"click for route + quick actions"}${st==="fut"&&ti>=0?(LANG==="zh"?" · 🔒 鎖定中 — 等前一步完成":" · 🔒 locked until previous step is done"):""}${st==="sk"?(LANG==="zh"?(skPend?" · ↪ 已預先跳過（前置完成後自動放行）":" · ↪ 已跳過"):(skPend?" · ↪ pre-skipped (passes once prerequisites finish)":" · ↪ skipped")):""}${live==="o"?(LANG==="zh"?" · 📍 已解鎖，可開始":" · 📍 unlocked — ready to start")+(v3Own(_vnn)||(_tt&&_tt.o)?(LANG==="zh"?" · 負責人 ":" · owner: ")+"<!--notx-->"+esc(String(v3Own(_vnn)||(_tt&&_tt.o)))+"<!--/notx-->":""):live==="p"?(LANG==="zh"?" · ⏳ 進行中":" · ⏳ in progress"):live==="b"?(LANG==="zh"?" · ⛔ 卡關":" · ⛔ blocked"):""}${needDays?(LANG==="zh"?" · ⏱ 天數未填":" · ⏱ days not set"):""}${needDate&&_vnn&&_vnn.arrival?" · "+arrTx(l,"ico")+" "+arrTx(l,"short")+(LANG==="zh"?"未填":" not set"):""}${needDate&&_vnn&&_vnn.ship?(LANG==="zh"?" · 🧵 大貨樣日未填":" · 🧵 bulk-sample date not set"):""}</title></g>`;}));
   // red dependency arrows (drawn on top so they clearly reach the highlighted nodes)
   depEdges.forEach(([a,b])=>{const pa=pos(a[0],a[1]),pb=pos(b[0],b[1]),ha=hgt(a[0],a[1]),hb=hgt(b[0],b[1]); let dpath;
     if(a[0]===b[0]){ const ax=pa.x+CW/2, ay=pa.y+ha, bx=pb.x+CW/2, by=pb.y-5, my=(ay+by)/2; dpath=`M${ax} ${ay} C ${ax} ${my}, ${bx} ${my}, ${bx} ${by}`; }
@@ -5374,7 +5396,7 @@ function flowPopHTML(d,i){
     +(n.d?'<span class="fp-dec">◆ decision</span>':"")
     +(task&&task.decision&&task.decision.v==="no"?`<span class="fp-dec" style="color:var(--red)">✗ ${zh?"已否決":"rejected"}</span>`:"")
     +(locked?`<span class="fp-lock">🔒 ${zh?"鎖定":"locked"}</span>`:"")
-    +(task&&task.skip?`<span class="fp-skip">↷ ${zh?(task.st==="x"?"已跳過":"已預先跳過"):(task.st==="x"?"skipped":"pre-skipped")}</span>`:"")
+    +(task&&task.skip?`<span class="fp-skip">↪ ${zh?(task.st==="x"?"已跳過":"已預先跳過"):(task.st==="x"?"skipped":"pre-skipped")}</span>`:"")
     +`</div></div><button class="fp-x" title="${cls}" aria-label="${cls}" onclick="closeFlowPop()">✕</button></div>`;
   // action bar — the primary Complete verb lifted UP to right under the head, paired with this step's day estimate (待填 shows soft-red)
   {const vn=V3MAP[n.code]||{};
@@ -5418,12 +5440,12 @@ function flowPopHTML(d,i){
    }else{
      daysEl=`<span class="fp-days${dTBD?" tbd":""}" title="${zh?"預估天數":"estimated days"}">⏱ ${daysTxt}</span>`;
    }
-   // 跳過（2026-10-13）：跳過中 → 主動作換成「↩ 取消跳過」、天數顯示不計；可跳過 → 旁邊多一顆「↷ 跳過」（鎖著也能先標）
+   // 跳過（2026-10-13）：跳過中 → 主動作換成「↩ 取消跳過」、天數顯示不計；可跳過 → 旁邊多一顆「↪ 跳過」（鎖著也能先標）
    const isSk=!!(task&&task.skip);
    const skipBtn=(task&&ti>=0&&!n.d)?(isSk
        ?`<button class="btn ghost fp-mark" title="${zh?"取消跳過 —— 這一步恢復成要做":"un-skip — this step needs doing again"}" onclick="v3SkipToggle('${l.slug}',${ti},this)">↩ ${zh?"取消跳過":"Un-skip"}</button>`
-       :(v3SkipBlock(l,task)?"":`<button class="btn ghost fp-mark" title="${zh?(hasCk(task)?"把還沒做的項目全部標跳過":"照舊／不需要做 —— 下游照常解鎖、不計天數，之後可取消"):(hasCk(task)?"marks every open item skipped":"carried over / not needed — downstream unlocks as usual, no days counted; undo any time")}" onclick="v3SkipToggle('${l.slug}',${ti},this)">↷ ${zh?"跳過":"Skip"}</button>`)):"";
-   if(isSk) daysEl=`<span class="fp-days" title="${zh?"跳過的步驟不計天數":"a skipped step counts no days"}">↷ ${zh?"不計天數":"no days"}</span>`;
+       :(v3SkipBlock(l,task)?"":`<button class="btn ghost fp-mark" title="${zh?(hasCk(task)?"把還沒做的項目全部標跳過":"照舊／不需要做 —— 下游照常解鎖、不計天數，之後可取消"):(hasCk(task)?"marks every open item skipped":"carried over / not needed — downstream unlocks as usual, no days counted; undo any time")}" onclick="v3SkipToggle('${l.slug}',${ti},this)">↪ ${zh?"跳過":"Skip"}</button>`)):"";
+   if(isSk) daysEl=`<span class="fp-days" title="${zh?"跳過的步驟不計天數":"a skipped step counts no days"}">↪ ${zh?"不計天數":"no days"}</span>`;
    h+=`<div class="fp-actbar">${isSk?"":aMark}${skipBtn}${daysEl}</div>`;
    // 日期列：已完成 → 直接在圖上補正「完成日」（排程與統計跟著這天，原本只能到詳情面板改）；
    // 未完成 → 顯示應完成日與倒數。manual＋時鐘已起算的步驟不畫，因為上面那顆 ⏱ 本身就是交期輸入框（同一個日期別畫兩次）。
@@ -5499,7 +5521,7 @@ function flowPopHTML(d,i){
    const reqChip=c=>{const rt=(l.tasks||[]).find(t=>t.code===c), dn=!!(rt&&rt.st==="x"), nn=V3MAP[c];
      const part=!dn&&!!rt&&(myN.reqAny||[]).indexOf(c)>=0&&fabSplit(l,rt)&&fabsOf(l).some(f=>fabSt(rt,f.id).st==="x");
      const okNow=dn||part;
-     return `<span class="fp-dep ${okNow?"done":"miss"}"${part?` title="${esc(zh?"已有面料完成，足以開工；其餘面料仍在進行":"at least one fabric is done — enough to start")}"`:""}>${dn?(rt.skip?"↷ ":"✓ "):(part?"◐ ":"")}${named(c)}${!okNow&&nn&&v3Own(nn)?` <span class="fp-dep-o"><!--notx-->${esc(v3Own(nn))}<!--/notx--></span>`:""}</span>`;};
+     return `<span class="fp-dep ${okNow?"done":"miss"}"${part?` title="${esc(zh?"已有面料完成，足以開工；其餘面料仍在進行":"at least one fabric is done — enough to start")}"`:""}>${dn?(rt.skip?"↪ ":"✓ "):(part?"◐ ":"")}${named(c)}${!okNow&&nn&&v3Own(nn)?` <span class="fp-dep-o"><!--notx-->${esc(v3Own(nn))}<!--/notx--></span>`:""}</span>`;};
    const dependents=[]; Object.keys(FLOW).forEach(dd=>(FLOW[dd]||[]).forEach(nn=>{ if(nn.code&&(nn.req||[]).includes(n.code)&&!dependents.includes(nn.code)) dependents.push(nn.code); }));
    let r=`<div class="fp-route">`;
    if(reqs.length) r+=`<div class="fp-deps"><span class="fp-deplabel fp-deplock" title="${zh?"等待這些步驟完成":"waits on these"}" aria-label="${zh?"等待":"waits on"}">🔒</span>${reqs.map(reqChip).join("")}</div>`;
@@ -6527,9 +6549,9 @@ function v3Dash(l){
   const kolChip=`<span class="ghostnote" title="${T("網紅全線（手動節奏，對齊目標上市日）","influencer line (manual cadence, aligned to target launch)")}"><!--notx-->KOL<!--/notx--> ${kk?stIcon[dispSt(kk)]:"—"}</span>`;
   const dtt=l.target?dayDiff(today,l.target):null, pendD=v3PendingDays(l);
   const assets=V3ASSETS.map(c=>{const t=v3Task(l,c);const n=V3MAP[c];if(!t)return "";
-    const lkT=v3LockText(l,t); const done=t.st==="x", sk=!!t.skip;   // 跳過（例：這個品項不拍影片）→ 紫色「↷ 跳過」，不是綠色完成
+    const lkT=v3LockText(l,t); const done=t.st==="x", sk=!!t.skip;   // 跳過（例：這個品項不拍影片）→ 紫色「↪ 跳過」，不是綠色完成
     const cls=sk?"skp":done?"ok":t.st==="p"?"warn":t.st==="b"?"bad":lkT?"lock":"todo";
-    const st=sk?`↷ ${done?T("跳過","skipped"):T("預先跳過","pre-skipped")}`:done?`✓ ${fmt(t.doneAt||today)}`:t.st==="p"?T("… 進行中","… in progress"):t.st==="b"?T("! 卡關","! blocked"):lkT?`🔒 ${esc(lkT)}`:T("○ 待做","○ to do");
+    const st=sk?`↪ ${done?T("跳過","skipped"):T("預先跳過","pre-skipped")}`:done?`✓ ${fmt(t.doneAt||today)}`:t.st==="p"?T("… 進行中","… in progress"):t.st==="b"?T("! 卡關","! blocked"):lkT?`🔒 ${esc(lkT)}`:T("○ 待做","○ to do");
     const rem=(done||sk)?0:v3EstRemain(l,c);
     const late=!done&&dtt!=null&&rem>dtt?`<span class="v3late" title="${T("以已知天數倒推：預估還需","est. days left")} ${rem}d ＞ ${T("距目標","to target")} ${dtt}d">⚠ ${T("最晚開工日已過","latest start passed")}</span>`:"";
     return `<div class="v3asset ${cls}" onclick="v3jump('${l.slug}','${c}')" title="${T("點擊跳到任務","jump to task")}">
