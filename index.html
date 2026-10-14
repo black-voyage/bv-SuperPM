@@ -2038,6 +2038,11 @@ function v3SyncTasks(l){
     // 勾選項（C6，2026-10-13）：清單上線前就完成的格子，把「跟著整格」的 ✓ 釘成記錄一次（決定性、冪等）——
     // 之後就算被上游退回（v3Reconcile／級聯退回都不經 applyTaskStatus），各項的 ✓ 也不會跟著消失
     if(t.st==="x"&&!t.skip&&!t.ck&&hasCk(t)) ckPin(t);
+    /* 相容（2026-10-14，一次性、冪等）：APPVER 2026101401 那一版「包裝不擋關」—— 已完成的整格上，包裝沒記錄＝「沒做」。
+       改回擋關後，沒記錄的擋關項會跟著整格顯示成 ✓，那段期間的卡會默默變成「包裝完成」。只有那一版會留下
+       「已完成、非跳過、有清單、卻沒有 pack 鍵」的資料（現行每條寫入路徑都會明寫包裝；上面的一次性釘選也會先補 pack），
+       所以這裡補記 "o" 只會命中那段期間，結果決定性，套快照多次不變。 */
+    if(t.st==="x"&&!t.skip&&t.ck&&hasCk(t)&&!("pack" in t.ck)) t.ck.pack="o";
     return t;
   });
   /* 2026-09-16 日期合併遷移（Zac：「性質是一樣的」）：
@@ -2412,7 +2417,7 @@ async function ckApply(slug,code,cur,el){
     else if(wasX) r="done";
     else if(lk) r="locked";                                // 項目早就勾好、前置後來被退回 —— 等前置完成再按完成
     else { const ar=applyTaskStatus(l,t,"x"); if(!ar.ok){ toast(ar.reason); r="blocked"; } else { t.doneAt=today; if(!t.startAt)t.startAt=today; r="done"; } } }
-  else if(wasX&&!reopen) r="kept";                         // 舊未做項還掛著、這一下沒有新增未做 ⇒ 整格維持完成
+  else if(wasX&&!reopen){ if(t.skip&&anyX) delete t.skip; r="kept"; }   // 舊未做項還掛著、這一下沒有新增未做 ⇒ 整格維持完成；有任何一項真的做了就不再是「跳過」
   else {                                                   // 還有沒處理的項目 ⇒ 整格未完成
     if(t.skip){ delete t.skip; if(!wasX) t.st="o"; }       // 待放行的跳過被撤掉：鎖著的步驟一律回 o（審查 L2）
     if(wasX){ t.st=anyX?"p":"o"; if(t.doneAt)delete t.doneAt; if(t.st==="p"&&!t.startAt)t.startAt=today; }   // 只有真的做了才算開工（只有跳過不算，審查 L5）
