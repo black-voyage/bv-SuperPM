@@ -1422,9 +1422,9 @@ const V3PH=[
  // 「KOL 執行」階段已於 2026-08-12 移除（KOL1–5 併成 ph:3 的單節點後整階段空了，使用者裁決刪除）。
  // 舊卡 history 裡的死階段名由 v3SyncTasks 就地併回前一段，不會殘留在時間軸／延遲統計裡。
 ];
-/* 設計整合的勾選清單（新品 C6、產品更新 U1 共用，2026-10-13 Zac）。opt＝不擋關：整格完成只看其餘三項，
-   包裝可以在設計整合完成、下游開工之後再勾（Zac：「改成包裝這一項不擋關」—— 包材以前就是產前樣～大貨期間才交廠）。 */
-const V3CK_DESIGN=[{k:"form",zh:"造型",en:"Form"},{k:"cmf",zh:"CMF",en:"CMF"},{k:"logo",zh:"標誌",en:"Logo"},{k:"pack",zh:"包裝",en:"Packaging",s:"Pack",opt:1}];
+/* 設計整合的勾選清單（新品 C6、產品更新 U1 共用，2026-10-13 Zac）。四項都擋關：最後一項處理完（完成或跳過）整格才完成。
+   項目可帶 opt:1＝不擋關（引擎支援；2026-10-14 曾讓包裝不擋關，Zac 同日改回：「有跳過按鈕的話，包裝擋不擋也沒差」—— 目前沒有項目使用）。 */
+const V3CK_DESIGN=[{k:"form",zh:"造型",en:"Form"},{k:"cmf",zh:"CMF",en:"CMF"},{k:"logo",zh:"標誌",en:"Logo"},{k:"pack",zh:"包裝",en:"Packaging",s:"Pack"}];
 const V3=[
  // 0 — Concept & Design
  {c:"C1", en:"Form (intake)", zh:"產品需求表", ph:0, dept:"Product", o:"Ben", days:0, req:[]},
@@ -1436,13 +1436,13 @@ const V3=[
  /* 2026-10-13（Zac）：原「整合設計 C6」＋「識別設計 D1」合併成「設計整合」，搬到設計車道（在棚拍需求之上）；
     「包材設計定稿 D3」取消，包裝改成這一格的勾選項。留 C6 的碼（外部 launch-sheet-sync／superpm-date-sync 讀 C6 當「產品設計」里程碑）；
     en 維持 "Design integration"（任務標題＝EN＝唯一鍵）。天數 7＝原本兩格並行的較長者（C6 4d／D1 7d），關鍵路徑不變。
-    ck＝逐項勾選（呈現比照面料分支、但沒有日期）：造型／CMF／標誌都完成或標跳過 ⇒ 這一步自動完成（包裝不擋關）；全部跳過 ⇒ 整格跳過。
+    ck＝逐項勾選（呈現比照面料分支、但沒有日期）：四項都完成或標跳過 ⇒ 這一步自動完成；全部跳過 ⇒ 整格跳過。
     舊卡的 D1／D3 由 v3SyncTasks 折疊進來。 */
  {c:"C6", en:"Design integration", zh:"設計整合", ph:0, dept:"Design", o:"Zac + Mi", days:7, req:["C5"],
   ck:V3CK_DESIGN,
   out:{en:"PPT/Figma — form · CMF · logo · packaging + model name + brand language",zh:"PPT／Figma：造型・CMF・標誌・包裝＋型號名稱＋品牌語言確認"},
-  note:{en:"tick each item as it's done; mark the ones carried over unchanged as skipped — once form, CMF and logo are resolved the step completes; packaging doesn't block, tick it when it's done",
-        zh:"逐項勾選；照舊不重做的項目標「跳過」——造型、CMF、標誌處理完，這一步就自動完成；包裝不擋關，完成時再勾"}, isNew:1},
+  note:{en:"tick each item as it's done; mark the ones carried over unchanged as skipped — resolving the last item completes the step",
+        zh:"逐項勾選；照舊不重做的項目標「跳過」——最後一項處理完，這一步就自動完成"}, isNew:1},
  // 2026-10-08（Zac 裁定）：Ben 不在系統上確認，所有「Ben 決策」◆ 節點（C7／C9／D5、更新模板 U2／U4）一律刪除。
  // 依賴直接接回被刪節點的前置；C9 的 11 天裡有 9 天是原型運輸，併進 C8 的備註（C8 是逐卡手填天數，見下）。
  // 舊卡上這五格的狀態由 v3SyncTasks 的 rebuild 自然丟掉（byCode 只收模板認得的碼），其餘任務原封不動。
@@ -1501,11 +1501,11 @@ const V3U=[
  // 0 — Concept & Design (設計整合)
  {c:"U0", en:"Update intake", zh:"更新需求表", ph:0, dept:"Product", o:"Ben", days:0, req:[]},
  // 2026-10-13（Zac）：比照新品 C6 —— 改名「設計整合」、搬到設計車道（棚拍需求之上）、加 Mi、帶同一份勾選清單；UD4 包材設計定稿取消，
- // 包裝改成這一格的勾選項（不擋關）。留 U1 的碼（外部 superpm-date-sync 讀 U1 當「產品設計」槽）；en 不改（任務標題＝唯一鍵）。
+ // 包裝改成這一格的勾選項。留 U1 的碼（外部 superpm-date-sync 讀 U1 當「產品設計」槽）；en 不改（任務標題＝唯一鍵）。
  {c:"U1", en:"Integrate design changes", zh:"設計整合", ph:0, dept:"Design", o:"Zac + Mi", days:null, est:10, req:["U0"], ck:V3CK_DESIGN,
   out:{en:"updated design pack — form · CMF · logo · packaging",zh:"更新後設計資料：造型・CMF・標誌・包裝"},
-  note:{en:"tick each item as it's done; mark the ones carried over unchanged as skipped — once form, CMF and logo are resolved the step completes; packaging doesn't block, tick it when it's done",
-        zh:"逐項勾選；照舊不重做的項目標「跳過」——造型、CMF、標誌處理完，這一步就自動完成；包裝不擋關，完成時再勾"}},
+  note:{en:"tick each item as it's done; mark the ones carried over unchanged as skipped — resolving the last item completes the step",
+        zh:"逐項勾選；照舊不重做的項目標「跳過」——最後一項處理完，這一步就自動完成"}},
  // 1 — Prototype & Delivery (打樣)
  {c:"U3", en:"Revision prototype", zh:"原型打樣", ph:1, dept:"Product", o:"Zac", days:null, est:14, req:["U1"], out:{en:"revised prototype",zh:"修改後原型"}},
  {c:"U5", en:"Revised PPS", zh:"產前樣", ph:1, dept:"Product", o:"Zac", days:null, est:10, req:["U3"]},   // 不掛 evid：實體樣品沒有一份「證明連結」可附（P1 掛是因為 BOM 歸檔）
@@ -2375,7 +2375,7 @@ async function v3SkipToggle(slug,i,el){
    沒有記錄的項目跟著整格顯示（已完成＝✓、跳過＝↪），所以清單上線前就完成的舊卡不必補勾。 */
 const ckItems=t=>{const n=t&&t.code&&V3MAP[t.code]; return (n&&Array.isArray(n.ck))?n.ck:[];};
 const hasCk=t=>ckItems(t).length>0;
-// 明寫的 "o"＝掛在已完成（或跳過）格子上的未做項。沒記錄時跟著整格：跳過→↪、完成→✓ —— 但不擋關的項目（包裝）不因整格完成就算完成
+// 明寫的 "o"＝掛在已完成（或跳過）格子上的未做項（例：遷移時包材還沒定稿）。沒記錄時跟著整格：跳過→↪、完成→✓ —— 不擋關項（opt）例外，不因整格完成就算完成
 const ckSt=(t,k)=>{const v=t&&t.ck&&t.ck[k]; if(v==="x"||v==="s"||v==="o")return v;
   if(t&&t.skip)return "s";
   if(t&&t.st==="x"){ const c=ckItems(t).find(c=>c.k===k); return (c&&c.opt)?"o":"x"; }
@@ -2389,13 +2389,13 @@ const ckPin=t=>{ if(!hasCk(t))return; const ck={}; ckItems(t).forEach(c=>{const 
 async function ckApply(slug,code,cur,el){
   let l=L(slug), t=l&&v3Task(l,code); if(!l||!t||!hasCk(t))return false;
   const items=ckItems(t), all=items.map(c=>cur[c.k]||"o"), gi=items.map((c,ix)=>c.opt?-1:ix).filter(ix=>ix>=0);
-  // 只有擋關項決定整格（包裝不擋關）；「真的做了」看全部項目 —— 擋關項全跳過、包裝也沒做 ⇒ 整格跳過
+  // 只有擋關項決定整格（opt 項不算；目前四項都擋關）；「真的做了」看全部項目 —— 擋關項全跳過、也沒有任何一項真的做 ⇒ 整格跳過
   const resolved=gi.every(ix=>all[ix]!=="o"), anyX=all.some(s=>s==="x"), allSkip=resolved&&!anyX;
   const wasX=t.st==="x";
   // 已完成的整格：只有「這一下新冒出來的未做項」才退回整格。遷移帶進來的舊未做項（例：包材當時還沒定稿）原本就
   // 掛在完成的格子上，處理別的項目時不該因為它把整格連同下游一起退回（審查 M1）。
   const openBefore=new Set(items.filter(c=>ckSt(t,c.k)==="o").map(c=>c.k));
-  const reopen=wasX&&gi.some(ix=>all[ix]==="o"&&!openBefore.has(items[ix].k));   // 不擋關的包裝改回未做不會退回整格
+  const reopen=wasX&&gi.some(ix=>all[ix]==="o"&&!openBefore.has(items[ix].k));   // 只看擋關項新冒出的未做（遷移帶進來、本來就掛著的未做項不觸發）
   if(reopen){   // 下游先確認（同 stepStatus 離開完成）
     const g=await guardReopen(l,t,el); if(!g.ok)return false;
     l=L(slug); t=l&&v3Task(l,code); if(!l||!t)return false;   // re-resolve：確認框開著時遠端快照可能重建過 LAUNCHES
