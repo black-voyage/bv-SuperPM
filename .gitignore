@@ -25,3 +25,6 @@ ingest/*.log
 
 # impeccable skill local config / hooks
 .impeccable/
+
+# local rules backups (kept on disk, not in version control)
+firestore.rules.bak-*

@@ -1,12 +1,42 @@
 rules_version = '2';
-// BV SuperPM (project bv-superpm). Access policy: ANY signed-in Google user may read/write the board.
-// The app loads board data only AFTER sign-in (startBoardSync), so the initial read is authenticated.
-// Unauthenticated callers (e.g. raw REST with the public web apiKey) are rejected.
-// NOTE: the shared BV Data Core is a SEPARATE project (bv-second-brain) with its own rules — unaffected by this file.
+// BV SuperPM (project bv-superpm).
+//
+// CHANGE vs the current live rules: adds a `creator_portal` collection that is
+// PUBLIC-READ (creators open the brief without signing in) and WRITE-RESTRICTED to
+// verified @blackvoyage.com / @blackvoyageusa.com addresses.
+//
+// The SuperPM board keeps its existing behaviour (any signed-in Google user) for every
+// other collection. The `col != 'creator_portal'` guard is what stops the broad board
+// rule from re-opening write access to the portal.
+//
+// NOTE: the shared BV Data Core is a SEPARATE project (bv-second-brain) with its own
+// rules — unaffected by this file.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+
+    function bvStaff() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower().matches('.*@(blackvoyage|blackvoyageusa)[.]com');
+    }
+
+    // --- Creator Portal -------------------------------------------------
+    match /creator_portal/{docId=**} {
+      allow read: if true;
+      allow write: if bvStaff();
+    }
+
+    // --- Creator Portal, internal ---------------------------------------
+    // Source-document links. Not public-read, and never built into the page.
+    match /creator_portal_internal/{docId=**} {
+      allow read, write: if bvStaff();
+    }
+
+    // --- SuperPM board (unchanged behaviour) ----------------------------
+    match /{col}/{document=**} {
+      allow read, write: if request.auth != null
+        && col != 'creator_portal'
+        && col != 'creator_portal_internal';
     }
   }
 }
