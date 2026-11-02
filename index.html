@@ -3311,11 +3311,24 @@ let USAGE=null, USAGE_LOADING=false;   // spend/usage history, aggregated on dem
 let KNOWLEDGE={catalog:[],memory:[],tech:[],series:[],materials:[],hardware:[],glossary:[],competitors:[],brand_docs:[],product_docs:[],images:[],productImages:[],brandAssets:[],skills:[],docs:[],personas:[],insights:[],jobs_to_be_done:[],differentiation:[],audience_segments:[],category_entry_points:[],review_praise:[],review_objections:[],brand_elements:[]};  // shared knowledge base (BV Data Core) + skills + docs + customer/strategy graph
 function fbConfigured(){return !!(FIREBASE_CONFIG&&FIREBASE_CONFIG.projectId);}
 function fbStatus(txt,color){const el=document.getElementById("fbsync"); if(el){el.textContent=txt; el.style.color=color||"var(--faint)";}}
+/* 相容模式（long-polling，2026-11-02 fix B）：部分網路／VPN／Proxy／防毒／瀏覽器擴充套件會切斷 Firestore 的 WebChannel 串流
+   （Console 看到 Listen/channel 400＋net::ERR_CONNECTION_CLOSED），看板永遠卡在「loading board…」。
+   ?lp=1 或 localStorage bv-lp==="1" → 兩個 Firestore 實例（bv-superpm、core＝bv-second-brain）都強制 long-polling；?lp=0 清除旗標並關閉。 */
+function fbLongPollWanted(){
+  try{ const m=location.search.match(/[?&]lp=([01])(?:&|$)/);
+    if(m&&m[1]==="0"){ localStorage.removeItem("bv-lp"); return false; }
+    if(m&&m[1]==="1") return true;
+    return localStorage.getItem("bv-lp")==="1";
+  }catch(e){ return /[?&]lp=1(?:&|$)/.test(location.search); }
+}
 function fbInit(){
   if(!fbConfigured()){fbStatus("",""); authGate(false); return;}   // unconfigured → don't lock anyone out
   if(!(window.firebase&&firebase.initializeApp&&firebase.firestore&&firebase.auth)){ setTimeout(fbInit,400); return; }
   try{
-    if(!firebase.apps||!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    FB.lp=fbLongPollWanted();
+    if(!firebase.apps||!firebase.apps.length){ firebase.initializeApp(FIREBASE_CONFIG);
+      // settings() 必須在這個實例第一次使用（下一行的 .collection()）之前呼叫
+      if(FB.lp){ try{ firebase.firestore().settings({experimentalForceLongPolling:true,merge:true}); }catch(e){ console.warn("[sync] long-polling settings failed (bv-superpm)",e); } } }
     FB.docRef=firebase.firestore().collection("bv").doc("superpm");
     FB.versRef=FB.docRef.collection("versions");
     try{ localStorage.removeItem("bv-superpm-rev"); }catch(e){}   // v1 rev 高水位已廢（會在混版本環境把全隊卡黃燈）——清掉殘留，別讓舊值復活
@@ -3323,9 +3336,10 @@ function fbInit(){
     try{ firebase.auth().onAuthStateChanged(onUser); }catch(e){ authGate(false); startBoardSync(); }  // hard sign-in gate; if auth is unavailable, still load the board
     // shared KNOWLEDGE base + cross-app MEMORY — read from the BV DATA CORE (bv-second-brain), a SEPARATE
     // Firebase project with OPEN read on these collections (no auth needed), so Core reads work pre-login.
-    let coreApp; try{ coreApp=firebase.app("core"); }catch(_){ coreApp=firebase.initializeApp(CORE_CONFIG,"core"); }
+    let coreApp; try{ coreApp=firebase.app("core"); }catch(_){ coreApp=firebase.initializeApp(CORE_CONFIG,"core");
+      if(FB.lp){ try{ coreApp.firestore().settings({experimentalForceLongPolling:true,merge:true}); }catch(e){ console.warn("[sync] long-polling settings failed (core)",e); } } }
     const cdb=coreApp.firestore(); FB.coreDb=cdb;
-    try{ fetch("https://bv-second-brain--bv-second-brain.us-east4.hosted.app/api/connect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({app:"superpm",project:"bv-superpm",version:"core-connect-2",role:"product dashboard"})}).catch(()=>{}); }catch(_){}  // register with the Core via REST (server Admin SDK; client writes are blocked by the locked Firestore rules)
+    // （2026-11-02 移除）原本這裡 POST /api/connect 向 Core 登記；該端點要求 token（401 needsToken）且沒有 CORS header，2026-07-18 起對所有人都失敗，只會在 Console 製造紅字。要恢復請等 second-brain 開放 CORS＋改用 ID token 驗證後再加回。
     cdb.collection("catalog").onSnapshot(qs=>{KNOWLEDGE.catalog=qs.docs.map(d=>d.data());}, e=>{});
     cdb.collection("memory").limit(500).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // shared cross-app memory
     cdb.collection("competitors").onSnapshot(qs=>{KNOWLEDGE.competitors=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});
@@ -3339,6 +3353,19 @@ function fbInit(){
 function startBoardSync(){
   if(FB.boardStarted||!FB.docRef) return; FB.boardStarted=true;
   if(!FB.serverSeen) syncGate(true);   // 首份伺服器快照抵達前擋互動（boot 空窗）；下方 !fromCache 分支與 err 回呼負責解除
+  // 15 秒逾時（2026-11-02 fix B）：連線層錯誤（Listen 400／連線被切斷）SDK 只會默默重試、不會觸發下方 err 回呼，燈號會永遠卡黃。
+  // 到點仍沒收到伺服器快照 → 亮紅燈；若尚未在相容模式，詢問是否設 bv-lp 旗標並以 long-polling 重新整理。之後快照一到，「live (shared)」照常把燈刷回綠。
+  setTimeout(()=>{ if(FB.serverSeen||FB.stale) return;
+    const zh=LANG==="zh";
+    fbStatus(zh?"● 無法連上共享看板（網路擋住即時通道）":"● can't reach shared board (network blocking realtime channel)","var(--red)");
+    if(FB.lp||FB._lpPrompted) return; FB._lpPrompted=true;
+    (async()=>{ try{
+      const ok=await uiConfirm(zh?"無法連上共享看板\n\n你的網路（VPN、Proxy、防毒軟體或瀏覽器擴充套件）似乎擋住了即時同步通道。要切換到相容模式（long-polling）並重新整理嗎？\n\n之後可在網址加上 ?lp=0 關閉相容模式。":"Can't reach the shared board\n\nYour network (VPN, proxy, antivirus or a browser extension) seems to block the realtime sync channel. Switch to compatibility mode (long-polling) and reload?\n\nYou can turn it off later by adding ?lp=0 to the URL.",false);
+      if(!ok) return;
+      try{ localStorage.setItem("bv-lp","1"); }catch(e){}
+      const u=new URL(location.href); u.searchParams.delete("lp"); location.replace(u.toString());   // 去掉 ?lp=0，免得重整後又把旗標清掉
+    }catch(e){} })();
+  },15000);
   try{
     FB.docRef.collection("activity").orderBy("ts","desc").limit(80).onSnapshot(qs=>{ ACTIVITY=qs.docs.map(d=>d.data()); const dr=document.getElementById("drawer"); if(dr&&dr.classList&&dr.classList.contains("openD"))renderDrawer(); }, e=>{});  // shared attributed feed
     FB.docRef.onSnapshot(snap=>{
