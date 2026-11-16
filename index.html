@@ -2814,20 +2814,95 @@ function viewDigest(){
 }
 
 /* ----- new launch intake ----- */
-async function newLaunch(tpl){
-  const upd=tpl==="update";
-  const name=await uiPrompt(upd?(LANG==="zh"?"要更新哪個產品？（產品名稱）":"Which product is being updated? (product name)"):"Product name?"); if(!name)return;
+// pre＝?new= 預填連結解析結果（cardIdsFromUrl）；沒給＝原本的手動開卡，行為與改版前完全相同
+async function newLaunch(tpl,pre){
+  const upd=tpl==="update", zh=LANG==="zh";
+  let name;
+  if(pre){
+    const dup=cardIdDup(pre);
+    if(dup){toast(zh?"⚠️ 已有同一產品＋MO 的卡「"+dup.name+"」，已幫你打開":"⚠️ A card for this product + MO already exists — opened it");openL(dup.slug);return;}
+    // 確認框：名稱可改，其餘欄位照連結（建立後可在卡片詳細頁「🔗」編輯）
+    name=await uiModal({kind:"prompt",title:upd?(zh?"建立產品更新卡":"Create product-update card"):(zh?"建立新品上市卡":"Create new-launch card"),
+      message:cardIdSummary(pre),value:pre.name||"",okLabel:zh?"建立":"Create"});
+    name=(name||"").trim();
+  } else name=await uiPrompt(upd?(LANG==="zh"?"要更新哪個產品？（產品名稱）":"Which product is being updated? (product name)"):"Product name?");
+  if(!name)return;
   const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
   if(!slug||L(slug)){toast("A launch with that name already exists");return;}
   const nl={name,slug,dri:"Product",stage:STAGES[0],target:"",   // DRI defaults silently — the field feeds push-permissions; no longer prompted on create
     history:[{stage:STAGES[0],start:today}],tasks:allTasks({},tpl),risks:[],
     checkins:[{d:today,a:"system",txt:upd?"Card created from the product-update flow. Tick Update intake (U0) to start the clock.":"Card created from the Shopify flow. Fill the intake Form (C1) to unlock the pipeline."}]};
   if(upd)nl.tpl="update";   // absent = launch, so pre-tpl snapshots stay byte-identical
-  LAUNCHES.push(nl); syncProjected(nl);   // 預計上市日改由「送出日＋任務天數」自動推算，不再手填目標日
+  if(pre)cardIdApply(nl,pre);   // product_id／mo／vault：只存合格值；沒有就不加鍵（舊卡快照位元組不變）
+  LAUNCHES.push(nl);
+  if(pre&&pre.fabs.length){ pre.fabs.forEach(n=>fabAddTo(nl,n)); fabRollAll(nl); v3Advance(nl); }   // 同 v3FabAdd 的收尾
+  syncProjected(nl);   // 預計上市日改由「送出日＋任務天數」自動推算，不再手填目標日
   log((upd?"🔁 Product update started: ":"🆕 New launch created: ")+name);
   toast(upd?(LANG==="zh"?"🔁 "+name+" 產品更新已建立 —— 勾「更新需求表（U0）」開始起算":"🔁 "+name+" update card created — tick Update intake (U0) to start")
            :(LANG==="zh"?"🆕 "+name+" 已建立 —— 填寫 intake Form 以解鎖流程":"🆕 "+name+" created — fill the intake Form to unlock the pipeline")); openL(slug);
   createLaunchFolder(slug); // also create a matching folder inside the shared "BV SuperPM" Drive folder
+}
+
+/* ----- 卡片 ↔ vault 產品身分（2026-11-14 方案 C，products_info/ops/plans/single-entry-plan.md）-----
+   卡上三個選填欄位：product_id（產品級、不含 MO，例 ostro）、mo（數字字串，例 "1"）、vault（vault 檔路徑，例 1-Projects/Ostro-MO1.md）。
+   來源：products_assistant「新建產品」skill 印出的預填連結 ?new=launch|update&name=&pid=&mo=&vault=&fabs=（面料以 | 分隔），
+   開頁後跳確認框、按「建立」才走 newLaunch 原本的建卡＋存檔路徑——不新增任何背景寫入。舊卡可在詳細頁「🔗」補填。
+   格式白名單與 launch-sheet-sync.gs（輸出到 SuperPMStages）一致：不合格的值不存。 */
+const CARD_PID_RE=/^[a-z0-9]+(?:-[a-z0-9]+)*$/, CARD_MO_RE=/^[1-9][0-9]{0,2}$/, CARD_VAULT_RE=/^(?:1-Projects|4-Archive)\/[^\/\\]+\.md$/;
+function cardIdClean(o){
+  const s=v=>String(v==null?"":v).trim(), pid=s(o.product_id).toLowerCase(), mo=s(o.mo).replace(/^mo/i,""), vault=s(o.vault);
+  return {product_id:CARD_PID_RE.test(pid)?pid:"",mo:CARD_MO_RE.test(mo)?mo:"",vault:CARD_VAULT_RE.test(vault)?vault:""};
+}
+function cardIdApply(l,o){   // 寫入合格值；空值＝刪鍵
+  const c=cardIdClean(o);
+  ["product_id","mo","vault"].forEach(k=>{ if(c[k])l[k]=c[k]; else if(k in l)delete l[k]; });
+}
+function cardIdDup(o){ const c=cardIdClean(o); return c.product_id&&c.mo?LAUNCHES.find(l=>l.product_id===c.product_id&&l.mo===c.mo)||null:null; }
+function cardIdSummary(o){
+  const zh=LANG==="zh", c=cardIdClean(o), bad=k=>String(o[k]||"").trim()&&!c[k];
+  const row=(k,lab)=>lab+"："+(c[k]||(bad(k)?(zh?"（格式不符，不會存）":"(invalid — not saved)"):"—"));
+  return [zh?"確認名稱後按「建立」。":"Confirm the name, then press Create.",
+    row("product_id","product_id"),row("mo","MO"),row("vault","vault"),
+    (zh?"面料：":"Fabrics: ")+(o.fabs&&o.fabs.length?o.fabs.join("、"):"—")].join("\n");
+}
+function cardIdsFromUrl(){
+  try{ const q=new URLSearchParams(location.search), k=q.get("new");
+    if(k!=="launch"&&k!=="update")return null;
+    return {tpl:k,name:(q.get("name")||"").trim(),product_id:q.get("pid")||"",mo:q.get("mo")||"",vault:q.get("vault")||"",
+      fabs:(q.get("fabs")||"").split("|").map(s=>s.trim()).filter(Boolean)};
+  }catch(e){return null;}
+}
+// 等「已登入＋共享看板首份伺服器快照已套用＋沒有其他對話框」才開確認框：在快照前建卡會被雲端那份蓋掉（回朔）
+function newFromUrl(){
+  const pre=cardIdsFromUrl(); if(!pre||typeof document==="undefined")return;
+  const t0=Date.now();
+  const tick=()=>{
+    if(FB.stale)return;                                     // 舊版／套用失敗的分頁不建卡
+    if(!(ME&&FB.serverSeen)||uiModalOpen()){
+      if(Date.now()-t0<600000)setTimeout(tick,500);
+      else toast(LANG==="zh"?"⚠️ 預填連結未處理：共享看板沒有連上，請重新整理後再點一次連結":"⚠️ Prefill link not handled — board never connected; reload and open the link again");
+      return; }
+    try{ const u=new URL(location.href); ["new","name","pid","mo","vault","fabs"].forEach(k=>u.searchParams.delete(k)); history.replaceState(null,"",u.toString()); }catch(e){}   // 重整不會再跳一次
+    newLaunch(pre.tpl==="update"?"update":undefined,pre);
+  };
+  tick();
+}
+async function editCardIds(slug){
+  const zh=LANG==="zh"; let l=L(slug); if(!l)return;
+  const ask=(lab,v,ph)=>uiModal({kind:"prompt",title:lab,message:zh?"留空＝清除此欄":"Leave blank to clear",value:v||"",placeholder:ph});
+  const pid=await ask(zh?"product_id（產品級、不含 MO）":"product_id (product level, no MO)",l.product_id,"ostro"); if(pid===null)return;
+  const mo=await ask("MO（數字）",l.mo,"1"); if(mo===null)return;
+  const vault=await ask(zh?"vault 檔路徑":"vault file path",l.vault,"1-Projects/Ostro-MO1.md"); if(vault===null)return;
+  const want={product_id:pid,mo,vault}, c=cardIdClean(want);
+  const bad=["product_id","mo","vault"].filter(k=>String(want[k]).trim()&&!c[k]);
+  if(bad.length){toast((zh?"⚠️ 格式不符，未儲存：":"⚠️ Invalid, not saved: ")+bad.join(", "));return;}
+  l=L(slug); if(!l)return;   // re-resolve：對話框開著時遠端快照可能已重建 LAUNCHES
+  const before=[l.product_id||"",l.mo||"",l.vault||""].join(" · ");
+  cardIdApply(l,want);
+  const after=[l.product_id||"",l.mo||"",l.vault||""].join(" · ");
+  if(before===after){toast("No changes");return;}
+  l.checkins.unshift({d:today,a:actor(),txt:`Edited: product link “${before}” → “${after}”.`});
+  log("🔗 Product link edited: "+l.name); save(); render(); toast("🔗 Updated");
 }
 
 /* ----- Google: per-user sign-in + create Sheet/Doc as the signed-in user, auto-shared -----
@@ -3165,16 +3240,17 @@ function signInUser(){
   if(!(window.firebase&&firebase.auth)){ authGate(true,"Still loading — try again in a second."); return; }
   const btn=document.getElementById("authgateBtn"); if(btn){btn.disabled=true;btn.textContent="Opening Google…";}
   const prov=new firebase.auth.GoogleAuthProvider(); prov.setCustomParameters({prompt:"select_account"});
-  firebase.auth().signInWithPopup(prov).catch(err=>{
+  firebase.auth().signInWithPopup(prov).then(r=>connectCoreSilently(r&&r.credential)).catch(err=>{
     authGate(true, (err&&err.code==="auth/popup-blocked")?"Pop-up blocked — allow pop-ups for this site and retry.":((err&&err.message)||"Sign-in failed — try again."));
     if(btn){btn.disabled=false;btn.textContent="Sign in with Google";}
   });
 }
-function signOutUser(){ try{ firebase.auth().signOut(); }catch(e){} }
+function signOutUser(){ try{ firebase.auth().signOut(); }catch(e){} try{ if(FB.coreApp) FB.coreApp.auth().signOut(); }catch(e){} }   // Core 登入一起登出
 function onUser(u){
   if(u){ ME={uid:u.uid,email:u.email||"",name:u.displayName||"",photo:u.photoURL||""};
     authGate(false); startBoardSync(); firstRunName(u); saveUserProfile(); applyMyRoleToView(); applyDeptLens(); renderWhoami(); renderGAuth(); try{render();}catch(e){}
-  } else { ME=null; const b=document.getElementById("authgateBtn"); if(b){b.disabled=false;b.textContent="Sign in with Google";} authGate(true,""); renderWhoami(); }
+    if(FB.coreAuthResolved&&!FB.coreStarted) coreConnectUI(true);   // Core 還沒連上 → 顯示連線按鈕（Core 先連上的話 onCoreUser 會收掉）
+  } else { ME=null; const b=document.getElementById("authgateBtn"); if(b){b.disabled=false;b.textContent="Sign in with Google";} authGate(true,""); renderWhoami(); coreConnectUI(false); }
 }
 function firstRunName(u){
   if(USERNAME) return;                       // already have a display name on this device
@@ -3335,18 +3411,55 @@ function fbInit(){
     FB.ready=true; fbStatus("◍ connecting…","var(--amber)");
     try{ firebase.auth().onAuthStateChanged(onUser); }catch(e){ authGate(false); startBoardSync(); }  // hard sign-in gate; if auth is unavailable, still load the board
     // shared KNOWLEDGE base + cross-app MEMORY — read from the BV DATA CORE (bv-second-brain), a SEPARATE
-    // Firebase project with OPEN read on these collections (no auth needed), so Core reads work pre-login.
+    // Firebase project. 2026-11-12 起 Core 規則收緊為「已驗證 @blackvoyage.com 才能讀」（原本這些集合公開讀、未登入就讀）。
+    // Core 有自己的 Firebase Auth：登入 bv-superpm ≠ 登入 Core。所以 Core 監聽改成「Core 端有公司帳號」才掛（startCoreSync），
+    // FB.coreDb 也延後到那時才設——loadChatKnowledge／品質回報都用 FB.coreDb 判斷是否已連上 Core，沒連上就照舊走退路。
     let coreApp; try{ coreApp=firebase.app("core"); }catch(_){ coreApp=firebase.initializeApp(CORE_CONFIG,"core");
       if(FB.lp){ try{ coreApp.firestore().settings({experimentalForceLongPolling:true,merge:true}); }catch(e){ console.warn("[sync] long-polling settings failed (core)",e); } } }
-    const cdb=coreApp.firestore(); FB.coreDb=cdb;
+    FB.coreApp=coreApp;
     // （2026-11-02 移除）原本這裡 POST /api/connect 向 Core 登記；該端點要求 token（401 needsToken）且沒有 CORS header，2026-07-18 起對所有人都失敗，只會在 Console 製造紅字。要恢復請等 second-brain 開放 CORS＋改用 ID token 驗證後再加回。
-    cdb.collection("catalog").onSnapshot(qs=>{KNOWLEDGE.catalog=qs.docs.map(d=>d.data());}, e=>{});
-    cdb.collection("memory").limit(500).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // shared cross-app memory
-    cdb.collection("competitors").onSnapshot(qs=>{KNOWLEDGE.competitors=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});
-    cdb.collection("brand_docs").onSnapshot(qs=>{KNOWLEDGE.brand_docs=qs.docs.map(d=>d.data());}, e=>{});  // brand bible / guidelines (chunked)
-    cdb.collection("product_docs").onSnapshot(qs=>{_pdCore=qs.docs.map(d=>d.data()); KNOWLEDGE.product_docs=_pdCore.length?_pdCore:_pdFb;}, e=>{});
-    ["tech","series","materials","hardware","glossary"].forEach(c=>cdb.collection(c).onSnapshot(qs=>{KNOWLEDGE[c]=qs.docs.map(d=>d.data());}, e=>{}));
+    try{ coreApp.auth().onAuthStateChanged(onCoreUser); }catch(e){ console.warn("[core] auth unavailable",e); }
   }catch(e){ fbStatus("● error","var(--red)"); }
+}
+/* ----- BV DATA CORE 登入（2026-11-12）-----
+   規則只放行已驗證 @blackvoyage.com。登入 SuperPM 的那次 popup 會把 Google credential 交給 connectCoreSilently 靜默換 Core 登入；
+   換不到（舊 session 沒有 credential、或 Core 不收這個 OAuth client）→ 右下角出現「連線 BV 知識庫」按鈕，點了才開 Core 自己的 popup
+   （popup 必須由點擊觸發，不能接在第一個 popup 後面自動開，否則會被瀏覽器擋）。Core 的登入狀態各自持久化，之後重整不用再點。 */
+function isBvEmail(e){ return /@blackvoyage\.com$/i.test(String(e||"")); }
+function onCoreUser(u){
+  FB.coreAuthResolved=true;
+  if(u&&u.emailVerified!==false&&isBvEmail(u.email)){ startCoreSync(); coreConnectUI(false); }
+  else { FB.coreStarted=false; FB.coreDb=null; coreConnectUI(!!ME); }   // 登出後舊監聽會收到 permission-denied 自行終止；再登入時重掛
+}
+function startCoreSync(){
+  if(FB.coreStarted||!FB.coreApp) return; FB.coreStarted=true;
+  const cdb=FB.coreApp.firestore(); FB.coreDb=cdb;
+  cdb.collection("catalog").onSnapshot(qs=>{KNOWLEDGE.catalog=qs.docs.map(d=>d.data());}, e=>{});
+  cdb.collection("memory").limit(500).onSnapshot(qs=>{KNOWLEDGE.memory=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});  // shared cross-app memory
+  cdb.collection("competitors").onSnapshot(qs=>{KNOWLEDGE.competitors=qs.docs.map(d=>Object.assign({id:d.id},d.data()));}, e=>{});
+  cdb.collection("brand_docs").onSnapshot(qs=>{KNOWLEDGE.brand_docs=qs.docs.map(d=>d.data());}, e=>{});  // brand bible / guidelines (chunked)
+  cdb.collection("product_docs").onSnapshot(qs=>{_pdCore=qs.docs.map(d=>d.data()); KNOWLEDGE.product_docs=_pdCore.length?_pdCore:_pdFb;}, e=>{});
+  ["tech","series","materials","hardware","glossary"].forEach(c=>cdb.collection(c).onSnapshot(qs=>{KNOWLEDGE[c]=qs.docs.map(d=>d.data());}, e=>{}));
+}
+async function connectCoreSilently(cred){   // 用 SuperPM 那次 popup 拿到的 Google credential 換 Core 登入；失敗就留給按鈕
+  const ca=FB.coreApp; if(!ca||!cred) return;
+  try{ await ca.auth().signInWithCredential(cred); }catch(e){ console.warn("[core] credential sign-in failed",e&&e.code); }
+}
+async function connectCorePopup(){          // 只能由點擊觸發
+  const ca=FB.coreApp; if(!ca) return;
+  const p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({prompt:"select_account",hd:"blackvoyage.com"});   // hd 只是選帳號提示，真正的關卡在規則
+  try{ const r=await ca.auth().signInWithPopup(p); if(r&&r.user&&!isBvEmail(r.user.email)){ toast(LANG==="zh"?"⚠️ BV 知識庫只接受 @blackvoyage.com 帳號":"⚠️ The BV knowledge base only accepts @blackvoyage.com accounts"); try{ await ca.auth().signOut(); }catch(_){} } }
+  catch(e){ if(e&&e.code!=="auth/popup-closed-by-user") toast((LANG==="zh"?"⚠️ 知識庫連線失敗：":"⚠️ Knowledge base sign-in failed: ")+((e&&e.code)||e)); }
+}
+function coreConnectUI(show){
+  let b=document.getElementById("coreconnect");
+  if(!show){ if(b) b.remove(); return; }
+  if(b) return;
+  b=document.createElement("button"); b.id="coreconnect"; b.className="btn";
+  b.style.cssText="position:fixed;right:16px;bottom:16px;z-index:60";   // 高於 #toast(50)、低於 .uimwrap(120)
+  b.textContent=LANG==="zh"?"🧠 連線 BV 知識庫":"🧠 Connect BV knowledge base";
+  b.title=LANG==="zh"?"AI 助手要讀公司知識庫（Core）需要另外用 @blackvoyage.com 登入一次":"The AI assistant needs a one-time @blackvoyage.com sign-in to read the company knowledge base (Core)";
+  b.onclick=()=>connectCorePopup(); document.body.appendChild(b);
 }
 // bv-superpm (THIS project) reads/writes start ONLY after sign-in, so the auth-required firestore.rules
 // don't reject the initial read. Called from onUser() when a user is present; idempotent.
@@ -4623,14 +4736,19 @@ async function v3FabAdd(slug){
   const l0=L(slug); if(!l0)return;
   const nm=await uiPrompt(LANG==="zh"?"面料名稱（例：330D Cordura）":"Fabric name (e.g. 330D Cordura)"); if(!nm||!nm.trim())return;
   const l=L(slug); if(!l)return;                       // re-resolve：對話框開著時遠端快照可能已重建 LAUNCHES，寫進舊物件會靜靜消失
-  const first=!hasFabs(l), f={id:fabNewId(l),n:nm.trim()};
+  const f=fabAddTo(l,nm.trim());
+  fabRollAll(l); v3Advance(l);
+  toast("🧵 "+(LANG==="zh"?("已新增面料「"+f.n+"」"):("Fabric added — "+f.n))); render();
+}
+// 加一條面料並掛好分支子狀態（v3FabAdd 與 ?new= 預填建卡共用；呼叫端負責 fabRollAll＋v3Advance）
+function fabAddTo(l,nm){
+  const first=!hasFabs(l), f={id:fabNewId(l),n:nm};
   (l.fabs=l.fabs||[]).push(f);
   // 第一條面料繼承這兩格既有的進度（那本來就是「這個產品」的生產狀態，不該歸零）；之後新增的面料從未開始起跑
   v3FabAll(l).forEach(c=>{const t=v3Task(l,c); if(!t)return; const s=fabMut(t,f.id);
     if(first){ s.st=t.skip?((t.skip==="p"||t.skip==="b")?t.skip:"o"):(t.st||"o");   // 跳過中：繼承跳過前的狀態（不是跳過的 x），否則取消跳過會被 fabRoll 彙總成「完成」
       ["startAt","doneAt","days","shipDate","arrivalDate"].forEach(k=>{ if(t.skip&&k==="doneAt")return; if(t[k]!=null&&t[k]!=="")s[k]=t[k]; }); }});
-  fabRollAll(l); v3Advance(l);
-  toast("🧵 "+(LANG==="zh"?("已新增面料「"+f.n+"」"):("Fabric added — "+f.n))); render();
+  return f;
 }
 async function v3FabRename(slug,fid){
   const l0=L(slug), f0=l0&&fabOf(l0,fid); if(!f0)return;
@@ -6687,10 +6805,14 @@ function viewLaunch(){
       ${l.driveFolderUrl?`<a class="ld-act" href="${l.driveFolderUrl}" target="_blank" title="${LANG==="zh"?"在共用的 BV SuperPM Drive 資料夾中開啟此上市案的資料夾":"Open this launch's folder in the shared BV SuperPM Drive folder"}">📁<span class="ld-act-t">${LANG==="zh"?"資料夾":"Folder"}</span></a>`:`<button class="ld-act" title="${LANG==="zh"?"在共用的 BV SuperPM Drive 資料夾中為此上市案建立資料夾（既有檔案留在原處，新檔案放這裡）":"Create a folder for this launch inside the shared BV SuperPM Drive folder (existing files stay where they are; new ones go here)"}" onclick="createLaunchFolder('${l.slug}')">📁<span class="ld-act-t">${LANG==="zh"?"資料夾":"Folder"}</span></button>`}
       <button class="ld-act danger" title="${LANG==="zh"?"刪除此上市案（可一併刪除其 Drive 資料夾）":"Delete this launch (and optionally its Drive folder)"}" onclick="deleteLaunch('${l.slug}')">🗑️<span class="ld-act-t">${LANG==="zh"?"刪除":"Delete"}</span></button>
     </div>`;
+  // 🔗 vault 產品身分（方案 C）：有就顯示 product_id · MO · vault，沒有就提示補填；點擊編輯
+  const ldLink=`<div class="ghostnote" style="margin-top:4px;cursor:pointer" role="button" tabindex="0" title="${T("卡片對應的 vault 產品（product_id／MO／vault 檔）—— vault 日期／階段同步優先用這裡；點擊編輯","the vault product this card tracks (product_id / MO / vault file) — vault date/stage sync uses this first; click to edit")}" onclick="editCardIds('${l.slug}')">🔗 `
+    +(l.product_id||l.vault?`<!--notx-->${esc(l.product_id||"—")} · MO ${esc(l.mo||"—")} · ${esc(l.vault||"—")}<!--/notx-->`:T("尚未連結 vault 產品 —— 點此填 product_id／MO／vault","not linked to a vault product — click to set product_id / MO / vault"))+`</div>`;
   return `${ldBack}
   <div class="ld-head">
     <div class="ld-head-main">
       <div class="ld-title-row">${ldId}</div>
+      ${ldLink}
     </div>
     ${ldActs}
   </div>
@@ -8926,6 +9048,7 @@ LAUNCHES.forEach(syncProjected);   // seed（無 localStorage 時不走 applySna
 loadVersions();
 fbInit();
 loadProjectsData();
+newFromUrl();   // ?new= 預填建卡連結（等登入＋首份伺服器快照後才跳確認框）
 if(typeof document!=="undefined"&&document.addEventListener){
   document.addEventListener("keydown",e=>{
     if(typeof uiModalOpen==="function"&&uiModalOpen())return;   // a modal owns the keyboard while open (Esc/Enter handled in capture phase); don't fire global shortcuts behind it
