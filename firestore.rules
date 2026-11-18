@@ -1,23 +1,40 @@
 rules_version = '2';
 // BV SuperPM (project bv-superpm).
 //
-// CHANGE vs the current live rules: adds a `creator_portal` collection that is
-// PUBLIC-READ (creators open the brief without signing in) and WRITE-RESTRICTED to
-// verified @blackvoyage.com / @blackvoyageusa.com addresses.
+// 2026-11-12 Phase 0 收緊（草稿，未部署）。基底＝**線上** ruleset 5682e1b3-07fa-4420-8c1c-085d2103e628
+// （2026-11-04 發布）。注意：在這之前 repo 裡的這個檔落後線上（少了 creator_portal_drafts、
+// creator_portal_versions、comparison_chart 三段，那些是別的 repo 部署上去的）；線上原文備份在
+// products_info/ops/backups/firestore-rules-bv-superpm-live-20261112.rules。
 //
-// The SuperPM board keeps its existing behaviour (any signed-in Google user) for every
-// other collection. The `col != 'creator_portal'` guard is what stops the broad board
-// rule from re-opening write access to the portal.
+// 相對線上的變更：
+//   1. 新增 bvMember()：已驗證 email 且是 @blackvoyage.com（不含 blackvoyageusa.com）。
+//   2. 看板（下方最後一段，含 bv/superpm 與所有子集合、product_docs、skills、quality_reports…）：
+//      原本「任何登入的 Google 帳號都能讀寫」→ 只有 bvMember() 能讀寫。
+//   3. creator_portal_internal / _drafts / _versions：讀改成 bvMember()；寫維持 bvStaff()（不動）。
+//   4. creator_portal、comparison_chart：維持公開讀（對外發布頁，creator 與外部訪客不登入就看），寫不動。
+//      這兩個是否也要收緊，見 products_info/ops/phase0/deploy-checklist.md 待決 D2。
+//
+// The `!col.matches(...)` guards stop the broad board rule from re-opening access to
+// the creator_portal* / comparison_chart* collections. It is a pattern rather than a
+// list so that any later creator_portal* collection is closed by default.
 //
 // NOTE: the shared BV Data Core is a SEPARATE project (bv-second-brain) with its own
-// rules — unaffected by this file.
+// rules — 草稿在 products_info/ops/phase0/bv-second-brain.firestore.rules。
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // 寫入用（不動）：公司兩個網域
     function bvStaff() {
       return request.auth != null
         && request.auth.token.email_verified == true
         && request.auth.token.email.lower().matches('.*@(blackvoyage|blackvoyageusa)[.]com');
+    }
+
+    // 讀取用（新）：只有 @blackvoyage.com
+    function bvMember() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower().matches('.*@blackvoyage[.]com');
     }
 
     // --- Creator Portal -------------------------------------------------
@@ -29,14 +46,40 @@ service cloud.firestore {
     // --- Creator Portal, internal ---------------------------------------
     // Source-document links. Not public-read, and never built into the page.
     match /creator_portal_internal/{docId=**} {
-      allow read, write: if bvStaff();
+      allow read: if bvMember();
+      allow write: if bvStaff();
     }
 
-    // --- SuperPM board (unchanged behaviour) ----------------------------
+    // --- Creator Portal, drafts -----------------------------------------
+    // Unpublished work in progress. Deliberately NOT a subcollection of creator_portal:
+    // that collection is public-read, and a subcollection would inherit it and leak
+    // unpublished copy to anyone with the URL.
+    match /creator_portal_drafts/{docId=**} {
+      allow read: if bvMember();
+      allow write: if bvStaff();
+    }
+
+    // --- Creator Portal, version history --------------------------------
+    // creator_portal_versions/<slug>/snapshots/<id>. Same reasoning as drafts: a
+    // snapshot is a full copy of the document, including copy that was never published.
+    match /creator_portal_versions/{docId=**} {
+      allow read: if bvMember();
+      allow write: if bvStaff();
+    }
+
+    // --- Comparison charts ----------------------------------------------
+    // ~/bv-comparison-chart. Public-read (the page renders for anyone with the
+    // URL), write-restricted to verified Black Voyage addresses.
+    match /comparison_chart/{docId=**} {
+      allow read: if true;
+      allow write: if bvStaff();
+    }
+
+    // --- SuperPM board：只有已驗證 @blackvoyage.com -------------------------
     match /{col}/{document=**} {
-      allow read, write: if request.auth != null
-        && col != 'creator_portal'
-        && col != 'creator_portal_internal';
+      allow read, write: if bvMember()
+        && !col.matches('creator_portal.*')
+        && !col.matches('comparison_chart.*');
     }
   }
 }

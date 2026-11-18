@@ -45,11 +45,14 @@
         else { fail("This brief has no saved content."); }
       }).catch(function(err){
         var code=(err&&err.code)||"";
-        if(code==="permission-denied"){ fail("You need to be signed in to view this brief.",'<button onclick="signIn()">Sign in with Google</button>'); }
+        // 2026-11-12 起看板資料只開放已驗證 @blackvoyage.com：已登入卻被拒＝用了非公司帳號
+        var cu=null; try{ cu=firebase.auth().currentUser; }catch(e){}
+        if(code==="permission-denied" && cu){ fail("This brief is only visible to @blackvoyage.com accounts (you're signed in as "+(cu.email||"another account")+").",'<button onclick="signIn()">Switch Google account</button>'); }
+        else if(code==="permission-denied"){ fail("You need to be signed in with your @blackvoyage.com account to view this brief.",'<button onclick="signIn()">Sign in with Google</button>'); }
         else { fail("Couldn't load the brief ("+(code||err&&err.message||"error")+"). Try again, or open it from the SuperPM 📋 Briefs panel.",'<button class="ghost" onclick="load()">Retry</button>'); }
       });
     }
-    window.signIn=function(){ try{ var p=new firebase.auth.GoogleAuthProvider(); firebase.auth().signInWithPopup(p).then(function(){ load(); }).catch(function(e){ fail("Sign-in failed: "+(e&&e.message||e)); }); }catch(e){ fail("Sign-in unavailable here — open the SuperPM dashboard, sign in, then reload this link."); } };
+    window.signIn=function(){ try{ var p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({prompt:"select_account"}); firebase.auth().signInWithPopup(p).then(function(){ load(); }).catch(function(e){ fail("Sign-in failed: "+(e&&e.message||e)); }); }catch(e){ fail("Sign-in unavailable here — open the SuperPM dashboard, sign in, then reload this link."); } };
     // Wait for the (shared, same-origin) auth session, then load. If it never resolves, try anyway.
     var loaded=false, go=function(){ if(loaded)return; loaded=true; load(); };
     try{ firebase.auth().onAuthStateChanged(function(){ go(); }); }catch(e){ go(); }
